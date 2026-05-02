@@ -6,6 +6,7 @@ import {
 import { getStats, getLatestMetrics, getAlerts } from '../api/client';
 import { useSocket } from '../hooks/useSocket';
 import type { DashboardStats, Metric, Alert } from '../api/types';
+import ExpandedChartsModal from '../components/ExpandedChartsModal';
 
 function StatCard({ label, value, color = 'text-primary' }: { label: string; value: string | number; color?: string }) {
   return (
@@ -138,6 +139,7 @@ export default function Dashboard() {
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [lastUpdated, setLastUpdated] = useState('Waiting for updates...');
   const [systemInfo, setSystemInfo] = useState({ cpu: 0, memory: 0, errorRate: 0 });
+  const [showExpandedCharts, setShowExpandedCharts] = useState(false);
 
   const loadData = useCallback(async () => {
     try {
@@ -243,8 +245,14 @@ export default function Dashboard() {
       {/* Charts Row 1: Multi-device response timeline + Status Distribution */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-6">
         {/* Multi-device Response Timeline — takes 2/3 width */}
-        <div className="xl:col-span-2 bg-surface-container-high rounded-xl p-4 border border-outline-variant/20">
-          <h3 className="text-sm font-headline font-bold mb-3 uppercase tracking-widest">Response Time per Device</h3>
+        <div 
+          className="xl:col-span-2 bg-surface-container-high rounded-xl p-4 border border-outline-variant/20 hover:border-primary/50 hover:shadow-[0_0_15px_rgba(217,253,58,0.1)] transition-all cursor-pointer group"
+          onClick={() => setShowExpandedCharts(true)}
+        >
+          <div className="flex justify-between items-center mb-3">
+            <h3 className="text-sm font-headline font-bold uppercase tracking-widest group-hover:text-primary transition-colors">Response Time per Device</h3>
+            <span className="material-symbols-outlined text-on-surface-variant group-hover:text-primary text-sm transition-colors">open_in_full</span>
+          </div>
           {trackedDevices.length === 0 ? (
             <p className="text-xs text-on-surface-variant text-center py-16">No device metrics yet</p>
           ) : (
@@ -475,6 +483,10 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+      
+      {showExpandedCharts && (
+        <ExpandedChartsModal metrics={historyMetrics} onClose={() => setShowExpandedCharts(false)} />
+      )}
     </div>
   );
 }
