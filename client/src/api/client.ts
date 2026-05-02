@@ -40,7 +40,7 @@ export const getMe = () =>
 export const getDevices = () =>
   api.get<ApiResponse<Device[]>>('/devices').then((r) => r.data);
 
-export const addDevice = (payload: { name: string; host: string; protocol: string; port: number; interval: number }) =>
+export const addDevice = (payload: { name: string; host: string; protocol: string; port: number; interval: number; snmpCommunity?: string; snmpVersion?: string }) =>
   api.post<ApiResponse<Device>>('/devices', payload).then((r) => r.data);
 
 export const deleteDevice = (id: number) =>
