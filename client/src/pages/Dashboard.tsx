@@ -379,53 +379,99 @@ export default function Dashboard() {
       {/* Bottom Row: Metrics + Alerts */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         {/* Latest Metrics */}
-        <div className="bg-surface-container-high rounded-xl p-4 border border-outline-variant/20">
-          <h3 className="text-sm font-headline font-bold mb-3 uppercase tracking-widest">Latest Metrics</h3>
+        <div className="bg-surface-container-high rounded-xl p-6 border border-outline-variant/20 flex flex-col shadow-lg">
+          <div className="flex items-center gap-2 mb-6">
+            <span className="material-symbols-outlined text-primary text-xl">speed</span>
+            <h3 className="text-sm font-headline font-bold uppercase tracking-widest text-on-surface">Latest Metrics</h3>
+          </div>
           <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead className="text-on-surface-variant">
-                <tr>
-                  <th className="text-left pb-2">Device</th>
-                  <th className="text-left pb-2">Protocol</th>
-                  <th className="text-left pb-2">Status</th>
-                  <th className="text-left pb-2">Response</th>
-                  <th className="text-left pb-2">Time</th>
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="text-[10px] uppercase tracking-widest text-on-surface-variant border-b border-outline-variant/20">
+                  <th className="pb-3 font-medium">Device</th>
+                  <th className="pb-3 font-medium">Protocol</th>
+                  <th className="pb-3 font-medium">Status</th>
+                  <th className="pb-3 font-medium text-right">Response</th>
+                  <th className="pb-3 font-medium text-right">Time</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="text-sm">
                 {metrics.slice(0, 15).map((m, i) => {
-                  const statusColor = m.status === 'down' ? 'text-error' : (m.status === 'warning' || m.status === 'degraded') ? 'text-amber-400' : 'text-primary';
+                  const isDown = m.status === 'down';
+                  const isWarn = m.status === 'warning' || m.status === 'degraded';
+                  const sc = isDown ? 'text-error bg-error/10 border-error/20' : isWarn ? 'text-amber-400 bg-amber-400/10 border-amber-400/20' : 'text-primary bg-primary/10 border-primary/20';
+                  const statusIcon = isDown ? 'cancel' : isWarn ? 'warning' : 'check_circle';
+                  
                   return (
-                    <tr key={m.id || i} className="border-t border-outline-variant/10">
-                      <td className="py-1.5">{m.device_name}</td>
-                      <td>{m.protocol || '-'}</td>
-                      <td className={statusColor}>{m.status}</td>
-                      <td>{m.response_time ?? '-'}ms</td>
-                      <td className="text-on-surface-variant">{new Date(m.timestamp || m.created_at).toLocaleTimeString()}</td>
+                    <tr key={m.id || i} className="border-b border-outline-variant/10 hover:bg-surface-container-highest/50 transition-colors group">
+                      <td className="py-3 font-headline font-semibold text-on-surface group-hover:text-primary transition-colors">{m.device_name}</td>
+                      <td className="py-3 text-on-surface-variant text-xs uppercase tracking-wider">
+                        <div className="flex items-center gap-1.5">
+                          <span className="material-symbols-outlined text-[14px] opacity-70">
+                            {m.protocol === 'ping' ? 'router' : m.protocol === 'http' || m.protocol === 'https' ? 'public' : m.protocol === 'system' ? 'memory' : 'hub'}
+                          </span>
+                          {m.protocol || '-'}
+                        </div>
+                      </td>
+                      <td className="py-3">
+                        <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border ${sc} text-[10px] font-bold uppercase tracking-widest`}>
+                          <span className="material-symbols-outlined text-[14px]">{statusIcon}</span>
+                          {m.status}
+                        </div>
+                      </td>
+                      <td className="py-3 text-right font-mono text-on-surface">{m.response_time ?? '-'}ms</td>
+                      <td className="py-3 text-right text-xs text-on-surface-variant font-mono">{new Date(m.timestamp || m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</td>
                     </tr>
                   );
                 })}
               </tbody>
             </table>
-            {metrics.length === 0 && <p className="text-xs text-on-surface-variant py-4 text-center">No metrics data yet</p>}
+            {metrics.length === 0 && (
+              <div className="flex flex-col items-center justify-center py-12 opacity-50">
+                <span className="material-symbols-outlined text-4xl mb-2">monitoring</span>
+                <p className="text-xs text-on-surface-variant uppercase tracking-widest">No metrics data yet</p>
+              </div>
+            )}
           </div>
         </div>
 
         {/* Active Alerts */}
-        <div className="bg-surface-container-high rounded-xl p-4 border border-outline-variant/20">
-          <h3 className="text-sm font-headline font-bold mb-3 uppercase tracking-widest">Active Alerts</h3>
-          <div className="space-y-2">
-            {alerts.length === 0 && <p className="text-xs text-on-surface-variant">No active alerts</p>}
-            {alerts.slice(0, 8).map((alert) => (
-              <div key={alert.id} className="flex items-center justify-between gap-3 p-3 rounded-lg border border-outline-variant/20 bg-surface-container-low">
-                <span className="text-xs">
-                  <span className={alert.severity === 'critical' ? 'text-error' : alert.severity === 'warning' ? 'text-amber-400' : 'text-primary'}>
-                    [{alert.severity.toUpperCase()}]
-                  </span>{' '}
-                  {alert.device_name || `Device ${alert.device_id}`}: {alert.message}
-                </span>
+        <div className="bg-surface-container-high rounded-xl p-6 border border-outline-variant/20 flex flex-col shadow-lg">
+          <div className="flex items-center gap-2 mb-6">
+            <span className="material-symbols-outlined text-error text-xl animate-pulse">notifications_active</span>
+            <h3 className="text-sm font-headline font-bold uppercase tracking-widest text-on-surface">Active Alerts</h3>
+            {alerts.length > 0 && (
+              <span className="ml-auto bg-error/20 text-error px-2 py-0.5 rounded-full text-[10px] font-bold">{alerts.length}</span>
+            )}
+          </div>
+          <div className="space-y-3">
+            {alerts.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 opacity-50 h-full">
+                <span className="material-symbols-outlined text-4xl mb-2 text-primary">check_circle</span>
+                <p className="text-xs text-on-surface-variant uppercase tracking-widest">All Systems Operational</p>
               </div>
-            ))}
+            ) : (
+              alerts.slice(0, 8).map((alert) => {
+                const isCritical = alert.severity === 'critical';
+                const isWarn = alert.severity === 'warning';
+                const color = isCritical ? 'text-error' : isWarn ? 'text-amber-400' : 'text-primary';
+                const bg = isCritical ? 'bg-error/10 border-error/30' : isWarn ? 'bg-amber-400/10 border-amber-400/30' : 'bg-primary/10 border-primary/30';
+                const icon = isCritical ? 'error' : isWarn ? 'warning' : 'info';
+
+                return (
+                  <div key={alert.id} className={`flex items-start gap-4 p-4 rounded-xl border ${bg} transition-all hover:brightness-110`}>
+                    <span className={`material-symbols-outlined ${color} mt-0.5`}>{icon}</span>
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-headline font-bold text-sm text-on-surface">{alert.device_name || `Device ${alert.device_id}`}</span>
+                        <span className="text-[10px] font-mono text-on-surface-variant">{new Date(alert.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                      </div>
+                      <p className="text-xs text-on-surface-variant font-body">{alert.message}</p>
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </div>
         </div>
       </div>
