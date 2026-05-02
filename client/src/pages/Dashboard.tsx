@@ -5,8 +5,9 @@ import {
 } from 'recharts';
 import { getStats, getLatestMetrics, getAlerts } from '../api/client';
 import { useSocket } from '../hooks/useSocket';
-import type { DashboardStats, Metric, Alert } from '../api/types';
+import type { DashboardStats, Metric, Alert, SystemInfo } from '../api/types';
 import ExpandedChartsModal from '../components/ExpandedChartsModal';
+import ResourceLoadModal from '../components/ResourceLoadModal';
 
 function StatCard({ label, value, color = 'text-primary' }: { label: string; value: string | number; color?: string }) {
   return (
@@ -138,8 +139,9 @@ export default function Dashboard() {
   const [historyMetrics, setHistoryMetrics] = useState<Metric[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [lastUpdated, setLastUpdated] = useState('Waiting for updates...');
-  const [systemInfo, setSystemInfo] = useState({ cpu: 0, memory: 0, errorRate: 0 });
+  const [systemInfo, setSystemInfo] = useState<{ cpu: number; memory: number; errorRate: number; raw?: SystemInfo }>({ cpu: 0, memory: 0, errorRate: 0 });
   const [showExpandedCharts, setShowExpandedCharts] = useState(false);
+  const [showResourceModal, setShowResourceModal] = useState(false);
 
   const loadData = useCallback(async () => {
     try {
@@ -163,9 +165,11 @@ export default function Dashboard() {
     const systemMetric = latest.find((x) => x.protocol === 'system');
     let cpu = Math.min(95, Math.round(avgResp / 6 + warn * 4));
     let memory = Math.min(95, Math.round(avgResp / 7 + down * 8 + 28));
+    let raw = undefined;
     if (systemMetric?.message) {
       try {
         const info = JSON.parse(systemMetric.message);
+        raw = info;
         if (info.cpu) cpu = Math.round(info.cpu.usage);
         if (info.memory) memory = Math.round(info.memory.percent);
       } catch { /* not JSON, use estimates */ }
@@ -174,6 +178,7 @@ export default function Dashboard() {
       cpu,
       memory,
       errorRate: Math.min(100, Math.round((down / total) * 100)),
+      raw
     });
   };
 
@@ -342,8 +347,14 @@ export default function Dashboard() {
 
       {/* Charts Row 2: Resource Load */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-6">
-        <div className="bg-surface-container-high rounded-xl p-4 border border-outline-variant/20">
-          <h3 className="text-sm font-headline font-bold mb-3 uppercase tracking-widest">Resource Load</h3>
+        <div 
+          className="bg-surface-container-high rounded-xl p-4 border border-outline-variant/20 hover:border-primary/50 hover:shadow-[0_0_15px_rgba(217,253,58,0.1)] transition-all cursor-pointer group"
+          onClick={() => setShowResourceModal(true)}
+        >
+          <div className="flex justify-between items-center mb-3">
+            <h3 className="text-sm font-headline font-bold uppercase tracking-widest group-hover:text-primary transition-colors">Resource Load</h3>
+            <span className="material-symbols-outlined text-on-surface-variant group-hover:text-primary text-sm transition-colors">open_in_full</span>
+          </div>
           <div className="space-y-4 mt-6">
             <ResourceBar label="CPU" value={systemInfo.cpu} color="#d9fd3a" />
             <ResourceBar label="Memory" value={systemInfo.memory} color="#cbee29" />
@@ -486,6 +497,10 @@ export default function Dashboard() {
       
       {showExpandedCharts && (
         <ExpandedChartsModal metrics={historyMetrics} onClose={() => setShowExpandedCharts(false)} />
+      )}
+      
+      {showResourceModal && (
+        <ResourceLoadModal systemInfo={systemInfo} onClose={() => setShowResourceModal(false)} />
       )}
     </div>
   );
