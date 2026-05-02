@@ -1,0 +1,19 @@
+{
+  "name": "rayavriti-netmonitor",
+  "version": "0.1.0",
+  "description": "Rayavriti NetMonitor functional demo",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "nodemon server/index.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.8.1",
+    "express": "^4.21.2",
+    "ping": "^0.4.4",
+    "socket.io": "^4.8.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.10"
+  }
+}

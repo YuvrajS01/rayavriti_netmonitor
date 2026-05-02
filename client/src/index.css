@@ -1,0 +1,97 @@
+@import "tailwindcss";
+
+@theme {
+  --font-headline: "League Spartan", sans-serif;
+  --font-body: "Space Grotesk", sans-serif;
+  --font-label: "Space Grotesk", sans-serif;
+
+  --color-surface-container-highest: #26261d;
+  --color-surface-variant: #26261d;
+  --color-on-surface: #f4f1e6;
+  --color-surface-bright: #2d2d23;
+  --color-tertiary: #ff716a;
+  --color-surface-tint: #d9fd3a;
+  --color-secondary: #e5e2d8;
+  --color-on-secondary: #53524a;
+  --color-secondary-container: #484740;
+  --color-surface-container-high: #202018;
+  --color-surface-container-lowest: #000000;
+  --color-outline-variant: #494840;
+  --color-error-container: #b92902;
+  --color-tertiary-dim: #ff716a;
+  --color-outline: #77766d;
+  --color-primary-fixed: #d6fa37;
+  --color-secondary-dim: #d7d4cb;
+  --color-error: #ff7351;
+  --color-surface-container-low: #14140d;
+  --color-surface-container: #1a1a13;
+  --color-surface: #0e0e09;
+  --color-inverse-primary: #556600;
+  --color-primary: #d9fd3a;
+  --color-surface-dim: #0e0e09;
+  --color-primary-dim: #cbee29;
+  --color-on-tertiary: #490005;
+  --color-on-primary-container: #3f4d00;
+  --color-primary-container: #bde012;
+  --color-on-error: #450900;
+  --color-error-dim: #d53d18;
+  --color-background: #0e0e09;
+  --color-on-error-container: #ffd2c8;
+  --color-tertiary-container: #fd4e4d;
+  --color-on-primary: #4f5f00;
+  --color-on-secondary-container: #d3d0c7;
+  --color-on-surface-variant: #adaba1;
+  --color-on-background: #f4f1e6;
+  --color-inverse-surface: #fdf9ee;
+  --color-inverse-on-surface: #56554d;
+
+  --radius-DEFAULT: 0.25rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem;
+}
+
+@layer base {
+  body {
+    font-family: var(--font-body);
+    background-color: var(--color-background);
+    color: var(--color-on-surface);
+  }
+
+  ::selection {
+    background-color: color-mix(in srgb, var(--color-primary) 30%, transparent);
+    color: var(--color-primary);
+  }
+}
+
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  vertical-align: middle;
+}
+
+.neon-glow {
+  box-shadow: 0 0 20px rgba(217, 253, 58, 0.15), inset 0 0 10px rgba(217, 253, 58, 0.05);
+}
+
+.glass-panel {
+  background: rgba(38, 38, 29, 0.7);
+  backdrop-filter: blur(20px);
+}
+
+.ambient-glow-primary {
+  box-shadow: 0 0 30px rgba(217, 253, 58, 0.08);
+}
+
+.geometric-input:focus-within {
+  border-bottom: 2px solid #d9fd3a;
+  border-right: 2px solid #d9fd3a;
+}
+
+.particle-bg {
+  background-image: radial-gradient(#d9fd3a 1px, transparent 1px);
+  background-size: 40px 40px;
+  mask-image: radial-gradient(circle at center, black, transparent 80%);
+}
+
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: #0e0e09; }
+::-webkit-scrollbar-thumb { background: #26261d; }
