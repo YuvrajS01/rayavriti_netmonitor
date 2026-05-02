@@ -35,13 +35,13 @@ async function runJob(io, device) {
   const alert = evaluateAndCreateAlert(device, metric);
 
   const latest = {
-    deviceId: device.id,
-    deviceName: device.name,
+    device_id: device.id,
+    device_name: device.name,
     protocol: device.protocol,
-    sensorId: sensor?.id || null,
-    sensorName: sensor?.name || null,
+    sensor_id: sensor?.id || null,
+    sensor_name: sensor?.name || null,
     status: metric.status,
-    responseTime: metric.responseTime,
+    response_time: metric.responseTime,
     value: metric.value,
     message: metric.message,
     timestamp: new Date().toISOString()

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, type FormEvent } from 'react';
 import { getDevices, getLatestMetrics, addDevice, deleteDevice } from '../api/client';
 import type { Device, Metric } from '../api/types';
+import DeviceModal from '../components/DeviceModal';
 
 function statusOf(deviceId: number, metricsMap: Map<number, Metric>): string {
   return metricsMap.get(deviceId)?.status || 'unknown';
@@ -27,6 +28,7 @@ export default function Devices() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [showForm, setShowForm] = useState(false);
+  const [selectedDevice, setSelectedDevice] = useState<Device | null>(null);
 
   const load = useCallback(async () => {
     const [dRes, mRes] = await Promise.all([getDevices(), getLatestMetrics()]);
@@ -151,7 +153,11 @@ export default function Devices() {
           const sc = statusColor(status);
           const metric = metricsMap.get(device.id);
           return (
-            <div key={device.id} className={`bg-surface-container-low rounded-xl group overflow-hidden border border-transparent hover:${sc.border} transition-all duration-300 flex flex-col`}>
+            <div 
+              key={device.id} 
+              className={`bg-surface-container-low rounded-xl group overflow-hidden border border-transparent hover:${sc.border} transition-all duration-300 flex flex-col cursor-pointer`}
+              onClick={() => setSelectedDevice(device)}
+            >
               <div className="p-6">
                 <div className="flex justify-between items-start mb-6">
                   <div className={`bg-surface-container-highest p-3 rounded-lg ${sc.text}`}>
@@ -172,7 +178,10 @@ export default function Devices() {
               </div>
               <div className="mt-auto bg-surface-container-high p-4 flex justify-between items-center">
                 <span className="text-[10px] text-on-surface-variant uppercase">{metric ? new Date(metric.timestamp || metric.created_at).toLocaleTimeString() : 'No data'}</span>
-                <button onClick={() => handleDelete(device.id)} className="text-error text-[10px] font-bold uppercase tracking-widest hover:bg-error/10 px-2 py-1 rounded transition-colors">
+                <button 
+                  onClick={(e) => { e.stopPropagation(); handleDelete(device.id); }} 
+                  className="text-error text-[10px] font-bold uppercase tracking-widest hover:bg-error/10 px-2 py-1 rounded transition-colors"
+                >
                   Delete
                 </button>
               </div>
@@ -189,6 +198,16 @@ export default function Devices() {
           <p className="text-on-surface-variant text-xs max-w-[120px] mx-auto mt-2">Deploy a new probe or add an existing node</p>
         </div>
       </div>
+      {selectedDevice && (
+        <DeviceModal 
+          device={selectedDevice} 
+          onClose={() => setSelectedDevice(null)} 
+          onDeleted={() => {
+            setSelectedDevice(null);
+            load();
+          }}
+        />
+      )}
     </div>
   );
 }

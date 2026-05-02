@@ -50,6 +50,9 @@ export const deleteDevice = (id: number) =>
 export const getLatestMetrics = () =>
   api.get<ApiResponse<Metric[]>>('/metrics/latest').then((r) => r.data);
 
+export const getDeviceMetrics = (id: number, limit: number = 100) =>
+  api.get<ApiResponse<Metric[]>>(`/metrics/device/${id}?limit=${limit}`).then((r) => r.data);
+
 // Alerts
 export const getAlerts = (status: string = 'active', limit: number = 200) =>
   api.get<ApiResponse<Alert[]>>(`/alerts?status=${status}&limit=${limit}`).then((r) => r.data);

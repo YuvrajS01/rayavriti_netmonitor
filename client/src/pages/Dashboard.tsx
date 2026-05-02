@@ -134,6 +134,7 @@ function DonutCenter({ cx, cy, total }: { cx: number; cy: number; total: number 
 export default function Dashboard() {
   const [stats, setStats] = useState<DashboardStats>({ totalDevices: 0, onlineDevices: 0, offlineDevices: 0, warningDevices: 0, uptimePercent: 0, activeAlerts: 0, avgResponseTime: 0 });
   const [metrics, setMetrics] = useState<Metric[]>([]);
+  const [historyMetrics, setHistoryMetrics] = useState<Metric[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [lastUpdated, setLastUpdated] = useState('Waiting for updates...');
   const [systemInfo, setSystemInfo] = useState({ cpu: 0, memory: 0, errorRate: 0 });
@@ -145,6 +146,7 @@ export default function Dashboard() {
       ]);
       setStats(statsRes.data);
       setMetrics(metricsRes.data || []);
+      setHistoryMetrics(metricsRes.data || []);
       setAlerts(alertsRes.data || []);
       computeSystemInfo(metricsRes.data || []);
     } catch { /* handled by interceptor */ }
@@ -179,14 +181,24 @@ export default function Dashboard() {
     onBootstrap: (payload) => {
       const p = payload as { stats: DashboardStats; latestMetrics: Metric[]; alerts: Alert[] };
       if (p.stats) setStats(p.stats);
-      if (p.latestMetrics) { setMetrics(p.latestMetrics); computeSystemInfo(p.latestMetrics); }
+      if (p.latestMetrics) { 
+        setMetrics(p.latestMetrics); 
+        setHistoryMetrics(p.latestMetrics);
+        computeSystemInfo(p.latestMetrics); 
+      }
       if (p.alerts) setAlerts(p.alerts);
     },
     onMetricUpdate: (metric) => {
       setMetrics((prev) => {
-        const m = metric as Metric;
+        const m = metric as unknown as Metric;
         const updated = [m, ...prev.filter((x) => x.device_id !== m.device_id)];
         computeSystemInfo(updated);
+        return updated;
+      });
+      setHistoryMetrics((prev) => {
+        const m = metric as unknown as Metric;
+        const updated = [m, ...prev];
+        if (updated.length > 500) updated.pop();
         return updated;
       });
       setLastUpdated(`Updated ${new Date().toLocaleTimeString()}`);
@@ -200,7 +212,7 @@ export default function Dashboard() {
     },
   });
 
-  const { data: multiLineData, devices: trackedDevices } = buildMultiLineData(metrics);
+  const { data: multiLineData, devices: trackedDevices } = buildMultiLineData(historyMetrics);
   const donutData = buildDonutData(metrics);
   const donutTotal = donutData.reduce((s, d) => s + d.value, 0);
 
