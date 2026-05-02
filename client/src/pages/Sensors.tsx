@@ -1,5 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
-import { AreaChart, Area, XAxis, YAxis, ResponsiveContainer, Tooltip } from 'recharts';
+import {
+  BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, Legend, Cell,
+  RadarChart, PolarGrid, PolarAngleAxis, Radar,
+} from 'recharts';
 import { getLatestMetrics } from '../api/client';
 import type { Metric } from '../api/types';
 
@@ -38,6 +41,48 @@ function formatMessage(message: string, protocol: string): string {
   return message;
 }
 
+const TOOLTIP_STYLE = {
+  background: '#1a1a13',
+  border: '1px solid #494840',
+  borderRadius: '8px',
+  fontSize: '12px',
+  color: '#f4f1e6',
+};
+
+const KNOWN_PROTOCOLS = ['ping', 'http', 'https', 'port', 'system'];
+
+interface ProtocolBarPoint {
+  protocol: string;
+  Healthy: number;
+  Warning: number;
+  Down: number;
+}
+
+function buildProtocolBarData(metrics: Metric[]): ProtocolBarPoint[] {
+  const protos = Array.from(new Set(metrics.map((m) => m.protocol))).filter(Boolean);
+  return protos.map((proto) => {
+    const group = metrics.filter((m) => m.protocol === proto);
+    return {
+      protocol: proto.toUpperCase(),
+      Healthy: group.filter((m) => m.status === 'up' || m.status === 'ok').length,
+      Warning: group.filter((m) => m.status === 'warning' || m.status === 'degraded').length,
+      Down: group.filter((m) => m.status === 'down').length,
+    };
+  });
+}
+
+interface RadarPoint { subject: string; value: number; fullMark: number }
+
+function buildAvgResponseRadar(metrics: Metric[], protocols: string[]): RadarPoint[] {
+  return protocols.map((proto) => {
+    const group = metrics.filter((m) => m.protocol === proto && m.response_time != null);
+    const avg = group.length
+      ? Math.round(group.reduce((s, m) => s + (m.response_time || 0), 0) / group.length)
+      : 0;
+    return { subject: proto.toUpperCase(), value: avg, fullMark: 2000 };
+  });
+}
+
 export default function Sensors() {
   const [metrics, setMetrics] = useState<Metric[]>([]);
 
@@ -54,17 +99,16 @@ export default function Sensors() {
   const down = metrics.filter((m) => m.status === 'down').length;
   const healthPercent = total > 0 ? ((healthy / total) * 100).toFixed(1) : '0';
 
-  const chartData = metrics.slice(0, 40).reverse().map((m, i) => ({
-    name: i.toString(),
-    response: m.response_time || 0,
-  }));
+  const protocolBarData = buildProtocolBarData(metrics);
+  const activeProtocols = Array.from(new Set(metrics.map((m) => m.protocol))).filter(Boolean);
+  const radarData = buildAvgResponseRadar(metrics, activeProtocols);
 
   return (
     <div>
       {/* Header */}
       <header className="mb-12 flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div>
-          <h1 className="font-headline text-4xl font-black text-on-surface tracking-tight uppercase mb-2">Monitors & Sensors</h1>
+          <h1 className="font-headline text-4xl font-black text-on-surface tracking-tight uppercase mb-2">Monitors &amp; Sensors</h1>
           <p className="text-outline font-label max-w-xl">Real-time surveillance of network vital signs. All protocols operating.</p>
         </div>
         <div className="flex gap-4">
@@ -116,28 +160,49 @@ export default function Sensors() {
         </div>
       </div>
 
+      {/* Charts Row */}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-8">
+        {/* Protocol Health Stacked Bar — 2/3 */}
+        <div className="xl:col-span-2 bg-surface-container-low rounded-xl p-4 border border-outline-variant/10">
+          <h3 className="text-sm font-headline font-bold mb-3 uppercase tracking-widest">Protocol Health Breakdown</h3>
+          {protocolBarData.length === 0 ? (
+            <p className="text-xs text-on-surface-variant text-center py-16">No data yet</p>
+          ) : (
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={protocolBarData} margin={{ top: 4, right: 8, left: -20, bottom: 0 }} barSize={32}>
+                <XAxis dataKey="protocol" tick={{ fill: '#8a8a78', fontSize: 11 }} tickLine={false} axisLine={false} />
+                <YAxis tick={{ fill: '#8a8a78', fontSize: 10 }} tickLine={false} axisLine={false} allowDecimals={false} />
+                <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: 'rgba(255,255,255,0.03)' }} />
+                <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} formatter={(v) => <span style={{ color: '#c8c5b0' }}>{v}</span>} />
+                <Bar dataKey="Healthy" stackId="a" fill="#d9fd3a" radius={[0, 0, 0, 0]} />
+                <Bar dataKey="Warning" stackId="a" fill="#f59e0b" radius={[0, 0, 0, 0]} />
+                <Bar dataKey="Down" stackId="a" fill="#ff4444" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+
+        {/* Avg Response Radar — 1/3 */}
+        <div className="bg-surface-container-low rounded-xl p-4 border border-outline-variant/10">
+          <h3 className="text-sm font-headline font-bold mb-3 uppercase tracking-widest">Avg Response (ms) by Protocol</h3>
+          {radarData.length === 0 ? (
+            <p className="text-xs text-on-surface-variant text-center py-16">No data yet</p>
+          ) : (
+            <ResponsiveContainer width="100%" height={220}>
+              <RadarChart data={radarData} margin={{ top: 10, right: 20, left: 20, bottom: 10 }}>
+                <PolarGrid stroke="#494840" />
+                <PolarAngleAxis dataKey="subject" tick={{ fill: '#8a8a78', fontSize: 10 }} />
+                <Radar name="Avg ms" dataKey="value" stroke="#d9fd3a" fill="#d9fd3a" fillOpacity={0.2} strokeWidth={2} />
+                <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => [`${v}ms`, 'Avg Response']} />
+              </RadarChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+      </div>
+
       {/* Chart + Feed */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
         <div className="xl:col-span-2 space-y-6">
-          {/* Response Trend */}
-          <div className="bg-surface-container-low rounded-xl p-4 border border-outline-variant/10">
-            <h3 className="text-sm font-headline font-bold mb-2 uppercase">Response Trend</h3>
-            <ResponsiveContainer width="100%" height={220}>
-              <AreaChart data={chartData}>
-                <defs>
-                  <linearGradient id="sensorGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#d9fd3a" stopOpacity={0.35} />
-                    <stop offset="100%" stopColor="#d9fd3a" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <XAxis dataKey="name" hide />
-                <YAxis hide />
-                <Tooltip contentStyle={{ background: '#1a1a13', border: '1px solid #494840', borderRadius: '8px', fontSize: '12px', color: '#f4f1e6' }} />
-                <Area type="monotone" dataKey="response" stroke="#d9fd3a" fill="url(#sensorGrad)" strokeWidth={3} />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-
           {/* Active Sensor Feed */}
           <h2 className="font-headline text-xl font-bold uppercase tracking-tight px-2">Active Sensor Feed</h2>
           <div className="space-y-3">
@@ -180,14 +245,20 @@ export default function Sensors() {
           <div className="bg-surface-container-low p-6 rounded-xl border border-outline-variant/10">
             <h3 className="font-headline font-bold uppercase text-xs tracking-widest text-on-surface mb-6">Protocol Summary</h3>
             <div className="space-y-4 font-label">
-              {['ping', 'http', 'https', 'port', 'system'].map((proto) => {
+              {KNOWN_PROTOCOLS.map((proto) => {
                 const count = metrics.filter((m) => m.protocol === proto).length;
                 if (count === 0) return null;
-                const healthy = metrics.filter((m) => m.protocol === proto && (m.status === 'up' || m.status === 'ok')).length;
+                const h = metrics.filter((m) => m.protocol === proto && (m.status === 'up' || m.status === 'ok')).length;
+                const pct = Math.round((h / count) * 100);
                 return (
-                  <div key={proto} className="flex justify-between items-center">
-                    <span className="text-xs uppercase tracking-widest text-on-surface-variant">{proto}</span>
-                    <span className="text-xs font-bold text-primary">{healthy}/{count}</span>
+                  <div key={proto}>
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="text-xs uppercase tracking-widest text-on-surface-variant">{proto}</span>
+                      <span className="text-xs font-bold text-primary">{h}/{count}</span>
+                    </div>
+                    <div className="h-1.5 bg-surface-container-highest rounded-full">
+                      <div className="h-1.5 rounded-full bg-primary transition-all" style={{ width: `${pct}%` }} />
+                    </div>
                   </div>
                 );
               })}

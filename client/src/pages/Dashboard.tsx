@@ -1,5 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
-import { AreaChart, Area, XAxis, YAxis, ResponsiveContainer, Tooltip } from 'recharts';
+import {
+  LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip, Legend,
+  PieChart, Pie, Cell,
+} from 'recharts';
 import { getStats, getLatestMetrics, getAlerts } from '../api/client';
 import { useSocket } from '../hooks/useSocket';
 import type { DashboardStats, Metric, Alert } from '../api/types';
@@ -24,6 +27,107 @@ function ResourceBar({ label, value, color }: { label: string; value: number; co
         <div className="h-2 rounded transition-all duration-500" style={{ width: `${Math.min(100, value)}%`, background: color }} />
       </div>
     </div>
+  );
+}
+
+// 6 distinct neon-ish colors for multi-device lines
+const DEVICE_COLORS = ['#d9fd3a', '#ff7351', '#6ee7f7', '#c084fc', '#4ade80', '#fb923c'];
+
+const TOOLTIP_STYLE = {
+  background: '#1a1a13',
+  border: '1px solid #494840',
+  borderRadius: '8px',
+  fontSize: '12px',
+  color: '#f4f1e6',
+};
+
+interface MultiLinePoint {
+  time: string;
+  [deviceName: string]: string | number;
+}
+
+/** Build a per-device multi-line dataset from latest metrics list.
+ *  We use the metrics array which is ordered newest-first; we reverse it for the chart. */
+function buildMultiLineData(metrics: Metric[]): { data: MultiLinePoint[]; devices: string[] } {
+  // Group metrics by device, keeping only the last N readings per device
+  const byDevice = new Map<string, Metric[]>();
+  for (const m of metrics) {
+    const key = m.device_name || `Device ${m.device_id}`;
+    if (!byDevice.has(key)) byDevice.set(key, []);
+    byDevice.get(key)!.push(m);
+  }
+
+  // Take top 6 devices by recency
+  const devices = Array.from(byDevice.keys()).slice(0, 6);
+
+  // Build a unified time axis: take up to 20 time ticks from the first device
+  const primary = byDevice.get(devices[0]) ?? [];
+  const timeSlots = primary
+    .slice(0, 20)
+    .reverse()
+    .map((m) => new Date(m.timestamp || m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+
+  const data: MultiLinePoint[] = timeSlots.map((time, idx) => {
+    const point: MultiLinePoint = { time };
+    for (const dev of devices) {
+      const devMetrics = byDevice.get(dev) ?? [];
+      const reversed = [...devMetrics].slice(0, 20).reverse();
+      const m = reversed[idx];
+      if (m) point[dev] = m.response_time ?? 0;
+    }
+    return point;
+  });
+
+  return { data, devices };
+}
+
+const STATUS_COLORS: Record<string, string> = {
+  up: '#d9fd3a',
+  ok: '#d9fd3a',
+  warning: '#f59e0b',
+  degraded: '#f59e0b',
+  down: '#ff4444',
+  unknown: '#6b7280',
+};
+
+const STATUS_LABELS: Record<string, string> = {
+  up: 'Healthy',
+  warning: 'Warning',
+  down: 'Down',
+  unknown: 'Unknown',
+};
+
+interface DonutSlice { name: string; value: number; color: string }
+
+function buildDonutData(metrics: Metric[]): DonutSlice[] {
+  // Count unique devices (latest metric per device)
+  const byDevice = new Map<number, string>();
+  for (const m of metrics) byDevice.set(m.device_id, m.status);
+
+  const counts: Record<string, number> = { up: 0, warning: 0, down: 0, unknown: 0 };
+  for (const [, status] of byDevice) {
+    if (status === 'up' || status === 'ok') counts.up++;
+    else if (status === 'warning' || status === 'degraded') counts.warning++;
+    else if (status === 'down') counts.down++;
+    else counts.unknown++;
+  }
+
+  return Object.entries(counts)
+    .filter(([, v]) => v > 0)
+    .map(([name, value]) => ({
+      name: STATUS_LABELS[name] ?? name,
+      value,
+      color: STATUS_COLORS[name] ?? '#6b7280',
+    }));
+}
+
+/* Custom label for the donut centre */
+function DonutCenter({ cx, cy, total }: { cx: number; cy: number; total: number }) {
+  return (
+    <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle" fill="#f4f1e6">
+      <tspan x={cx} dy="-0.4em" fontSize="22" fontWeight="bold" fontFamily="'Space Grotesk', sans-serif">{total}</tspan>
+      <tspan x={cx} dy="1.4em" fontSize="10" fill="#8a8a78" fontFamily="'Space Grotesk', sans-serif">DEVICES</tspan>
+    </text>
   );
 }
 
@@ -52,7 +156,6 @@ export default function Dashboard() {
     const down = latest.filter((x) => x.status === 'down').length;
     const warn = latest.filter((x) => x.status === 'warning' || x.status === 'degraded').length;
     const avgResp = latest.reduce((s, x) => s + (x.response_time || 0), 0) / total;
-    // Check if any system collector returned JSON with real CPU/memory data
     const systemMetric = latest.find((x) => x.protocol === 'system');
     let cpu = Math.min(95, Math.round(avgResp / 6 + warn * 4));
     let memory = Math.min(95, Math.round(avgResp / 7 + down * 8 + 28));
@@ -97,11 +200,9 @@ export default function Dashboard() {
     },
   });
 
-  const chartData = metrics.slice(0, 20).reverse().map((m, i) => ({
-    name: i.toString(),
-    response: m.response_time || 0,
-    device: m.device_name,
-  }));
+  const { data: multiLineData, devices: trackedDevices } = buildMultiLineData(metrics);
+  const donutData = buildDonutData(metrics);
+  const donutTotal = donutData.reduce((s, d) => s + d.value, 0);
 
   return (
     <div>
@@ -127,38 +228,138 @@ export default function Dashboard() {
         <StatCard label="Active Alerts" value={stats.activeAlerts} color="text-error" />
       </div>
 
-      {/* Charts Row */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-6">
-        {/* Live Response Chart */}
-        <div className="bg-surface-container-high rounded-xl p-4 border border-outline-variant/20">
-          <h3 className="text-sm font-headline font-bold mb-3 uppercase tracking-widest">Live Response Time</h3>
-          <ResponsiveContainer width="100%" height={220}>
-            <AreaChart data={chartData}>
-              <defs>
-                <linearGradient id="responseGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#d9fd3a" stopOpacity={0.35} />
-                  <stop offset="100%" stopColor="#d9fd3a" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <XAxis dataKey="name" hide />
-              <YAxis hide />
-              <Tooltip
-                contentStyle={{ background: '#1a1a13', border: '1px solid #494840', borderRadius: '8px', fontSize: '12px', color: '#f4f1e6' }}
-                labelFormatter={() => ''}
-                formatter={(value: number, _: string, props: { payload: { device: string } }) => [`${value}ms`, props.payload.device]}
-              />
-              <Area type="monotone" dataKey="response" stroke="#d9fd3a" fill="url(#responseGrad)" strokeWidth={3} />
-            </AreaChart>
-          </ResponsiveContainer>
+      {/* Charts Row 1: Multi-device response timeline + Status Distribution */}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-6">
+        {/* Multi-device Response Timeline — takes 2/3 width */}
+        <div className="xl:col-span-2 bg-surface-container-high rounded-xl p-4 border border-outline-variant/20">
+          <h3 className="text-sm font-headline font-bold mb-3 uppercase tracking-widest">Response Time per Device</h3>
+          {trackedDevices.length === 0 ? (
+            <p className="text-xs text-on-surface-variant text-center py-16">No device metrics yet</p>
+          ) : (
+            <ResponsiveContainer width="100%" height={240}>
+              <LineChart data={multiLineData} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+                <XAxis
+                  dataKey="time"
+                  tick={{ fill: '#8a8a78', fontSize: 10 }}
+                  tickLine={false}
+                  axisLine={false}
+                  interval="preserveStartEnd"
+                />
+                <YAxis
+                  tick={{ fill: '#8a8a78', fontSize: 10 }}
+                  tickLine={false}
+                  axisLine={false}
+                  tickFormatter={(v) => `${v}ms`}
+                  width={48}
+                />
+                <Tooltip
+                  contentStyle={TOOLTIP_STYLE}
+                  formatter={(value: number, name: string) => [`${value}ms`, name]}
+                />
+                <Legend
+                  wrapperStyle={{ fontSize: 11, paddingTop: 8 }}
+                  formatter={(value) => <span style={{ color: '#c8c5b0' }}>{value}</span>}
+                />
+                {trackedDevices.map((dev, i) => (
+                  <Line
+                    key={dev}
+                    type="monotone"
+                    dataKey={dev}
+                    stroke={DEVICE_COLORS[i % DEVICE_COLORS.length]}
+                    strokeWidth={2}
+                    dot={false}
+                    activeDot={{ r: 4 }}
+                    connectNulls
+                  />
+                ))}
+              </LineChart>
+            </ResponsiveContainer>
+          )}
         </div>
 
-        {/* Resource Load */}
+        {/* Status Distribution Donut — 1/3 width */}
+        <div className="bg-surface-container-high rounded-xl p-4 border border-outline-variant/20 flex flex-col">
+          <h3 className="text-sm font-headline font-bold mb-3 uppercase tracking-widest">Status Distribution</h3>
+          {donutTotal === 0 ? (
+            <p className="text-xs text-on-surface-variant text-center my-auto py-8">No data yet</p>
+          ) : (
+            <div className="flex flex-col items-center justify-center flex-1">
+              <ResponsiveContainer width="100%" height={180}>
+                <PieChart>
+                  <Pie
+                    data={donutData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={54}
+                    outerRadius={78}
+                    paddingAngle={3}
+                    dataKey="value"
+                    labelLine={false}
+                  >
+                    {donutData.map((entry) => (
+                      <Cell key={entry.name} fill={entry.color} stroke="transparent" />
+                    ))}
+                    {/* SVG centre label via custom component trick */}
+                    <DonutCenter cx={0} cy={0} total={donutTotal} />
+                  </Pie>
+                  <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number, name: string) => [v, name]} />
+                </PieChart>
+              </ResponsiveContainer>
+              {/* Legend */}
+              <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 mt-2">
+                {donutData.map((d) => (
+                  <div key={d.name} className="flex items-center gap-1.5 text-xs">
+                    <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: d.color }} />
+                    <span className="text-on-surface-variant">{d.name}</span>
+                    <span className="font-bold text-on-surface">{d.value}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Charts Row 2: Resource Load */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-6">
         <div className="bg-surface-container-high rounded-xl p-4 border border-outline-variant/20">
           <h3 className="text-sm font-headline font-bold mb-3 uppercase tracking-widest">Resource Load</h3>
           <div className="space-y-4 mt-6">
             <ResourceBar label="CPU" value={systemInfo.cpu} color="#d9fd3a" />
             <ResourceBar label="Memory" value={systemInfo.memory} color="#cbee29" />
             <ResourceBar label="Error Rate" value={systemInfo.errorRate} color="#ff7351" />
+          </div>
+        </div>
+
+        {/* Avg Response by Status */}
+        <div className="bg-surface-container-high rounded-xl p-4 border border-outline-variant/20">
+          <h3 className="text-sm font-headline font-bold mb-3 uppercase tracking-widest">Avg Response by Status</h3>
+          <div className="space-y-3 mt-2">
+            {(['up', 'warning', 'down'] as const).map((s) => {
+              const statusMetrics = metrics.filter((m) => {
+                if (s === 'up') return m.status === 'up' || m.status === 'ok';
+                if (s === 'warning') return m.status === 'warning' || m.status === 'degraded';
+                return m.status === 'down';
+              });
+              const avg = statusMetrics.length
+                ? Math.round(statusMetrics.reduce((acc, m) => acc + (m.response_time || 0), 0) / statusMetrics.length)
+                : 0;
+              const label = s === 'up' ? 'Healthy' : s === 'warning' ? 'Warning' : 'Down';
+              const color = STATUS_COLORS[s];
+              const barMax = 2000; // ms reference
+              const barWidth = Math.min(100, (avg / barMax) * 100);
+              return (
+                <div key={s}>
+                  <div className="flex justify-between text-xs mb-1">
+                    <span style={{ color }}>{label} ({statusMetrics.length} device{statusMetrics.length !== 1 ? 's' : ''})</span>
+                    <span className="text-on-surface-variant">{avg}ms</span>
+                  </div>
+                  <div className="h-2 bg-surface-container-highest rounded">
+                    <div className="h-2 rounded transition-all duration-500" style={{ width: `${barWidth}%`, background: color }} />
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>
