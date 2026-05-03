@@ -9,8 +9,11 @@
   },
   "dependencies": {
     "better-sqlite3": "^11.8.1",
+    "cap": "^0.2.1",
     "express": "^4.21.2",
     "net-snmp": "^3.26.3",
+    "node-netflowv9": "^0.2.16",
+    "node-sflow": "^0.0.6",
     "ping": "^0.4.4",
     "socket.io": "^4.8.1"
   },

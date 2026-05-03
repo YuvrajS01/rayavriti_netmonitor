@@ -110,3 +110,93 @@ export interface SystemInfo {
   uptime: number;
   loadAvg: number[];
 }
+
+// ── Flow Analysis Types ──────────────────────────────────────
+
+export interface FlowRecord {
+  id: number;
+  collector_type: string;
+  src_ip: string;
+  dst_ip: string;
+  src_port: number;
+  dst_port: number;
+  protocol: number;
+  protocol_name: string;
+  bytes: number;
+  packets: number;
+  flow_start: string;
+  flow_end: string;
+  exporter_ip: string;
+  timestamp: string;
+}
+
+export interface TopTalker {
+  ip: string;
+  bytes: number;
+  bytesFormatted: string;
+  packets: number;
+  flows: number;
+  percentage: number;
+}
+
+export interface ProtocolBreakdown {
+  protocol_name: string;
+  protocol_number: number;
+  bytes: number;
+  bytesFormatted: string;
+  packets: number;
+  flows: number;
+  percentage: number;
+}
+
+export interface FlowStats {
+  totalFlows: number;
+  totalBytes: number;
+  totalBytesFormatted: string;
+  totalPackets: number;
+  uniqueSources: number;
+  uniqueDestinations: number;
+  activeCollectors: number;
+  collectorTypes: string[];
+}
+
+export interface FlowTimeseriesPoint {
+  timestamp: string;
+  totalBytes: number;
+  totalPackets: number;
+  flowCount: number;
+}
+
+// ── Packet Capture Types ─────────────────────────────────────
+
+export interface CaptureSession {
+  id: number;
+  interface_name: string;
+  filter: string | null;
+  status: 'running' | 'stopped' | 'error';
+  packet_count: number;
+  bytes_captured: number;
+  started_at: string;
+  stopped_at: string | null;
+  error_message: string | null;
+}
+
+export interface CapturedPacket {
+  no: number;
+  session_id: number;
+  src_ip: string;
+  dst_ip: string;
+  src_port: number;
+  dst_port: number;
+  protocol: string;
+  length: number;
+  payload_hex: string;
+  info: string;
+  timestamp: string;
+}
+
+export interface NetworkInterface {
+  name: string;
+  addresses: string[];
+  flags: string[];
+}

@@ -97,9 +97,47 @@ db.exec(`
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
+  CREATE TABLE IF NOT EXISTS flow_records (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    collector_type TEXT NOT NULL,
+    src_ip TEXT NOT NULL,
+    dst_ip TEXT NOT NULL,
+    src_port INTEGER,
+    dst_port INTEGER,
+    protocol INTEGER,
+    protocol_name TEXT,
+    bytes INTEGER DEFAULT 0,
+    packets INTEGER DEFAULT 0,
+    flow_start DATETIME,
+    flow_end DATETIME,
+    input_interface INTEGER,
+    output_interface INTEGER,
+    tcp_flags INTEGER,
+    tos INTEGER,
+    src_as INTEGER,
+    dst_as INTEGER,
+    exporter_ip TEXT,
+    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS capture_sessions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    interface_name TEXT NOT NULL,
+    filter TEXT,
+    status TEXT DEFAULT 'running',
+    packet_count INTEGER DEFAULT 0,
+    bytes_captured INTEGER DEFAULT 0,
+    started_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    stopped_at DATETIME,
+    error_message TEXT
+  );
+
   CREATE INDEX IF NOT EXISTS idx_metrics_device_time ON metrics(device_id, timestamp);
   CREATE INDEX IF NOT EXISTS idx_alerts_status ON alerts(status);
   CREATE INDEX IF NOT EXISTS idx_sensors_device ON sensors(device_id);
+  CREATE INDEX IF NOT EXISTS idx_flow_src_ip ON flow_records(src_ip, timestamp);
+  CREATE INDEX IF NOT EXISTS idx_flow_dst_ip ON flow_records(dst_ip, timestamp);
+  CREATE INDEX IF NOT EXISTS idx_flow_time ON flow_records(timestamp);
 `);
 
 ensureColumn('metrics', 'sensor_id', 'sensor_id INTEGER');
@@ -615,5 +653,185 @@ module.exports = {
       FROM api_keys
       WHERE key_hash = ?
     `).get(hashApiKey(rawKey));
+  },
+
+  // ── Flow Records ──────────────────────────────────────────────
+
+  insertFlowRecord: (record) => {
+    const stmt = db.prepare(`
+      INSERT INTO flow_records
+        (collector_type, src_ip, dst_ip, src_port, dst_port, protocol, protocol_name,
+         bytes, packets, flow_start, flow_end, input_interface, output_interface,
+         tcp_flags, tos, src_as, dst_as, exporter_ip)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    return stmt.run(
+      record.collector_type,
+      record.src_ip,
+      record.dst_ip,
+      record.src_port || null,
+      record.dst_port || null,
+      record.protocol || null,
+      record.protocol_name || null,
+      record.bytes || 0,
+      record.packets || 0,
+      record.flow_start || null,
+      record.flow_end || null,
+      record.input_interface || null,
+      record.output_interface || null,
+      record.tcp_flags || null,
+      record.tos || null,
+      record.src_as || null,
+      record.dst_as || null,
+      record.exporter_ip || null
+    );
+  },
+
+  insertFlowBatch: (records) => {
+    const stmt = db.prepare(`
+      INSERT INTO flow_records
+        (collector_type, src_ip, dst_ip, src_port, dst_port, protocol, protocol_name,
+         bytes, packets, flow_start, flow_end, input_interface, output_interface,
+         tcp_flags, tos, src_as, dst_as, exporter_ip)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    const tx = db.transaction((rows) => {
+      for (const r of rows) {
+        stmt.run(
+          r.collector_type, r.src_ip, r.dst_ip,
+          r.src_port || null, r.dst_port || null,
+          r.protocol || null, r.protocol_name || null,
+          r.bytes || 0, r.packets || 0,
+          r.flow_start || null, r.flow_end || null,
+          r.input_interface || null, r.output_interface || null,
+          r.tcp_flags || null, r.tos || null,
+          r.src_as || null, r.dst_as || null,
+          r.exporter_ip || null
+        );
+      }
+    });
+    tx(records);
+  },
+
+  getFlowRecords: ({ from, to, srcIp, dstIp, protocol, limit = 200 } = {}) => {
+    const clauses = [];
+    const params = [];
+    if (from) { clauses.push('timestamp >= ?'); params.push(from); }
+    if (to) { clauses.push('timestamp <= ?'); params.push(to); }
+    if (srcIp) { clauses.push('src_ip = ?'); params.push(srcIp); }
+    if (dstIp) { clauses.push('dst_ip = ?'); params.push(dstIp); }
+    if (protocol) { clauses.push('protocol_name = ?'); params.push(protocol); }
+    const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
+    return db.prepare(`
+      SELECT * FROM flow_records ${where}
+      ORDER BY timestamp DESC LIMIT ?
+    `).all(...params, Number(limit));
+  },
+
+  getTopTalkers: ({ from, to, limit = 10, direction = 'src' } = {}) => {
+    const ipCol = direction === 'dst' ? 'dst_ip' : 'src_ip';
+    const clauses = [];
+    const params = [];
+    if (from) { clauses.push('timestamp >= ?'); params.push(from); }
+    if (to) { clauses.push('timestamp <= ?'); params.push(to); }
+    const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
+    return db.prepare(`
+      SELECT ${ipCol} AS ip,
+             SUM(bytes) AS bytes,
+             SUM(packets) AS packets,
+             COUNT(*) AS flows
+      FROM flow_records ${where}
+      GROUP BY ${ipCol}
+      ORDER BY bytes DESC
+      LIMIT ?
+    `).all(...params, Number(limit));
+  },
+
+  getProtocolDistribution: ({ from, to } = {}) => {
+    const clauses = [];
+    const params = [];
+    if (from) { clauses.push('timestamp >= ?'); params.push(from); }
+    if (to) { clauses.push('timestamp <= ?'); params.push(to); }
+    const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
+    return db.prepare(`
+      SELECT protocol_name,
+             protocol,
+             SUM(bytes) AS bytes,
+             SUM(packets) AS packets,
+             COUNT(*) AS flows
+      FROM flow_records ${where}
+      GROUP BY COALESCE(protocol_name, protocol)
+      ORDER BY bytes DESC
+    `).all(...params);
+  },
+
+  getFlowTimeseries: ({ from, to, bucketMinutes = 5 } = {}) => {
+    const clauses = [];
+    const params = [];
+    if (from) { clauses.push('timestamp >= ?'); params.push(from); }
+    if (to) { clauses.push('timestamp <= ?'); params.push(to); }
+    const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
+    const bucketSeconds = Math.max(1, Number(bucketMinutes)) * 60;
+    return db.prepare(`
+      SELECT
+        datetime((cast(strftime('%s', timestamp) as integer) / ${bucketSeconds}) * ${bucketSeconds}, 'unixepoch') AS bucket_time,
+        SUM(bytes) AS total_bytes,
+        SUM(packets) AS total_packets,
+        COUNT(*) AS flow_count
+      FROM flow_records ${where}
+      GROUP BY bucket_time
+      ORDER BY bucket_time ASC
+      LIMIT 2000
+    `).all(...params);
+  },
+
+  getFlowStats: () => {
+    const row = db.prepare(`
+      SELECT
+        COUNT(*) AS total_flows,
+        COALESCE(SUM(bytes), 0) AS total_bytes,
+        COALESCE(SUM(packets), 0) AS total_packets,
+        COUNT(DISTINCT src_ip) AS unique_sources,
+        COUNT(DISTINCT dst_ip) AS unique_destinations
+      FROM flow_records
+    `).get();
+    const collectors = db.prepare(`
+      SELECT DISTINCT collector_type FROM flow_records
+    `).all().map((r) => r.collector_type);
+    const exporters = db.prepare(`
+      SELECT DISTINCT exporter_ip FROM flow_records WHERE exporter_ip IS NOT NULL
+    `).all().length;
+    return { ...row, activeCollectors: exporters, collectorTypes: collectors };
+  },
+
+  // ── Capture Sessions ──────────────────────────────────────────
+
+  createCaptureSession: (interfaceName, filter = null) => {
+    return db.prepare(`
+      INSERT INTO capture_sessions (interface_name, filter, status)
+      VALUES (?, ?, 'running')
+    `).run(interfaceName, filter);
+  },
+
+  stopCaptureSession: (id, packetCount = 0, bytesCaptured = 0, errorMessage = null) => {
+    return db.prepare(`
+      UPDATE capture_sessions
+      SET status = CASE WHEN ? IS NOT NULL THEN 'error' ELSE 'stopped' END,
+          packet_count = ?, bytes_captured = ?,
+          stopped_at = CURRENT_TIMESTAMP, error_message = ?
+      WHERE id = ?
+    `).run(errorMessage, packetCount, bytesCaptured, errorMessage, Number(id));
+  },
+
+  getCaptureSession: (id) => db.prepare('SELECT * FROM capture_sessions WHERE id = ?').get(Number(id)),
+
+  getCaptureSessions: (limit = 50) => db.prepare(
+    'SELECT * FROM capture_sessions ORDER BY started_at DESC LIMIT ?'
+  ).all(Number(limit)),
+
+  updateCaptureSessionStats: (id, packetCount, bytesCaptured) => {
+    return db.prepare(`
+      UPDATE capture_sessions SET packet_count = ?, bytes_captured = ? WHERE id = ?
+    `).run(packetCount, bytesCaptured, Number(id));
   }
 };

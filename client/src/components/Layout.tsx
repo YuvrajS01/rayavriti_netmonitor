@@ -9,6 +9,8 @@ const navItems = [
   { to: '/', label: 'Overview', icon: 'dashboard' },
   { to: '/devices', label: 'My Devices', icon: 'devices' },
   { to: '/sensors', label: 'Monitors & Sensors', icon: 'sensors' },
+  { to: '/flows', label: 'Flow Analysis', icon: 'swap_horiz' },
+  { to: '/capture', label: 'Packet Capture', icon: 'network_check' },
   { to: '/alerts', label: 'Alerts', icon: 'warning' },
   { to: '/reports', label: 'Reports', icon: 'analytics' },
   { to: '/settings', label: 'Settings', icon: 'settings' },

@@ -7,6 +7,12 @@ const { Server } = require('socket.io');
 const db = require('./services/database');
 const auth = require('./services/auth');
 const { startScheduler, clearJobs } = require('./services/scheduler');
+const { startNetflowCollector, stopNetflowCollector } = require('./collectors/netflow');
+const {
+  listInterfaces, startCapture, stopCapture,
+  getSessionPackets, getSessionStats, stopAllCaptures
+} = require('./collectors/packetCapture');
+const flowAnalyzer = require('./services/flowAnalyzer');
 
 const app = express();
 const server = http.createServer(app);
@@ -959,6 +965,103 @@ v1.get('/reports', (req, res) => {
   ]);
 });
 
+// ── Flow Analysis Routes ──────────────────────────────────────
+
+v1.get('/flows', (req, res) => {
+  const { from, to, srcIp, dstIp, protocol } = req.query;
+  const limit = Number(req.query.limit || 200);
+  const rows = db.getFlowRecords({ from, to, srcIp, dstIp, protocol, limit });
+  return sendOk(req, res, rows);
+});
+
+v1.get('/flows/top-talkers', (req, res) => {
+  const { from, to, direction } = req.query;
+  const limit = Number(req.query.limit || 10);
+  const data = flowAnalyzer.getTopTalkersWithPercent({ from, to, limit, direction });
+  return sendOk(req, res, data);
+});
+
+v1.get('/flows/protocols', (req, res) => {
+  const { from, to } = req.query;
+  const data = flowAnalyzer.getProtocolBreakdown({ from, to });
+  return sendOk(req, res, data);
+});
+
+v1.get('/flows/timeseries', (req, res) => {
+  const { from, to } = req.query;
+  const bucketMinutes = Number(req.query.bucketMinutes || 5);
+  const data = db.getFlowTimeseries({ from, to, bucketMinutes });
+  return sendOk(req, res, data.map((r) => ({
+    timestamp: r.bucket_time,
+    totalBytes: Number(r.total_bytes || 0),
+    totalPackets: Number(r.total_packets || 0),
+    flowCount: Number(r.flow_count || 0)
+  })));
+});
+
+v1.get('/flows/stats', (req, res) => {
+  const data = flowAnalyzer.getFlowSummary();
+  return sendOk(req, res, data);
+});
+
+// ── Packet Capture Routes ─────────────────────────────────────
+
+v1.get('/capture/interfaces', (req, res) => {
+  const interfaces = listInterfaces();
+  return sendOk(req, res, interfaces);
+});
+
+v1.post('/capture/start', (req, res) => {
+  const { interface: iface, filter } = req.body || {};
+  if (!iface) {
+    return sendError(req, res, 400, 'VALIDATION_ERROR', 'interface is required');
+  }
+  try {
+    const sessionId = startCapture(io, iface, filter || null);
+    const session = db.getCaptureSession(sessionId);
+    return sendOk(req, res, session, {}, 201);
+  } catch (err) {
+    return sendError(req, res, 500, 'CAPTURE_ERROR', err.message);
+  }
+});
+
+v1.post('/capture/:id/stop', (req, res) => {
+  const id = Number(req.params.id);
+  const stopped = stopCapture(io, id);
+  if (!stopped) {
+    return sendError(req, res, 404, 'RESOURCE_NOT_FOUND', 'Capture session not found or already stopped');
+  }
+  const session = db.getCaptureSession(id);
+  return sendOk(req, res, session);
+});
+
+v1.get('/capture/:id', (req, res) => {
+  const id = Number(req.params.id);
+  const session = db.getCaptureSession(id);
+  if (!session) {
+    return sendError(req, res, 404, 'RESOURCE_NOT_FOUND', 'Capture session not found');
+  }
+  const liveStats = getSessionStats(id);
+  return sendOk(req, res, {
+    ...session,
+    ...(liveStats ? { packet_count: liveStats.packetCount, bytes_captured: liveStats.bytesCaptured } : {})
+  });
+});
+
+v1.get('/capture/:id/packets', (req, res) => {
+  const id = Number(req.params.id);
+  const limit = Number(req.query.limit || 200);
+  const offset = Number(req.query.offset || 0);
+  const packets = getSessionPackets(id, { limit, offset });
+  return sendOk(req, res, packets);
+});
+
+v1.get('/capture/sessions', (req, res) => {
+  const limit = Number(req.query.limit || 50);
+  const sessions = db.getCaptureSessions(limit);
+  return sendOk(req, res, sessions);
+});
+
 app.post('/api/v1/auth/login', (req, res) => {
   const { username, password } = req.body || {};
   if (!username || !password) {
@@ -1025,9 +1128,12 @@ io.on('connection', (socket) => {
 server.listen(PORT, () => {
   console.log(`Rayavriti NetMonitor running on http://localhost:${PORT}`);
   startScheduler(io);
+  startNetflowCollector(io, Number(process.env.NETFLOW_PORT || 2055));
 });
 
 process.on('SIGINT', () => {
   clearJobs();
+  stopNetflowCollector();
+  stopAllCaptures(io);
   process.exit(0);
 });
