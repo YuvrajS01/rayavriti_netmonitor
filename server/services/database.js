@@ -34,6 +34,8 @@ db.exec(`
     host TEXT NOT NULL,
     port INTEGER DEFAULT 0,
     protocol TEXT DEFAULT 'ping',
+    snmp_community TEXT,
+    snmp_version TEXT,
     interval_seconds INTEGER DEFAULT 60,
     enabled INTEGER DEFAULT 1,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -103,6 +105,8 @@ db.exec(`
 ensureColumn('metrics', 'sensor_id', 'sensor_id INTEGER');
 ensureColumn('alerts', 'resolved_at', 'resolved_at DATETIME');
 ensureColumn('alerts', 'comment', 'comment TEXT');
+ensureColumn('devices', 'snmp_community', 'snmp_community TEXT');
+ensureColumn('devices', 'snmp_version', 'snmp_version TEXT');
 db.exec('CREATE INDEX IF NOT EXISTS idx_metrics_sensor_time ON metrics(sensor_id, timestamp)');
 
 const defaultDevices = [
@@ -229,9 +233,15 @@ module.exports = {
   getDevice: (id) => db.prepare('SELECT * FROM devices WHERE id = ?').get(id),
 
   addDevice: (device) => {
+    const snmpCommunity = device.protocol === 'snmp'
+      ? (device.snmpCommunity || device.snmp_community || 'public')
+      : null;
+    const snmpVersion = device.protocol === 'snmp'
+      ? (device.snmpVersion || device.snmp_version || '2c')
+      : null;
     const stmt = db.prepare(`
-      INSERT INTO devices (name, type, host, port, protocol, interval_seconds, enabled)
-      VALUES (?, ?, ?, ?, ?, ?, 1)
+      INSERT INTO devices (name, type, host, port, protocol, snmp_community, snmp_version, interval_seconds, enabled)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
     `);
 
     const result = stmt.run(
@@ -240,6 +250,8 @@ module.exports = {
       device.host,
       Number(device.port || 0),
       device.protocol || 'ping',
+      snmpCommunity,
+      snmpVersion,
       Number(device.interval || device.interval_seconds || 60)
     );
 
@@ -258,9 +270,15 @@ module.exports = {
   },
 
   updateDevice: (id, device) => {
+    const snmpCommunity = device.protocol === 'snmp'
+      ? (device.snmpCommunity || device.snmp_community || 'public')
+      : null;
+    const snmpVersion = device.protocol === 'snmp'
+      ? (device.snmpVersion || device.snmp_version || '2c')
+      : null;
     const stmt = db.prepare(`
       UPDATE devices
-      SET name = ?, type = ?, host = ?, port = ?, protocol = ?, interval_seconds = ?
+      SET name = ?, type = ?, host = ?, port = ?, protocol = ?, snmp_community = ?, snmp_version = ?, interval_seconds = ?
       WHERE id = ?
     `);
 
@@ -270,6 +288,8 @@ module.exports = {
       device.host,
       Number(device.port || 0),
       device.protocol || 'ping',
+      snmpCommunity,
+      snmpVersion,
       Number(device.interval || device.interval_seconds || 60),
       id
     );

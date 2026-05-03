@@ -23,12 +23,13 @@ function iconFor(protocol: string) {
   if (protocol === 'http' || protocol === 'https') return 'public';
   if (protocol === 'port' || protocol === 'tcp') return 'hub';
   if (protocol === 'system') return 'data_usage';
+  if (protocol === 'snmp') return 'settings_input_antenna';
   return 'sensors';
 }
 
 function formatMessage(message: string, protocol: string): string {
   if (!message) return '-';
-  if (protocol === 'system') {
+  if (protocol === 'system' || protocol === 'snmp') {
     try {
       const info = JSON.parse(message);
       const parts: string[] = [];
@@ -49,7 +50,7 @@ const TOOLTIP_STYLE = {
   color: '#f4f1e6',
 };
 
-const KNOWN_PROTOCOLS = ['ping', 'http', 'https', 'port', 'system'];
+const KNOWN_PROTOCOLS = ['ping', 'http', 'https', 'port', 'system', 'snmp'];
 
 interface ProtocolBarPoint {
   protocol: string;

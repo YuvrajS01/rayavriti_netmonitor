@@ -28,6 +28,8 @@ export interface Device {
   interval_seconds: number;
   enabled: number;
   created_at: string;
+  snmp_community?: string | null;
+  snmp_version?: string | null;
 }
 
 export interface Sensor {

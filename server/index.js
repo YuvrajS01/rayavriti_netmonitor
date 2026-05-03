@@ -101,6 +101,14 @@ function sendError(req, res, status, code, message) {
   });
 }
 
+function sanitizeDevice(device) {
+  if (!device) {
+    return device;
+  }
+  const { snmp_community, ...rest } = device;
+  return rest;
+}
+
 function parsePagination(query) {
   const page = Math.max(1, Number(query.page || 1));
   const pageSize = Math.max(1, Math.min(200, Number(query.pageSize || 20)));
@@ -289,7 +297,7 @@ app.post('/api/auth/logout', requireLegacyAuth, (req, res) => {
 });
 
 app.get('/api/devices', requireLegacyAuth, (_req, res) => {
-  res.json({ data: db.getDevices() });
+  res.json({ data: db.getDevices().map((device) => sanitizeDevice(device)) });
 });
 
 app.post('/api/devices', requireLegacyAuth, (req, res) => {
@@ -302,7 +310,7 @@ app.post('/api/devices', requireLegacyAuth, (req, res) => {
   startScheduler(io);
 
   return res.status(201).json({
-    data: db.getDevice(result.lastInsertRowid)
+    data: sanitizeDevice(db.getDevice(result.lastInsertRowid))
   });
 });
 
@@ -316,7 +324,7 @@ app.put('/api/devices/:id', requireLegacyAuth, (req, res) => {
   db.updateDevice(id, { ...existing, ...req.body });
   startScheduler(io);
 
-  return res.json({ data: db.getDevice(id) });
+  return res.json({ data: sanitizeDevice(db.getDevice(id)) });
 });
 
 app.delete('/api/devices/:id', requireLegacyAuth, (req, res) => {
@@ -498,6 +506,7 @@ v1.get('/devices/:id', (req, res) => {
     sensorCount: sensors.length,
     protocol: device.protocol,
     port: device.port,
+    snmpVersion: device.snmp_version || null,
     interval: device.interval_seconds,
     created_at: device.created_at
   });
@@ -516,6 +525,8 @@ v1.post('/devices', (req, res) => {
     host,
     port: Number(payload.port || 0),
     protocol: payload.protocol || 'ping',
+    snmpCommunity: payload.snmpCommunity,
+    snmpVersion: payload.snmpVersion,
     interval: Number(payload.interval || 60)
   });
 
@@ -547,6 +558,8 @@ v1.put('/devices/:id', (req, res) => {
     host: payload.ipAddress ?? payload.host ?? existing.host,
     port: payload.port ?? existing.port,
     protocol: payload.protocol ?? existing.protocol,
+    snmpCommunity: payload.snmpCommunity ?? existing.snmp_community,
+    snmpVersion: payload.snmpVersion ?? existing.snmp_version,
     interval: payload.interval ?? payload.interval_seconds ?? existing.interval_seconds
   });
 
@@ -560,7 +573,8 @@ v1.put('/devices/:id', (req, res) => {
     ipAddress: device.host,
     protocol: device.protocol,
     interval: device.interval_seconds,
-    port: device.port
+    port: device.port,
+    snmpVersion: device.snmp_version || null
   });
 });
 

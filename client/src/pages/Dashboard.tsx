@@ -162,7 +162,7 @@ export default function Dashboard() {
     const down = latest.filter((x) => x.status === 'down').length;
     const warn = latest.filter((x) => x.status === 'warning' || x.status === 'degraded').length;
     const avgResp = latest.reduce((s, x) => s + (x.response_time || 0), 0) / total;
-    const systemMetric = latest.find((x) => x.protocol === 'system');
+    const systemMetric = latest.find((x) => x.protocol === 'system') || latest.find((x) => x.protocol === 'snmp');
     let cpu = Math.min(95, Math.round(avgResp / 6 + warn * 4));
     let memory = Math.min(95, Math.round(avgResp / 7 + down * 8 + 28));
     let raw = undefined;
@@ -427,7 +427,15 @@ export default function Dashboard() {
                       <td className="py-3 text-on-surface-variant text-xs uppercase tracking-wider">
                         <div className="flex items-center gap-1.5">
                           <span className="material-symbols-outlined text-[14px] opacity-70">
-                            {m.protocol === 'ping' ? 'router' : m.protocol === 'http' || m.protocol === 'https' ? 'public' : m.protocol === 'system' ? 'memory' : 'hub'}
+                            {m.protocol === 'ping'
+                              ? 'router'
+                              : m.protocol === 'http' || m.protocol === 'https'
+                                ? 'public'
+                                : m.protocol === 'system'
+                                  ? 'memory'
+                                  : m.protocol === 'snmp'
+                                    ? 'settings_input_antenna'
+                                    : 'hub'}
                           </span>
                           {m.protocol || '-'}
                         </div>

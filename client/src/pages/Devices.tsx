@@ -19,6 +19,7 @@ function iconForProtocol(protocol: string) {
   if (protocol === 'http' || protocol === 'https') return 'public';
   if (protocol === 'port' || protocol === 'tcp') return 'hub';
   if (protocol === 'system') return 'memory';
+  if (protocol === 'snmp') return 'settings_input_antenna';
   return 'dns';
 }
 
@@ -29,6 +30,10 @@ export default function Devices() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [showForm, setShowForm] = useState(false);
   const [selectedDevice, setSelectedDevice] = useState<Device | null>(null);
+  const [formProtocol, setFormProtocol] = useState('https');
+  const [formPort, setFormPort] = useState(443);
+  const [snmpCommunity, setSnmpCommunity] = useState('public');
+  const [snmpVersion, setSnmpVersion] = useState('2c');
 
   const load = useCallback(async () => {
     const [dRes, mRes] = await Promise.all([getDevices(), getLatestMetrics()]);
@@ -53,15 +58,24 @@ export default function Devices() {
   const handleAdd = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
-    await addDevice({
+    const payload: Parameters<typeof addDevice>[0] = {
       name: fd.get('name') as string,
       host: fd.get('host') as string,
-      protocol: fd.get('protocol') as string,
-      port: Number(fd.get('port') || 0),
+      protocol: formProtocol,
+      port: formPort,
       interval: Number(fd.get('interval') || 60),
-    });
+    };
+    if (formProtocol === 'snmp') {
+      payload.snmpCommunity = snmpCommunity.trim() || 'public';
+      payload.snmpVersion = snmpVersion;
+    }
+    await addDevice(payload);
     e.currentTarget.reset();
     setShowForm(false);
+    setFormProtocol('https');
+    setFormPort(443);
+    setSnmpCommunity('public');
+    setSnmpVersion('2c');
     load();
   };
 
@@ -132,15 +146,56 @@ export default function Devices() {
           <form onSubmit={handleAdd} className="grid grid-cols-1 md:grid-cols-5 gap-3">
             <input name="name" required placeholder="Name" className="bg-surface-container-highest border border-outline-variant/20 rounded-lg px-3 py-2 text-sm text-on-surface outline-none" />
             <input name="host" required placeholder="Host/IP" className="bg-surface-container-highest border border-outline-variant/20 rounded-lg px-3 py-2 text-sm text-on-surface outline-none" />
-            <input name="port" type="number" min="1" max="65535" defaultValue={443} placeholder="Port" className="bg-surface-container-highest border border-outline-variant/20 rounded-lg px-3 py-2 text-sm text-on-surface outline-none" />
-            <select name="protocol" className="bg-surface-container-highest border border-outline-variant/20 rounded-lg px-3 py-2 text-sm text-on-surface outline-none">
+            <input
+              name="port"
+              type="number"
+              min="1"
+              max="65535"
+              value={formPort}
+              onChange={(e) => setFormPort(Number(e.target.value || 0))}
+              placeholder="Port"
+              className="bg-surface-container-highest border border-outline-variant/20 rounded-lg px-3 py-2 text-sm text-on-surface outline-none"
+            />
+            <select
+              name="protocol"
+              value={formProtocol}
+              onChange={(e) => {
+                const next = e.target.value;
+                setFormProtocol(next);
+                if (next === 'https') setFormPort(443);
+                if (next === 'http') setFormPort(80);
+                if (next === 'snmp') setFormPort(161);
+              }}
+              className="bg-surface-container-highest border border-outline-variant/20 rounded-lg px-3 py-2 text-sm text-on-surface outline-none"
+            >
               <option value="https">HTTPS</option>
               <option value="http">HTTP</option>
               <option value="ping">Ping (ICMP)</option>
               <option value="port">TCP Port</option>
               <option value="system">System</option>
+              <option value="snmp">SNMP</option>
             </select>
             <input name="interval" type="number" min="10" defaultValue={60} placeholder="Interval (s)" className="bg-surface-container-highest border border-outline-variant/20 rounded-lg px-3 py-2 text-sm text-on-surface outline-none" />
+            {formProtocol === 'snmp' && (
+              <>
+                <input
+                  name="snmpCommunity"
+                  value={snmpCommunity}
+                  onChange={(e) => setSnmpCommunity(e.target.value)}
+                  placeholder="SNMP Community"
+                  className="bg-surface-container-highest border border-outline-variant/20 rounded-lg px-3 py-2 text-sm text-on-surface outline-none md:col-span-2"
+                />
+                <select
+                  name="snmpVersion"
+                  value={snmpVersion}
+                  onChange={(e) => setSnmpVersion(e.target.value)}
+                  className="bg-surface-container-highest border border-outline-variant/20 rounded-lg px-3 py-2 text-sm text-on-surface outline-none"
+                >
+                  <option value="2c">SNMP v2c</option>
+                  <option value="1">SNMP v1</option>
+                </select>
+              </>
+            )}
             <button className="md:col-span-5 bg-primary text-on-primary rounded-lg px-4 py-2 text-xs font-bold tracking-widest uppercase hover:brightness-110 active:scale-95 transition-all">Add Device</button>
           </form>
         </div>

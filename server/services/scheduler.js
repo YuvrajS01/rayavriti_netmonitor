@@ -3,6 +3,7 @@ const { checkPing } = require('../collectors/ping');
 const { checkHttp } = require('../collectors/http');
 const { checkPort } = require('../collectors/port');
 const { collect: checkSystem } = require('../collectors/system');
+const { checkSnmp } = require('../collectors/snmp');
 const { evaluateAndCreateAlert } = require('./alertEngine');
 
 const jobs = new Map();
@@ -17,6 +18,8 @@ async function collectMetric(device) {
       return checkPort(device);
     case 'system':
       return checkSystem(device);
+    case 'snmp':
+      return checkSnmp(device);
     default:
       return {
         status: 'down',
