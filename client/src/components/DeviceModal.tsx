@@ -1,8 +1,64 @@
 import { useState, useEffect, useCallback } from 'react';
-import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import { getDeviceMetrics, deleteDevice, getDevicePorts, scanDevicePorts } from '../api/client';
 import { useSocket } from '../hooks/useSocket';
-import type { Device, Metric, PortScanResult } from '../api/types';
+import type { Device, Metric, MetricMessagePayload, PortScanResult, TrafficInterfaceSample } from '../api/types';
+
+interface TrafficPoint {
+  time: string;
+  inMbps: number;
+  outMbps: number;
+  totalMbps: number;
+}
+
+function parseMetricMessage(message?: string | null): MetricMessagePayload | null {
+  if (!message) return null;
+  try {
+    const parsed = JSON.parse(message) as MetricMessagePayload;
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function formatMbps(value?: number | null) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return '-';
+  if (value >= 1000) return `${(value / 1000).toFixed(2)} Gbps`;
+  if (value >= 10) return `${value.toFixed(1)} Mbps`;
+  return `${value.toFixed(2)} Mbps`;
+}
+
+function totalOctets(interfaces: TrafficInterfaceSample[] | undefined, key: 'inOctets' | 'outOctets') {
+  return (interfaces || []).reduce((sum, iface) => sum + (Number(iface[key]) || 0), 0);
+}
+
+function buildTrafficData(metrics: Metric[]): TrafficPoint[] {
+  const points: TrafficPoint[] = [];
+  for (let i = 1; i < metrics.length; i += 1) {
+    const prev = metrics[i - 1];
+    const curr = metrics[i];
+    const prevPayload = parseMetricMessage(prev.message);
+    const currPayload = parseMetricMessage(curr.message);
+    if (!prevPayload?.interfaces?.length || !currPayload?.interfaces?.length) continue;
+
+    const seconds = (new Date(curr.timestamp || curr.created_at).getTime() - new Date(prev.timestamp || prev.created_at).getTime()) / 1000;
+    if (!Number.isFinite(seconds) || seconds <= 0) continue;
+
+    const inDelta = totalOctets(currPayload.interfaces, 'inOctets') - totalOctets(prevPayload.interfaces, 'inOctets');
+    const outDelta = totalOctets(currPayload.interfaces, 'outOctets') - totalOctets(prevPayload.interfaces, 'outOctets');
+    if (inDelta < 0 || outDelta < 0) continue;
+
+    const inMbps = (inDelta * 8) / seconds / 1_000_000;
+    const outMbps = (outDelta * 8) / seconds / 1_000_000;
+    points.push({
+      time: new Date(curr.timestamp || curr.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+      inMbps: Math.round(inMbps * 100) / 100,
+      outMbps: Math.round(outMbps * 100) / 100,
+      totalMbps: Math.round((inMbps + outMbps) * 100) / 100
+    });
+  }
+  return points.slice(-50);
+}
 
 export default function DeviceModal({ device, onClose, onDeleted }: { device: Device; onClose: () => void; onDeleted: () => void }) {
   const [metrics, setMetrics] = useState<Metric[]>([]);
@@ -26,7 +82,7 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
   }, [device.id]);
 
   useEffect(() => {
-    loadData();
+    void Promise.resolve().then(loadData);
   }, [loadData]);
 
   useSocket({
@@ -70,6 +126,11 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
   }));
 
   const latestMetric = metrics[metrics.length - 1];
+  const latestPayload = parseMetricMessage(latestMetric?.message);
+  const trafficData = buildTrafficData(metrics);
+  const latestTraffic = trafficData[trafficData.length - 1];
+  const supportsTraffic = device.protocol === 'snmp';
+  const activeInterfaces = latestPayload?.interfaces || [];
   const openPorts = ports.filter((port) => port.status === 'open');
 
   return (
@@ -174,6 +235,69 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
                </ResponsiveContainer>
              )}
            </div>
+
+           {supportsTraffic && (
+             <div className="bg-surface-container-high rounded-xl p-4 border border-outline-variant/20 mb-6">
+               <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4 mb-4">
+                 <div>
+                   <h3 className="text-sm font-headline font-bold uppercase tracking-widest">Live Traffic</h3>
+                   <p className="text-xs text-on-surface-variant mt-1">{activeInterfaces.length ? `${activeInterfaces.length} SNMP interfaces reporting counters` : 'Waiting for SNMP interface counters'}</p>
+                 </div>
+                 <div className="grid grid-cols-3 gap-2 min-w-full lg:min-w-[320px]">
+                   <div className="rounded-lg bg-surface-container-low px-3 py-2">
+                     <p className="text-[10px] text-on-surface-variant uppercase tracking-widest">Inbound</p>
+                     <p className="text-sm font-bold text-primary">{formatMbps(latestTraffic?.inMbps)}</p>
+                   </div>
+                   <div className="rounded-lg bg-surface-container-low px-3 py-2">
+                     <p className="text-[10px] text-on-surface-variant uppercase tracking-widest">Outbound</p>
+                     <p className="text-sm font-bold text-sky-300">{formatMbps(latestTraffic?.outMbps)}</p>
+                   </div>
+                   <div className="rounded-lg bg-surface-container-low px-3 py-2">
+                     <p className="text-[10px] text-on-surface-variant uppercase tracking-widest">Total</p>
+                     <p className="text-sm font-bold text-on-surface">{formatMbps(latestTraffic?.totalMbps)}</p>
+                   </div>
+                 </div>
+               </div>
+               {loading ? (
+                 <div className="h-64 flex items-center justify-center text-on-surface-variant text-sm animate-pulse">Loading traffic...</div>
+               ) : trafficData.length === 0 ? (
+                 <div className="h-64 flex flex-col items-center justify-center text-center text-on-surface-variant text-sm px-6">
+                   <span className="material-symbols-outlined text-3xl mb-2 text-outline">monitoring</span>
+                   <p>No traffic samples yet</p>
+                   <p className="text-xs mt-1 max-w-md">SNMP routers and switches need at least two successful polls with interface counters before rates can be calculated.</p>
+                 </div>
+               ) : (
+                 <ResponsiveContainer width="100%" height={256}>
+                   <LineChart data={trafficData} margin={{ top: 10, right: 10, left: -16, bottom: 0 }}>
+                     <XAxis dataKey="time" tick={{ fill: '#8a8a78', fontSize: 10 }} tickLine={false} axisLine={false} />
+                     <YAxis tick={{ fill: '#8a8a78', fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={(v) => `${v}M`} />
+                     <Tooltip
+                       formatter={(value) => formatMbps(Number(value))}
+                       contentStyle={{ background: '#1a1a13', border: '1px solid #494840', borderRadius: '8px', fontSize: '12px', color: '#f4f1e6' }}
+                     />
+                     <Legend wrapperStyle={{ fontSize: 11, color: '#c9c6b8' }} />
+                     <Line name="Inbound" type="monotone" dataKey="inMbps" stroke="#d9fd3a" strokeWidth={2} dot={false} activeDot={{ r: 4 }} connectNulls />
+                     <Line name="Outbound" type="monotone" dataKey="outMbps" stroke="#7dd3fc" strokeWidth={2} dot={false} activeDot={{ r: 4 }} connectNulls />
+                   </LineChart>
+                 </ResponsiveContainer>
+               )}
+               {activeInterfaces.length > 0 && (
+                 <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                   {activeInterfaces.slice(0, 6).map((iface) => (
+                     <div key={iface.index} className="flex items-center justify-between rounded-lg bg-surface-container-low border border-outline-variant/15 px-3 py-2">
+                       <div className="min-w-0">
+                         <p className="text-xs font-bold text-on-surface truncate">{iface.name}</p>
+                         <p className="text-[10px] text-on-surface-variant uppercase tracking-widest">ifIndex {iface.index}</p>
+                       </div>
+                       <span className={`text-[10px] font-bold uppercase tracking-widest ${iface.operStatus === 1 ? 'text-primary' : 'text-outline'}`}>
+                         {iface.operStatus === 1 ? 'Up' : 'Seen'}
+                       </span>
+                     </div>
+                   ))}
+                 </div>
+               )}
+             </div>
+           )}
 
            {/* Actions */}
            <div className="flex gap-4">

@@ -57,6 +57,23 @@ export interface Metric {
   created_at: string;
 }
 
+export interface TrafficInterfaceSample {
+  index: number;
+  name: string;
+  inOctets: number;
+  outOctets: number;
+  speed?: number;
+  operStatus?: number;
+}
+
+export interface MetricMessagePayload {
+  cpu?: { usage?: number; cores?: number };
+  memory?: { used?: number; total?: number; percent?: number };
+  disk?: { used?: number; total?: number; percent?: number };
+  uptime?: number;
+  interfaces?: TrafficInterfaceSample[];
+}
+
 export interface Alert {
   id: number;
   device_id: number;
