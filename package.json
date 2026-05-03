@@ -1,23 +1,20 @@
 {
   "name": "rayavriti-netmonitor",
   "version": "0.1.0",
+  "private": true,
   "description": "Rayavriti NetMonitor functional demo",
-  "main": "server/index.js",
+  "workspaces": [
+    "client",
+    "server"
+  ],
   "scripts": {
-    "start": "node server/index.js",
-    "dev": "nodemon server/index.js"
-  },
-  "dependencies": {
-    "better-sqlite3": "^11.8.1",
-    "cap": "^0.2.1",
-    "express": "^4.21.2",
-    "net-snmp": "^3.26.3",
-    "node-netflowv9": "^0.2.16",
-    "node-sflow": "^0.0.6",
-    "ping": "^0.4.4",
-    "socket.io": "^4.8.1"
-  },
-  "devDependencies": {
-    "nodemon": "^3.1.10"
+    "dev": "npm run dev -w server",
+    "dev:server": "npm run dev -w server",
+    "dev:client": "npm run dev -w client",
+    "build": "npm run build -w server && npm run build -w client",
+    "build:server": "npm run build -w server",
+    "build:client": "npm run build -w client",
+    "typecheck": "npm run typecheck -w server",
+    "start": "npm run start -w server"
   }
 }

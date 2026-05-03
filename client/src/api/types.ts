@@ -98,9 +98,12 @@ export interface ReportSummary {
 
 export interface TimeseriesPoint {
   bucket: string;
+  timestamp?: string;
   availabilityPercent: number;
   avgResponseMs: number;
   count: number;
+  sampleCount?: number;
+  downCount?: number;
 }
 
 export interface SystemInfo {

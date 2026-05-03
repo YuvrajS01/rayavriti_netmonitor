@@ -178,9 +178,9 @@ export default function Reports() {
                 />
                 <Tooltip
                   contentStyle={TOOLTIP_STYLE}
-                  formatter={(value: number, name: string) => {
-                    if (name === 'availability') return [`${value}%`, 'Availability'];
-                    return [`${value}ms`, 'Avg Response'];
+                  formatter={(value: unknown, name: unknown) => {
+                    if (name === 'availability') return [`${Number(value ?? 0)}%`, 'Availability'];
+                    return [`${Number(value ?? 0)}ms`, 'Avg Response'];
                   }}
                 />
                 <Legend
@@ -228,7 +228,7 @@ export default function Reports() {
                   </defs>
                   <XAxis dataKey="label" tick={{ fill: '#8a8a78', fontSize: 10 }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
                   <YAxis domain={[0, 100]} tick={{ fill: '#8a8a78', fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={(v) => `${v}%`} width={38} />
-                  <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => [`${v}%`, 'Availability']} />
+                  <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: unknown) => [`${Number(v ?? 0)}%`, 'Availability']} />
                   <Area type="monotone" dataKey="availability" stroke="#d9fd3a" fill="url(#availGrad)" strokeWidth={2} dot={false} />
                 </AreaChart>
               </ResponsiveContainer>
@@ -251,7 +251,7 @@ export default function Reports() {
                   </defs>
                   <XAxis dataKey="label" tick={{ fill: '#8a8a78', fontSize: 10 }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
                   <YAxis tick={{ fill: '#8a8a78', fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={(v) => `${v}ms`} width={48} />
-                  <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => [`${v}ms`, 'Avg Response']} />
+                  <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: unknown) => [`${Number(v ?? 0)}ms`, 'Avg Response']} />
                   <Area type="monotone" dataKey="response" stroke="#ff7351" fill="url(#respGrad)" strokeWidth={2} dot={false} />
                 </AreaChart>
               </ResponsiveContainer>
