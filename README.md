@@ -48,7 +48,7 @@ This repository is set up as a monorepo using npm workspaces:
 1. Clone the repository:
    ```bash
    git clone <repository-url>
-   cd "Rayavriti NetMonitor"
+   cd "rayavriti_netmonitor"
    ```
 
 2. Install dependencies for all workspaces:
