@@ -3,7 +3,8 @@ import type {
   ApiResponse, AuthTokens, Device, Metric, Alert, AlertCounts,
   DashboardStats, ReportSummary, TimeseriesPoint,
   FlowRecord, TopTalker, ProtocolBreakdown, FlowStats, FlowTimeseriesPoint,
-  CaptureSession, CapturedPacket, NetworkInterface
+  CaptureSession, CapturedPacket, NetworkInterface,
+  PortScanResult, PortScanResponse, InsightsResponse
 } from './types';
 
 const api = axios.create({ baseURL: '/api' });
@@ -57,6 +58,15 @@ export const getLatestMetrics = () =>
 
 export const getDeviceMetrics = (id: number, limit: number = 100) =>
   api.get<ApiResponse<Metric[]>>(`/metrics/device/${id}?limit=${limit}`).then((r) => r.data);
+
+export const getDevicePorts = (id: number) =>
+  api.get<ApiResponse<PortScanResult[]>>(`/devices/${id}/ports`).then((r) => r.data);
+
+export const scanDevicePorts = (id: number, payload: { ports?: number[]; timeoutMs?: number; concurrency?: number } = {}) =>
+  api.post<ApiResponse<PortScanResponse>>(`/devices/${id}/scan-ports`, payload).then((r) => r.data);
+
+export const getInsights = () =>
+  api.get<ApiResponse<InsightsResponse>>('/insights').then((r) => r.data);
 
 // Alerts
 export const getAlerts = (status: string = 'active', limit: number = 200) =>

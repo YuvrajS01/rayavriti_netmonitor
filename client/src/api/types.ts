@@ -203,3 +203,62 @@ export interface NetworkInterface {
   addresses: string[];
   flags: string[];
 }
+
+export interface PortScanResult {
+  id?: number;
+  device_id?: number;
+  port: number;
+  status: 'open' | 'closed';
+  service_guess?: string;
+  serviceGuess?: string;
+  response_time?: number | null;
+  responseTime?: number | null;
+  first_seen?: string;
+  last_seen?: string;
+  last_changed_at?: string;
+  message?: string | null;
+}
+
+export interface PortScanResponse {
+  deviceId: number;
+  host: string;
+  scannedPorts: number;
+  openPorts: PortScanResult[];
+  results: PortScanResult[];
+  changes: Array<{ port: number; from: string; to: string; serviceGuess: string }>;
+}
+
+export interface InsightItem {
+  type: string;
+  severity: 'critical' | 'warning' | 'info';
+  title: string;
+  message: string;
+  deviceId?: number;
+  timestamp?: string;
+}
+
+export interface DeviceHealth {
+  deviceId: number;
+  deviceName: string;
+  score: number;
+  label: 'healthy' | 'watch' | 'risk' | 'critical';
+  availabilityPercent: number;
+  avgResponseMs: number;
+  activeAlerts: number;
+  openPorts: number;
+  samples: number;
+  issues: Array<{
+    severity: 'critical' | 'warning' | 'info';
+    type: string;
+    message: string;
+  }>;
+}
+
+export interface InsightsResponse {
+  generatedAt: string;
+  health: DeviceHealth[];
+  responseAnomalies: unknown[];
+  alertGroups: unknown[];
+  flowAnomalies: unknown[];
+  insights: InsightItem[];
+}

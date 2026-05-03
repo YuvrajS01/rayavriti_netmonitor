@@ -1,17 +1,23 @@
 import { useState, useEffect, useCallback } from 'react';
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip } from 'recharts';
-import { getDeviceMetrics, deleteDevice } from '../api/client';
+import { getDeviceMetrics, deleteDevice, getDevicePorts, scanDevicePorts } from '../api/client';
 import { useSocket } from '../hooks/useSocket';
-import type { Device, Metric } from '../api/types';
+import type { Device, Metric, PortScanResult } from '../api/types';
 
 export default function DeviceModal({ device, onClose, onDeleted }: { device: Device; onClose: () => void; onDeleted: () => void }) {
   const [metrics, setMetrics] = useState<Metric[]>([]);
+  const [ports, setPorts] = useState<PortScanResult[]>([]);
   const [loading, setLoading] = useState(true);
+  const [scanning, setScanning] = useState(false);
 
   const loadData = useCallback(async () => {
     try {
-      const res = await getDeviceMetrics(device.id, 50);
-      setMetrics((res.data || []).reverse()); // Oldest to newest for the chart
+      const [metricRes, portRes] = await Promise.all([
+        getDeviceMetrics(device.id, 50),
+        getDevicePorts(device.id)
+      ]);
+      setMetrics((metricRes.data || []).reverse()); // Oldest to newest for the chart
+      setPorts(portRes.data || []);
     } catch {
       // ignore
     } finally {
@@ -42,6 +48,21 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
     onDeleted();
   };
 
+  const handleScanPorts = async () => {
+    setScanning(true);
+    try {
+      const res = await scanDevicePorts(device.id);
+      setPorts(res.data.results.map((result) => ({
+        ...result,
+        device_id: device.id,
+        service_guess: result.serviceGuess,
+        response_time: result.responseTime
+      })));
+    } finally {
+      setScanning(false);
+    }
+  };
+
   const chartData = metrics.map((m) => ({
     time: new Date(m.timestamp || m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
     response: m.response_time ?? 0,
@@ -49,6 +70,7 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
   }));
 
   const latestMetric = metrics[metrics.length - 1];
+  const openPorts = ports.filter((port) => port.status === 'open');
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={onClose}>
@@ -87,6 +109,49 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
                <p className="text-[10px] text-on-surface-variant uppercase tracking-widest mb-1">Protocol</p>
                <p className="font-bold text-on-surface uppercase">{device.protocol}</p>
              </div>
+           </div>
+
+           <div className="bg-surface-container-high rounded-xl p-4 border border-outline-variant/20 mb-6">
+             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+               <div>
+                 <h3 className="text-sm font-headline font-bold uppercase tracking-widest">Port Inventory</h3>
+                 <p className="text-xs text-on-surface-variant mt-1">{openPorts.length} open of {ports.length || 0} scanned ports</p>
+               </div>
+               <button
+                 onClick={handleScanPorts}
+                 disabled={scanning}
+                 className="bg-primary text-on-primary disabled:opacity-60 font-bold py-2.5 px-4 rounded-lg tracking-widest uppercase hover:brightness-110 active:scale-95 transition-all text-xs flex items-center justify-center gap-2"
+               >
+                 <span className="material-symbols-outlined text-base">{scanning ? 'hourglass_top' : 'radar'}</span>
+                 {scanning ? 'Scanning' : 'Scan Ports'}
+               </button>
+             </div>
+             {ports.length === 0 ? (
+               <div className="py-8 text-center text-xs text-on-surface-variant">No port scan results yet</div>
+             ) : (
+               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                 {ports.slice(0, 16).map((port) => {
+                   const service = port.service_guess || port.serviceGuess || 'Unknown';
+                   const response = port.response_time ?? port.responseTime;
+                   const isOpen = port.status === 'open';
+                   return (
+                     <div key={port.port} className={`flex items-center justify-between rounded-lg px-3 py-2 border ${isOpen ? 'border-primary/25 bg-primary/10' : 'border-outline-variant/15 bg-surface-container-low'}`}>
+                       <div className="flex items-center gap-2 min-w-0">
+                         <span className={`material-symbols-outlined text-base ${isOpen ? 'text-primary' : 'text-outline'}`}>{isOpen ? 'lock_open' : 'lock'}</span>
+                         <div className="min-w-0">
+                           <p className="text-sm font-bold text-on-surface">{port.port}</p>
+                           <p className="text-[10px] text-on-surface-variant truncate">{service}</p>
+                         </div>
+                       </div>
+                       <div className="text-right">
+                         <p className={`text-[10px] font-bold uppercase tracking-widest ${isOpen ? 'text-primary' : 'text-outline'}`}>{port.status}</p>
+                         {typeof response === 'number' && <p className="text-[10px] text-on-surface-variant">{response}ms</p>}
+                       </div>
+                     </div>
+                   );
+                 })}
+               </div>
+             )}
            </div>
 
            {/* Graph */}

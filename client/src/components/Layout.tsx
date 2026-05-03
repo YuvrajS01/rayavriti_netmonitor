@@ -11,6 +11,7 @@ const navItems = [
   { to: '/sensors', label: 'Monitors & Sensors', icon: 'sensors' },
   { to: '/flows', label: 'Flow Analysis', icon: 'swap_horiz' },
   { to: '/capture', label: 'Packet Capture', icon: 'network_check' },
+  { to: '/ai-health', label: 'AI Health', icon: 'psychology' },
   { to: '/alerts', label: 'Alerts', icon: 'warning' },
   { to: '/reports', label: 'Reports', icon: 'analytics' },
   { to: '/settings', label: 'Settings', icon: 'settings' },
@@ -132,7 +133,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
       {/* Mobile Bottom Nav — only on small screens */}
       <nav className="lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-[#0e0e09] border-t border-[#202018]/30 flex justify-around items-center px-4 z-50 shadow-[0_-10px_20px_rgba(0,0,0,0.5)]">
-        {[navItems[0], navItems[1], navItems[3], navItems[5]].map((item) => (
+        {[navItems[0], navItems[1], navItems[5], navItems[6]].map((item) => (
           <NavLink
             key={item.to}
             to={item.to}
