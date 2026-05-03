@@ -4,6 +4,7 @@ import tailwindcss from '@tailwindcss/vite'
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  cacheDir: '../node_modules/.vite/client',
   server: {
     port: 5173,
     proxy: {

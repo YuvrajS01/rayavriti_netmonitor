@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
-  BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, Legend, Cell,
+  BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, Legend,
   RadarChart, PolarGrid, PolarAngleAxis, Radar,
 } from 'recharts';
 import { getLatestMetrics } from '../api/client';
@@ -194,7 +194,7 @@ export default function Sensors() {
                 <PolarGrid stroke="#494840" />
                 <PolarAngleAxis dataKey="subject" tick={{ fill: '#8a8a78', fontSize: 10 }} />
                 <Radar name="Avg ms" dataKey="value" stroke="#d9fd3a" fill="#d9fd3a" fillOpacity={0.2} strokeWidth={2} />
-                <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => [`${v}ms`, 'Avg Response']} />
+                <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: unknown) => [`${Number(v ?? 0)}ms`, 'Avg Response']} />
               </RadarChart>
             </ResponsiveContainer>
           )}

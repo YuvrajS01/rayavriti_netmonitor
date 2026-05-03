@@ -103,7 +103,7 @@ export default function ExpandedChartsModal({ metrics, onClose }: ExpandedCharts
                           />
                           <Tooltip 
                             contentStyle={TOOLTIP_STYLE}
-                            formatter={(value: number) => [`${value}ms`, 'Response']}
+                            formatter={(value: unknown) => [`${Number(value ?? 0)}ms`, 'Response']}
                             labelStyle={{ color: '#8a8a78', marginBottom: '4px', fontSize: '10px' }}
                           />
                           <Line 

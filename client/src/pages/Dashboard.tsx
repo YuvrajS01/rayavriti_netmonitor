@@ -279,7 +279,7 @@ export default function Dashboard() {
                 />
                 <Tooltip
                   contentStyle={TOOLTIP_STYLE}
-                  formatter={(value: number, name: string) => [`${value}ms`, name]}
+                  formatter={(value: unknown, name: unknown) => [`${Number(value ?? 0)}ms`, String(name)]}
                 />
                 <Legend
                   wrapperStyle={{ fontSize: 11, paddingTop: 8 }}
@@ -327,7 +327,7 @@ export default function Dashboard() {
                     {/* SVG centre label via custom component trick */}
                     <DonutCenter cx={0} cy={0} total={donutTotal} />
                   </Pie>
-                  <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number, name: string) => [v, name]} />
+                  <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: unknown, name: unknown) => [Number(v ?? 0), String(name)]} />
                 </PieChart>
               </ResponsiveContainer>
               {/* Legend */}

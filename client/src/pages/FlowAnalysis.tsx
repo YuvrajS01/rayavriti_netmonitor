@@ -114,8 +114,6 @@ export default function FlowAnalysis() {
     return true;
   });
 
-  const donutTotal = protocols.reduce((s, p) => s + p.bytes, 0);
-
   return (
     <div>
       {/* Header */}
@@ -187,8 +185,8 @@ export default function FlowAnalysis() {
               />
               <Tooltip
                 contentStyle={TOOLTIP_STYLE}
-                formatter={(value: number, name: string) => [
-                  name === 'totalBytes' ? formatBytes(value) : formatNumber(value),
+                formatter={(value: unknown, name: unknown) => [
+                  name === 'totalBytes' ? formatBytes(Number(value ?? 0)) : formatNumber(Number(value ?? 0)),
                   name === 'totalBytes' ? 'Bytes' : 'Packets'
                 ]}
                 labelFormatter={(l) => new Date(l).toLocaleString()}
@@ -219,7 +217,7 @@ export default function FlowAnalysis() {
               <BarChart data={topSources} layout="vertical" margin={{ top: 0, right: 8, left: 0, bottom: 0 }}>
                 <XAxis type="number" tick={{ fill: '#8a8a78', fontSize: 9 }} tickLine={false} axisLine={false} tickFormatter={(v) => formatBytes(v)} />
                 <YAxis type="category" dataKey="ip" tick={{ fill: '#c8c5b0', fontSize: 10 }} tickLine={false} axisLine={false} width={110} />
-                <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => [formatBytes(v), 'Bytes']} />
+                <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: unknown) => [formatBytes(Number(v ?? 0)), 'Bytes']} />
                 <Bar dataKey="bytes" fill="#d9fd3a" radius={[0, 4, 4, 0]} barSize={16} />
               </BarChart>
             </ResponsiveContainer>
@@ -239,7 +237,7 @@ export default function FlowAnalysis() {
               <BarChart data={topDestinations} layout="vertical" margin={{ top: 0, right: 8, left: 0, bottom: 0 }}>
                 <XAxis type="number" tick={{ fill: '#8a8a78', fontSize: 9 }} tickLine={false} axisLine={false} tickFormatter={(v) => formatBytes(v)} />
                 <YAxis type="category" dataKey="ip" tick={{ fill: '#c8c5b0', fontSize: 10 }} tickLine={false} axisLine={false} width={110} />
-                <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => [formatBytes(v), 'Bytes']} />
+                <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: unknown) => [formatBytes(Number(v ?? 0)), 'Bytes']} />
                 <Bar dataKey="bytes" fill="#6ee7f7" radius={[0, 4, 4, 0]} barSize={16} />
               </BarChart>
             </ResponsiveContainer>
@@ -275,7 +273,7 @@ export default function FlowAnalysis() {
                   </Pie>
                   <Tooltip
                     contentStyle={TOOLTIP_STYLE}
-                    formatter={(v: number, name: string) => [formatBytes(v), name]}
+                    formatter={(v: unknown, name: unknown) => [formatBytes(Number(v ?? 0)), String(name)]}
                   />
                 </PieChart>
               </ResponsiveContainer>
