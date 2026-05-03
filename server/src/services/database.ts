@@ -135,12 +135,27 @@ db.exec(`
     error_message TEXT
   );
 
+  CREATE TABLE IF NOT EXISTS port_scan_results (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    device_id INTEGER NOT NULL,
+    port INTEGER NOT NULL,
+    status TEXT NOT NULL,
+    service_guess TEXT,
+    response_time REAL,
+    first_seen DATETIME DEFAULT CURRENT_TIMESTAMP,
+    last_seen DATETIME DEFAULT CURRENT_TIMESTAMP,
+    last_changed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (device_id) REFERENCES devices(id),
+    UNIQUE(device_id, port)
+  );
+
   CREATE INDEX IF NOT EXISTS idx_metrics_device_time ON metrics(device_id, timestamp);
   CREATE INDEX IF NOT EXISTS idx_alerts_status ON alerts(status);
   CREATE INDEX IF NOT EXISTS idx_sensors_device ON sensors(device_id);
   CREATE INDEX IF NOT EXISTS idx_flow_src_ip ON flow_records(src_ip, timestamp);
   CREATE INDEX IF NOT EXISTS idx_flow_dst_ip ON flow_records(dst_ip, timestamp);
   CREATE INDEX IF NOT EXISTS idx_flow_time ON flow_records(timestamp);
+  CREATE INDEX IF NOT EXISTS idx_port_scan_device ON port_scan_results(device_id, status);
 `);
 
 ensureColumn('metrics', 'sensor_id', 'sensor_id INTEGER');
@@ -352,6 +367,7 @@ module.exports = {
     db.prepare('DELETE FROM sensors WHERE device_id = ?').run(id);
     db.prepare('DELETE FROM metrics WHERE device_id = ?').run(id);
     db.prepare('DELETE FROM alerts WHERE device_id = ?').run(id);
+    db.prepare('DELETE FROM port_scan_results WHERE device_id = ?').run(id);
     return db.prepare('DELETE FROM devices WHERE id = ?').run(id);
   },
 
@@ -456,6 +472,24 @@ module.exports = {
     LIMIT 10000
   `).all(Number(deviceId), from, to),
 
+  getRecentMetrics: ({ since, limit = 5000 }: any = {}) => {
+    const clauses = [];
+    const params = [];
+    if (since) {
+      clauses.push('m.timestamp >= ?');
+      params.push(since);
+    }
+    const whereSql = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
+    return db.prepare(`
+      SELECT m.*, d.name AS device_name, d.type AS device_type, d.host, d.protocol
+      FROM metrics m
+      JOIN devices d ON d.id = m.device_id
+      ${whereSql}
+      ORDER BY m.timestamp DESC
+      LIMIT ?
+    `).all(...params, Number(limit));
+  },
+
   getLatestMetrics: () => db.prepare(`
     SELECT m.*, d.name as device_name, d.type as device_type, d.host, d.protocol, s.name AS sensor_name
     FROM metrics m
@@ -524,6 +558,13 @@ module.exports = {
     const stmt = db.prepare('INSERT INTO alerts (device_id, severity, message, status, comment) VALUES (?, ?, ?, ?, ?)');
     return stmt.run(Number(deviceId), severity, message, status, comment);
   },
+
+  findActiveAlert: (deviceId, message) => db.prepare(`
+    SELECT *
+    FROM alerts
+    WHERE device_id = ? AND message = ? AND status = 'active'
+    LIMIT 1
+  `).get(Number(deviceId), message),
 
   updateAlert: (id, patch) => db.prepare(`
     UPDATE alerts
@@ -806,6 +847,38 @@ module.exports = {
     `).all().length;
     return { ...row, activeCollectors: exporters, collectorTypes: collectors };
   },
+
+  // ── Port Scan Results ────────────────────────────────────────
+
+  upsertPortScanResult: ({ deviceId, port, status, serviceGuess = null, responseTime = null }: any) => {
+    return db.prepare(`
+      INSERT INTO port_scan_results
+        (device_id, port, status, service_guess, response_time, first_seen, last_seen, last_changed_at)
+      VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      ON CONFLICT(device_id, port) DO UPDATE SET
+        status = excluded.status,
+        service_guess = excluded.service_guess,
+        response_time = excluded.response_time,
+        last_seen = CURRENT_TIMESTAMP,
+        last_changed_at = CASE
+          WHEN port_scan_results.status != excluded.status THEN CURRENT_TIMESTAMP
+          ELSE port_scan_results.last_changed_at
+        END
+    `).run(
+      Number(deviceId),
+      Number(port),
+      status,
+      serviceGuess,
+      responseTime
+    );
+  },
+
+  getPortScanResults: (deviceId) => db.prepare(`
+    SELECT *
+    FROM port_scan_results
+    WHERE device_id = ?
+    ORDER BY status = 'open' DESC, port ASC
+  `).all(Number(deviceId)),
 
   // ── Capture Sessions ──────────────────────────────────────────
 

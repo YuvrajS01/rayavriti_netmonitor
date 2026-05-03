@@ -3,9 +3,9 @@ import {
   LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip, Legend,
   PieChart, Pie, Cell,
 } from 'recharts';
-import { getStats, getLatestMetrics, getAlerts } from '../api/client';
+import { getStats, getLatestMetrics, getAlerts, getInsights } from '../api/client';
 import { useSocket } from '../hooks/useSocket';
-import type { DashboardStats, Metric, Alert, SystemInfo } from '../api/types';
+import type { DashboardStats, Metric, Alert, SystemInfo, InsightsResponse } from '../api/types';
 import ExpandedChartsModal from '../components/ExpandedChartsModal';
 import ResourceLoadModal from '../components/ResourceLoadModal';
 
@@ -140,18 +140,20 @@ export default function Dashboard() {
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [lastUpdated, setLastUpdated] = useState('Waiting for updates...');
   const [systemInfo, setSystemInfo] = useState<{ cpu: number; memory: number; errorRate: number; raw?: SystemInfo }>({ cpu: 0, memory: 0, errorRate: 0 });
+  const [insights, setInsights] = useState<InsightsResponse | null>(null);
   const [showExpandedCharts, setShowExpandedCharts] = useState(false);
   const [showResourceModal, setShowResourceModal] = useState(false);
 
   const loadData = useCallback(async () => {
     try {
-      const [statsRes, metricsRes, alertsRes] = await Promise.all([
-        getStats(), getLatestMetrics(), getAlerts('active'),
+      const [statsRes, metricsRes, alertsRes, insightsRes] = await Promise.all([
+        getStats(), getLatestMetrics(), getAlerts('active'), getInsights(),
       ]);
       setStats(statsRes.data);
       setMetrics(metricsRes.data || []);
       setHistoryMetrics(metricsRes.data || []);
       setAlerts(alertsRes.data || []);
+      setInsights(insightsRes.data);
       computeSystemInfo(metricsRes.data || []);
     } catch { /* handled by interceptor */ }
   }, []);
@@ -210,6 +212,7 @@ export default function Dashboard() {
       });
       setLastUpdated(`Updated ${new Date().toLocaleTimeString()}`);
       getStats().then((r) => setStats(r.data)).catch(() => {});
+      getInsights().then((r) => setInsights(r.data)).catch(() => {});
     },
     onAlertTriggered: () => {
       Promise.all([getAlerts('active'), getStats()]).then(([a, s]) => {
@@ -222,6 +225,10 @@ export default function Dashboard() {
   const { data: multiLineData, devices: trackedDevices } = buildMultiLineData(historyMetrics);
   const donutData = buildDonutData(metrics);
   const donutTotal = donutData.reduce((s, d) => s + d.value, 0);
+  const networkHealth = insights?.health?.length
+    ? Math.round(insights.health.reduce((sum, item) => sum + item.score, 0) / insights.health.length)
+    : stats.uptimePercent;
+  const weakestDevice = insights?.health?.[0];
 
   return (
     <div>
@@ -245,6 +252,61 @@ export default function Dashboard() {
         <StatCard label="Online" value={stats.onlineDevices} />
         <StatCard label="Uptime" value={`${stats.uptimePercent}%`} />
         <StatCard label="Active Alerts" value={stats.activeAlerts} color="text-error" />
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-6">
+        <div className="bg-surface-container-high rounded-xl p-5 border border-outline-variant/20">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-[10px] text-on-surface-variant uppercase tracking-[0.2em] mb-1">AI Health Score</p>
+              <p className={`font-headline text-4xl font-black ${networkHealth < 55 ? 'text-error' : networkHealth < 75 ? 'text-amber-400' : 'text-primary'}`}>{networkHealth}</p>
+            </div>
+            <div className="h-16 w-16 rounded-full border border-outline-variant/20 grid place-items-center bg-surface-container-low">
+              <span className="material-symbols-outlined text-primary">psychology</span>
+            </div>
+          </div>
+          <div className="mt-4 h-2 bg-surface-container-highest rounded">
+            <div
+              className="h-2 rounded transition-all duration-500"
+              style={{
+                width: `${Math.max(4, Math.min(100, networkHealth))}%`,
+                background: networkHealth < 55 ? '#ff4444' : networkHealth < 75 ? '#f59e0b' : '#d9fd3a'
+              }}
+            />
+          </div>
+          <p className="text-xs text-on-surface-variant mt-3">
+            {weakestDevice ? `${weakestDevice.deviceName} needs the closest watch` : 'Waiting for enough telemetry'}
+          </p>
+        </div>
+
+        <div className="xl:col-span-2 bg-surface-container-high rounded-xl p-5 border border-outline-variant/20">
+          <div className="flex items-center justify-between gap-4 mb-4">
+            <h3 className="text-sm font-headline font-bold uppercase tracking-widest">Smart Insights</h3>
+            <span className="text-[10px] text-on-surface-variant uppercase tracking-widest">
+              {insights?.generatedAt ? new Date(insights.generatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Pending'}
+            </span>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {(insights?.insights || []).slice(0, 4).map((item, idx) => {
+              const isCritical = item.severity === 'critical';
+              const isWarn = item.severity === 'warning';
+              const color = isCritical ? 'text-error' : isWarn ? 'text-amber-400' : 'text-primary';
+              const bg = isCritical ? 'bg-error/10 border-error/25' : isWarn ? 'bg-amber-400/10 border-amber-400/25' : 'bg-primary/10 border-primary/25';
+              return (
+                <div key={`${item.type}-${idx}`} className={`rounded-lg border ${bg} p-3 flex gap-3 min-h-24`}>
+                  <span className={`material-symbols-outlined ${color} text-lg mt-0.5`}>{isCritical ? 'error' : isWarn ? 'warning' : 'tips_and_updates'}</span>
+                  <div className="min-w-0">
+                    <p className={`text-[10px] font-bold uppercase tracking-widest ${color}`}>{item.title}</p>
+                    <p className="text-xs text-on-surface-variant mt-1 leading-relaxed">{item.message}</p>
+                  </div>
+                </div>
+              );
+            })}
+            {(!insights?.insights || insights.insights.length === 0) && (
+              <div className="md:col-span-2 py-8 text-center text-xs text-on-surface-variant">No anomalies or grouped risks detected</div>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Charts Row 1: Multi-device response timeline + Status Distribution */}

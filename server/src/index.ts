@@ -7,6 +7,8 @@ const { Server } = require('socket.io');
 const db = require('./services/database');
 const auth = require('./services/auth');
 const { startScheduler, clearJobs } = require('./services/scheduler');
+const { scanDevicePorts } = require('./services/portDiscovery');
+const anomalyEngine = require('./services/anomalyEngine');
 const { startNetflowCollector, stopNetflowCollector } = require('./collectors/netflow');
 const {
   listInterfaces, startCapture, stopCapture,
@@ -21,6 +23,8 @@ const io = new Server(server);
 const PORT = Number(process.env.PORT || 3000);
 
 const rateCounters = new Map();
+let portDiscoveryInterval: NodeJS.Timeout | null = null;
+let portDiscoveryRunning = false;
 
 function toSqlDate(date) {
   return date.toISOString().slice(0, 19).replace('T', ' ');
@@ -170,6 +174,56 @@ function paginate(items, page, pageSize) {
       totalPages
     }
   };
+}
+
+async function runPortDiscovery() {
+  if (portDiscoveryRunning) {
+    return;
+  }
+  portDiscoveryRunning = true;
+  try {
+    const devices = db.getDevices();
+    for (const device of devices) {
+      const result = await scanDevicePorts(device, {
+        timeoutMs: Number(process.env.PORT_SCAN_TIMEOUT_MS || 900),
+        concurrency: Number(process.env.PORT_SCAN_CONCURRENCY || 16)
+      });
+
+      for (const alert of result.alerts) {
+        io.emit('alert:triggered', alert);
+      }
+
+      if (result.changes.length > 0) {
+        io.emit('ports:scanned', {
+          device_id: device.id,
+          device_name: device.name,
+          open_ports: result.openPorts.length,
+          changes: result.changes,
+          timestamp: new Date().toISOString()
+        });
+      }
+    }
+  } catch (error) {
+    console.error('Port discovery failed:', error.message);
+  } finally {
+    portDiscoveryRunning = false;
+  }
+}
+
+function startPortDiscoveryScheduler() {
+  if (portDiscoveryInterval) {
+    clearInterval(portDiscoveryInterval);
+  }
+
+  if (process.env.PORT_DISCOVERY_ENABLED === 'false') {
+    return;
+  }
+
+  const intervalMinutes = Math.max(5, Number(process.env.PORT_DISCOVERY_INTERVAL_MINUTES || 60));
+  runPortDiscovery().catch((error) => console.error('Initial port discovery failed:', error.message));
+  portDiscoveryInterval = setInterval(() => {
+    runPortDiscovery().catch((error) => console.error('Port discovery job failed:', error.message));
+  }, intervalMinutes * 60 * 1000);
 }
 
 function requireLegacyAuth(req, res, next) {
@@ -348,6 +402,51 @@ app.get('/api/metrics/device/:id', requireLegacyAuth, (req, res) => {
   const id = Number(req.params.id);
   const limit = Number(req.query.limit || 100);
   res.json({ data: db.getDeviceMetrics(id, limit) });
+});
+
+app.get('/api/devices/:id/ports', requireLegacyAuth, (req, res) => {
+  const id = Number(req.params.id);
+  if (!db.getDevice(id)) {
+    return res.status(404).json({ error: 'device not found' });
+  }
+
+  res.json({ data: db.getPortScanResults(id) });
+});
+
+app.post('/api/devices/:id/scan-ports', requireLegacyAuth, async (req, res) => {
+  const id = Number(req.params.id);
+  const device = db.getDevice(id);
+  if (!device) {
+    return res.status(404).json({ error: 'device not found' });
+  }
+
+  try {
+    const result = await scanDevicePorts(device, {
+      ports: req.body?.ports,
+      timeoutMs: req.body?.timeoutMs,
+      concurrency: req.body?.concurrency
+    });
+
+    for (const alert of result.alerts) {
+      io.emit('alert:triggered', alert);
+    }
+
+    io.emit('ports:scanned', {
+      device_id: id,
+      device_name: device.name,
+      open_ports: result.openPorts.length,
+      changes: result.changes,
+      timestamp: new Date().toISOString()
+    });
+
+    return res.json({ data: result });
+  } catch (error) {
+    return res.status(500).json({ error: `port scan failed: ${error.message}` });
+  }
+});
+
+app.get('/api/insights', requireLegacyAuth, (_req, res) => {
+  res.json({ data: anomalyEngine.buildInsights() });
 });
 
 app.get('/api/alerts', requireLegacyAuth, (req, res) => {
@@ -1128,11 +1227,15 @@ io.on('connection', (socket) => {
 server.listen(PORT, () => {
   console.log(`Rayavriti NetMonitor running on http://localhost:${PORT}`);
   startScheduler(io);
+  startPortDiscoveryScheduler();
   startNetflowCollector(io, Number(process.env.NETFLOW_PORT || 2055));
 });
 
 process.on('SIGINT', () => {
   clearJobs();
+  if (portDiscoveryInterval) {
+    clearInterval(portDiscoveryInterval);
+  }
   stopNetflowCollector();
   stopAllCaptures(io);
   process.exit(0);
