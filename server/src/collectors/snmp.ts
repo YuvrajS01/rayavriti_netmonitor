@@ -5,7 +5,9 @@ const OIDS = {
   hrProcessorLoad: '1.3.6.1.2.1.25.3.3.1.2',
   hrStorageTable: '1.3.6.1.2.1.25.2.3.1',
   hrStorageRam: '1.3.6.1.2.1.25.2.1.2',
-  hrStorageFixedDisk: '1.3.6.1.2.1.25.2.1.4'
+  hrStorageFixedDisk: '1.3.6.1.2.1.25.2.1.4',
+  ifTable: '1.3.6.1.2.1.2.2',
+  ifXTable: '1.3.6.1.2.1.31.1.1'
 };
 
 function resolveSnmpVersion(value) {
@@ -43,6 +45,22 @@ function safePercent(used, total) {
 
 function toGb(bytes) {
   return Math.round((bytes / (1024 * 1024 * 1024)) * 10) / 10;
+}
+
+function normalizeCounter(value) {
+  if (value === null || typeof value === 'undefined') {
+    return null;
+  }
+  if (typeof value === 'bigint') {
+    return Number(value);
+  }
+  if (Buffer.isBuffer(value)) {
+    if (value.length <= 6) {
+      return toNumber(value);
+    }
+    return Number(value.readBigUInt64BE(0));
+  }
+  return toNumber(value);
 }
 
 function getScalar(session, oid) {
@@ -127,6 +145,37 @@ function sumStorage(table, typeOid) {
   };
 }
 
+function collectInterfaces(baseTable, xTable) {
+  const interfaces = [];
+  for (const [index, row] of Object.entries(baseTable || {})) {
+    const xRow = (xTable || {})[index] || {};
+    const nameValue = xRow[1] || row[2] || `if${index}`;
+    const name = Buffer.isBuffer(nameValue) ? nameValue.toString('utf-8') : String(nameValue);
+    const speed = toNumber(xRow[15]) || toNumber(row[5]) || 0;
+    const inOctets = normalizeCounter(xRow[6]) ?? normalizeCounter(row[10]);
+    const outOctets = normalizeCounter(xRow[10]) ?? normalizeCounter(row[16]);
+    const operStatus = toNumber(row[8]);
+
+    if (inOctets === null && outOctets === null) {
+      continue;
+    }
+
+    interfaces.push({
+      index: Number(index),
+      name,
+      inOctets: inOctets || 0,
+      outOctets: outOctets || 0,
+      speed,
+      operStatus
+    });
+  }
+
+  return interfaces
+    .filter((iface) => iface.operStatus === 1 || iface.inOctets > 0 || iface.outOctets > 0)
+    .sort((a, b) => (b.inOctets + b.outOctets) - (a.inOctets + a.outOctets))
+    .slice(0, 12);
+}
+
 async function checkSnmp(device) {
   const start = Date.now();
   const version = resolveSnmpVersion(device.snmp_version || device.snmpVersion);
@@ -148,10 +197,12 @@ async function checkSnmp(device) {
   });
 
   try {
-    const [uptimeValue, cpuVarbinds, storageTable] = await Promise.all([
+    const [uptimeValue, cpuVarbinds, storageTable, interfaceTable, interfaceXTable] = await Promise.all([
       getScalar(session, OIDS.sysUpTime),
       collectSubtree(session, OIDS.hrProcessorLoad),
-      collectTableColumns(session, OIDS.hrStorageTable, [2, 3, 4, 5, 6])
+      collectTableColumns(session, OIDS.hrStorageTable, [2, 3, 4, 5, 6]),
+      collectTableColumns(session, OIDS.ifTable, [2, 5, 8, 10, 16]).catch(() => ({})),
+      collectTableColumns(session, OIDS.ifXTable, [1, 6, 10, 15]).catch(() => ({}))
     ]);
 
     const cpuLoads = (cpuVarbinds as any[])
@@ -185,7 +236,8 @@ async function checkSnmp(device) {
         total: toGb(diskTotals.totalBytes),
         percent: diskPercent
       },
-      uptime: uptimeSeconds
+      uptime: uptimeSeconds,
+      interfaces: collectInterfaces(interfaceTable, interfaceXTable)
     };
 
     let status = 'up';
