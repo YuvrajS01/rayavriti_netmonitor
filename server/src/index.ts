@@ -398,6 +398,41 @@ app.get('/api/metrics/latest', requireLegacyAuth, (_req, res) => {
   res.json({ data: db.getLatestMetrics() });
 });
 
+app.post('/api/simulator/metrics', requireLegacyAuth, (req, res) => {
+  const { metrics } = req.body;
+  if (!Array.isArray(metrics)) return res.status(400).json({ error: 'metrics must be an array' });
+
+  for (const m of metrics) {
+    const result = db.recordMetric(m.deviceId, m.status, m.responseTime, m.value, m.message, m.sensorId);
+    const metricObj = {
+      id: result.lastInsertRowid,
+      device_id: m.deviceId,
+      device_name: m.deviceName,
+      status: m.status,
+      response_time: m.responseTime,
+      value: m.value,
+      message: m.message,
+      timestamp: new Date().toISOString()
+    };
+    io.emit('metric:update', metricObj);
+    anomalyEngine.processMetric(metricObj, db, io);
+  }
+  res.json({ success: true, count: metrics.length });
+});
+
+app.post('/api/simulator/flows', requireLegacyAuth, (req, res) => {
+  const { flows } = req.body;
+  if (!Array.isArray(flows)) return res.status(400).json({ error: 'flows must be an array' });
+
+  try {
+    db.insertFlowBatch(flows);
+    io.emit('flow:update');
+    res.json({ success: true, count: flows.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/api/metrics/device/:id', requireLegacyAuth, (req, res) => {
   const id = Number(req.params.id);
   const limit = Number(req.query.limit || 100);
