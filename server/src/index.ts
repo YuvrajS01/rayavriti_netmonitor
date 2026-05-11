@@ -484,6 +484,11 @@ app.get('/api/insights', requireLegacyAuth, (_req, res) => {
   res.json({ data: anomalyEngine.buildInsights() });
 });
 
+app.get('/api/insights/history', requireLegacyAuth, (req, res) => {
+  const hours = Math.min(48, Math.max(1, Number(req.query.hours || 12)));
+  res.json({ data: anomalyEngine.buildHistoryTimeline(hours) });
+});
+
 app.get('/api/alerts', requireLegacyAuth, (req, res) => {
   const status = req.query.status || 'active';
   const limit = Number(req.query.limit || 200);

@@ -4,7 +4,7 @@ import type {
   DashboardStats, ReportSummary, TimeseriesPoint,
   FlowRecord, TopTalker, ProtocolBreakdown, FlowStats, FlowTimeseriesPoint,
   CaptureSession, CapturedPacket, NetworkInterface,
-  PortScanResult, PortScanResponse, InsightsResponse
+  PortScanResult, PortScanResponse, InsightsResponse, HealthHistoryResponse
 } from './types';
 
 const api = axios.create({ baseURL: '/api' });
@@ -67,6 +67,9 @@ export const scanDevicePorts = (id: number, payload: { ports?: number[]; timeout
 
 export const getInsights = () =>
   api.get<ApiResponse<InsightsResponse>>('/insights').then((r) => r.data);
+
+export const getInsightsHistory = (hours: number = 12) =>
+  api.get<ApiResponse<HealthHistoryResponse>>(`/insights/history?hours=${hours}`).then((r) => r.data);
 
 // Alerts
 export const getAlerts = (status: string = 'active', limit: number = 200) =>
