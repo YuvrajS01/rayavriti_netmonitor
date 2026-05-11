@@ -1,0 +1,29 @@
+{
+  "server": {
+    "apiUrl": "http://localhost:3000",
+    "wsUrl": "http://localhost:3000",
+    "credentials": {
+      "username": "admin",
+      "password": "admin123"
+    }
+  },
+  "simulation": {
+    "durationSeconds": 600,
+    "metricIntervalMs": 10000,
+    "flowIntervalMs": 2000,
+    "flowBatchSize": 50,
+    "speedMultiplier": 1,
+    "enableNetflow": true,
+    "enableScenarios": true,
+    "scenarioPreset": "mixed"
+  },
+  "networkTopology": {
+    "subnets": [
+      { "name": "Core", "cidr": "10.0.0.0/24", "vlan": 1 },
+      { "name": "Servers", "cidr": "10.0.10.0/24", "vlan": 10 },
+      { "name": "Workstations", "cidr": "10.0.20.0/24", "vlan": 20 },
+      { "name": "DMZ", "cidr": "172.16.0.0/24", "vlan": 100 },
+      { "name": "Management", "cidr": "192.168.1.0/24", "vlan": 99 }
+    ]
+  }
+}

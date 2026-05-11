@@ -15,6 +15,7 @@
     "build:server": "npm run build -w server",
     "build:client": "npm run build -w client",
     "typecheck": "npm run typecheck -w server",
-    "start": "npm run start -w server"
+    "start": "npm run start -w server",
+    "simulate": "npx ts-node simulator/run.ts"
   }
 }
