@@ -147,3 +147,53 @@
   overflow: hidden;
 }
 
+/* ── Report Tab Fade-In ─────────────────────────────────────── */
+@keyframes report-fade {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.report-tab-content > * {
+  animation: report-fade 0.3s ease-out forwards;
+}
+
+/* ── Print Styles ────────────────────────────────────────────── */
+@media print {
+  body {
+    background: #fff !important;
+    color: #111 !important;
+    font-size: 11px;
+  }
+  .no-print, nav, aside, header:has(button), [class*="sidebar"] {
+    display: none !important;
+  }
+  .print-header {
+    display: block !important;
+    border-bottom: 2px solid #111;
+    padding-bottom: 8px;
+    margin-bottom: 16px;
+  }
+  .print-header h1 { color: #111 !important; font-size: 22px !important; }
+  .print-header p { color: #444 !important; }
+  .print-footer {
+    display: block !important;
+    border-top: 1px solid #ccc;
+    padding-top: 8px;
+    margin-top: 24px;
+    font-size: 9px;
+    color: #888;
+  }
+  .report-section {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  /* Flatten dark cards to white for paper */
+  [class*="bg-surface"] {
+    background: #fff !important;
+    border-color: #ddd !important;
+  }
+  [class*="text-on-surface"] { color: #333 !important; }
+  [class*="text-primary"] { color: #3a7d00 !important; }
+  [class*="text-error"] { color: #c00 !important; }
+  ::-webkit-scrollbar { display: none; }
+}
+
