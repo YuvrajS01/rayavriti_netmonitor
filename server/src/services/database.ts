@@ -909,6 +909,54 @@ module.exports = {
     return db.prepare(`
       UPDATE capture_sessions SET packet_count = ?, bytes_captured = ? WHERE id = ?
     `).run(packetCount, bytesCaptured, Number(id));
+  },
+
+  /**
+   * Fetch metrics in two time windows for trend comparison.
+   * Returns { recent: Metric[], baseline: Metric[] } where:
+   *   recent   = last `windowHours` hours
+   *   baseline = the `windowHours` before that
+   */
+  getMetricsForTrend: (windowHours = 1) => {
+    const now = Date.now();
+    const recentSince = new Date(now - windowHours * 60 * 60 * 1000)
+      .toISOString().slice(0, 19).replace('T', ' ');
+    const baselineSince = new Date(now - windowHours * 2 * 60 * 60 * 1000)
+      .toISOString().slice(0, 19).replace('T', ' ');
+
+    const recent = db.prepare(`
+      SELECT m.*, d.name AS device_name, d.type AS device_type, d.host, d.protocol
+      FROM metrics m
+      JOIN devices d ON d.id = m.device_id
+      WHERE m.timestamp >= ?
+      ORDER BY m.timestamp DESC
+      LIMIT 10000
+    `).all(recentSince);
+
+    const baseline = db.prepare(`
+      SELECT m.*, d.name AS device_name, d.type AS device_type, d.host, d.protocol
+      FROM metrics m
+      JOIN devices d ON d.id = m.device_id
+      WHERE m.timestamp >= ? AND m.timestamp < ?
+      ORDER BY m.timestamp DESC
+      LIMIT 10000
+    `).all(baselineSince, recentSince);
+
+    return { recent, baseline };
+  },
+
+  /**
+   * Fetch metrics for a specific historical window (used for history timeline).
+   */
+  getMetricsInWindow: (fromIso, toIso) => {
+    return db.prepare(`
+      SELECT m.*, d.name AS device_name, d.type AS device_type, d.host, d.protocol
+      FROM metrics m
+      JOIN devices d ON d.id = m.device_id
+      WHERE m.timestamp >= ? AND m.timestamp < ?
+      ORDER BY m.timestamp DESC
+      LIMIT 10000
+    `).all(fromIso, toIso);
   }
 };
 

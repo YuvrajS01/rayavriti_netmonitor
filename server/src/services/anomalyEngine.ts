@@ -32,6 +32,15 @@ function scoreLabel(score) {
   return 'critical';
 }
 
+// ── Factor weights ────────────────────────────────────────────
+const FACTOR_WEIGHTS = {
+  availability: 0.35,
+  latency: 0.25,
+  alerts: 0.20,
+  stability: 0.12,
+  ports: 0.08,
+};
+
 function getMetricsWindow(hours = 24) {
   const since = toSqlDate(new Date(Date.now() - hours * 60 * 60 * 1000));
   return db.getRecentMetrics({ since, limit: 10000 });
@@ -110,6 +119,9 @@ function groupAlerts(alerts) {
   })).sort((a, b) => b.count - a.count);
 }
 
+/**
+ * Compute per-device health with weighted factor breakdown.
+ */
 function computeDeviceHealth(metrics, portResults, alerts) {
   const byDevice = new Map();
   for (const m of metrics) {
@@ -134,12 +146,37 @@ function computeDeviceHealth(metrics, portResults, alerts) {
     const devicePorts = portResults.filter((p) => p.device_id === deviceId);
     const changedPorts = devicePorts.filter((p) => p.last_changed_at && p.last_changed_at === p.last_seen).length;
 
-    const availabilityScore = samples ? ((samples - down) / samples) * 100 : 75;
-    const warningPenalty = samples ? (warning / samples) * 18 : 0;
-    const latencyPenalty = clamp(avgResponse / 40, 0, 22);
-    const alertPenalty = clamp(alertCount * 8, 0, 28);
-    const portPenalty = clamp(changedPorts * 3, 0, 12);
-    const score = Math.round(clamp(availabilityScore - warningPenalty - latencyPenalty - alertPenalty - portPenalty, 0, 100));
+    // ── Individual factor scores (0–100 each) ──
+    const availabilityRaw = samples ? ((samples - down) / samples) * 100 : 75;
+    const availabilityScore = Math.round(clamp(availabilityRaw, 0, 100));
+
+    const warningRatio = samples ? warning / samples : 0;
+    const stabilityScore = Math.round(clamp(100 - warningRatio * 180, 0, 100));
+
+    const latencyScore = Math.round(clamp(100 - avgResponse / 4, 0, 100));
+
+    const alertScore = Math.round(clamp(100 - alertCount * 20, 0, 100));
+
+    const portScore = Math.round(clamp(100 - changedPorts * 15, 0, 100));
+
+    // ── Weighted composite ──
+    const compositeScore = Math.round(
+      availabilityScore * FACTOR_WEIGHTS.availability +
+      latencyScore * FACTOR_WEIGHTS.latency +
+      alertScore * FACTOR_WEIGHTS.alerts +
+      stabilityScore * FACTOR_WEIGHTS.stability +
+      portScore * FACTOR_WEIGHTS.ports
+    );
+    const score = clamp(compositeScore, 0, 100);
+
+    const factors = {
+      availability: { score: availabilityScore, weight: FACTOR_WEIGHTS.availability, penalty: 100 - availabilityScore },
+      latency:      { score: latencyScore, weight: FACTOR_WEIGHTS.latency, penalty: 100 - latencyScore },
+      alerts:       { score: alertScore, weight: FACTOR_WEIGHTS.alerts, penalty: 100 - alertScore },
+      stability:    { score: stabilityScore, weight: FACTOR_WEIGHTS.stability, penalty: 100 - stabilityScore },
+      ports:        { score: portScore, weight: FACTOR_WEIGHTS.ports, penalty: 100 - portScore },
+    };
+
     const latest = rows.sort((a, b) => String(b.timestamp).localeCompare(String(a.timestamp)))[0];
     const issues = [];
 
@@ -196,14 +233,59 @@ function computeDeviceHealth(metrics, portResults, alerts) {
       deviceName: latest?.device_name || `Device ${deviceId}`,
       score,
       label: scoreLabel(score),
-      availabilityPercent: Number(availabilityScore.toFixed(1)),
+      availabilityPercent: Number(availabilityRaw.toFixed(1)),
       avgResponseMs: Math.round(avgResponse),
       activeAlerts: alertCount,
       openPorts: devicePorts.filter((p) => p.status === 'open').length,
       samples,
+      factors,
+      // trend/trendDelta added by addTrendData()
+      trend: 'stable' as 'improving' | 'stable' | 'degrading',
+      trendDelta: 0,
       issues
     };
   }).sort((a, b) => a.score - b.score);
+}
+
+/**
+ * Compute a lightweight health score for a set of metrics (used for history timeline).
+ * Returns the average composite score across all devices in the window.
+ */
+function computeWindowScore(metrics, portResults, alerts) {
+  if (!metrics.length) return null;
+  const health = computeDeviceHealth(metrics, portResults, alerts);
+  if (!health.length) return null;
+  return Math.round(health.reduce((sum, d) => sum + d.score, 0) / health.length);
+}
+
+/**
+ * Compare current health against a baseline window to detect trends.
+ */
+function addTrendData(healthList, baselineMetrics, portResults, alerts) {
+  if (!baselineMetrics.length) return healthList;
+
+  const baselineHealth = computeDeviceHealth(baselineMetrics, portResults, alerts);
+  const baselineMap = new Map();
+  for (const bh of baselineHealth) {
+    baselineMap.set(bh.deviceId, bh.score);
+  }
+
+  for (const device of healthList) {
+    const baselineScore = baselineMap.get(device.deviceId);
+    if (baselineScore !== undefined) {
+      const delta = device.score - baselineScore;
+      device.trendDelta = delta;
+      if (delta >= 5) {
+        device.trend = 'improving';
+      } else if (delta <= -5) {
+        device.trend = 'degrading';
+      } else {
+        device.trend = 'stable';
+      }
+    }
+  }
+
+  return healthList;
 }
 
 function buildInsights() {
@@ -215,7 +297,43 @@ function buildInsights() {
   const responseAnomalies = detectResponseAnomalies(metrics);
   const flowAnomalies = flowAnalyzer.detectAnomalies();
   const alertGroups = groupAlerts(alerts);
-  const health = computeDeviceHealth(metrics, portResults, alerts);
+  let health = computeDeviceHealth(metrics, portResults, alerts);
+
+  // ── Trend detection ──
+  try {
+    const trendData = db.getMetricsForTrend(1);
+    if (trendData.baseline.length > 0) {
+      health = addTrendData(health, trendData.baseline, portResults, alerts);
+    }
+  } catch {
+    // trend data unavailable, continue without
+  }
+
+  // ── Network-wide summary ──
+  const networkScore = health.length
+    ? Math.round(health.reduce((sum, d) => sum + d.score, 0) / health.length)
+    : 0;
+
+  const healthDistribution = {
+    critical: health.filter((d) => d.label === 'critical').length,
+    risk: health.filter((d) => d.label === 'risk').length,
+    watch: health.filter((d) => d.label === 'watch').length,
+    healthy: health.filter((d) => d.label === 'healthy').length,
+  };
+
+  const topRisks = [...health]
+    .filter((d) => d.score < 85)
+    .sort((a, b) => a.trendDelta - b.trendDelta)
+    .slice(0, 3)
+    .map((d) => ({
+      deviceId: d.deviceId,
+      deviceName: d.deviceName,
+      score: d.score,
+      label: d.label,
+      trend: d.trend,
+      trendDelta: d.trendDelta,
+      primaryIssue: (d.issues.find((i) => i.severity !== 'info') || d.issues[0])?.message || 'No issue'
+    }));
 
   const insights = [];
   for (const anomaly of responseAnomalies.slice(0, 5)) {
@@ -263,6 +381,9 @@ function buildInsights() {
 
   return {
     generatedAt: new Date().toISOString(),
+    networkScore,
+    healthDistribution,
+    topRisks,
     health,
     responseAnomalies,
     alertGroups,
@@ -274,11 +395,55 @@ function buildInsights() {
   };
 }
 
+/**
+ * Build a 12-hour health timeline with hourly data points.
+ */
+function buildHistoryTimeline(hours = 12) {
+  const alerts = db.getAlerts({ status: 'all', limit: 2000 });
+  const devices = db.getDevices();
+  const portResults = devices.flatMap((d) => db.getPortScanResults(d.id));
+  const now = Date.now();
+  const points = [];
+
+  for (let i = hours; i >= 0; i--) {
+    const windowEnd = new Date(now - i * 60 * 60 * 1000);
+    const windowStart = new Date(windowEnd.getTime() - 60 * 60 * 1000);
+    const fromIso = toSqlDate(windowStart);
+    const toIso = toSqlDate(windowEnd);
+
+    try {
+      const windowMetrics = db.getMetricsInWindow(fromIso, toIso);
+      const score = computeWindowScore(windowMetrics, portResults, alerts);
+      points.push({
+        timestamp: windowEnd.toISOString(),
+        score: score !== null ? score : null,
+        label: score !== null ? scoreLabel(score) : null,
+      });
+    } catch {
+      points.push({
+        timestamp: windowEnd.toISOString(),
+        score: null,
+        label: null,
+      });
+    }
+  }
+
+  return {
+    generatedAt: new Date().toISOString(),
+    hours,
+    points,
+  };
+}
+
 module.exports = {
   buildInsights,
+  buildHistoryTimeline,
   detectResponseAnomalies,
   groupAlerts,
-  computeDeviceHealth
+  computeDeviceHealth,
+  // Called per-metric by the simulator endpoint — no-op for now,
+  // real-time anomaly detection is handled at query time by buildInsights()
+  processMetric: () => {}
 };
 
 export {};

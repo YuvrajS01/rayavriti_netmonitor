@@ -254,6 +254,22 @@ export interface InsightItem {
   timestamp?: string;
 }
 
+// ── Health Score Factor Breakdown ─────────────────────────────
+
+export interface HealthFactor {
+  score: number;
+  weight: number;
+  penalty: number;
+}
+
+export interface HealthFactors {
+  availability: HealthFactor;
+  latency: HealthFactor;
+  alerts: HealthFactor;
+  stability: HealthFactor;
+  ports: HealthFactor;
+}
+
 export interface DeviceHealth {
   deviceId: number;
   deviceName: string;
@@ -264,6 +280,9 @@ export interface DeviceHealth {
   activeAlerts: number;
   openPorts: number;
   samples: number;
+  factors: HealthFactors;
+  trend: 'improving' | 'stable' | 'degrading';
+  trendDelta: number;
   issues: Array<{
     severity: 'critical' | 'warning' | 'info';
     type: string;
@@ -271,11 +290,45 @@ export interface DeviceHealth {
   }>;
 }
 
+export interface TopRiskDevice {
+  deviceId: number;
+  deviceName: string;
+  score: number;
+  label: string;
+  trend: 'improving' | 'stable' | 'degrading';
+  trendDelta: number;
+  primaryIssue: string;
+}
+
+export interface HealthDistribution {
+  critical: number;
+  risk: number;
+  watch: number;
+  healthy: number;
+}
+
 export interface InsightsResponse {
   generatedAt: string;
+  networkScore: number;
+  healthDistribution: HealthDistribution;
+  topRisks: TopRiskDevice[];
   health: DeviceHealth[];
   responseAnomalies: unknown[];
   alertGroups: unknown[];
   flowAnomalies: unknown[];
   insights: InsightItem[];
+}
+
+// ── Health History Timeline ──────────────────────────────────
+
+export interface HealthHistoryPoint {
+  timestamp: string;
+  score: number | null;
+  label: string | null;
+}
+
+export interface HealthHistoryResponse {
+  generatedAt: string;
+  hours: number;
+  points: HealthHistoryPoint[];
 }

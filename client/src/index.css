@@ -95,3 +95,55 @@
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: #0e0e09; }
 ::-webkit-scrollbar-thumb { background: #26261d; }
+
+/* ── Radial Gauge Animation ──────────────────────────────── */
+@keyframes gauge-fill {
+  from { stroke-dashoffset: var(--gauge-circumference, 440); }
+  to   { stroke-dashoffset: var(--gauge-offset, 440); }
+}
+
+.gauge-ring {
+  animation: gauge-fill 1.2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+/* ── Health Status Glows ─────────────────────────────────── */
+.glow-healthy {
+  box-shadow: 0 0 20px rgba(217, 253, 58, 0.15), 0 0 40px rgba(217, 253, 58, 0.05);
+}
+.glow-watch {
+  box-shadow: 0 0 20px rgba(245, 158, 11, 0.15), 0 0 40px rgba(245, 158, 11, 0.05);
+}
+.glow-risk {
+  box-shadow: 0 0 20px rgba(255, 115, 81, 0.15), 0 0 40px rgba(255, 115, 81, 0.05);
+}
+.glow-critical {
+  box-shadow: 0 0 20px rgba(255, 68, 68, 0.2), 0 0 40px rgba(255, 68, 68, 0.08);
+}
+
+/* ── Trend Pulse ─────────────────────────────────────────── */
+@keyframes trend-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+.trend-pulse {
+  animation: trend-pulse 2s ease-in-out infinite;
+}
+
+/* ── Factor Bar Animation ────────────────────────────────── */
+@keyframes factor-fill {
+  from { width: 0; }
+}
+.factor-bar-fill {
+  animation: factor-fill 0.8s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+/* ── Slide Down Accordion ────────────────────────────────── */
+@keyframes slide-down {
+  from { max-height: 0; opacity: 0; }
+  to   { max-height: 500px; opacity: 1; }
+}
+.animate-slide-down {
+  animation: slide-down 0.3s ease-out forwards;
+  overflow: hidden;
+}
+
