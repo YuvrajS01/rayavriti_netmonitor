@@ -584,6 +584,47 @@ app.get('/api/reports/timeseries', requireLegacyAuth, (req, res) => {
   return res.json({ data });
 });
 
+app.get('/api/reports/devices', requireLegacyAuth, (req, res) => {
+  const range = parseReportRange(req);
+  if (!range) {
+    return res.status(400).json({ error: 'invalid date range' });
+  }
+
+  const rows = db.getDeviceBreakdownForReport(range);
+  const data = rows.map((row) => {
+    const sampleCount = Number(row.sample_count || 0);
+    const downCount = Number(row.down_count || 0);
+    const warnCount = Number(row.warn_count || 0);
+    const availability = sampleCount > 0
+      ? Number((((sampleCount - downCount) / sampleCount) * 100).toFixed(2))
+      : 0;
+    return {
+      deviceId: row.device_id,
+      deviceName: row.device_name,
+      protocol: row.protocol,
+      sampleCount,
+      downCount,
+      warnCount,
+      availabilityPercent: availability,
+      avgResponseMs: Number(Number(row.avg_response || 0).toFixed(2)),
+      minResponseMs: Number(Number(row.min_response || 0).toFixed(2)),
+      maxResponseMs: Number(Number(row.max_response || 0).toFixed(2)),
+    };
+  });
+
+  return res.json({ data });
+});
+
+app.get('/api/reports/alerts', requireLegacyAuth, (req, res) => {
+  const range = parseReportRange(req);
+  if (!range) {
+    return res.status(400).json({ error: 'invalid date range' });
+  }
+
+  const rows = db.getAlertsForReport({ ...range, deviceId: req.query.deviceId });
+  return res.json({ data: rows });
+});
+
 const v1 = express.Router();
 v1.use(authenticateV1, rateLimitV1);
 

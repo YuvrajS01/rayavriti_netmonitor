@@ -1,7 +1,7 @@
 import axios from 'axios';
 import type {
   ApiResponse, AuthTokens, Device, Metric, Alert, AlertCounts,
-  DashboardStats, ReportSummary, TimeseriesPoint,
+  DashboardStats, ReportSummary, TimeseriesPoint, DeviceBreakdown, ReportAlert,
   FlowRecord, TopTalker, ProtocolBreakdown, FlowStats, FlowTimeseriesPoint,
   CaptureSession, CapturedPacket, NetworkInterface,
   PortScanResult, PortScanResponse, InsightsResponse, HealthHistoryResponse
@@ -94,6 +94,12 @@ export const getReportSummary = (query: string = '') =>
 
 export const getReportTimeseries = (query: string = '') =>
   api.get<ApiResponse<TimeseriesPoint[]>>(`/reports/timeseries${query}`).then((r) => r.data);
+
+export const getReportDeviceBreakdown = (query: string = '') =>
+  api.get<ApiResponse<DeviceBreakdown[]>>(`/reports/devices${query}`).then((r) => r.data);
+
+export const getReportAlerts = (query: string = '') =>
+  api.get<ApiResponse<ReportAlert[]>>(`/reports/alerts${query}`).then((r) => r.data);
 
 export const downloadMetricsCsv = async (query: string = '') => {
   const res = await api.get(`/reports/metrics.csv${query}`, { responseType: 'blob' });

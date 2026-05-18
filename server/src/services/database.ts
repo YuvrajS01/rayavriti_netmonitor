@@ -957,6 +957,49 @@ module.exports = {
       ORDER BY m.timestamp DESC
       LIMIT 10000
     `).all(fromIso, toIso);
+  },
+
+  /**
+   * Per-device performance breakdown for a report time range.
+   */
+  getDeviceBreakdownForReport: ({ from, to }: any) => {
+    return db.prepare(`
+      SELECT
+        m.device_id,
+        d.name AS device_name,
+        d.protocol,
+        COUNT(*) AS sample_count,
+        SUM(CASE WHEN m.status = 'down' THEN 1 ELSE 0 END) AS down_count,
+        SUM(CASE WHEN m.status IN ('warning', 'degraded') THEN 1 ELSE 0 END) AS warn_count,
+        ROUND(AVG(COALESCE(m.response_time, 0)), 2) AS avg_response,
+        MIN(COALESCE(m.response_time, 0)) AS min_response,
+        MAX(COALESCE(m.response_time, 0)) AS max_response
+      FROM metrics m
+      JOIN devices d ON d.id = m.device_id
+      WHERE m.timestamp BETWEEN ? AND ?
+      GROUP BY m.device_id
+      ORDER BY sample_count DESC
+    `).all(from, to);
+  },
+
+  /**
+   * Alerts created within a report time range, with optional device filter.
+   */
+  getAlertsForReport: ({ from, to, deviceId }: any) => {
+    const clauses = ['a.created_at BETWEEN ? AND ?'];
+    const params: any[] = [from, to];
+    if (deviceId) {
+      clauses.push('a.device_id = ?');
+      params.push(Number(deviceId));
+    }
+    return db.prepare(`
+      SELECT a.*, d.name AS device_name
+      FROM alerts a
+      JOIN devices d ON a.device_id = d.id
+      WHERE ${clauses.join(' AND ')}
+      ORDER BY a.created_at DESC
+      LIMIT 1000
+    `).all(...params);
   }
 };
 

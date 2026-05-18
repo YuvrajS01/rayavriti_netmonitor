@@ -1,44 +1,53 @@
 import { useState, useEffect, useCallback } from 'react';
-import {
-  ComposedChart, AreaChart, Area, Line, XAxis, YAxis, ResponsiveContainer, Tooltip,
-  CartesianGrid, Bar, BarChart, Legend,
-} from 'recharts';
-import { getReportSummary, getReportTimeseries, downloadMetricsCsv } from '../api/client';
-import type { ReportSummary, TimeseriesPoint } from '../api/types';
+import { getReportSummary, getReportTimeseries, getReportDeviceBreakdown, getReportAlerts, downloadMetricsCsv, getDevices } from '../api/client';
+import type { ReportSummary, TimeseriesPoint, DeviceBreakdown, ReportAlert, Device } from '../api/types';
+import SummaryTab from '../components/reports/SummaryTab';
+import DeviceTab from '../components/reports/DeviceTab';
+import SlaTab from '../components/reports/SlaTab';
+import AlertTab from '../components/reports/AlertTab';
 
 function formatLocalInput(date: Date) {
   const d = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
   return d.toISOString().slice(0, 16);
 }
 
-function toQuery(from: string, to: string) {
+function toQuery(from: string, to: string, deviceId?: number) {
   const params = new URLSearchParams();
   if (from) params.set('from', new Date(from).toISOString());
   if (to) params.set('to', new Date(to).toISOString());
+  if (deviceId) params.set('deviceId', String(deviceId));
   const text = params.toString();
   return text ? `?${text}` : '';
 }
 
-function formatBucketLabel(ts: string): string {
-  const d = new Date(ts);
-  if (isNaN(d.getTime())) return ts;
-  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-}
+type TabId = 'summary' | 'devices' | 'sla' | 'alerts';
+const TABS: { id: TabId; label: string; icon: string }[] = [
+  { id: 'summary', label: 'Executive Summary', icon: 'dashboard' },
+  { id: 'devices', label: 'Device Performance', icon: 'devices' },
+  { id: 'sla', label: 'SLA Compliance', icon: 'verified' },
+  { id: 'alerts', label: 'Alert History', icon: 'notifications' },
+];
 
-const TOOLTIP_STYLE = {
-  background: '#1a1a13',
-  border: '1px solid #494840',
-  borderRadius: '8px',
-  fontSize: '12px',
-  color: '#f4f1e6',
-};
+const RANGES = [
+  { hours: 1, label: '1h' },
+  { hours: 6, label: '6h' },
+  { hours: 24, label: '24h' },
+  { hours: 168, label: '7d' },
+  { hours: 720, label: '30d' },
+];
 
 export default function Reports() {
   const [summary, setSummary] = useState<ReportSummary | null>(null);
   const [series, setSeries] = useState<TimeseriesPoint[]>([]);
+  const [deviceBreakdown, setDeviceBreakdown] = useState<DeviceBreakdown[]>([]);
+  const [reportAlerts, setReportAlerts] = useState<ReportAlert[]>([]);
+  const [allDevices, setAllDevices] = useState<Device[]>([]);
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [activeRange, setActiveRange] = useState(24);
+  const [activeTab, setActiveTab] = useState<TabId>('summary');
+  const [selectedDevice, setSelectedDevice] = useState<number | undefined>(undefined);
+  const [loading, setLoading] = useState(false);
 
   const setRange = useCallback((hours: number) => {
     const now = new Date();
@@ -49,236 +58,123 @@ export default function Reports() {
   }, []);
 
   const refresh = useCallback(async () => {
-    const query = toQuery(from, to);
-    const [sumRes, tsRes] = await Promise.all([
-      getReportSummary(query),
-      getReportTimeseries(query),
-    ]);
-    setSummary(sumRes.data);
-    setSeries(tsRes.data || []);
-  }, [from, to]);
+    setLoading(true);
+    const query = toQuery(from, to, selectedDevice);
+    try {
+      const [sumRes, tsRes, devRes, alertRes] = await Promise.all([
+        getReportSummary(query),
+        getReportTimeseries(query),
+        getReportDeviceBreakdown(toQuery(from, to)),
+        getReportAlerts(query),
+      ]);
+      setSummary(sumRes.data);
+      setSeries(tsRes.data || []);
+      setDeviceBreakdown(devRes.data || []);
+      setReportAlerts(alertRes.data || []);
+    } catch { /* interceptor handles 401 */ }
+    setLoading(false);
+  }, [from, to, selectedDevice]);
 
+  useEffect(() => { getDevices().then(r => setAllDevices(r.data || [])).catch(() => {}); }, []);
   useEffect(() => { setRange(24); }, [setRange]);
-  useEffect(() => { if (from && to) refresh(); }, [from, to, refresh]);
+  useEffect(() => { if (from && to) refresh(); }, [from, to, selectedDevice, refresh]);
 
-  // Enrich series with formatted labels
-  const chartSeries = series.map((p, i) => ({
-    label: formatBucketLabel(p.timestamp ?? (p as unknown as { bucket: string }).bucket ?? String(i)),
-    availability: Number(p.availabilityPercent ?? 0),
-    response: Number(p.avgResponseMs ?? 0),
-    samples: Number(p.sampleCount ?? 0),
-    down: Number(p.downCount ?? 0),
-  }));
+  const handleSelectDevice = (id: number) => {
+    setSelectedDevice(prev => prev === id ? undefined : id);
+  };
 
-  // Down events bar chart
-  const downBarData = chartSeries.map((p) => ({
-    label: p.label,
-    Down: p.down,
-    Warning: Math.max(0, p.samples - p.down - Math.round((p.availability / 100) * p.samples)),
-    Healthy: Math.round((p.availability / 100) * p.samples),
-  }));
-
-  const ranges = [
-    { hours: 24, label: 'Last 24h' },
-    { hours: 168, label: '7 days' },
-    { hours: 720, label: '30 days' },
-  ];
+  const handlePrint = () => {
+    document.body.classList.add('print-report');
+    window.print();
+    document.body.classList.remove('print-report');
+  };
 
   return (
     <div>
-      <header className="mb-12">
-        <h1 className="font-headline text-4xl font-black text-on-surface uppercase tracking-tight mb-2">Reports</h1>
-        <p className="text-on-surface-variant font-body max-w-xl">Historical analytics and performance reports across all monitored nodes.</p>
+      {/* Header */}
+      <header className="mb-8 print-header">
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-2">
+          <div>
+            <h1 className="font-headline text-4xl font-black text-on-surface uppercase tracking-tight mb-1">Reports</h1>
+            <p className="text-on-surface-variant font-body max-w-xl text-sm">Historical analytics, SLA compliance, and performance reports across all monitored nodes.</p>
+          </div>
+          <div className="flex items-center gap-2 no-print">
+            <button onClick={() => downloadMetricsCsv(toQuery(from, to, selectedDevice))} className="px-3 py-2 rounded-lg text-xs border border-primary/40 text-primary font-bold uppercase hover:bg-primary/5 transition-colors flex items-center gap-1.5">
+              <span className="material-symbols-outlined text-sm">download</span> CSV
+            </button>
+            <button onClick={handlePrint} className="px-3 py-2 rounded-lg text-xs border border-outline-variant/30 text-on-surface-variant font-bold uppercase hover:text-primary hover:border-primary/40 transition-colors flex items-center gap-1.5">
+              <span className="material-symbols-outlined text-sm">print</span> Print
+            </button>
+          </div>
+        </div>
       </header>
 
       {/* Controls */}
-      <div className="bg-surface-container-low rounded-xl border border-outline-variant/20 p-6 mb-8">
+      <div className="bg-surface-container-low rounded-xl border border-outline-variant/20 p-5 mb-6 no-print">
         <div className="flex flex-col xl:flex-row gap-4 xl:items-end xl:justify-between">
-          <div className="flex flex-wrap gap-2">
-            {ranges.map((r) => (
-              <button
-                key={r.hours}
-                onClick={() => setRange(r.hours)}
-                className={`px-3 py-2 rounded-lg text-xs border font-bold transition-all ${
-                  activeRange === r.hours
-                    ? 'border-primary/40 text-primary bg-primary/5'
-                    : 'border-outline-variant/20 text-on-surface-variant hover:text-primary'
-                }`}
-              >
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Time range presets */}
+            {RANGES.map(r => (
+              <button key={r.hours} onClick={() => setRange(r.hours)}
+                className={`px-3 py-2 rounded-lg text-xs border font-bold transition-all ${activeRange === r.hours ? 'border-primary/40 text-primary bg-primary/5' : 'border-outline-variant/20 text-on-surface-variant hover:text-primary'}`}>
                 {r.label}
               </button>
             ))}
+            {/* Device filter */}
+            <div className="h-5 w-px bg-outline-variant/30 mx-1" />
+            <select value={selectedDevice ?? ''} onChange={e => setSelectedDevice(e.target.value ? Number(e.target.value) : undefined)}
+              className="bg-surface-container-highest border border-outline-variant/20 rounded-lg px-3 py-2 text-xs text-on-surface outline-none cursor-pointer min-w-[140px]">
+              <option value="">All Devices</option>
+              {allDevices.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+            </select>
           </div>
           <div className="flex flex-wrap gap-2">
-            <input type="datetime-local" value={from} onChange={(e) => setFrom(e.target.value)} className="bg-surface-container-highest border border-outline-variant/20 rounded-lg px-3 py-2 text-xs text-on-surface outline-none" />
-            <input type="datetime-local" value={to} onChange={(e) => setTo(e.target.value)} className="bg-surface-container-highest border border-outline-variant/20 rounded-lg px-3 py-2 text-xs text-on-surface outline-none" />
-            <button onClick={refresh} className="px-3 py-2 rounded-lg text-xs bg-primary text-on-primary font-bold uppercase">Run</button>
-            <button onClick={() => downloadMetricsCsv(toQuery(from, to))} className="px-3 py-2 rounded-lg text-xs border border-primary/40 text-primary font-bold uppercase">CSV</button>
+            <input type="datetime-local" value={from} onChange={e => setFrom(e.target.value)} className="bg-surface-container-highest border border-outline-variant/20 rounded-lg px-3 py-2 text-xs text-on-surface outline-none" />
+            <input type="datetime-local" value={to} onChange={e => setTo(e.target.value)} className="bg-surface-container-highest border border-outline-variant/20 rounded-lg px-3 py-2 text-xs text-on-surface outline-none" />
+            <button onClick={refresh} className="px-4 py-2 rounded-lg text-xs bg-primary text-on-primary font-bold uppercase hover:brightness-110 transition-all flex items-center gap-1.5">
+              {loading ? <span className="material-symbols-outlined text-sm animate-spin">refresh</span> : <span className="material-symbols-outlined text-sm">play_arrow</span>}
+              Run
+            </button>
           </div>
         </div>
       </div>
 
-      {/* Summary Cards */}
-      {summary && (
-        <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3 mb-8 text-xs">
-          <div className="bg-surface-container-high p-3 rounded-lg"><p className="text-on-surface-variant">From</p><p className="font-bold truncate">{summary.from}</p></div>
-          <div className="bg-surface-container-high p-3 rounded-lg"><p className="text-on-surface-variant">To</p><p className="font-bold truncate">{summary.to}</p></div>
-          <div className="bg-surface-container-high p-3 rounded-lg"><p className="text-on-surface-variant">Samples</p><p className="font-bold">{summary.totalSamples}</p></div>
-          <div className="bg-surface-container-high p-3 rounded-lg"><p className="text-on-surface-variant">Down</p><p className="font-bold text-error">{summary.downSamples}</p></div>
-          <div className="bg-surface-container-high p-3 rounded-lg"><p className="text-on-surface-variant">Warn</p><p className="font-bold text-amber-400">{summary.warningSamples}</p></div>
-          <div className="bg-surface-container-high p-3 rounded-lg"><p className="text-on-surface-variant">Availability</p><p className="font-bold text-primary">{summary.availabilityPercent}%</p></div>
-          <div className="bg-surface-container-high p-3 rounded-lg"><p className="text-on-surface-variant">Avg Response</p><p className="font-bold">{summary.averageResponseMs} ms</p></div>
+      {/* Active device filter badge */}
+      {selectedDevice && (
+        <div className="flex items-center gap-2 mb-4 no-print">
+          <span className="text-[10px] text-on-surface-variant uppercase tracking-widest">Filtered:</span>
+          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary/10 border border-primary/30 text-primary text-xs font-bold">
+            {allDevices.find(d => d.id === selectedDevice)?.name || `Device ${selectedDevice}`}
+            <button onClick={() => setSelectedDevice(undefined)} className="hover:text-on-surface transition-colors">
+              <span className="material-symbols-outlined text-sm">close</span>
+            </button>
+          </span>
         </div>
       )}
 
-      {/* Charts */}
-      <div className="space-y-6">
-        {/* Combined dual-axis chart: Availability + Response Time */}
-        <div className="bg-surface-container-high rounded-xl p-4 border border-outline-variant/20">
-          <h3 className="text-sm font-headline font-bold mb-1 uppercase tracking-widest">Availability &amp; Response Time</h3>
-          <p className="text-[11px] text-on-surface-variant mb-3">Availability % (left axis) · Avg response ms (right axis)</p>
-          {chartSeries.length === 0 ? (
-            <p className="text-xs text-on-surface-variant text-center py-16">No data for selected range</p>
-          ) : (
-            <ResponsiveContainer width="100%" height={260}>
-              <ComposedChart data={chartSeries} margin={{ top: 4, right: 48, left: 0, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="availGrad2" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#d9fd3a" stopOpacity={0.3} />
-                    <stop offset="100%" stopColor="#d9fd3a" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid stroke="#2a2a22" strokeDasharray="4 4" />
-                <XAxis
-                  dataKey="label"
-                  tick={{ fill: '#8a8a78', fontSize: 10 }}
-                  tickLine={false}
-                  axisLine={false}
-                  interval="preserveStartEnd"
-                />
-                {/* Left Y: Availability */}
-                <YAxis
-                  yAxisId="left"
-                  domain={[0, 100]}
-                  tick={{ fill: '#8a8a78', fontSize: 10 }}
-                  tickLine={false}
-                  axisLine={false}
-                  tickFormatter={(v) => `${v}%`}
-                  width={42}
-                />
-                {/* Right Y: Response */}
-                <YAxis
-                  yAxisId="right"
-                  orientation="right"
-                  tick={{ fill: '#8a8a78', fontSize: 10 }}
-                  tickLine={false}
-                  axisLine={false}
-                  tickFormatter={(v) => `${v}ms`}
-                  width={52}
-                />
-                <Tooltip
-                  contentStyle={TOOLTIP_STYLE}
-                  formatter={(value: unknown, name: unknown) => {
-                    if (name === 'availability') return [`${Number(value ?? 0)}%`, 'Availability'];
-                    return [`${Number(value ?? 0)}ms`, 'Avg Response'];
-                  }}
-                />
-                <Legend
-                  wrapperStyle={{ fontSize: 11, paddingTop: 8 }}
-                  formatter={(v) => <span style={{ color: '#c8c5b0' }}>{v === 'availability' ? 'Availability %' : 'Avg Response ms'}</span>}
-                />
-                <Area
-                  yAxisId="left"
-                  type="monotone"
-                  dataKey="availability"
-                  stroke="#d9fd3a"
-                  fill="url(#availGrad2)"
-                  strokeWidth={2}
-                  dot={false}
-                />
-                <Line
-                  yAxisId="right"
-                  type="monotone"
-                  dataKey="response"
-                  stroke="#ff7351"
-                  strokeWidth={2}
-                  dot={false}
-                  activeDot={{ r: 4 }}
-                />
-              </ComposedChart>
-            </ResponsiveContainer>
-          )}
-        </div>
+      {/* Tab Navigation */}
+      <div className="flex gap-1 mb-6 overflow-x-auto no-print border-b border-outline-variant/20 pb-px">
+        {TABS.map(tab => (
+          <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+            className={`flex items-center gap-2 px-4 py-3 text-xs font-bold uppercase tracking-widest transition-all rounded-t-lg whitespace-nowrap ${activeTab === tab.id ? 'text-primary border-b-2 border-primary bg-primary/5' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest/50'}`}>
+            <span className="material-symbols-outlined text-sm">{tab.icon}</span>
+            {tab.label}
+          </button>
+        ))}
+      </div>
 
-        {/* Two column: individual area charts */}
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-          {/* Availability Trend */}
-          <div className="bg-surface-container-high rounded-xl p-4 border border-outline-variant/20">
-            <h3 className="text-sm font-headline font-bold mb-2 uppercase tracking-widest">Availability Trend</h3>
-            {chartSeries.length === 0 ? (
-              <p className="text-xs text-on-surface-variant text-center py-12">No data</p>
-            ) : (
-              <ResponsiveContainer width="100%" height={220}>
-                <AreaChart data={chartSeries} margin={{ top: 4, right: 8, left: -10, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="availGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#d9fd3a" stopOpacity={0.35} />
-                      <stop offset="100%" stopColor="#d9fd3a" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <XAxis dataKey="label" tick={{ fill: '#8a8a78', fontSize: 10 }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
-                  <YAxis domain={[0, 100]} tick={{ fill: '#8a8a78', fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={(v) => `${v}%`} width={38} />
-                  <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: unknown) => [`${Number(v ?? 0)}%`, 'Availability']} />
-                  <Area type="monotone" dataKey="availability" stroke="#d9fd3a" fill="url(#availGrad)" strokeWidth={2} dot={false} />
-                </AreaChart>
-              </ResponsiveContainer>
-            )}
-          </div>
+      {/* Tab Content */}
+      <div className="report-tab-content">
+        {activeTab === 'summary' && <SummaryTab summary={summary} series={series} />}
+        {activeTab === 'devices' && <DeviceTab devices={deviceBreakdown} onSelectDevice={handleSelectDevice} />}
+        {activeTab === 'sla' && <SlaTab summary={summary} series={series} />}
+        {activeTab === 'alerts' && <AlertTab alerts={reportAlerts} />}
+      </div>
 
-          {/* Response Trend */}
-          <div className="bg-surface-container-high rounded-xl p-4 border border-outline-variant/20">
-            <h3 className="text-sm font-headline font-bold mb-2 uppercase tracking-widest">Response Time Trend</h3>
-            {chartSeries.length === 0 ? (
-              <p className="text-xs text-on-surface-variant text-center py-12">No data</p>
-            ) : (
-              <ResponsiveContainer width="100%" height={220}>
-                <AreaChart data={chartSeries} margin={{ top: 4, right: 8, left: -10, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="respGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#ff7351" stopOpacity={0.35} />
-                      <stop offset="100%" stopColor="#ff7351" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <XAxis dataKey="label" tick={{ fill: '#8a8a78', fontSize: 10 }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
-                  <YAxis tick={{ fill: '#8a8a78', fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={(v) => `${v}ms`} width={48} />
-                  <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: unknown) => [`${Number(v ?? 0)}ms`, 'Avg Response']} />
-                  <Area type="monotone" dataKey="response" stroke="#ff7351" fill="url(#respGrad)" strokeWidth={2} dot={false} />
-                </AreaChart>
-              </ResponsiveContainer>
-            )}
-          </div>
-        </div>
-
-        {/* Sample count / down events bar chart */}
-        <div className="bg-surface-container-high rounded-xl p-4 border border-outline-variant/20">
-          <h3 className="text-sm font-headline font-bold mb-1 uppercase tracking-widest">Sample Distribution</h3>
-          <p className="text-[11px] text-on-surface-variant mb-3">Count of healthy / down checks per time bucket</p>
-          {chartSeries.length === 0 ? (
-            <p className="text-xs text-on-surface-variant text-center py-12">No data</p>
-          ) : (
-            <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={downBarData} margin={{ top: 4, right: 8, left: -20, bottom: 0 }} barSize={16}>
-                <XAxis dataKey="label" tick={{ fill: '#8a8a78', fontSize: 10 }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
-                <YAxis tick={{ fill: '#8a8a78', fontSize: 10 }} tickLine={false} axisLine={false} allowDecimals={false} />
-                <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: 'rgba(255,255,255,0.03)' }} />
-                <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} formatter={(v) => <span style={{ color: '#c8c5b0' }}>{v}</span>} />
-                <Bar dataKey="Healthy" stackId="a" fill="#d9fd3a" />
-                <Bar dataKey="Warning" stackId="a" fill="#f59e0b" />
-                <Bar dataKey="Down" stackId="a" fill="#ff4444" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          )}
-        </div>
+      {/* Print footer */}
+      <div className="print-footer hidden">
+        <p>Rayavriti NetMonitor — Report generated {new Date().toLocaleString()}</p>
+        <p>Period: {from ? new Date(from).toLocaleString() : '—'} to {to ? new Date(to).toLocaleString() : '—'}</p>
       </div>
     </div>
   );

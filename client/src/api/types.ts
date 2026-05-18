@@ -123,6 +123,32 @@ export interface TimeseriesPoint {
   downCount?: number;
 }
 
+export interface DeviceBreakdown {
+  deviceId: number;
+  deviceName: string;
+  protocol: string;
+  sampleCount: number;
+  downCount: number;
+  warnCount: number;
+  availabilityPercent: number;
+  avgResponseMs: number;
+  minResponseMs: number;
+  maxResponseMs: number;
+}
+
+export interface ReportAlert {
+  id: number;
+  device_id: number;
+  device_name: string;
+  severity: 'critical' | 'warning' | 'info';
+  message: string;
+  status: string;
+  created_at: string;
+  acknowledged_at?: string;
+  resolved_at?: string;
+  comment?: string;
+}
+
 export interface SystemInfo {
   cpu: { usage: number; cores: number; model: string };
   memory: { used: number; total: number; percent: number };
