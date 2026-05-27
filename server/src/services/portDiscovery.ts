@@ -1,5 +1,5 @@
-const db = require('./database');
-const { scanPorts } = require('../collectors/portScanner');
+import db from './database';
+import { scanPorts } from '../collectors/portScanner';
 
 const RISKY_PORTS = new Map([
   [23, 'Telnet'],
@@ -11,8 +11,8 @@ const RISKY_PORTS = new Map([
   [11211, 'Memcached']
 ]);
 
-async function scanDevicePorts(device, options = {}) {
-  const before = new Map<number, any>(db.getPortScanResults(device.id).map((row) => [Number(row.port), row]));
+async function scanDevicePorts(device: any, options: any = {}) {
+  const before = new Map<number, any>(db.getPortScanResults(device.id).map((row: any) => [Number(row.port), row]));
   const results = await scanPorts(device.host, options);
   const changes = [];
   const alerts = [];
@@ -65,15 +65,11 @@ async function scanDevicePorts(device, options = {}) {
     deviceId: device.id,
     host: device.host,
     scannedPorts: results.length,
-    openPorts: results.filter((r) => r.status === 'open'),
+    openPorts: results.filter((r: any) => r.status === 'open'),
     results,
     changes,
     alerts
   };
 }
 
-module.exports = {
-  scanDevicePorts
-};
-
-export {};
+export { scanDevicePorts };

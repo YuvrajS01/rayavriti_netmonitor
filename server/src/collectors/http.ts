@@ -1,4 +1,4 @@
-async function checkHttp(device) {
+async function checkHttp(device: any) {
   const start = Date.now();
   try {
     const url = device.host.startsWith('http://') || device.host.startsWith('https://')
@@ -19,7 +19,7 @@ async function checkHttp(device) {
       value: response.status,
       message: `HTTP ${response.status}`
     };
-  } catch (error) {
+  } catch (error: any) {
     return {
       status: 'down',
       responseTime: null,
@@ -29,6 +29,4 @@ async function checkHttp(device) {
   }
 }
 
-module.exports = { checkHttp };
-
-export {};
+export { checkHttp };

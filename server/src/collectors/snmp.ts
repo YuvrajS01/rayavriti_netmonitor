@@ -1,4 +1,5 @@
-const snmp = require('net-snmp');
+// @ts-ignore - no type declarations available
+import snmp from 'net-snmp';
 
 const OIDS = {
   sysUpTime: '1.3.6.1.2.1.1.3.0',
@@ -10,7 +11,7 @@ const OIDS = {
   ifXTable: '1.3.6.1.2.1.31.1.1'
 };
 
-function resolveSnmpVersion(value) {
+function resolveSnmpVersion(value: any) {
   const raw = String(value || '2c').toLowerCase();
   if (raw === '1' || raw === 'v1') {
     return snmp.Version1;
@@ -21,7 +22,7 @@ function resolveSnmpVersion(value) {
   return null;
 }
 
-function toNumber(value) {
+function toNumber(value: any) {
   if (value === null || typeof value === 'undefined') {
     return null;
   }
@@ -36,18 +37,18 @@ function toNumber(value) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function safePercent(used, total) {
+function safePercent(used: any, total: any) {
   if (!total) {
     return 0;
   }
   return Math.round((used / total) * 1000) / 10;
 }
 
-function toGb(bytes) {
+function toGb(bytes: any) {
   return Math.round((bytes / (1024 * 1024 * 1024)) * 10) / 10;
 }
 
-function normalizeCounter(value) {
+function normalizeCounter(value: any) {
   if (value === null || typeof value === 'undefined') {
     return null;
   }
@@ -63,9 +64,9 @@ function normalizeCounter(value) {
   return toNumber(value);
 }
 
-function getScalar(session, oid) {
+function getScalar(session: any, oid: string) {
   return new Promise((resolve, reject) => {
-    session.get([oid], (error, varbinds) => {
+    session.get([oid], (error: any, varbinds: any) => {
       if (error) {
         return reject(error);
       }
@@ -81,13 +82,13 @@ function getScalar(session, oid) {
   });
 }
 
-function collectSubtree(session, oid, maxRepetitions = 20) {
+function collectSubtree(session: any, oid: string, maxRepetitions = 20) {
   return new Promise((resolve, reject) => {
-    const results = [];
+    const results: any[] = [];
     session.subtree(
       oid,
       maxRepetitions,
-      (varbinds) => {
+      (varbinds: any[]) => {
         for (const vb of varbinds) {
           if (snmp.isVarbindError(vb)) {
             continue;
@@ -95,7 +96,7 @@ function collectSubtree(session, oid, maxRepetitions = 20) {
           results.push(vb);
         }
       },
-      (error) => {
+      (error: any) => {
         if (error) {
           return reject(error);
         }
@@ -105,9 +106,9 @@ function collectSubtree(session, oid, maxRepetitions = 20) {
   });
 }
 
-function collectTableColumns(session, oid, columns, maxRepetitions = 20) {
+function collectTableColumns(session: any, oid: string, columns: number[], maxRepetitions = 20) {
   return new Promise((resolve, reject) => {
-    session.tableColumns(oid, columns, maxRepetitions, (error, table) => {
+    session.tableColumns(oid, columns, maxRepetitions, (error: any, table: any) => {
       if (error) {
         return reject(error);
       }
@@ -116,20 +117,20 @@ function collectTableColumns(session, oid, columns, maxRepetitions = 20) {
   });
 }
 
-function sumStorage(table, typeOid) {
+function sumStorage(table: any, typeOid: string) {
   let totalBytes = 0;
   let usedBytes = 0;
-  for (const row of Object.values(table)) {
+  for (const row of Object.values(table) as any[]) {
     if (!row) {
       continue;
     }
-    const rowType = String(row[2] ?? '');
+    const rowType = String((row as any)[2] ?? '');
     if (rowType !== typeOid) {
       continue;
     }
-    const units = toNumber(row[4]);
-    const size = toNumber(row[5]);
-    const used = toNumber(row[6]);
+    const units = toNumber((row as any)[4]);
+    const size = toNumber((row as any)[5]);
+    const used = toNumber((row as any)[6]);
     if (!units || !size) {
       continue;
     }
@@ -145,10 +146,10 @@ function sumStorage(table, typeOid) {
   };
 }
 
-function collectInterfaces(baseTable, xTable) {
-  const interfaces = [];
-  for (const [index, row] of Object.entries(baseTable || {})) {
-    const xRow = (xTable || {})[index] || {};
+function collectInterfaces(baseTable: any, xTable: any) {
+  const interfaces: any[] = [];
+  for (const [index, row] of Object.entries(baseTable || {}) as [string, any][]) {
+    const xRow: any = (xTable || {})[index] || {};
     const nameValue = xRow[1] || row[2] || `if${index}`;
     const name = Buffer.isBuffer(nameValue) ? nameValue.toString('utf-8') : String(nameValue);
     const speed = toNumber(xRow[15]) || toNumber(row[5]) || 0;
@@ -176,7 +177,7 @@ function collectInterfaces(baseTable, xTable) {
     .slice(0, 12);
 }
 
-async function checkSnmp(device) {
+async function checkSnmp(device: any) {
   const start = Date.now();
   const version = resolveSnmpVersion(device.snmp_version || device.snmpVersion);
   if (!version) {
@@ -251,7 +252,7 @@ async function checkSnmp(device) {
       value: memoryPercent || cpuAvg || 0,
       message: JSON.stringify(resourceInfo)
     };
-  } catch (error) {
+  } catch (error: any) {
     return {
       status: 'down',
       responseTime: null,
@@ -263,6 +264,4 @@ async function checkSnmp(device) {
   }
 }
 
-module.exports = { checkSnmp };
-
-export {};
+export { checkSnmp };

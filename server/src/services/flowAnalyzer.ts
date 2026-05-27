@@ -1,9 +1,9 @@
-const db = require('./database');
+import db from './database';
 
 /**
  * Formats byte counts into human-readable strings.
  */
-function formatBytes(bytes) {
+function formatBytes(bytes: any) {
   if (bytes === 0) return '0 B';
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];
   const i = Math.floor(Math.log(bytes) / Math.log(1024));
@@ -15,10 +15,10 @@ function formatBytes(bytes) {
  * Get top talkers with percentage calculations.
  */
 function getTopTalkersWithPercent({ from, to, limit = 10, direction = 'src' }: any = {}) {
-  const rows = db.getTopTalkers({ from, to, limit, direction });
-  const totalBytes = rows.reduce((sum, r) => sum + Number(r.bytes || 0), 0);
+  const rows: any[] = db.getTopTalkers({ from, to, limit, direction });
+  const totalBytes: number = rows.reduce((sum: any, r: any) => sum + Number(r.bytes || 0), 0);
 
-  return rows.map((r) => ({
+  return rows.map((r: any) => ({
     ip: r.ip,
     bytes: Number(r.bytes || 0),
     bytesFormatted: formatBytes(Number(r.bytes || 0)),
@@ -34,10 +34,10 @@ function getTopTalkersWithPercent({ from, to, limit = 10, direction = 'src' }: a
  * Get protocol distribution with percentage calculations.
  */
 function getProtocolBreakdown({ from, to }: any = {}) {
-  const rows = db.getProtocolDistribution({ from, to });
-  const totalBytes = rows.reduce((sum, r) => sum + Number(r.bytes || 0), 0);
+  const rows: any[] = db.getProtocolDistribution({ from, to });
+  const totalBytes: number = rows.reduce((sum: any, r: any) => sum + Number(r.bytes || 0), 0);
 
-  return rows.map((r) => ({
+  return rows.map((r: any) => ({
     protocol_name: r.protocol_name || `Protocol ${r.protocol}`,
     protocol_number: r.protocol,
     bytes: Number(r.bytes || 0),
@@ -75,14 +75,14 @@ function detectAnomalies() {
   const recent = new Date(now.getTime() - 5 * 60 * 1000).toISOString().slice(0, 19).replace('T', ' ');
   const baseline = new Date(now.getTime() - 60 * 60 * 1000).toISOString().slice(0, 19).replace('T', ' ');
 
-  const recentStats = db.getFlowRecords({ from: recent, limit: 10000 });
-  const baselineStats = db.getFlowRecords({ from: baseline, to: recent, limit: 10000 });
+  const recentStats: any[] = db.getFlowRecords({ from: recent, limit: 10000 });
+  const baselineStats: any[] = db.getFlowRecords({ from: baseline, to: recent, limit: 10000 });
 
-  const anomalies = [];
+  const anomalies: any[] = [];
 
   if (baselineStats.length > 0) {
-    const recentBytes = recentStats.reduce((s, r) => s + (r.bytes || 0), 0);
-    const baselineBytes = baselineStats.reduce((s, r) => s + (r.bytes || 0), 0);
+    const recentBytes: number = recentStats.reduce((s: any, r: any) => s + (r.bytes || 0), 0);
+    const baselineBytes: number = baselineStats.reduce((s: any, r: any) => s + (r.bytes || 0), 0);
     const baselineAvg5min = (baselineBytes / 12); // ~55 minute window / 11 five-min blocks
 
     if (baselineAvg5min > 0 && recentBytes > baselineAvg5min * 3) {
@@ -97,7 +97,7 @@ function detectAnomalies() {
 
   // Check for unusual high-port traffic
   const unusualPorts = recentStats.filter(
-    (r) => (r.dst_port > 10000 && r.bytes > 1024 * 1024) // >1MB to high ports
+    (r: any) => (r.dst_port > 10000 && r.bytes > 1024 * 1024) // >1MB to high ports
   );
   if (unusualPorts.length > 5) {
     anomalies.push({
@@ -111,12 +111,10 @@ function detectAnomalies() {
   return anomalies;
 }
 
-module.exports = {
+export {
   formatBytes,
   getTopTalkersWithPercent,
   getProtocolBreakdown,
   getFlowSummary,
   detectAnomalies
 };
-
-export {};

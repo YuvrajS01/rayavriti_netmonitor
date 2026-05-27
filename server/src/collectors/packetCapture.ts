@@ -1,24 +1,25 @@
-const fs = require('fs');
-const path = require('path');
+import fs from 'fs';
+import path from 'path';
+import logger from '../services/logger';
 
-let Cap, decoders;
+let Cap: any, decoders: any;
 try {
   const capModule = require('cap');
   Cap = capModule.Cap;
   decoders = capModule.decoders;
-} catch (err) {
-  console.warn('[PacketCapture] cap module not available:', err.message);
+} catch (err: any) {
+  logger.warn({ err: err.message }, 'cap module not available');
   Cap = null;
   decoders = null;
 }
 
-const db = require('../services/database');
+import db from '../services/database';
 
 const MAX_CAPTURE_DURATION_MS = 3 * 60 * 1000; // 3 minutes
 const MAX_PACKET_BUFFER = 1000;
 const PAYLOAD_PREVIEW_BYTES = 128;
 
-const PROTOCOL_NAMES = {
+const PROTOCOL_NAMES: Record<number, string> = {
   1: 'ICMP', 6: 'TCP', 17: 'UDP', 2: 'IGMP',
   47: 'GRE', 50: 'ESP', 58: 'ICMPv6', 89: 'OSPF'
 };
@@ -67,7 +68,7 @@ function listInterfaces() {
   }
 }
 
-function toHex(buffer, length) {
+function toHex(buffer: any, length: number) {
   const bytes = Math.min(length, PAYLOAD_PREVIEW_BYTES);
   let hex = '';
   for (let i = 0; i < bytes; i++) {
@@ -77,7 +78,7 @@ function toHex(buffer, length) {
   return hex;
 }
 
-function toAscii(buffer, length) {
+function toAscii(buffer: any, length: number) {
   const bytes = Math.min(length, PAYLOAD_PREVIEW_BYTES);
   let ascii = '';
   for (let i = 0; i < bytes; i++) {
@@ -87,7 +88,7 @@ function toAscii(buffer, length) {
   return ascii;
 }
 
-function decodePacket(rawBuffer, nbytes) {
+function decodePacket(rawBuffer: any, nbytes: number) {
   if (!decoders) return null;
 
   try {
@@ -151,7 +152,7 @@ function decodePacket(rawBuffer, nbytes) {
       payload_hex: toHex(rawBuffer, nbytes),
       info
     };
-  } catch (err) {
+  } catch (err: any) {
     return {
       src_ip: '?',
       dst_ip: '?',
@@ -165,12 +166,12 @@ function decodePacket(rawBuffer, nbytes) {
   }
 }
 
-function startCapture(io, interfaceName, filter = null) {
+function startCapture(io: any, interfaceName: string, filter: string | null = null) {
   if (!Cap) {
     throw new Error('Packet capture not available (cap module not loaded). Ensure libpcap is installed.');
   }
 
-  const result = db.createCaptureSession(interfaceName, filter);
+  const result = db.createCaptureSession(interfaceName, filter as any);
   const sessionId = Number(result.lastInsertRowid);
 
   const cap = new Cap();
@@ -178,7 +179,7 @@ function startCapture(io, interfaceName, filter = null) {
   const snapLen = 65535;
   const rawBuffer = Buffer.alloc(snapLen);
 
-  const sessionData = {
+  const sessionData: { cap: any; timer: any; packets: any[]; stats: { packetCount: number; bytesCaptured: number }; sessionId: number } = {
     cap,
     timer: null,
     packets: [],
@@ -199,7 +200,7 @@ function startCapture(io, interfaceName, filter = null) {
 
     let packetNo = 0;
 
-    cap.on('packet', (nbytes) => {
+    cap.on('packet', (nbytes: number) => {
       packetNo++;
       sessionData.stats.packetCount++;
       sessionData.stats.bytesCaptured += nbytes;
@@ -226,14 +227,14 @@ function startCapture(io, interfaceName, filter = null) {
       }
     });
 
-    cap.on('error', (err) => {
-      console.error(`[PacketCapture] Error on session ${sessionId}:`, err.message);
+    cap.on('error', (err: any) => {
+      logger.error({ sessionId, err: err.message }, 'Packet capture error');
       stopCapture(io, sessionId, err.message);
     });
 
     // Auto-stop after max duration (3 minutes)
     sessionData.timer = setTimeout(() => {
-      console.log(`[PacketCapture] Session ${sessionId} reached max duration, stopping`);
+      logger.info({ sessionId }, 'Capture session reached max duration, stopping');
       stopCapture(io, sessionId);
     }, MAX_CAPTURE_DURATION_MS);
 
@@ -248,16 +249,16 @@ function startCapture(io, interfaceName, filter = null) {
       });
     }
 
-    console.log(`[PacketCapture] Session ${sessionId} started on ${interfaceName}${filter ? ` (filter: ${filter})` : ''}`);
+    logger.info({ sessionId, interface: interfaceName, filter }, 'Capture session started');
     return sessionId;
-  } catch (err) {
+  } catch (err: any) {
     db.stopCaptureSession(sessionId, 0, 0, err.message);
     try { cap.close(); } catch (_e) { /* ignore */ }
     throw err;
   }
 }
 
-function stopCapture(io, sessionId, errorMessage = null) {
+function stopCapture(io: any, sessionId: number, errorMessage: string | null = null) {
   const session = activeSessions.get(sessionId);
   if (!session) return false;
 
@@ -274,7 +275,7 @@ function stopCapture(io, sessionId, errorMessage = null) {
     sessionId,
     session.stats.packetCount,
     session.stats.bytesCaptured,
-    errorMessage
+    errorMessage as any
   );
 
   if (io) {
@@ -288,30 +289,30 @@ function stopCapture(io, sessionId, errorMessage = null) {
   }
 
   activeSessions.delete(sessionId);
-  console.log(`[PacketCapture] Session ${sessionId} stopped (${session.stats.packetCount} packets, ${session.stats.bytesCaptured} bytes)`);
+  logger.info({ sessionId, packetCount: session.stats.packetCount, bytes: session.stats.bytesCaptured }, 'Capture session stopped');
   return true;
 }
 
-function getSessionPackets(sessionId, { limit = 200, offset = 0 } = {}) {
+function getSessionPackets(sessionId: number, { limit = 200, offset = 0 } = {}) {
   const session = activeSessions.get(sessionId);
   if (!session) return [];
   const packets = session.packets;
   return packets.slice(offset, offset + limit);
 }
 
-function getSessionStats(sessionId) {
+function getSessionStats(sessionId: number) {
   const session = activeSessions.get(sessionId);
   if (!session) return null;
   return { ...session.stats };
 }
 
-function stopAllCaptures(io) {
+function stopAllCaptures(io: any) {
   for (const [id] of activeSessions) {
     stopCapture(io, id);
   }
 }
 
-module.exports = {
+export {
   listInterfaces,
   startCapture,
   stopCapture,
@@ -319,5 +320,3 @@ module.exports = {
   getSessionStats,
   stopAllCaptures
 };
-
-export {};

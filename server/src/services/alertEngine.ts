@@ -1,6 +1,6 @@
-const db = require('./database');
+import db from './database';
 
-function evaluateAndCreateAlert(device, metric) {
+function evaluateAndCreateAlert(device: any, metric: any) {
   if (!device || !metric) {
     return null;
   }
@@ -25,7 +25,7 @@ function evaluateAndCreateAlert(device, metric) {
 
   const existing = db
     .getActiveAlerts()
-    .find((a) => a.device_id === device.id && a.message === message);
+    .find((a: any) => a.device_id === device.id && a.message === message);
 
   if (existing) {
     return null;
@@ -43,6 +43,4 @@ function evaluateAndCreateAlert(device, metric) {
   };
 }
 
-module.exports = { evaluateAndCreateAlert };
-
-export {};
+export { evaluateAndCreateAlert };

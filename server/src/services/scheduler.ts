@@ -1,14 +1,15 @@
-const db = require('./database');
-const { checkPing } = require('../collectors/ping');
-const { checkHttp } = require('../collectors/http');
-const { checkPort } = require('../collectors/port');
-const { collect: checkSystem } = require('../collectors/system');
-const { checkSnmp } = require('../collectors/snmp');
-const { evaluateAndCreateAlert } = require('./alertEngine');
+import db from './database';
+import { checkPing } from '../collectors/ping';
+import { checkHttp } from '../collectors/http';
+import { checkPort } from '../collectors/port';
+import { collect as checkSystem } from '../collectors/system';
+import { checkSnmp } from '../collectors/snmp';
+import { evaluateAndCreateAlert } from './alertEngine';
+import logger from './logger';
 
 const jobs = new Map();
 
-async function collectMetric(device) {
+async function collectMetric(device: any) {
   switch (device.protocol) {
     case 'ping':
       return checkPing(device);
@@ -17,7 +18,7 @@ async function collectMetric(device) {
     case 'port':
       return checkPort(device);
     case 'system':
-      return checkSystem(device);
+      return (checkSystem as any)(device);
     case 'snmp':
       return checkSnmp(device);
     default:
@@ -30,9 +31,9 @@ async function collectMetric(device) {
   }
 }
 
-async function runJob(io, device) {
-  const sensor = db.getPrimarySensorForDevice(device.id);
-  const metric = await collectMetric(device);
+async function runJob(io: any, device: any) {
+  const sensor: any = db.getPrimarySensorForDevice(device.id);
+  const metric: any = await collectMetric(device);
   db.recordMetric(device.id, metric.status, metric.responseTime, metric.value, metric.message, sensor?.id || null);
 
   const alert = evaluateAndCreateAlert(device, metric);
@@ -63,19 +64,19 @@ function clearJobs() {
   jobs.clear();
 }
 
-function startScheduler(io) {
+function startScheduler(io: any) {
   clearJobs();
 
-  const devices = db.getDevices();
+  const devices: any[] = db.getDevices();
   for (const device of devices) {
-    runJob(io, device).catch((error) => {
-      console.error(`Initial job failed for ${device.name}:`, error.message);
+    runJob(io, device).catch((error: any) => {
+      logger.error({ device: device.name, err: error.message }, 'Initial job failed');
     });
 
     const intervalMs = Math.max(5, Number(device.interval_seconds || 60)) * 1000;
     const intervalId = setInterval(() => {
-      runJob(io, device).catch((error) => {
-        console.error(`Job failed for ${device.name}:`, error.message);
+      runJob(io, device).catch((error: any) => {
+        logger.error({ device: device.name, err: error.message }, 'Scheduled job failed');
       });
     }, intervalMs);
 
@@ -83,6 +84,4 @@ function startScheduler(io) {
   }
 }
 
-module.exports = { startScheduler, clearJobs };
-
-export {};
+export { startScheduler, clearJobs };

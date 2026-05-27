@@ -1,6 +1,6 @@
-const net = require('net');
+import net from 'net';
 
-function checkPort(device) {
+function checkPort(device: any) {
   return new Promise((resolve) => {
     const start = Date.now();
     const timeoutMs = 5000;
@@ -8,7 +8,7 @@ function checkPort(device) {
     const socket = new net.Socket();
     let completed = false;
 
-    const finalize = (result) => {
+    const finalize = (result: any) => {
       if (completed) {
         return;
       }
@@ -28,7 +28,7 @@ function checkPort(device) {
       });
     });
 
-    socket.on('error', (error) => {
+    socket.on('error', (error: any) => {
       finalize({
         status: 'down',
         responseTime: null,
@@ -48,6 +48,4 @@ function checkPort(device) {
   });
 }
 
-module.exports = { checkPort };
-
-export {};
+export { checkPort };

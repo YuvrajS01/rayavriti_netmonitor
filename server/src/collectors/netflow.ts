@@ -1,25 +1,26 @@
-const Collector = require('node-netflowv9');
-const db = require('../services/database');
+import Collector from 'node-netflowv9';
+import db from '../services/database';
+import logger from '../services/logger';
 
-const PROTOCOL_MAP = {
+const PROTOCOL_MAP: Record<number, string> = {
   1: 'ICMP', 2: 'IGMP', 6: 'TCP', 17: 'UDP', 47: 'GRE',
   50: 'ESP', 51: 'AH', 58: 'ICMPv6', 89: 'OSPF', 132: 'SCTP'
 };
 
-function protoName(num) {
+function protoName(num: number) {
   return PROTOCOL_MAP[num] || `PROTO_${num}`;
 }
 
-const buffer = [];
-let flushTimer = null;
+const buffer: any[] = [];
+let flushTimer: ReturnType<typeof setInterval> | null = null;
 
-function flushBuffer(io) {
+function flushBuffer(io: any) {
   if (buffer.length === 0) return;
   const batch = buffer.splice(0, buffer.length);
   try {
     db.insertFlowBatch(batch);
-  } catch (err) {
-    console.error('[NetFlow] DB insert error:', err.message);
+  } catch (err: any) {
+    logger.error({ err: err.message }, 'NetFlow DB insert error');
   }
 
   if (io) {
@@ -40,7 +41,7 @@ function flushBuffer(io) {
   }
 }
 
-function normalizeNetflowRecord(flow, header, rinfo) {
+function normalizeNetflowRecord(flow: any, header: any, rinfo: any) {
   const collectorType = header.version === 5
     ? 'netflow_v5'
     : header.version === 9
@@ -75,13 +76,13 @@ function normalizeNetflowRecord(flow, header, rinfo) {
   };
 }
 
-let netflowCollector = null;
+let netflowCollector: any = null;
 
-function startNetflowCollector(io, port = 2055) {
+function startNetflowCollector(io: any, port = 2055) {
   try {
     netflowCollector = Collector({ port });
 
-    netflowCollector.on('data', (data) => {
+    netflowCollector.on('data', (data: any) => {
       const header = data.header || {};
       const rinfo = data.rinfo || {};
       const flows = data.flow || [];
@@ -90,8 +91,8 @@ function startNetflowCollector(io, port = 2055) {
         try {
           const record = normalizeNetflowRecord(flow, header, rinfo);
           buffer.push(record);
-        } catch (err) {
-          console.error('[NetFlow] Parse error:', err.message);
+        } catch (err: any) {
+          logger.error({ err: err.message }, 'NetFlow parse error');
         }
       }
 
@@ -100,16 +101,16 @@ function startNetflowCollector(io, port = 2055) {
       }
     });
 
-    netflowCollector.on('error', (err) => {
-      console.error(`[NetFlow] Collector error on port ${port}:`, err.message);
+    netflowCollector.on('error', (err: any) => {
+      logger.error({ port, err: err.message }, 'NetFlow collector error');
     });
 
     // Flush buffer every 2 seconds
     flushTimer = setInterval(() => flushBuffer(io), 2000);
 
-    console.log(`[NetFlow] Collector listening on UDP :${port}`);
-  } catch (err) {
-    console.error(`[NetFlow] Failed to start collector on port ${port}:`, err.message);
+    logger.info({ port }, 'NetFlow collector listening');
+  } catch (err: any) {
+    logger.error({ port, err: err.message }, 'Failed to start NetFlow collector');
   }
 }
 
@@ -126,6 +127,4 @@ function stopNetflowCollector() {
   }
 }
 
-module.exports = { startNetflowCollector, stopNetflowCollector };
-
-export {};
+export { startNetflowCollector, stopNetflowCollector };

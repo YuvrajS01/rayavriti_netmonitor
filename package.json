@@ -1,11 +1,11 @@
 {
   "name": "rayavriti-netmonitor",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "engines": {
-    "node": "20.x || 22.x"
+    "node": "20.x || 22.x || 26.x"
   },
-  "description": "Rayavriti NetMonitor functional demo",
+  "description": "Rayavriti NetMonitor — production-grade network monitoring platform",
   "workspaces": [
     "client",
     "server"
@@ -19,9 +19,11 @@
     "build:client": "npm run build -w client",
     "typecheck": "npm run typecheck -w server",
     "start": "npm run start -w server",
+    "start:prod": "NODE_ENV=production node server/dist/index.js",
     "simulate": "npx ts-node simulator/run.ts"
   },
   "dependencies": {
     "better-sqlite3": "^11.10.0"
   }
 }
+

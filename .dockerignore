@@ -1,0 +1,51 @@
+# Dependencies
+node_modules/
+client/node_modules/
+
+# Build output (built inside container)
+server/dist/
+client/dist/
+dist/
+dist-ssr/
+
+# Data / database
+data/
+*.db
+*.db-shm
+*.db-wal
+*.db-journal
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+documentation/
+README.md
+*.pdf
+
+# Simulator (not needed in prod image)
+simulator/
+
+# Environment (injected at runtime, not baked in)
+.env
+.env.*
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+*.sw?
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# Logs
+logs/
+*.log
+
+# Agent/AI files
+.agents/
+.codex/
+.gemini/
