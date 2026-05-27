@@ -107,7 +107,27 @@ curl http://localhost:3000/health
 open http://localhost:3000
 ```
 
-### Option 2: Bare Metal
+### Option 2: Docker Development
+
+```bash
+# 1. Configure local development
+cp .env.dev.example .env.dev
+
+# 2. Start backend and frontend with hot reload
+docker compose -f docker-compose.dev.yml up --build
+
+# 3. Open dashboard
+open http://localhost:5173
+```
+
+The development compose file starts two services:
+
+| Service | Purpose | URL |
+|---|---|---|
+| `server` | Express API, Socket.IO, collectors, hot reload | `http://localhost:3000` |
+| `client` | Vite React dev server | `http://localhost:5173` |
+
+### Option 3: Bare Metal
 
 ```bash
 # 1. Clone and install
@@ -198,9 +218,12 @@ All configuration is via environment variables. See [`.env.example`](.env.exampl
 
 ## 🐳 Docker Deployment
 
-The Docker setup uses **host networking** to allow the container to directly monitor local network devices.
+The production Docker setup uses **host networking** to allow the container to directly monitor local network devices.
 
 ```bash
+# Configure production environment
+cp .env.prod.example .env
+
 # Build and start
 docker compose up -d
 
@@ -219,6 +242,50 @@ docker compose up -d --build
 - `cap_add: NET_RAW, NET_ADMIN` — Required for raw socket access
 - SQLite data persists in the `netmonitor-data` Docker volume
 - Health check runs every 30s against `/health`
+
+---
+
+## 🌿 Branching Model
+
+This repository uses a two-branch deployment flow:
+
+| Branch | Purpose |
+|---|---|
+| `main` | Production branch. Keep this always deployable. |
+| `develop` | Development integration branch. Merge completed feature work here first. |
+| `feature/<name>` | New product work, branched from `develop`. |
+| `fix/<name>` | Non-urgent fixes, branched from `develop`. |
+| `release/<version>` | Optional stabilization branch before merging to `main`. |
+| `hotfix/<name>` | Urgent production fixes, branched from `main`, then merged back to `develop`. |
+
+Recommended flow:
+
+```bash
+# Start feature work
+git checkout develop
+git pull origin develop
+git checkout -b feature/example
+
+# Open PR: feature/example -> develop
+
+# Release to production
+git checkout develop
+git checkout -b release/v1.1.0
+# Open PR: release/v1.1.0 -> main
+
+# After release, tag main
+git checkout main
+git pull origin main
+git tag v1.1.0
+git push origin v1.1.0
+```
+
+Protect both long-lived branches:
+
+| Branch | Required checks | Merge rule |
+|---|---|---|
+| `main` | CI build, typecheck, Docker production image | PR approval, no direct pushes |
+| `develop` | CI build, typecheck, Docker dev/prod image builds | PR approval recommended |
 
 ---
 

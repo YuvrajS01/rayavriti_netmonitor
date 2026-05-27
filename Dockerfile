@@ -1,4 +1,33 @@
-# ── Stage 1: Build ──────────────────────────────────────────────
+# ── Stage 1: Development ────────────────────────────────────────
+FROM node:22-slim AS development
+
+# Install native dependencies used by monitoring collectors.
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+      python3 make g++ libpcap-dev iputils-ping && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy workspace manifests first (for layer caching)
+COPY package.json package-lock.json ./
+COPY server/package.json server/
+COPY client/package.json client/
+
+RUN npm ci
+
+ENV NODE_ENV=development
+ENV PORT=3000
+ENV DB_PATH=/app/data/netmonitor-dev.db
+ENV CAPTURE_ENABLED=false
+
+EXPOSE 3000
+EXPOSE 5173
+EXPOSE 2055/udp
+
+CMD ["npm", "run", "dev:server"]
+
+# ── Stage 2: Build ──────────────────────────────────────────────
 FROM node:22-slim AS builder
 
 # Install build tools for native modules (better-sqlite3, cap)
@@ -27,7 +56,7 @@ RUN npm run build:server
 # Build client (React → static files) into server/dist/public
 RUN npm run build:client
 
-# ── Stage 2: Production ────────────────────────────────────────
+# ── Stage 3: Production ────────────────────────────────────────
 FROM node:22-slim AS production
 
 # Install runtime dependencies and build tools for native modules
