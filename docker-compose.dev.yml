@@ -1,0 +1,50 @@
+# Rayavriti NetMonitor — local development
+#
+# Usage:
+#   1. Copy .env.dev.example to .env.dev and adjust values if needed
+#   2. docker compose -f docker-compose.dev.yml up --build
+#   3. Open http://localhost:5173
+#
+# Host networking matches production and keeps the Vite proxy, SNMP,
+# NetFlow, ping, and packet-capture behavior close to the deployed app.
+
+services:
+  server:
+    build:
+      context: .
+      target: development
+    container_name: rayavriti-netmonitor-server-dev
+    network_mode: host
+    env_file:
+      - path: .env.dev
+        required: false
+    volumes:
+      - .:/app
+      - netmonitor-node-modules:/app/node_modules
+      - netmonitor-dev-data:/app/data
+    command: npm run dev:server
+    cap_add:
+      - NET_RAW
+      - NET_ADMIN
+
+  client:
+    build:
+      context: .
+      target: development
+    container_name: rayavriti-netmonitor-client-dev
+    network_mode: host
+    env_file:
+      - path: .env.dev
+        required: false
+    volumes:
+      - .:/app
+      - netmonitor-node-modules:/app/node_modules
+    command: npm run dev:client -- --host 0.0.0.0
+    depends_on:
+      - server
+
+volumes:
+  netmonitor-node-modules:
+    driver: local
+  netmonitor-dev-data:
+    driver: local
