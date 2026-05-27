@@ -1,0 +1,25 @@
+services:
+  netmonitor:
+    build: .
+    container_name: rayavriti-netmonitor
+    ports:
+      - "3000:3000"
+      - "2055:2055/udp"    # NetFlow collector
+    volumes:
+      - netmonitor-data:/app/data    # Persist SQLite database
+    env_file: .env
+    restart: unless-stopped
+    cap_add:
+      - NET_RAW              # Required for packet capture (libpcap/cap)
+      - NET_ADMIN            # Required for interface access
+    network_mode: host        # Required to monitor local network devices
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+
+volumes:
+  netmonitor-data:
+    driver: local

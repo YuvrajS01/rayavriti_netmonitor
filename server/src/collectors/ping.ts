@@ -1,6 +1,6 @@
-const ping = require('ping');
+import ping from 'ping';
 
-async function checkPing(device) {
+async function checkPing(device: any) {
   const start = Date.now();
   try {
     const res = await ping.promise.probe(device.host, { timeout: 5 });
@@ -11,7 +11,7 @@ async function checkPing(device) {
       message: res.alive ? 'Ping reachable' : 'Ping unreachable',
       elapsedMs: Date.now() - start
     };
-  } catch (error) {
+  } catch (error: any) {
     return {
       status: 'down',
       responseTime: null,
@@ -22,6 +22,4 @@ async function checkPing(device) {
   }
 }
 
-module.exports = { checkPing };
-
-export {};
+export { checkPing };

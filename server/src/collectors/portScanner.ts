@@ -1,4 +1,4 @@
-const net = require('net');
+import net from 'net';
 
 const DEFAULT_PORTS = [
   21, 22, 23, 25, 53, 80, 110, 123, 135, 139, 143, 161, 389, 443, 445,
@@ -6,7 +6,7 @@ const DEFAULT_PORTS = [
   5000, 5432, 5900, 6379, 8000, 8080, 8443, 9000, 9200, 9300, 11211, 27017
 ];
 
-const SERVICE_BY_PORT = {
+const SERVICE_BY_PORT: Record<number, string> = {
   21: 'FTP',
   22: 'SSH',
   23: 'Telnet',
@@ -52,8 +52,8 @@ function normalizePorts(ports: any) {
   const list = Array.isArray(ports) && ports.length > 0 ? ports : DEFAULT_PORTS;
   return Array.from(new Set(
     list
-      .map((p) => Number(p))
-      .filter((p) => Number.isInteger(p) && p > 0 && p <= 65535)
+      .map((p: any) => Number(p))
+      .filter((p: any) => Number.isInteger(p) && p > 0 && p <= 65535)
   )).slice(0, 256);
 }
 
@@ -63,7 +63,7 @@ function scanPort(host: string, port: number, timeoutMs = 1200): Promise<any> {
     const socket = new net.Socket();
     let completed = false;
 
-    const finalize = (status, message = null) => {
+    const finalize = (status: any, message: any = null) => {
       if (completed) {
         return;
       }
@@ -81,7 +81,7 @@ function scanPort(host: string, port: number, timeoutMs = 1200): Promise<any> {
     socket.setTimeout(timeoutMs);
     socket.connect(port, host, () => finalize('open'));
     socket.on('timeout', () => finalize('closed', `Timeout after ${timeoutMs}ms`));
-    socket.on('error', (error) => finalize('closed', error.message));
+    socket.on('error', (error: any) => finalize('closed', error.message));
   });
 }
 
@@ -89,7 +89,7 @@ async function scanPorts(host: string, options: any = {}) {
   const ports = normalizePorts(options.ports);
   const timeoutMs = Math.max(250, Math.min(5000, Number(options.timeoutMs || 1200)));
   const concurrency = Math.max(1, Math.min(32, Number(options.concurrency || 24)));
-  const results = [];
+  const results: any[] = [];
   let index = 0;
 
   async function worker() {
@@ -101,13 +101,7 @@ async function scanPorts(host: string, options: any = {}) {
   }
 
   await Promise.all(Array.from({ length: Math.min(concurrency, ports.length) }, () => worker()));
-  return results.sort((a, b) => a.port - b.port);
+  return results.sort((a: any, b: any) => a.port - b.port);
 }
 
-module.exports = {
-  DEFAULT_PORTS,
-  SERVICE_BY_PORT,
-  scanPorts
-};
-
-export {};
+export { DEFAULT_PORTS, SERVICE_BY_PORT, scanPorts };

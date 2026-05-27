@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import ErrorBoundary from './components/ErrorBoundary';
 import { Provider, useSelector } from 'react-redux';
 import { store, type RootState } from './store';
 
@@ -43,9 +44,11 @@ function AppRoutes() {
 export default function App() {
   return (
     <Provider store={store}>
-      <BrowserRouter>
-        <AppRoutes />
-      </BrowserRouter>
+      <ErrorBoundary>
+        <BrowserRouter>
+          <AppRoutes />
+        </BrowserRouter>
+      </ErrorBoundary>
     </Provider>
   );
 }

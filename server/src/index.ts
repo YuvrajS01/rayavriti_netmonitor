@@ -1,24 +1,35 @@
-const crypto = require('crypto');
+import crypto from 'crypto';
+import path from 'path';
 
-const express = require('express');
-const http = require('http');
-const { Server } = require('socket.io');
+import express from 'express';
+import http from 'http';
+import { Server } from 'socket.io';
+import helmet from 'helmet';
+import cors from 'cors';
+import pinoHttp from 'pino-http';
 
-const db = require('./services/database');
-const auth = require('./services/auth');
-const { startScheduler, clearJobs } = require('./services/scheduler');
-const { scanDevicePorts } = require('./services/portDiscovery');
-const anomalyEngine = require('./services/anomalyEngine');
-const { startNetflowCollector, stopNetflowCollector } = require('./collectors/netflow');
-const {
+import db from './services/database';
+import * as auth from './services/auth';
+import { startScheduler, clearJobs } from './services/scheduler';
+import { scanDevicePorts } from './services/portDiscovery';
+import * as anomalyEngine from './services/anomalyEngine';
+import { startNetflowCollector, stopNetflowCollector } from './collectors/netflow';
+import {
   listInterfaces, startCapture, stopCapture,
   getSessionPackets, getSessionStats, stopAllCaptures
-} = require('./collectors/packetCapture');
-const flowAnalyzer = require('./services/flowAnalyzer');
+} from './collectors/packetCapture';
+import * as flowAnalyzer from './services/flowAnalyzer';
+import logger from './services/logger';
+import { startRetentionScheduler, stopRetentionScheduler } from './services/retentionScheduler';
+
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+const VERSION = '0.1.0';
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server);
+const io = new Server(server, {
+  cors: IS_PRODUCTION ? undefined : { origin: '*' },
+});
 
 const PORT = Number(process.env.PORT || 3000);
 
@@ -26,11 +37,11 @@ const rateCounters = new Map();
 let portDiscoveryInterval: NodeJS.Timeout | null = null;
 let portDiscoveryRunning = false;
 
-function toSqlDate(date) {
+function toSqlDate(date: any) {
   return date.toISOString().slice(0, 19).replace('T', ' ');
 }
 
-function parseReportRange(req) {
+function parseReportRange(req: any) {
   const toDate = req.query.to ? new Date(req.query.to) : new Date();
   const fromDate = req.query.from
     ? new Date(req.query.from)
@@ -46,7 +57,7 @@ function parseReportRange(req) {
   };
 }
 
-function toCsv(rows) {
+function toCsv(rows: any) {
   const header = [
     'id',
     'device_id',
@@ -59,7 +70,7 @@ function toCsv(rows) {
     'timestamp'
   ];
 
-  const escape = (value) => {
+  const escape = (value: any) => {
     const text = String(value ?? '');
     if (text.includes(',') || text.includes('"') || text.includes('\n')) {
       return `"${text.replace(/"/g, '""')}"`;
@@ -67,15 +78,15 @@ function toCsv(rows) {
     return text;
   };
 
-  const lines = rows.map((row) => header.map((key) => escape(row[key])).join(','));
+  const lines = rows.map((row: any) => header.map((key: any) => escape(row[key])).join(','));
   return [header.join(','), ...lines].join('\n');
 }
 
-function getReqId(req) {
+function getReqId(req: any) {
   return req.requestId || crypto.randomBytes(8).toString('hex');
 }
 
-function sendOk(req, res, data, extraMeta: any = {}, status = 200) {
+function sendOk(req: any, res: any, data: any, extraMeta: any = {}, status = 200) {
   const payload = {
     success: true,
     data,
@@ -95,7 +106,7 @@ function sendOk(req, res, data, extraMeta: any = {}, status = 200) {
   return res.status(status).json(payload);
 }
 
-function sendError(req, res, status, code, message) {
+function sendError(req: any, res: any, status: any, code: any, message: any) {
   return res.status(status).json({
     success: false,
     data: null,
@@ -111,7 +122,7 @@ function sendError(req, res, status, code, message) {
   });
 }
 
-function sanitizeDevice(device) {
+function sanitizeDevice(device: any) {
   if (!device) {
     return device;
   }
@@ -119,13 +130,13 @@ function sanitizeDevice(device) {
   return rest;
 }
 
-function parsePagination(query) {
+function parsePagination(query: any) {
   const page = Math.max(1, Number(query.page || 1));
   const pageSize = Math.max(1, Math.min(200, Number(query.pageSize || 20)));
   return { page, pageSize };
 }
 
-function applySort(items, sortRaw, fieldMap) {
+function applySort(items: any, sortRaw: any, fieldMap: any) {
   if (!sortRaw) {
     return items;
   }
@@ -159,7 +170,7 @@ function applySort(items, sortRaw, fieldMap) {
   });
 }
 
-function paginate(items, page, pageSize) {
+function paginate(items: any, page: any, pageSize: any) {
   const total = items.length;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const safePage = Math.min(page, totalPages);
@@ -182,7 +193,7 @@ async function runPortDiscovery() {
   }
   portDiscoveryRunning = true;
   try {
-    const devices = db.getDevices();
+    const devices: any[] = db.getDevices();
     for (const device of devices) {
       const result = await scanDevicePorts(device, {
         timeoutMs: Number(process.env.PORT_SCAN_TIMEOUT_MS || 900),
@@ -203,8 +214,8 @@ async function runPortDiscovery() {
         });
       }
     }
-  } catch (error) {
-    console.error('Port discovery failed:', error.message);
+  } catch (error: any) {
+    logger.error({ err: error.message }, 'Port discovery failed');
   } finally {
     portDiscoveryRunning = false;
   }
@@ -220,13 +231,13 @@ function startPortDiscoveryScheduler() {
   }
 
   const intervalMinutes = Math.max(5, Number(process.env.PORT_DISCOVERY_INTERVAL_MINUTES || 60));
-  runPortDiscovery().catch((error) => console.error('Initial port discovery failed:', error.message));
+  runPortDiscovery().catch((error: any) => logger.error({ err: error.message }, 'Initial port discovery failed'));
   portDiscoveryInterval = setInterval(() => {
-    runPortDiscovery().catch((error) => console.error('Port discovery job failed:', error.message));
+    runPortDiscovery().catch((error: any) => logger.error({ err: error.message }, 'Port discovery job failed'));
   }, intervalMinutes * 60 * 1000);
 }
 
-function requireLegacyAuth(req, res, next) {
+function requireLegacyAuth(req: any, res: any, next: any) {
   const token = auth.extractToken(req);
   const session = auth.getSession(token);
 
@@ -239,10 +250,10 @@ function requireLegacyAuth(req, res, next) {
   return next();
 }
 
-function authenticateV1(req, res, next) {
+function authenticateV1(req: any, res: any, next: any) {
   const apiKey = req.headers['x-api-key'];
   if (apiKey) {
-    const key = db.verifyApiKey(String(apiKey));
+    const key: any = db.verifyApiKey(String(apiKey));
     if (!key || !key.enabled) {
       return sendError(req, res, 401, 'UNAUTHORIZED', 'Invalid API key');
     }
@@ -274,7 +285,7 @@ function authenticateV1(req, res, next) {
   return next();
 }
 
-function rateLimitV1(req, res, next) {
+function rateLimitV1(req: any, res: any, next: any) {
   const isApiKey = req.authType === 'api_key';
   const limit = isApiKey ? 5000 : 1000;
   const now = Date.now();
@@ -313,18 +324,62 @@ function rateLimitV1(req, res, next) {
   return next();
 }
 
-app.use(express.json());
-app.use((req, _res, next) => {
+// ── Security middleware ────────────────────────────────────────
+app.use(helmet({
+  contentSecurityPolicy: IS_PRODUCTION ? undefined : false,
+}));
+app.use(cors({
+  origin: IS_PRODUCTION ? false : '*',
+  credentials: true,
+}));
+app.use(express.json({ limit: '1mb' }));
+
+// ── Request ID + logging ──────────────────────────────────────
+app.use((req: any, _res: any, next: any) => {
   req.requestId = crypto.randomBytes(8).toString('hex');
   next();
 });
-// Static frontend is now served by Vite dev server (client/)
+app.use(pinoHttp({
+  logger,
+  autoLogging: IS_PRODUCTION,
+  customLogLevel: (_req: any, res: any, err: any) => {
+    if (res.statusCode >= 500 || err) return 'error';
+    if (res.statusCode >= 400) return 'warn';
+    return 'info';
+  },
+  customSuccessMessage: (req: any, res: any) => `${req.method} ${req.url} ${res.statusCode}`,
+  customErrorMessage: (req: any, res: any) => `${req.method} ${req.url} ${res.statusCode}`,
+}));
 
-app.get('/health', (_req, res) => {
-  res.json({ ok: true, service: 'rayavriti-netmonitor', timestamp: new Date().toISOString() });
+// ── Static SPA serving (production) ───────────────────────────
+if (IS_PRODUCTION) {
+  const publicDir = path.join(__dirname, 'public');
+  app.use(express.static(publicDir));
+}
+
+// ── Health endpoint (unauthenticated) ─────────────────────────
+const startedAt = Date.now();
+app.get('/health', (_req: any, res: any) => {
+  let dbOk = true;
+  try {
+    db.raw('SELECT 1');
+  } catch {
+    dbOk = false;
+  }
+
+  const status = dbOk ? 200 : 503;
+  res.status(status).json({
+    ok: dbOk,
+    service: 'rayavriti-netmonitor',
+    version: VERSION,
+    uptime: Math.floor((Date.now() - startedAt) / 1000),
+    database: dbOk ? 'ok' : 'error',
+    environment: IS_PRODUCTION ? 'production' : 'development',
+    timestamp: new Date().toISOString(),
+  });
 });
 
-app.post('/api/auth/login', (req, res) => {
+app.post('/api/auth/login', (req: any, res: any) => {
   const { username, password } = req.body;
   if (!username || !password) {
     return res.status(400).json({ error: 'username and password are required' });
@@ -347,20 +402,20 @@ app.post('/api/auth/login', (req, res) => {
   });
 });
 
-app.get('/api/auth/me', requireLegacyAuth, (req, res) => {
+app.get('/api/auth/me', requireLegacyAuth, (req: any, res: any) => {
   res.json({ data: req.user });
 });
 
-app.post('/api/auth/logout', requireLegacyAuth, (req, res) => {
+app.post('/api/auth/logout', requireLegacyAuth, (req: any, res: any) => {
   auth.logout(req.token, req.body?.refreshToken || null);
   res.json({ success: true });
 });
 
-app.get('/api/devices', requireLegacyAuth, (_req, res) => {
-  res.json({ data: db.getDevices().map((device) => sanitizeDevice(device)) });
+app.get('/api/devices', requireLegacyAuth, (_req: any, res: any) => {
+  res.json({ data: db.getDevices().map((device: any) => sanitizeDevice(device)) });
 });
 
-app.post('/api/devices', requireLegacyAuth, (req, res) => {
+app.post('/api/devices', requireLegacyAuth, (req: any, res: any) => {
   const { name, host, protocol } = req.body;
   if (!name || !host || !protocol) {
     return res.status(400).json({ error: 'name, host, protocol are required' });
@@ -374,7 +429,7 @@ app.post('/api/devices', requireLegacyAuth, (req, res) => {
   });
 });
 
-app.put('/api/devices/:id', requireLegacyAuth, (req, res) => {
+app.put('/api/devices/:id', requireLegacyAuth, (req: any, res: any) => {
   const id = Number(req.params.id);
   const existing = db.getDevice(id);
   if (!existing) {
@@ -387,18 +442,18 @@ app.put('/api/devices/:id', requireLegacyAuth, (req, res) => {
   return res.json({ data: sanitizeDevice(db.getDevice(id)) });
 });
 
-app.delete('/api/devices/:id', requireLegacyAuth, (req, res) => {
+app.delete('/api/devices/:id', requireLegacyAuth, (req: any, res: any) => {
   const id = Number(req.params.id);
   db.deleteDevice(id);
   startScheduler(io);
   res.status(204).send();
 });
 
-app.get('/api/metrics/latest', requireLegacyAuth, (_req, res) => {
+app.get('/api/metrics/latest', requireLegacyAuth, (_req: any, res: any) => {
   res.json({ data: db.getLatestMetrics() });
 });
 
-app.post('/api/simulator/metrics', requireLegacyAuth, (req, res) => {
+app.post('/api/simulator/metrics', requireLegacyAuth, (req: any, res: any) => {
   const { metrics } = req.body;
   if (!Array.isArray(metrics)) return res.status(400).json({ error: 'metrics must be an array' });
 
@@ -415,12 +470,12 @@ app.post('/api/simulator/metrics', requireLegacyAuth, (req, res) => {
       timestamp: new Date().toISOString()
     };
     io.emit('metric:update', metricObj);
-    anomalyEngine.processMetric(metricObj, db, io);
+    (anomalyEngine.processMetric as any)(metricObj, db, io);
   }
   res.json({ success: true, count: metrics.length });
 });
 
-app.post('/api/simulator/flows', requireLegacyAuth, (req, res) => {
+app.post('/api/simulator/flows', requireLegacyAuth, (req: any, res: any) => {
   const { flows } = req.body;
   if (!Array.isArray(flows)) return res.status(400).json({ error: 'flows must be an array' });
 
@@ -428,18 +483,18 @@ app.post('/api/simulator/flows', requireLegacyAuth, (req, res) => {
     db.insertFlowBatch(flows);
     io.emit('flow:update');
     res.json({ success: true, count: flows.length });
-  } catch (err) {
+  } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
 });
 
-app.get('/api/metrics/device/:id', requireLegacyAuth, (req, res) => {
+app.get('/api/metrics/device/:id', requireLegacyAuth, (req: any, res: any) => {
   const id = Number(req.params.id);
   const limit = Number(req.query.limit || 100);
   res.json({ data: db.getDeviceMetrics(id, limit) });
 });
 
-app.get('/api/devices/:id/ports', requireLegacyAuth, (req, res) => {
+app.get('/api/devices/:id/ports', requireLegacyAuth, (req: any, res: any) => {
   const id = Number(req.params.id);
   if (!db.getDevice(id)) {
     return res.status(404).json({ error: 'device not found' });
@@ -448,9 +503,9 @@ app.get('/api/devices/:id/ports', requireLegacyAuth, (req, res) => {
   res.json({ data: db.getPortScanResults(id) });
 });
 
-app.post('/api/devices/:id/scan-ports', requireLegacyAuth, async (req, res) => {
+app.post('/api/devices/:id/scan-ports', requireLegacyAuth, async (req: any, res: any) => {
   const id = Number(req.params.id);
-  const device = db.getDevice(id);
+  const device: any = db.getDevice(id);
   if (!device) {
     return res.status(404).json({ error: 'device not found' });
   }
@@ -475,56 +530,56 @@ app.post('/api/devices/:id/scan-ports', requireLegacyAuth, async (req, res) => {
     });
 
     return res.json({ data: result });
-  } catch (error) {
+  } catch (error: any) {
     return res.status(500).json({ error: `port scan failed: ${error.message}` });
   }
 });
 
-app.get('/api/insights', requireLegacyAuth, (_req, res) => {
+app.get('/api/insights', requireLegacyAuth, (_req: any, res: any) => {
   res.json({ data: anomalyEngine.buildInsights() });
 });
 
-app.get('/api/insights/history', requireLegacyAuth, (req, res) => {
+app.get('/api/insights/history', requireLegacyAuth, (req: any, res: any) => {
   const hours = Math.min(48, Math.max(1, Number(req.query.hours || 12)));
   res.json({ data: anomalyEngine.buildHistoryTimeline(hours) });
 });
 
-app.get('/api/alerts', requireLegacyAuth, (req, res) => {
+app.get('/api/alerts', requireLegacyAuth, (req: any, res: any) => {
   const status = req.query.status || 'active';
   const limit = Number(req.query.limit || 200);
   res.json({ data: db.getAlerts({ status, limit }) });
 });
 
-app.post('/api/alerts/:id/acknowledge', requireLegacyAuth, (req, res) => {
+app.post('/api/alerts/:id/acknowledge', requireLegacyAuth, (req: any, res: any) => {
   db.acknowledgeAlert(Number(req.params.id), req.body?.comment || null);
   res.json({ success: true });
 });
 
-app.post('/api/alerts/:id/resolve', requireLegacyAuth, (req, res) => {
+app.post('/api/alerts/:id/resolve', requireLegacyAuth, (req: any, res: any) => {
   db.resolveAlert(Number(req.params.id));
   res.json({ success: true });
 });
 
-app.get('/api/stats', requireLegacyAuth, (_req, res) => {
+app.get('/api/stats', requireLegacyAuth, (_req: any, res: any) => {
   res.json({ data: db.getStats() });
 });
 
-app.get('/api/alerts/counts', requireLegacyAuth, (_req, res) => {
+app.get('/api/alerts/counts', requireLegacyAuth, (_req: any, res: any) => {
   res.json({ data: db.getAlertCounts() });
 });
 
-app.get('/api/reports/summary', requireLegacyAuth, (req, res) => {
+app.get('/api/reports/summary', requireLegacyAuth, (req: any, res: any) => {
   const range = parseReportRange(req);
   if (!range) {
     return res.status(400).json({ error: 'invalid date range' });
   }
 
-  const rows = db.getMetricsForReport({ ...range, deviceId: req.query.deviceId });
+  const rows: any[] = db.getMetricsForReport({ ...range, deviceId: req.query.deviceId });
   const totalSamples = rows.length;
-  const downSamples = rows.filter((r) => r.status === 'down').length;
-  const warningSamples = rows.filter((r) => r.status === 'warning' || r.status === 'degraded').length;
+  const downSamples = rows.filter((r: any) => r.status === 'down').length;
+  const warningSamples = rows.filter((r: any) => r.status === 'warning' || r.status === 'degraded').length;
   const avgResponse = rows.length
-    ? Number((rows.reduce((sum, r) => sum + Number(r.response_time || 0), 0) / rows.length).toFixed(2))
+    ? Number((rows.reduce((sum: any, r: any) => sum + Number(r.response_time || 0), 0) / rows.length).toFixed(2))
     : 0;
 
   return res.json({
@@ -540,7 +595,7 @@ app.get('/api/reports/summary', requireLegacyAuth, (req, res) => {
   });
 });
 
-app.get('/api/reports/metrics.csv', requireLegacyAuth, (req, res) => {
+app.get('/api/reports/metrics.csv', requireLegacyAuth, (req: any, res: any) => {
   const range = parseReportRange(req);
   if (!range) {
     return res.status(400).json({ error: 'invalid date range' });
@@ -554,7 +609,7 @@ app.get('/api/reports/metrics.csv', requireLegacyAuth, (req, res) => {
   return res.send(csv);
 });
 
-app.get('/api/reports/timeseries', requireLegacyAuth, (req, res) => {
+app.get('/api/reports/timeseries', requireLegacyAuth, (req: any, res: any) => {
   const range = parseReportRange(req);
   if (!range) {
     return res.status(400).json({ error: 'invalid date range' });
@@ -567,7 +622,7 @@ app.get('/api/reports/timeseries', requireLegacyAuth, (req, res) => {
     bucketMinutes
   });
 
-  const data = rows.map((row) => {
+  const data = rows.map((row: any) => {
     const sampleCount = Number(row.sample_count || 0);
     const downCount = Number(row.down_count || 0);
     const availability = sampleCount > 0 ? Number((((sampleCount - downCount) / sampleCount) * 100).toFixed(2)) : 0;
@@ -584,14 +639,14 @@ app.get('/api/reports/timeseries', requireLegacyAuth, (req, res) => {
   return res.json({ data });
 });
 
-app.get('/api/reports/devices', requireLegacyAuth, (req, res) => {
+app.get('/api/reports/devices', requireLegacyAuth, (req: any, res: any) => {
   const range = parseReportRange(req);
   if (!range) {
     return res.status(400).json({ error: 'invalid date range' });
   }
 
   const rows = db.getDeviceBreakdownForReport(range);
-  const data = rows.map((row) => {
+  const data = rows.map((row: any) => {
     const sampleCount = Number(row.sample_count || 0);
     const downCount = Number(row.down_count || 0);
     const warnCount = Number(row.warn_count || 0);
@@ -615,7 +670,7 @@ app.get('/api/reports/devices', requireLegacyAuth, (req, res) => {
   return res.json({ data });
 });
 
-app.get('/api/reports/alerts', requireLegacyAuth, (req, res) => {
+app.get('/api/reports/alerts', requireLegacyAuth, (req: any, res: any) => {
   const range = parseReportRange(req);
   if (!range) {
     return res.status(400).json({ error: 'invalid date range' });
@@ -628,24 +683,24 @@ app.get('/api/reports/alerts', requireLegacyAuth, (req, res) => {
 const v1 = express.Router();
 v1.use(authenticateV1, rateLimitV1);
 
-v1.post('/auth/logout', (req, res) => {
+v1.post('/auth/logout', (req: any, res: any) => {
   auth.logout(req.token || null, req.body?.refreshToken || null);
   return sendOk(req, res, { loggedOut: true });
 });
 
-v1.get('/devices', (req, res) => {
+v1.get('/devices', (req: any, res: any) => {
   const { page, pageSize } = parsePagination(req.query);
   const statusFilter = req.query['filter[status]'];
   const sort = req.query.sort || '-created_at';
 
-  const latestByDevice = new Map(db.getLatestMetrics().map((m) => [m.device_id, m]));
+  const latestByDevice = new Map(db.getLatestMetrics().map((m: any) => [m.device_id, m]));
   const sensorsByDevice = new Map();
-  for (const sensor of db.listSensors()) {
+  for (const sensor of db.listSensors() as any[]) {
     const key = sensor.device_id;
     sensorsByDevice.set(key, (sensorsByDevice.get(key) || 0) + 1);
   }
 
-  let rows = db.getDevices().map((d) => {
+  let rows = db.getDevices().map((d: any) => {
     const latest: any = latestByDevice.get(d.id);
     const state = latest?.status === 'down' ? 'down' : (latest?.status || 'active');
     return {
@@ -660,7 +715,7 @@ v1.get('/devices', (req, res) => {
   });
 
   if (statusFilter) {
-    rows = rows.filter((r) => String(r.status).toLowerCase() === String(statusFilter).toLowerCase());
+    rows = rows.filter((r: any) => String(r.status).toLowerCase() === String(statusFilter).toLowerCase());
   }
 
   rows = applySort(rows, sort, {
@@ -674,13 +729,13 @@ v1.get('/devices', (req, res) => {
   return sendOk(req, res, paged.data, { pagination: paged.pagination });
 });
 
-v1.get('/devices/:id', (req, res) => {
-  const device = db.getDevice(Number(req.params.id));
+v1.get('/devices/:id', (req: any, res: any) => {
+  const device: any = db.getDevice(Number(req.params.id));
   if (!device) {
     return sendError(req, res, 404, 'RESOURCE_NOT_FOUND', 'Device not found');
   }
 
-  const latest = db.getLatestMetrics().find((m) => m.device_id === device.id);
+  const latest: any = db.getLatestMetrics().find((m: any) => m.device_id === device.id);
   const sensors = db.getSensorsByDevice(device.id);
 
   return sendOk(req, res, {
@@ -698,7 +753,7 @@ v1.get('/devices/:id', (req, res) => {
   });
 });
 
-v1.post('/devices', (req, res) => {
+v1.post('/devices', (req: any, res: any) => {
   const payload = req.body || {};
   const host = payload.ipAddress || payload.host;
   if (!payload.name || !host) {
@@ -717,7 +772,7 @@ v1.post('/devices', (req, res) => {
   });
 
   startScheduler(io);
-  const device = db.getDevice(created.lastInsertRowid);
+  const device: any = db.getDevice(created.lastInsertRowid);
 
   return sendOk(req, res, {
     id: String(device.id),
@@ -729,9 +784,9 @@ v1.post('/devices', (req, res) => {
   }, {}, 201);
 });
 
-v1.put('/devices/:id', (req, res) => {
+v1.put('/devices/:id', (req: any, res: any) => {
   const id = Number(req.params.id);
-  const existing = db.getDevice(id);
+  const existing: any = db.getDevice(id);
   if (!existing) {
     return sendError(req, res, 404, 'RESOURCE_NOT_FOUND', 'Device not found');
   }
@@ -750,7 +805,7 @@ v1.put('/devices/:id', (req, res) => {
   });
 
   startScheduler(io);
-  const device = db.getDevice(id);
+  const device: any = db.getDevice(id);
 
   return sendOk(req, res, {
     id: String(device.id),
@@ -764,7 +819,7 @@ v1.put('/devices/:id', (req, res) => {
   });
 });
 
-v1.delete('/devices/:id', (req, res) => {
+v1.delete('/devices/:id', (req: any, res: any) => {
   const id = Number(req.params.id);
   const existing = db.getDevice(id);
   if (!existing) {
@@ -776,7 +831,7 @@ v1.delete('/devices/:id', (req, res) => {
   return sendOk(req, res, { deleted: true });
 });
 
-v1.get('/devices/:id/metrics', (req, res) => {
+v1.get('/devices/:id/metrics', (req: any, res: any) => {
   const id = Number(req.params.id);
   if (!db.getDevice(id)) {
     return sendError(req, res, 404, 'RESOURCE_NOT_FOUND', 'Device not found');
@@ -787,9 +842,9 @@ v1.get('/devices/:id/metrics', (req, res) => {
   return sendOk(req, res, rows);
 });
 
-v1.get('/sensors', (req, res) => {
+v1.get('/sensors', (req: any, res: any) => {
   const rows = db.listSensors({ deviceId: req.query.deviceId });
-  return sendOk(req, res, rows.map((s) => ({
+  return sendOk(req, res, rows.map((s: any) => ({
     id: String(s.id),
     deviceId: String(s.device_id),
     deviceName: s.device_name,
@@ -808,7 +863,7 @@ v1.get('/sensors', (req, res) => {
   })));
 });
 
-v1.get('/sensors/:id', (req, res) => {
+v1.get('/sensors/:id', (req: any, res: any) => {
   const sensor = db.getSensor(req.params.id);
   if (!sensor) {
     return sendError(req, res, 404, 'RESOURCE_NOT_FOUND', 'Sensor not found');
@@ -817,7 +872,7 @@ v1.get('/sensors/:id', (req, res) => {
   return sendOk(req, res, sensor);
 });
 
-v1.post('/sensors', (req, res) => {
+v1.post('/sensors', (req: any, res: any) => {
   const payload = req.body || {};
   if (!payload.deviceId || !payload.name || !payload.type) {
     return sendError(req, res, 400, 'VALIDATION_ERROR', 'deviceId, name and type are required');
@@ -833,8 +888,8 @@ v1.post('/sensors', (req, res) => {
   return sendOk(req, res, sensor, {}, 201);
 });
 
-v1.put('/sensors/:id', (req, res) => {
-  const existing = db.getSensor(req.params.id);
+v1.put('/sensors/:id', (req: any, res: any) => {
+  const existing: any = db.getSensor(req.params.id);
   if (!existing) {
     return sendError(req, res, 404, 'RESOURCE_NOT_FOUND', 'Sensor not found');
   }
@@ -859,7 +914,7 @@ v1.put('/sensors/:id', (req, res) => {
   return sendOk(req, res, updated);
 });
 
-v1.delete('/sensors/:id', (req, res) => {
+v1.delete('/sensors/:id', (req: any, res: any) => {
   const existing = db.getSensor(req.params.id);
   if (!existing) {
     return sendError(req, res, 404, 'RESOURCE_NOT_FOUND', 'Sensor not found');
@@ -869,7 +924,7 @@ v1.delete('/sensors/:id', (req, res) => {
   return sendOk(req, res, { deleted: true });
 });
 
-v1.get('/metrics/query', (req, res) => {
+v1.get('/metrics/query', (req: any, res: any) => {
   const { deviceId, from, to, aggregation = 'avg', interval = '5m' } = req.query;
   if (!deviceId || !from || !to) {
     return sendError(req, res, 400, 'VALIDATION_ERROR', 'deviceId, from and to are required');
@@ -881,13 +936,13 @@ v1.get('/metrics/query', (req, res) => {
     return sendError(req, res, 400, 'VALIDATION_ERROR', 'Invalid from/to datetime');
   }
 
-  const rows = db.queryMetrics({
+  const rows: any[] = db.queryMetrics({
     deviceId: Number(deviceId),
     from: toSqlDate(fromDate),
     to: toSqlDate(toDate)
   });
 
-  const bucketMap = {
+  const bucketMap: any = {
     '1m': 60,
     '5m': 300,
     '1h': 3600,
@@ -922,7 +977,7 @@ v1.get('/metrics/query', (req, res) => {
     } else if (aggregation === 'max') {
       value = Math.max(...g.values);
     } else {
-      value = g.values.reduce((sum, x) => sum + x, 0) / g.values.length;
+      value = g.values.reduce((sum: any, x: any) => sum + x, 0) / g.values.length;
     }
 
     if (!bySensor.has(g.sensorName)) {
@@ -935,22 +990,22 @@ v1.get('/metrics/query', (req, res) => {
     });
   }
 
-  const series = Array.from(bySensor.entries()).map(([sensorName, dataPoints]) => ({
+  const series = Array.from(bySensor.entries()).map(([sensorName, dataPoints]: any) => ({
     sensorName,
-    dataPoints: dataPoints.sort((a, b) => a.timestamp.localeCompare(b.timestamp))
+    dataPoints: dataPoints.sort((a: any, b: any) => a.timestamp.localeCompare(b.timestamp))
   }));
 
   return sendOk(req, res, { series });
 });
 
-v1.get('/alerts', (req, res) => {
+v1.get('/alerts', (req: any, res: any) => {
   const { page, pageSize } = parsePagination(req.query);
   const statusFilter = req.query.status || req.query['filter[status]'] || 'all';
   const sort = req.query.sort || '-created_at';
 
-  let rows = db.getAlerts({ status: statusFilter === 'triggered' ? 'active' : statusFilter, limit: 5000 });
+  let rows: any = db.getAlerts({ status: statusFilter === 'triggered' ? 'active' : statusFilter, limit: 5000 });
 
-  rows = rows.map((a) => ({
+  rows = rows.map((a: any) => ({
     id: String(a.id),
     severity: a.severity,
     status: a.status === 'active' ? 'triggered' : a.status,
@@ -971,8 +1026,8 @@ v1.get('/alerts', (req, res) => {
   return sendOk(req, res, paged.data, { pagination: paged.pagination });
 });
 
-v1.get('/alerts/:id', (req, res) => {
-  const alert = db.getAlertById(req.params.id);
+v1.get('/alerts/:id', (req: any, res: any) => {
+  const alert: any = db.getAlertById(req.params.id);
   if (!alert) {
     return sendError(req, res, 404, 'RESOURCE_NOT_FOUND', 'Alert not found');
   }
@@ -988,7 +1043,7 @@ v1.get('/alerts/:id', (req, res) => {
   });
 });
 
-v1.post('/alerts', (req, res) => {
+v1.post('/alerts', (req: any, res: any) => {
   const payload = req.body || {};
   if (!payload.deviceId || !payload.message || !payload.severity) {
     return sendError(req, res, 400, 'VALIDATION_ERROR', 'deviceId, message and severity are required');
@@ -1005,8 +1060,8 @@ v1.post('/alerts', (req, res) => {
   return sendOk(req, res, alert, {}, 201);
 });
 
-v1.put('/alerts/:id', (req, res) => {
-  const existing = db.getAlertById(req.params.id);
+v1.put('/alerts/:id', (req: any, res: any) => {
+  const existing: any = db.getAlertById(req.params.id);
   if (!existing) {
     return sendError(req, res, 404, 'RESOURCE_NOT_FOUND', 'Alert not found');
   }
@@ -1022,7 +1077,7 @@ v1.put('/alerts/:id', (req, res) => {
   return sendOk(req, res, db.getAlertById(req.params.id));
 });
 
-v1.delete('/alerts/:id', (req, res) => {
+v1.delete('/alerts/:id', (req: any, res: any) => {
   const existing = db.getAlertById(req.params.id);
   if (!existing) {
     return sendError(req, res, 404, 'RESOURCE_NOT_FOUND', 'Alert not found');
@@ -1032,7 +1087,7 @@ v1.delete('/alerts/:id', (req, res) => {
   return sendOk(req, res, { deleted: true });
 });
 
-v1.post('/alerts/:id/acknowledge', (req, res) => {
+v1.post('/alerts/:id/acknowledge', (req: any, res: any) => {
   const existing = db.getAlertById(req.params.id);
   if (!existing) {
     return sendError(req, res, 404, 'RESOURCE_NOT_FOUND', 'Alert not found');
@@ -1042,7 +1097,7 @@ v1.post('/alerts/:id/acknowledge', (req, res) => {
   return sendOk(req, res, { acknowledged: true });
 });
 
-v1.post('/alerts/:id/resolve', (req, res) => {
+v1.post('/alerts/:id/resolve', (req: any, res: any) => {
   const existing = db.getAlertById(req.params.id);
   if (!existing) {
     return sendError(req, res, 404, 'RESOURCE_NOT_FOUND', 'Alert not found');
@@ -1052,8 +1107,8 @@ v1.post('/alerts/:id/resolve', (req, res) => {
   return sendOk(req, res, { resolved: true });
 });
 
-v1.get('/dashboards', (req, res) => {
-  const dashboards = db.listDashboards().map((d) => ({
+v1.get('/dashboards', (req: any, res: any) => {
+  const dashboards = db.listDashboards().map((d: any) => ({
     id: String(d.id),
     name: d.name,
     widgets: (() => {
@@ -1070,8 +1125,8 @@ v1.get('/dashboards', (req, res) => {
   return sendOk(req, res, dashboards);
 });
 
-v1.get('/dashboards/:id', (req, res) => {
-  const d = db.getDashboard(req.params.id);
+v1.get('/dashboards/:id', (req: any, res: any) => {
+  const d: any = db.getDashboard(req.params.id);
   if (!d) {
     return sendError(req, res, 404, 'RESOURCE_NOT_FOUND', 'Dashboard not found');
   }
@@ -1091,7 +1146,7 @@ v1.get('/dashboards/:id', (req, res) => {
   });
 });
 
-v1.post('/dashboards', (req, res) => {
+v1.post('/dashboards', (req: any, res: any) => {
   const payload = req.body || {};
   if (!payload.name) {
     return sendError(req, res, 400, 'VALIDATION_ERROR', 'name is required');
@@ -1106,8 +1161,8 @@ v1.post('/dashboards', (req, res) => {
   return sendOk(req, res, { id: String(created.lastInsertRowid) }, {}, 201);
 });
 
-v1.put('/dashboards/:id', (req, res) => {
-  const existing = db.getDashboard(req.params.id);
+v1.put('/dashboards/:id', (req: any, res: any) => {
+  const existing: any = db.getDashboard(req.params.id);
   if (!existing) {
     return sendError(req, res, 404, 'RESOURCE_NOT_FOUND', 'Dashboard not found');
   }
@@ -1127,7 +1182,7 @@ v1.put('/dashboards/:id', (req, res) => {
   return sendOk(req, res, { updated: true });
 });
 
-v1.delete('/dashboards/:id', (req, res) => {
+v1.delete('/dashboards/:id', (req: any, res: any) => {
   const existing = db.getDashboard(req.params.id);
   if (!existing) {
     return sendError(req, res, 404, 'RESOURCE_NOT_FOUND', 'Dashboard not found');
@@ -1137,7 +1192,7 @@ v1.delete('/dashboards/:id', (req, res) => {
   return sendOk(req, res, { deleted: true });
 });
 
-v1.get('/reports', (req, res) => {
+v1.get('/reports', (req: any, res: any) => {
   return sendOk(req, res, [
     { id: 'availability', name: 'Availability Report' },
     { id: 'performance', name: 'Performance Report' },
@@ -1147,31 +1202,31 @@ v1.get('/reports', (req, res) => {
 
 // ── Flow Analysis Routes ──────────────────────────────────────
 
-v1.get('/flows', (req, res) => {
+v1.get('/flows', (req: any, res: any) => {
   const { from, to, srcIp, dstIp, protocol } = req.query;
   const limit = Number(req.query.limit || 200);
   const rows = db.getFlowRecords({ from, to, srcIp, dstIp, protocol, limit });
   return sendOk(req, res, rows);
 });
 
-v1.get('/flows/top-talkers', (req, res) => {
+v1.get('/flows/top-talkers', (req: any, res: any) => {
   const { from, to, direction } = req.query;
   const limit = Number(req.query.limit || 10);
   const data = flowAnalyzer.getTopTalkersWithPercent({ from, to, limit, direction });
   return sendOk(req, res, data);
 });
 
-v1.get('/flows/protocols', (req, res) => {
+v1.get('/flows/protocols', (req: any, res: any) => {
   const { from, to } = req.query;
   const data = flowAnalyzer.getProtocolBreakdown({ from, to });
   return sendOk(req, res, data);
 });
 
-v1.get('/flows/timeseries', (req, res) => {
+v1.get('/flows/timeseries', (req: any, res: any) => {
   const { from, to } = req.query;
   const bucketMinutes = Number(req.query.bucketMinutes || 5);
   const data = db.getFlowTimeseries({ from, to, bucketMinutes });
-  return sendOk(req, res, data.map((r) => ({
+  return sendOk(req, res, data.map((r: any) => ({
     timestamp: r.bucket_time,
     totalBytes: Number(r.total_bytes || 0),
     totalPackets: Number(r.total_packets || 0),
@@ -1179,19 +1234,19 @@ v1.get('/flows/timeseries', (req, res) => {
   })));
 });
 
-v1.get('/flows/stats', (req, res) => {
+v1.get('/flows/stats', (req: any, res: any) => {
   const data = flowAnalyzer.getFlowSummary();
   return sendOk(req, res, data);
 });
 
 // ── Packet Capture Routes ─────────────────────────────────────
 
-v1.get('/capture/interfaces', (req, res) => {
+v1.get('/capture/interfaces', (req: any, res: any) => {
   const interfaces = listInterfaces();
   return sendOk(req, res, interfaces);
 });
 
-v1.post('/capture/start', (req, res) => {
+v1.post('/capture/start', (req: any, res: any) => {
   const { interface: iface, filter } = req.body || {};
   if (!iface) {
     return sendError(req, res, 400, 'VALIDATION_ERROR', 'interface is required');
@@ -1200,12 +1255,12 @@ v1.post('/capture/start', (req, res) => {
     const sessionId = startCapture(io, iface, filter || null);
     const session = db.getCaptureSession(sessionId);
     return sendOk(req, res, session, {}, 201);
-  } catch (err) {
+  } catch (err: any) {
     return sendError(req, res, 500, 'CAPTURE_ERROR', err.message);
   }
 });
 
-v1.post('/capture/:id/stop', (req, res) => {
+v1.post('/capture/:id/stop', (req: any, res: any) => {
   const id = Number(req.params.id);
   const stopped = stopCapture(io, id);
   if (!stopped) {
@@ -1215,7 +1270,7 @@ v1.post('/capture/:id/stop', (req, res) => {
   return sendOk(req, res, session);
 });
 
-v1.get('/capture/:id', (req, res) => {
+v1.get('/capture/:id', (req: any, res: any) => {
   const id = Number(req.params.id);
   const session = db.getCaptureSession(id);
   if (!session) {
@@ -1228,7 +1283,7 @@ v1.get('/capture/:id', (req, res) => {
   });
 });
 
-v1.get('/capture/:id/packets', (req, res) => {
+v1.get('/capture/:id/packets', (req: any, res: any) => {
   const id = Number(req.params.id);
   const limit = Number(req.query.limit || 200);
   const offset = Number(req.query.offset || 0);
@@ -1236,13 +1291,13 @@ v1.get('/capture/:id/packets', (req, res) => {
   return sendOk(req, res, packets);
 });
 
-v1.get('/capture/sessions', (req, res) => {
+v1.get('/capture/sessions', (req: any, res: any) => {
   const limit = Number(req.query.limit || 50);
   const sessions = db.getCaptureSessions(limit);
   return sendOk(req, res, sessions);
 });
 
-app.post('/api/v1/auth/login', (req, res) => {
+app.post('/api/v1/auth/login', (req: any, res: any) => {
   const { username, password } = req.body || {};
   if (!username || !password) {
     return sendError(req, res, 400, 'VALIDATION_ERROR', 'username and password are required');
@@ -1261,7 +1316,7 @@ app.post('/api/v1/auth/login', (req, res) => {
   });
 });
 
-app.post('/api/v1/auth/refresh', (req, res) => {
+app.post('/api/v1/auth/refresh', (req: any, res: any) => {
   const { refreshToken } = req.body || {};
   if (!refreshToken) {
     return sendError(req, res, 400, 'VALIDATION_ERROR', 'refreshToken is required');
@@ -1275,13 +1330,13 @@ app.post('/api/v1/auth/refresh', (req, res) => {
   return sendOk(req, res, refreshed);
 });
 
-app.post('/api/v1/auth/2fa/verify', authenticateV1, rateLimitV1, (req, res) => {
+app.post('/api/v1/auth/2fa/verify', authenticateV1, rateLimitV1, (req: any, res: any) => {
   return sendOk(req, res, { verified: true });
 });
 
 app.use('/api/v1', v1);
 
-io.use((socket, next) => {
+io.use((socket: any, next: any) => {
   const token = socket.handshake.auth?.token || socket.handshake.headers['x-session-token'];
   const session = auth.getSession(token);
   if (!session) {
@@ -1292,7 +1347,7 @@ io.use((socket, next) => {
   return next();
 });
 
-io.on('connection', (socket) => {
+io.on('connection', (socket: any) => {
   socket.emit('bootstrap', {
     stats: db.getStats(),
     latestMetrics: db.getLatestMetrics(),
@@ -1306,22 +1361,82 @@ io.on('connection', (socket) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`Rayavriti NetMonitor running on http://localhost:${PORT}`);
+  logger.info(`Rayavriti NetMonitor v${VERSION} running on http://localhost:${PORT}`);
+  logger.info(`Environment: ${IS_PRODUCTION ? 'production' : 'development'}`);
   startScheduler(io);
   startPortDiscoveryScheduler();
+  startRetentionScheduler();
   startNetflowCollector(io, Number(process.env.NETFLOW_PORT || 2055));
 });
 
-process.on('SIGINT', () => {
+// ── Graceful shutdown ─────────────────────────────────────────
+let isShuttingDown = false;
+
+function gracefulShutdown(signal: string) {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
+
+  logger.info({ signal }, 'Shutdown signal received, draining connections...');
+
+  // Stop accepting new connections
+  server.close(() => {
+    logger.info('HTTP server closed');
+  });
+
+  // Stop all background services
   clearJobs();
   if (portDiscoveryInterval) {
     clearInterval(portDiscoveryInterval);
   }
+  stopRetentionScheduler();
   stopNetflowCollector();
   stopAllCaptures(io);
-  process.exit(0);
+
+  // Disconnect all WebSocket clients
+  io.close(() => {
+    logger.info('WebSocket server closed');
+  });
+
+  // Allow 5 seconds for in-flight requests to complete
+  setTimeout(() => {
+    logger.info('Shutdown complete');
+    process.exit(0);
+  }, 5000);
+}
+
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+
+// ── Global error handler (must be last middleware) ────────────
+app.use((err: any, _req: any, res: any, _next: any) => {
+  logger.error({ err }, 'Unhandled error');
+  const status = err.status || err.statusCode || 500;
+  res.status(status).json({
+    success: false,
+    data: null,
+    error: {
+      code: 'INTERNAL_ERROR',
+      message: IS_PRODUCTION ? 'An internal error occurred' : err.message,
+    },
+    meta: { timestamp: new Date().toISOString() },
+  });
 });
 
-export {};
+process.on('uncaughtException', (err: any) => {
+  logger.fatal({ err }, 'Uncaught exception — shutting down');
+  gracefulShutdown('uncaughtException');
+});
 
-export {};
+process.on('unhandledRejection', (reason: any) => {
+  logger.error({ reason }, 'Unhandled promise rejection');
+});
+
+// ── SPA fallback for client-side routing (must be after API routes) ──
+if (IS_PRODUCTION) {
+  app.get('*', (req: any, res: any, next: any) => {
+    if (req.path.startsWith('/api') || req.path.startsWith('/socket.io') || req.path === '/health') {
+      return next();
+    }
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  });
+}

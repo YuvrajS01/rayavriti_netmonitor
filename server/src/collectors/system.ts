@@ -1,13 +1,13 @@
-const os = require('os');
-const { execSync } = require('child_process');
+import os from 'os';
+import { execSync } from 'child_process';
 
 function getCpuUsage() {
   const cpus = os.cpus();
   let totalIdle = 0;
   let totalTick = 0;
   for (const cpu of cpus) {
-    for (const type in cpu.times) {
-      totalTick += cpu.times[type];
+    for (const type of Object.keys(cpu.times)) {
+      totalTick += cpu.times[type as keyof typeof cpu.times];
     }
     totalIdle += cpu.times.idle;
   }
@@ -74,6 +74,4 @@ async function collect() {
   };
 }
 
-module.exports = { collect };
-
-export {};
+export { collect };

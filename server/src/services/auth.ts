@@ -1,27 +1,39 @@
-const crypto = require('crypto');
-const db = require('./database');
+import crypto from 'crypto';
 
+import db from './database';
+
+// Re-export from the shared password utility so consumers can
+// `import { hashPassword, verifyPassword } from './auth'` if needed.
+export { hashPassword, verifyPassword } from './password';
+
+// Use a local import alias for internal use
+import { verifyPassword as _verifyPassword } from './password';
+
+// ── Configuration ───────────────────────────────────────────────
 const ACCESS_TTL_SECONDS = 900;
 const REFRESH_TTL_MS = 7 * 24 * 60 * 60 * 1000;
-const JWT_SECRET = process.env.JWT_SECRET || 'rayavriti-dev-secret-change-me';
 
-const refreshTokens = new Map();
-const revokedAccessTokens = new Map();
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET && process.env.NODE_ENV === 'production') {
+  throw new Error('JWT_SECRET environment variable is required in production');
+}
+const SECRET: string = JWT_SECRET || 'rayavriti-dev-secret-change-me';
 
-function hashPassword(password) {
-  return crypto.createHash('sha256').update(password).digest('hex');
+// ── In-memory token stores ──────────────────────────────────────
+
+interface RefreshSession {
+  userId: string;
+  username: string;
+  role: string;
+  expiresAt: number;
 }
 
-function safeEquals(a, b) {
-  const left = Buffer.from(a);
-  const right = Buffer.from(b);
-  if (left.length !== right.length) {
-    return false;
-  }
-  return crypto.timingSafeEqual(left, right);
-}
+const refreshTokens = new Map<string, RefreshSession>();
+const revokedAccessTokens = new Map<string, number>();
 
-function base64url(input) {
+// ── JWT helpers (hand-rolled HS256) ─────────────────────────────
+
+function base64url(input: string): string {
   return Buffer.from(input)
     .toString('base64')
     .replace(/=/g, '')
@@ -29,19 +41,30 @@ function base64url(input) {
     .replace(/\//g, '_');
 }
 
-function fromBase64url(input) {
+function fromBase64url(input: string): string {
   const normalized = input.replace(/-/g, '+').replace(/_/g, '/');
   const padded = normalized + '='.repeat((4 - (normalized.length % 4)) % 4);
   return Buffer.from(padded, 'base64').toString('utf8');
 }
 
-function signJwt(payload) {
+interface JwtPayload {
+  sub?: string;
+  username?: string;
+  role?: string;
+  type?: string;
+  iat?: number;
+  exp?: number;
+  jti?: string;
+  [key: string]: unknown;
+}
+
+function signJwt(payload: JwtPayload): string {
   const header = { alg: 'HS256', typ: 'JWT' };
   const encodedHeader = base64url(JSON.stringify(header));
   const encodedPayload = base64url(JSON.stringify(payload));
   const body = `${encodedHeader}.${encodedPayload}`;
   const signature = crypto
-    .createHmac('sha256', JWT_SECRET)
+    .createHmac('sha256', SECRET)
     .update(body)
     .digest('base64')
     .replace(/=/g, '')
@@ -51,7 +74,16 @@ function signJwt(payload) {
   return `${body}.${signature}`;
 }
 
-function verifyJwt(token) {
+function safeEquals(a: string, b: string): boolean {
+  const left = Buffer.from(a);
+  const right = Buffer.from(b);
+  if (left.length !== right.length) {
+    return false;
+  }
+  return crypto.timingSafeEqual(left, right);
+}
+
+function verifyJwt(token: string | null | undefined): JwtPayload | null {
   if (!token) {
     return null;
   }
@@ -64,7 +96,7 @@ function verifyJwt(token) {
   const [encodedHeader, encodedPayload, sig] = parts;
   const body = `${encodedHeader}.${encodedPayload}`;
   const expected = crypto
-    .createHmac('sha256', JWT_SECRET)
+    .createHmac('sha256', SECRET)
     .update(body)
     .digest('base64')
     .replace(/=/g, '')
@@ -76,7 +108,7 @@ function verifyJwt(token) {
   }
 
   try {
-    const payload = JSON.parse(fromBase64url(encodedPayload));
+    const payload: JwtPayload = JSON.parse(fromBase64url(encodedPayload));
     if (!payload.exp || Date.now() / 1000 >= payload.exp) {
       return null;
     }
@@ -86,7 +118,15 @@ function verifyJwt(token) {
   }
 }
 
-function createAccessToken(user) {
+// ── Token creation ──────────────────────────────────────────────
+
+interface UserLike {
+  id: number | string;
+  username: string;
+  role: string;
+}
+
+function createAccessToken(user: UserLike): string {
   const now = Math.floor(Date.now() / 1000);
   return signJwt({
     sub: String(user.id),
@@ -99,7 +139,7 @@ function createAccessToken(user) {
   });
 }
 
-function createRefreshToken(user) {
+function createRefreshToken(user: UserLike): string {
   const token = crypto.randomBytes(48).toString('hex');
   refreshTokens.set(token, {
     userId: String(user.id),
@@ -110,7 +150,7 @@ function createRefreshToken(user) {
   return token;
 }
 
-function buildLoginPayload(user) {
+function buildLoginPayload(user: UserLike) {
   const accessToken = createAccessToken(user);
   const refreshToken = createRefreshToken(user);
 
@@ -127,21 +167,22 @@ function buildLoginPayload(user) {
   };
 }
 
-function login(username, password) {
-  const user = db.getUserByUsername(username);
+// ── Public API ──────────────────────────────────────────────────
+
+export function login(username: string, password: string) {
+  const user: any = db.getUserByUsername(username);
   if (!user) {
     return null;
   }
 
-  const hashed = hashPassword(password);
-  if (!safeEquals(user.password_hash, hashed)) {
+  if (!_verifyPassword(password, user.password_hash)) {
     return null;
   }
 
   return buildLoginPayload(user);
 }
 
-function refresh(refreshToken) {
+export function refresh(refreshToken: string) {
   const session = refreshTokens.get(refreshToken);
   if (!session) {
     return null;
@@ -169,7 +210,7 @@ function refresh(refreshToken) {
   };
 }
 
-function getSession(token) {
+export function getSession(token: string | null | undefined) {
   if (!token) {
     return null;
   }
@@ -190,7 +231,7 @@ function getSession(token) {
   };
 }
 
-function logout(accessToken, refreshToken) {
+export function logout(accessToken: string | null, refreshToken: string | null) {
   if (accessToken) {
     const payload = verifyJwt(accessToken);
     if (payload?.exp) {
@@ -210,7 +251,7 @@ function logout(accessToken, refreshToken) {
   }
 }
 
-function extractToken(req) {
+export function extractToken(req: { headers: Record<string, string | undefined> }): string | null {
   const authHeader = req.headers.authorization || '';
   if (authHeader.startsWith('Bearer ')) {
     return authHeader.slice(7);
@@ -218,12 +259,4 @@ function extractToken(req) {
   return req.headers['x-session-token'] || null;
 }
 
-module.exports = {
-  login,
-  refresh,
-  getSession,
-  logout,
-  extractToken
-};
 
-export {};

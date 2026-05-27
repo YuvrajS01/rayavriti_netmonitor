@@ -1,31 +1,31 @@
-const db = require('./database');
-const flowAnalyzer = require('./flowAnalyzer');
+import db from './database';
+import * as flowAnalyzer from './flowAnalyzer';
 
-function toSqlDate(date) {
+function toSqlDate(date: any) {
   return date.toISOString().slice(0, 19).replace('T', ' ');
 }
 
-function clamp(value, min, max) {
+function clamp(value: any, min: any, max: any) {
   return Math.max(min, Math.min(max, value));
 }
 
-function average(values) {
+function average(values: any[]) {
   if (!values.length) {
     return 0;
   }
-  return values.reduce((sum, x) => sum + x, 0) / values.length;
+  return values.reduce((sum: any, x: any) => sum + x, 0) / values.length;
 }
 
-function stddev(values) {
+function stddev(values: any[]) {
   if (values.length < 2) {
     return 0;
   }
   const avg = average(values);
-  const variance = average(values.map((x) => Math.pow(x - avg, 2)));
+  const variance = average(values.map((x: any) => Math.pow(x - avg, 2)));
   return Math.sqrt(variance);
 }
 
-function scoreLabel(score) {
+function scoreLabel(score: any) {
   if (score >= 85) return 'healthy';
   if (score >= 65) return 'watch';
   if (score >= 40) return 'risk';
@@ -46,7 +46,7 @@ function getMetricsWindow(hours = 24) {
   return db.getRecentMetrics({ since, limit: 10000 });
 }
 
-function detectResponseAnomalies(metrics) {
+function detectResponseAnomalies(metrics: any[]) {
   const byDevice = new Map();
   for (const m of metrics) {
     if (!byDevice.has(m.device_id)) {
@@ -57,10 +57,10 @@ function detectResponseAnomalies(metrics) {
 
   const anomalies = [];
   for (const [deviceId, rows] of byDevice.entries()) {
-    const ordered = [...rows].sort((a, b) => String(a.timestamp).localeCompare(String(b.timestamp)));
+    const ordered = [...rows].sort((a: any, b: any) => String(a.timestamp).localeCompare(String(b.timestamp)));
     const recent = ordered.slice(-5);
-    const baseline = ordered.slice(0, -5).map((m) => Number(m.response_time)).filter((n) => Number.isFinite(n) && n > 0);
-    const recentValues = recent.map((m) => Number(m.response_time)).filter((n) => Number.isFinite(n) && n > 0);
+    const baseline = ordered.slice(0, -5).map((m: any) => Number(m.response_time)).filter((n: any) => Number.isFinite(n) && n > 0);
+    const recentValues = recent.map((m: any) => Number(m.response_time)).filter((n: any) => Number.isFinite(n) && n > 0);
 
     if (baseline.length < 5 || recentValues.length === 0) {
       continue;
@@ -88,9 +88,9 @@ function detectResponseAnomalies(metrics) {
   return anomalies;
 }
 
-function groupAlerts(alerts) {
+function groupAlerts(alerts: any[]) {
   const groups = new Map();
-  const recentAlerts = alerts.filter((a) => a.status === 'active');
+  const recentAlerts = alerts.filter((a: any) => a.status === 'active');
 
   for (const alert of recentAlerts) {
     const key = `${alert.device_id}:${alert.severity}`;
@@ -113,16 +113,16 @@ function groupAlerts(alerts) {
     if (String(alert.created_at) > String(group.lastSeen)) group.lastSeen = alert.created_at;
   }
 
-  return Array.from(groups.values()).map((group) => ({
+  return Array.from(groups.values()).map((group: any) => ({
     ...group,
     summary: `${group.deviceName || `Device ${group.deviceId}`} has ${group.count} active ${group.severity} alert${group.count === 1 ? '' : 's'}`
-  })).sort((a, b) => b.count - a.count);
+  })).sort((a: any, b: any) => b.count - a.count);
 }
 
 /**
  * Compute per-device health with weighted factor breakdown.
  */
-function computeDeviceHealth(metrics, portResults, alerts) {
+function computeDeviceHealth(metrics: any[], portResults: any[], alerts: any[]) {
   const byDevice = new Map();
   for (const m of metrics) {
     if (!byDevice.has(m.device_id)) {
@@ -132,19 +132,19 @@ function computeDeviceHealth(metrics, portResults, alerts) {
   }
 
   const activeAlertsByDevice = new Map();
-  for (const alert of alerts.filter((a) => a.status === 'active')) {
+  for (const alert of alerts.filter((a: any) => a.status === 'active')) {
     activeAlertsByDevice.set(alert.device_id, (activeAlertsByDevice.get(alert.device_id) || 0) + 1);
   }
 
-  return Array.from(byDevice.entries()).map(([deviceId, rows]) => {
+  return Array.from(byDevice.entries()).map(([deviceId, rows]: [any, any[]]) => {
     const samples = rows.length;
-    const down = rows.filter((m) => m.status === 'down').length;
-    const warning = rows.filter((m) => m.status === 'warning' || m.status === 'degraded').length;
-    const responseValues = rows.map((m) => Number(m.response_time)).filter((n) => Number.isFinite(n) && n > 0);
+    const down = rows.filter((m: any) => m.status === 'down').length;
+    const warning = rows.filter((m: any) => m.status === 'warning' || m.status === 'degraded').length;
+    const responseValues = rows.map((m: any) => Number(m.response_time)).filter((n: any) => Number.isFinite(n) && n > 0);
     const avgResponse = average(responseValues);
     const alertCount = activeAlertsByDevice.get(deviceId) || 0;
-    const devicePorts = portResults.filter((p) => p.device_id === deviceId);
-    const changedPorts = devicePorts.filter((p) => p.last_changed_at && p.last_changed_at === p.last_seen).length;
+    const devicePorts = portResults.filter((p: any) => p.device_id === deviceId);
+    const changedPorts = devicePorts.filter((p: any) => p.last_changed_at && p.last_changed_at === p.last_seen).length;
 
     // ── Individual factor scores (0–100 each) ──
     const availabilityRaw = samples ? ((samples - down) / samples) * 100 : 75;
@@ -177,7 +177,7 @@ function computeDeviceHealth(metrics, portResults, alerts) {
       ports:        { score: portScore, weight: FACTOR_WEIGHTS.ports, penalty: 100 - portScore },
     };
 
-    const latest = rows.sort((a, b) => String(b.timestamp).localeCompare(String(a.timestamp)))[0];
+    const latest = rows.sort((a: any, b: any) => String(b.timestamp).localeCompare(String(a.timestamp)))[0];
     const issues = [];
 
     if (down > 0) {
@@ -236,7 +236,7 @@ function computeDeviceHealth(metrics, portResults, alerts) {
       availabilityPercent: Number(availabilityRaw.toFixed(1)),
       avgResponseMs: Math.round(avgResponse),
       activeAlerts: alertCount,
-      openPorts: devicePorts.filter((p) => p.status === 'open').length,
+      openPorts: devicePorts.filter((p: any) => p.status === 'open').length,
       samples,
       factors,
       // trend/trendDelta added by addTrendData()
@@ -244,24 +244,24 @@ function computeDeviceHealth(metrics, portResults, alerts) {
       trendDelta: 0,
       issues
     };
-  }).sort((a, b) => a.score - b.score);
+  }).sort((a: any, b: any) => a.score - b.score);
 }
 
 /**
  * Compute a lightweight health score for a set of metrics (used for history timeline).
  * Returns the average composite score across all devices in the window.
  */
-function computeWindowScore(metrics, portResults, alerts) {
+function computeWindowScore(metrics: any[], portResults: any[], alerts: any[]) {
   if (!metrics.length) return null;
   const health = computeDeviceHealth(metrics, portResults, alerts);
   if (!health.length) return null;
-  return Math.round(health.reduce((sum, d) => sum + d.score, 0) / health.length);
+  return Math.round(health.reduce((sum: any, d: any) => sum + d.score, 0) / health.length);
 }
 
 /**
  * Compare current health against a baseline window to detect trends.
  */
-function addTrendData(healthList, baselineMetrics, portResults, alerts) {
+function addTrendData(healthList: any[], baselineMetrics: any[], portResults: any[], alerts: any[]) {
   if (!baselineMetrics.length) return healthList;
 
   const baselineHealth = computeDeviceHealth(baselineMetrics, portResults, alerts);
@@ -292,7 +292,7 @@ function buildInsights() {
   const metrics = getMetricsWindow(24);
   const alerts = db.getAlerts({ status: 'active', limit: 500 });
   const devices = db.getDevices();
-  const portResults = devices.flatMap((d) => db.getPortScanResults(d.id));
+  const portResults = devices.flatMap((d: any) => db.getPortScanResults(d.id));
 
   const responseAnomalies = detectResponseAnomalies(metrics);
   const flowAnomalies = flowAnalyzer.detectAnomalies();
@@ -311,28 +311,28 @@ function buildInsights() {
 
   // ── Network-wide summary ──
   const networkScore = health.length
-    ? Math.round(health.reduce((sum, d) => sum + d.score, 0) / health.length)
+    ? Math.round(health.reduce((sum: any, d: any) => sum + d.score, 0) / health.length)
     : 0;
 
   const healthDistribution = {
-    critical: health.filter((d) => d.label === 'critical').length,
-    risk: health.filter((d) => d.label === 'risk').length,
-    watch: health.filter((d) => d.label === 'watch').length,
-    healthy: health.filter((d) => d.label === 'healthy').length,
+    critical: health.filter((d: any) => d.label === 'critical').length,
+    risk: health.filter((d: any) => d.label === 'risk').length,
+    watch: health.filter((d: any) => d.label === 'watch').length,
+    healthy: health.filter((d: any) => d.label === 'healthy').length,
   };
 
   const topRisks = [...health]
-    .filter((d) => d.score < 85)
-    .sort((a, b) => a.trendDelta - b.trendDelta)
+    .filter((d: any) => d.score < 85)
+    .sort((a: any, b: any) => a.trendDelta - b.trendDelta)
     .slice(0, 3)
-    .map((d) => ({
+    .map((d: any) => ({
       deviceId: d.deviceId,
       deviceName: d.deviceName,
       score: d.score,
       label: d.label,
       trend: d.trend,
       trendDelta: d.trendDelta,
-      primaryIssue: (d.issues.find((i) => i.severity !== 'info') || d.issues[0])?.message || 'No issue'
+      primaryIssue: (d.issues.find((i: any) => i.severity !== 'info') || d.issues[0])?.message || 'No issue'
     }));
 
   const insights = [];
@@ -368,7 +368,7 @@ function buildInsights() {
     });
   }
 
-  for (const item of health.filter((h) => h.score < 70).slice(0, 4)) {
+  for (const item of health.filter((h: any) => h.score < 70).slice(0, 4)) {
     insights.push({
       type: 'health_score',
       severity: item.score < 40 ? 'critical' : 'warning',
@@ -388,8 +388,8 @@ function buildInsights() {
     responseAnomalies,
     alertGroups,
     flowAnomalies,
-    insights: insights.sort((a, b) => {
-      const severityRank = { critical: 0, warning: 1, info: 2 };
+    insights: insights.sort((a: any, b: any) => {
+      const severityRank: any = { critical: 0, warning: 1, info: 2 };
       return (severityRank[a.severity] ?? 3) - (severityRank[b.severity] ?? 3);
     })
   };
@@ -398,10 +398,10 @@ function buildInsights() {
 /**
  * Build a 12-hour health timeline with hourly data points.
  */
-function buildHistoryTimeline(hours = 12) {
+function buildHistoryTimeline(hours: any = 12) {
   const alerts = db.getAlerts({ status: 'all', limit: 2000 });
   const devices = db.getDevices();
-  const portResults = devices.flatMap((d) => db.getPortScanResults(d.id));
+  const portResults = devices.flatMap((d: any) => db.getPortScanResults(d.id));
   const now = Date.now();
   const points = [];
 
@@ -435,15 +435,13 @@ function buildHistoryTimeline(hours = 12) {
   };
 }
 
-module.exports = {
+const processMetric = () => {};
+
+export {
   buildInsights,
   buildHistoryTimeline,
   detectResponseAnomalies,
   groupAlerts,
   computeDeviceHealth,
-  // Called per-metric by the simulator endpoint — no-op for now,
-  // real-time anomaly detection is handled at query time by buildInsights()
-  processMetric: () => {}
+  processMetric
 };
-
-export {};
