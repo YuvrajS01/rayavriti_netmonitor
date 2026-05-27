@@ -43,3 +43,9 @@ lerna-debug.log*
 server/data/
 data/
 *.db
+
+# AI / agent / planning artifacts
+.gemini/
+.agents/
+.codex/
+implementation_plan.md

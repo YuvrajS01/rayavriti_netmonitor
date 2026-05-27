@@ -179,8 +179,14 @@ const defaultDevices = [
 
 function seedUsers() {
   const username = process.env.ADMIN_USERNAME || 'admin';
-  const password = process.env.ADMIN_PASSWORD || 'admin123';
-  const passwordHash = hashPassword(password);
+  const password = process.env.ADMIN_PASSWORD;
+
+  if (!password && process.env.NODE_ENV === 'production') {
+    throw new Error('ADMIN_PASSWORD environment variable is required in production');
+  }
+
+  const effectivePassword = password || 'admin123';
+  const passwordHash = hashPassword(effectivePassword);
 
   // Only insert if the user doesn't already exist — never overwrite
   // an existing admin's password on every boot.

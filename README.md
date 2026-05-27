@@ -1,169 +1,301 @@
 <div align="center">
   <h1>🌐 Rayavriti NetMonitor</h1>
-  <p><em>A professional-grade, real-time network traffic visibility and monitoring platform.</em></p>
+  <p><strong>Production-grade, real-time network monitoring and traffic visibility platform.</strong></p>
 
-  ![Node.js](https://img.shields.io/badge/Node.js-v22-green?style=flat-square&logo=node.js)
+  ![Version](https://img.shields.io/badge/Version-1.0.0-brightgreen?style=flat-square)
+  ![Node.js](https://img.shields.io/badge/Node.js-v22+-green?style=flat-square&logo=node.js)
   ![React](https://img.shields.io/badge/React-v19-blue?style=flat-square&logo=react)
-  ![TypeScript](https://img.shields.io/badge/TypeScript-Ready-blue?style=flat-square&logo=typescript)
+  ![TypeScript](https://img.shields.io/badge/TypeScript-Strict-blue?style=flat-square&logo=typescript)
+  ![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?style=flat-square&logo=docker)
   ![License](https://img.shields.io/badge/License-Proprietary-red?style=flat-square)
 </div>
 
 ---
 
-Rayavriti NetMonitor is a professional-grade network traffic visibility platform. It provides a real-time, event-driven Single Page Application (SPA) dashboard for comprehensive monitoring of IT infrastructure, focusing on modern aesthetics and high-performance packet analysis.
-
-## 📑 Table of Contents
-- [✨ Features](#-features)
-- [🏗️ Tech Stack](#️-tech-stack)
-- [📁 Project Structure](#-project-structure)
-- [⚙️ Prerequisites](#️-prerequisites)
-- [🚀 Installation](#-installation)
-- [💻 Development](#-development)
-- [📦 Production Build](#-production-build)
-- [🤝 Contributing](#-contributing)
-
----
+Rayavriti NetMonitor is a full-stack network monitoring platform built for local infrastructure visibility. It provides real-time device monitoring, packet capture, NetFlow/sFlow analysis, AI-powered anomaly detection, and a modern SPA dashboard — all deployable as a single Docker container.
 
 ## ✨ Features
 
-- ⚡ **Real-Time Network Visibility:** Live traffic analytics and system performance monitoring powered by WebSockets.
-- 🔍 **Packet Sniffing & Flow Analysis:** Built-in support for real-time packet sniffing, along with NetFlow and sFlow data collection.
-- 🎨 **Interactive Dashboards:** Polished, neon-minimalist user interface with clickable chart components and dynamic visual representations.
-- 🖥️ **Deep-Dive Device Modals:** Detailed views for individual devices including live performance graphs, resource metrics, and configuration options.
-- 🏥 **System Health Monitoring:** Active tracking of system resources, API endpoints, and network connections via Ping and SNMP.
-- 🏗️ **Modern Architecture:** A full-stack, event-driven React SPA backed by a robust Node.js server.
+- ⚡ **Real-Time Dashboard** — Live metrics, alerts, and device status via WebSockets
+- 🔍 **Packet Capture** — Real-time packet sniffing with protocol analysis (requires `libpcap`)
+- 📊 **Flow Analysis** — NetFlow v5/v9 and sFlow collection with top-talker and protocol breakdowns
+- 🤖 **AI Health Scoring** — Anomaly detection engine with historical trend analysis
+- 🏥 **Multi-Protocol Monitoring** — Ping (ICMP), HTTP, TCP port, SNMP, and system metrics
+- 🔔 **Alert Management** — Severity-based alerts with acknowledge/resolve workflow
+- 📈 **Reports & Export** — Time-series reports, device breakdowns, and CSV export
+- 🔒 **Authentication** — JWT-based auth with scrypt password hashing and API key support
+- 🐳 **Docker-Ready** — Single-container deployment with Docker Compose
 
 ---
 
-## 🏗️ Tech Stack
-
-### Frontend
-- **Framework:** React 19 with TypeScript, built via Vite
-- **Styling:** Tailwind CSS v4 (Neon-Minimalist UI)
-- **State Management:** Redux Toolkit
-- **Data Visualization:** Recharts
-- **Real-Time Communication:** Socket.IO Client
-
-### Backend
-- **Runtime & Framework:** Node.js (v22 LTS) with Express and TypeScript
-- **Real-Time Engine:** Socket.IO
-- **Database:** SQLite (`better-sqlite3`)
-- **Network Tools:** 
-  - `cap` (Packet sniffing)
-  - `ping` (ICMP monitoring)
-  - `net-snmp` (SNMP integration)
-  - `node-netflowv9` & `node-sflow` (Flow collection)
-
----
-
-## 📁 Project Structure
-
-This repository is set up as a monorepo using **npm workspaces**:
+## 🏗️ Architecture
 
 ```text
-rayavriti_netmonitor/
-├── client/           # React frontend application
-├── server/           # Node.js backend server
-├── package.json      # Root package file (Workspace configuration)
-└── .nvmrc            # Node version definition (v22)
+┌─────────────────────────────────────────────────────────┐
+│                    React 19 SPA                         │
+│  Redux Toolkit • Recharts • Socket.IO Client • Vite    │
+└────────────────────────┬────────────────────────────────┘
+                         │ WebSocket + REST API
+┌────────────────────────▼────────────────────────────────┐
+│              Node.js Express Server                     │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌───────────┐  │
+│  │ Scheduler│ │Collectors│ │ Anomaly  │ │ Retention │  │
+│  │  (cron)  │ │ping/http │ │  Engine  │ │ Scheduler │  │
+│  │          │ │snmp/port │ │  (AI)    │ │ (pruning) │  │
+│  └──────────┘ └──────────┘ └──────────┘ └───────────┘  │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐                │
+│  │ NetFlow  │ │  Packet  │ │   Flow   │                │
+│  │Collector │ │ Capture  │ │ Analyzer │                │
+│  └──────────┘ └──────────┘ └──────────┘                │
+└────────────────────────┬────────────────────────────────┘
+                         │
+            ┌────────────▼────────────┐
+            │   SQLite (WAL mode)     │
+            │   + DB Abstraction      │
+            │   (Postgres-ready)      │
+            └─────────────────────────┘
+```
+
+**Monorepo** using npm workspaces:
+```
+rayavriti-netmonitor/
+├── client/           # React frontend (Vite + Tailwind CSS v4)
+├── server/           # Node.js backend (Express + Socket.IO)
+│   └── src/services/db/   # Database abstraction layer
+├── simulator/        # Network device simulator for testing
+├── documentation/    # Product specs, API docs, deployment guide
+├── Dockerfile        # Multi-stage production build
+├── docker-compose.yml
+└── .env.example      # Configuration template
 ```
 
 ---
 
 ## ⚙️ Prerequisites
 
-Before you begin, ensure you have met the following requirements:
-- **Node.js:** v22 LTS (Recommended, defined in `.nvmrc`)
-- **npm:** v9 or newer
-- **Packet Sniffing Permissions:** Running the packet sniffer (via `cap`) may require **administrative/root privileges** or specific capture library installations:
-  - **Linux/macOS:** `libpcap`
-  - **Windows:** `Npcap`
+| Requirement | Version | Notes |
+|---|---|---|
+| **Node.js** | 20.x, 22.x, or 26.x | Defined in `.nvmrc` and `engines` |
+| **npm** | 9+ | Comes with Node.js |
+| **libpcap** | — | Required for packet capture (`apt install libpcap-dev`) |
+| **Docker** (optional) | 24+ | For containerized deployment |
 
 ---
 
-## 🚀 Installation
+## 🚀 Quick Start
 
-1. **Clone the repository:**
-   ```bash
-   git clone <repository-url>
-   cd rayavriti_netmonitor
-   ```
+### Option 1: Docker (Recommended for Production)
 
-2. **Use the correct Node version:**
-   If you use `nvm`, simply run:
-   ```bash
-   nvm use
-   ```
+```bash
+# 1. Clone and configure
+git clone <repository-url>
+cd rayavriti-netmonitor
+cp .env.example .env
 
-3. **Install dependencies:**
-   This command installs dependencies for all workspaces.
-   ```bash
-   npm install
-   ```
+# 2. Set required environment variables
+#    Edit .env and set at minimum:
+#    - JWT_SECRET (run: openssl rand -base64 32)
+#    - ADMIN_PASSWORD (your admin login password)
+
+# 3. Build and run
+docker compose up -d
+
+# 4. Check health
+curl http://localhost:3000/health
+
+# 5. Open dashboard
+open http://localhost:3000
+```
+
+### Option 2: Bare Metal
+
+```bash
+# 1. Clone and install
+git clone <repository-url>
+cd rayavriti-netmonitor
+nvm use        # or ensure Node 22+ is active
+npm install
+
+# 2. Build for production
+npm run build
+
+# 3. Configure
+cp .env.example .env
+# Edit .env — set JWT_SECRET and ADMIN_PASSWORD
+
+# 4. Start
+npm run start:prod
+# or: NODE_ENV=production node server/dist/index.js
+```
+
+> **Note:** Packet capture and SNMP require root or `NET_RAW` capability:
+> ```bash
+> sudo setcap cap_net_raw+ep $(which node)
+> # or run with sudo
+> ```
 
 ---
 
 ## 💻 Development
 
-To run the application locally in development mode, start both the backend server and the frontend client.
-
-**1. Start the Backend Server**
 ```bash
+# Terminal 1 — Backend (with hot reload)
 npm run dev:server
-```
-> **Note:** You may need to run this with `sudo` on Linux/macOS to allow packet capturing (`sudo npm run dev:server`).
+# May need sudo for packet capture
 
-**2. Start the Frontend Client**
-Open a new terminal window and run:
-```bash
+# Terminal 2 — Frontend (Vite dev server)
 npm run dev:client
+# Opens at http://localhost:5173 (proxies API to :3000)
 ```
 
-**3. View the App**
-Open your browser and navigate to the URL provided by Vite (typically [http://localhost:5173](http://localhost:5173)).
+**Default dev credentials:** `admin` / `admin123` (only when `ADMIN_PASSWORD` is not set)
 
 ---
 
-## 📦 Production Build
+## 🔧 Configuration
 
-To build and run the application for production deployment:
+All configuration is via environment variables. See [`.env.example`](.env.example) for the full list.
 
-**1. Build both client and server:**
-```bash
-npm run build
-```
-*(This compiles the TypeScript code in the server and builds the optimized React bundle in the client.)*
+### Required (Production)
 
-**2. Start the production server:**
-```bash
-npm run start
-```
-> **Note:** As with development, running the production server may require elevated privileges for packet capture.
+| Variable | Description |
+|---|---|
+| `JWT_SECRET` | JWT signing secret — minimum 32 chars. Generate: `openssl rand -base64 32` |
+| `ADMIN_PASSWORD` | Admin user password — hashed with scrypt on first boot |
+
+### Optional
+
+| Variable | Default | Description |
+|---|---|---|
+| `NODE_ENV` | `development` | Set to `production` for production mode |
+| `PORT` | `3000` | HTTP server port |
+| `ADMIN_USERNAME` | `admin` | Admin username |
+| `DB_PATH` | `./data/netmonitor.db` | SQLite database file path |
+| `NETFLOW_PORT` | `2055` | UDP port for NetFlow/sFlow collector |
+| `METRICS_RETENTION_DAYS` | `30` | Auto-delete metrics older than N days |
+| `FLOW_RETENTION_DAYS` | `7` | Auto-delete flow records older than N days |
+| `ALERTS_RETENTION_DAYS` | `90` | Auto-delete resolved alerts older than N days |
+| `PORT_DISCOVERY_ENABLED` | `true` | Enable automatic port scanning |
+| `CAPTURE_ENABLED` | `true` | Enable packet capture feature |
 
 ---
 
-## 🛠️ Scripts Overview
-
-The root `package.json` includes several helpful scripts:
+## 🛠️ Scripts
 
 | Command | Description |
 |---|---|
-| `npm run dev:server` | Starts the backend in watch mode (nodemon + ts-node) |
-| `npm run dev:client` | Starts the frontend Vite development server |
-| `npm run build` | Builds both the backend and frontend |
-| `npm run start` | Starts the compiled backend production server |
+| `npm run dev:server` | Start backend with hot reload (nodemon) |
+| `npm run dev:client` | Start Vite dev server |
+| `npm run build` | Build both server and client for production |
+| `npm run build:server` | Build server TypeScript only |
+| `npm run build:client` | Build client React bundle only |
+| `npm run start` | Start production server |
+| `npm run start:prod` | Start production server (explicit `NODE_ENV=production`) |
+| `npm run typecheck` | Run TypeScript type checking |
+| `npm run simulate` | Run the network device simulator |
+
+---
+
+## 🐳 Docker Deployment
+
+The Docker setup uses **host networking** to allow the container to directly monitor local network devices.
+
+```bash
+# Build and start
+docker compose up -d
+
+# View logs
+docker compose logs -f netmonitor
+
+# Stop
+docker compose down
+
+# Rebuild after code changes
+docker compose up -d --build
+```
+
+**Important Docker notes:**
+- `network_mode: host` — Required for ping, SNMP, and packet capture to reach local devices
+- `cap_add: NET_RAW, NET_ADMIN` — Required for raw socket access
+- SQLite data persists in the `netmonitor-data` Docker volume
+- Health check runs every 30s against `/health`
+
+---
+
+## 📡 API
+
+The server exposes a REST API at `/api` (legacy) and `/api/v1` (current).
+
+**Authentication:** Include `Authorization: Bearer <token>` header, or `X-Api-Key: <key>` for API key auth.
+
+See [`documentation/api_documentation.md`](documentation/api_documentation.md) and [`documentation/postman_guide.md`](documentation/postman_guide.md) for full API reference.
+
+### Key Endpoints
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `POST` | `/api/auth/login` | Authenticate and get JWT tokens |
+| `GET` | `/api/devices` | List all monitored devices |
+| `POST` | `/api/devices` | Add a new device |
+| `GET` | `/api/metrics/latest` | Get latest metrics per device |
+| `GET` | `/api/alerts` | List alerts |
+| `GET` | `/api/stats` | Dashboard statistics |
+| `GET` | `/api/v1/flows` | Query flow records |
+| `POST` | `/api/v1/capture/start` | Start packet capture |
+| `GET` | `/api/insights` | AI health scores |
+| `GET` | `/health` | Service health check |
+
+---
+
+## 🗄️ Database
+
+Rayavriti NetMonitor uses **SQLite** with WAL mode for high-performance single-server operation.
+
+### Migration Path to PostgreSQL + TimescaleDB
+
+The database layer uses a **repository pattern** (`server/src/services/db/`):
+
+```
+db/
+├── types.ts      # Interface definitions (IDatabase, IMetricRepo, etc.)
+├── sqlite.ts     # Current SQLite implementation
+├── index.ts      # Re-exports active adapter (change this to swap)
+└── (postgres.ts) # Future: PostgreSQL + TimescaleDB adapter
+```
+
+To migrate: implement `postgres.ts` with the same interfaces, update the re-export in `index.ts`.
+
+### Data Retention
+
+Automated pruning runs every 6 hours:
+- **Metrics:** 30 days (configurable via `METRICS_RETENTION_DAYS`)
+- **Flow records:** 7 days (configurable via `FLOW_RETENTION_DAYS`)
+- **Resolved alerts:** 90 days (configurable via `ALERTS_RETENTION_DAYS`)
+
+---
+
+## 🔒 Security
+
+- **Password hashing:** scrypt with random 32-byte salt (backward-compatible with legacy SHA-256)
+- **JWT authentication:** HS256 signed tokens with 15-minute access / 7-day refresh
+- **Security headers:** Helmet (CSP, X-Frame-Options, HSTS, X-Content-Type-Options)
+- **CORS:** Restricted in production mode
+- **Request limits:** 1MB body size limit
+- **Rate limiting:** Per-IP request throttling
+- **Error handling:** Stack traces hidden in production, global error boundary
+- **Structured logging:** JSON logs via pino (machine-parsable in production)
 
 ---
 
 ## 🤝 Contributing
 
-When contributing to this project, please ensure:
-1. **Design Integrity:** UI additions must adhere to the established **neon-minimalist** design language.
-2. **Architecture Constraints:** New backend services should integrate into the real-time event-driven architecture using WebSockets where appropriate.
-3. **Code Quality:** Maintain TypeScript strictness and clean code principles.
+1. **Design:** UI additions must follow the **neon-minimalist** design language
+2. **Architecture:** Backend services should integrate with the WebSocket event-driven architecture
+3. **Code Quality:** TypeScript strict mode is enabled — maintain type safety
+4. **Branching:** Create feature branches, never commit directly to `main`
 
 ---
 
 ## 📄 License
 
-**Proprietary** - All rights reserved.
+**Proprietary** — All rights reserved.

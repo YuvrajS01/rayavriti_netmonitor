@@ -23,7 +23,7 @@ import logger from './services/logger';
 import { startRetentionScheduler, stopRetentionScheduler } from './services/retentionScheduler';
 
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
-const VERSION = '0.1.0';
+const VERSION = '1.0.0';
 
 const app = express();
 const server = http.createServer(app);
@@ -1407,7 +1407,17 @@ function gracefulShutdown(signal: string) {
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 
-// ── Global error handler (must be last middleware) ────────────
+// ── SPA fallback for client-side routing (must be after API routes) ──
+if (IS_PRODUCTION) {
+  app.get('*', (req: any, res: any, next: any) => {
+    if (req.path.startsWith('/api') || req.path.startsWith('/socket.io') || req.path === '/health') {
+      return next();
+    }
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  });
+}
+
+// ── Global error handler (must be the LAST middleware) ────────────
 app.use((err: any, _req: any, res: any, _next: any) => {
   logger.error({ err }, 'Unhandled error');
   const status = err.status || err.statusCode || 500;
@@ -1431,12 +1441,3 @@ process.on('unhandledRejection', (reason: any) => {
   logger.error({ reason }, 'Unhandled promise rejection');
 });
 
-// ── SPA fallback for client-side routing (must be after API routes) ──
-if (IS_PRODUCTION) {
-  app.get('*', (req: any, res: any, next: any) => {
-    if (req.path.startsWith('/api') || req.path.startsWith('/socket.io') || req.path === '/health') {
-      return next();
-    }
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
-  });
-}
