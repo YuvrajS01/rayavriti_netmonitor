@@ -22,7 +22,7 @@ services:
       - .:/app
       - netmonitor-node-modules:/app/node_modules
       - netmonitor-dev-data:/app/data
-    command: npm run dev:server
+    command: npm --workspace server run dev
     cap_add:
       - NET_RAW
       - NET_ADMIN
@@ -39,7 +39,7 @@ services:
     volumes:
       - .:/app
       - netmonitor-node-modules:/app/node_modules
-    command: npm run dev:client -- --host 0.0.0.0
+    command: npm --workspace client run dev -- --host 0.0.0.0
     depends_on:
       - server
 
