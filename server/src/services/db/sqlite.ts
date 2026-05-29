@@ -172,7 +172,7 @@ db.exec('CREATE INDEX IF NOT EXISTS idx_metrics_sensor_time ON metrics(sensor_id
 const defaultDevices = [
   { name: 'Gateway', type: 'network', host: '1.1.1.1', protocol: 'ping', interval: 30 },
   { name: 'Google DNS', type: 'network', host: '8.8.8.8', protocol: 'ping', interval: 30 },
-  { name: 'Rayavriti Website', type: 'service', host: 'https://example.com', protocol: 'http', interval: 60 },
+  { name: 'Rayavriti Website', type: 'service', host: 'https://rayavriti.com', protocol: 'http', interval: 60 },
   { name: 'Localhost API Port', type: 'service', host: '127.0.0.1', port: 3000, protocol: 'port', interval: 30 },
   { name: 'Local System', type: 'server', host: 'localhost', protocol: 'system', interval: 20 }
 ];

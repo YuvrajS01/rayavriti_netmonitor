@@ -24,9 +24,6 @@ documentation/
 README.md
 *.pdf
 
-# Simulator (not needed in prod image)
-simulator/
-
 # Environment (injected at runtime, not baked in)
 .env
 .env.*
