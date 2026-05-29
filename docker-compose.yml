@@ -33,6 +33,27 @@ services:
       start_period: 10s
       retries: 3
 
+  simulator:
+    build:
+      context: .
+      target: development
+    container_name: rayavriti-netmonitor-simulator
+    network_mode: host
+    profiles:
+      - simulator
+    env_file: .env
+    environment:
+      SIMULATOR_API_URL: http://localhost:3000
+      SIMULATOR_WRITE_MODE: api
+    command: >
+      sh -c "until wget -qO- http://localhost:3000/health >/dev/null 2>&1;
+      do sleep 2; done;
+      npm run simulate -- --duration=${SIMULATOR_DURATION:-600}
+      --speed=${SIMULATOR_SPEED:-1}
+      --scenario=${SIMULATOR_SCENARIO:-mixed}"
+    depends_on:
+      - netmonitor
+
 volumes:
   netmonitor-data:
     driver: local
