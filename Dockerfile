@@ -4,7 +4,7 @@ FROM node:22-slim AS development
 # Install native dependencies used by monitoring collectors.
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-      python3 make g++ libpcap-dev iputils-ping && \
+      python3 make g++ libpcap-dev iputils-ping wget && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -15,6 +15,10 @@ COPY server/package.json server/
 COPY client/package.json client/
 
 RUN npm ci
+
+# Keep simulator sources in the development image so the optional Docker
+# Compose simulator service can run without bind-mounting the repository.
+COPY simulator/ simulator/
 
 ENV NODE_ENV=development
 ENV PORT=3000

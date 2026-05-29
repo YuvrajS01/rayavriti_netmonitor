@@ -12,6 +12,7 @@
     "outDir": "./dist",
     "rootDir": ".",
     "baseUrl": ".",
+    "ignoreDeprecations": "6.0",
     "noImplicitAny": false,
     "useUnknownInCatchVariables": false
   },

@@ -11,6 +11,7 @@
 //   --duration=600      Duration in seconds (default: 600 / 10 min)
 //   --speed=1           Speed multiplier (2 = intervals halved)
 //   --scenario=mixed    Preset: stable | degraded | outage | mixed
+//   --write-mode=auto   Write mode: auto | api | db (default: auto)
 //   --no-netflow        Disable NetFlow generation
 //   --no-scenarios      Disable scripted failure scenarios
 // ──────────────────────────────────────────────────────────────
@@ -33,6 +34,7 @@ function parseArgs() {
     duration: Number(args.duration ?? 600),
     speed: Number(args.speed ?? 1),
     scenario: args.scenario ?? 'mixed',
+    writeMode: args['write-mode'] ?? process.env.SIMULATOR_WRITE_MODE ?? 'auto',
     netflow: args['no-netflow'] !== 'true',
     scenarios: args['no-scenarios'] !== 'true',
   };
@@ -49,23 +51,33 @@ if (fs.existsSync(configPath)) {
   config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
 }
 
-const serverUrl = config.server?.apiUrl || 'http://localhost:3000';
+const serverUrl = process.env.SIMULATOR_API_URL || config.server?.apiUrl || 'http://localhost:3000';
 const simConfig = config.simulation || {};
 
 // ── Database access (shared SQLite with the server) ─────────
 
-// Resolve database module relative to the server source
-const dbModulePath = path.resolve(__dirname, '..', 'server', 'src', 'services', 'database');
-let db: any;
-try {
-  // Change working directory so the DB module resolves ./data correctly
-  process.chdir(path.resolve(__dirname, '../server'));
-  db = require(dbModulePath);
-} catch (err) {
-  console.error(`[Simulator] Could not load database module from ${dbModulePath}`);
-  console.error(`            Make sure the server has been built or run via ts-node.`);
-  console.error(`            Error: ${(err as Error).message}`);
-  process.exit(1);
+const originalCwd = process.cwd();
+let db: any = null;
+
+function loadDbModule() {
+  if (db) return db;
+
+  // Resolve database module relative to the server source
+  const dbModulePath = path.resolve(__dirname, '..', 'server', 'src', 'services', 'database');
+  try {
+    // Change working directory so the DB module resolves ./data correctly
+    process.chdir(path.resolve(__dirname, '../server'));
+    db = require(dbModulePath).default || require(dbModulePath);
+    process.chdir(originalCwd);
+    return db;
+  } catch (err) {
+    process.chdir(originalCwd);
+    throw new Error(
+      `Could not load database module from ${dbModulePath}. ` +
+      `Make sure the server source is available and dependencies are installed. ` +
+      `Error: ${(err as Error).message}`
+    );
+  }
 }
 
 // ── HTTP client for API operations ──────────────────────────
@@ -84,6 +96,14 @@ async function apiRequest(method: string, endpoint: string, body?: any, token?: 
     throw new Error(`API ${method} ${endpoint} → ${res.status}: ${text.slice(0, 200)}`);
   }
   return res.json();
+}
+
+async function tryApiRequest(method: string, endpoint: string, body?: any, token?: string) {
+  try {
+    return await apiRequest(method, endpoint, body, token);
+  } catch {
+    return null;
+  }
 }
 
 // ── Color helpers for CLI output ────────────────────────────
@@ -115,9 +135,11 @@ interface SeededDevice {
   sensorId: number | null;
 }
 
-async function seedDevices(token: string): Promise<SeededDevice[]> {
+async function seedDevices(token: string, mode: 'api' | 'db'): Promise<SeededDevice[]> {
   const seeded: SeededDevice[] = [];
-  const existingDevices = db.getDevices();
+  const existingDevices = mode === 'api'
+    ? ((await apiRequest('GET', '/api/devices', undefined, token)).data || [])
+    : loadDbModule().getDevices();
 
   for (const profile of ENTERPRISE_TOPOLOGY) {
     // Check if device already exists (by name)
@@ -143,8 +165,13 @@ async function seedDevices(token: string): Promise<SeededDevice[]> {
         log('Seed', C.green, `Created device: ${C.bold}${profile.name}${C.reset} (${profile.type}/${profile.protocol} @ ${profile.host})`);
       } catch (err) {
         // If API fails (e.g. server not running), try direct DB insert
+        if (mode === 'api') {
+          throw err;
+        }
+
         log('Seed', C.yellow, `API unavailable, using direct DB insert for ${profile.name}`);
-        const result = db.addDevice({
+        const localDb = loadDbModule();
+        const result = localDb.addDevice({
           name: profile.name,
           type: profile.type,
           host: profile.host,
@@ -154,14 +181,16 @@ async function seedDevices(token: string): Promise<SeededDevice[]> {
           snmpCommunity: profile.protocol === 'snmp' ? 'simulated' : undefined,
           snmpVersion: profile.protocol === 'snmp' ? '2c' : undefined,
         });
-        existing = db.getDevice(result.lastInsertRowid);
+        existing = localDb.getDevice(result.lastInsertRowid);
       }
     } else {
       log('Seed', C.dim, `Device exists: ${profile.name} (id=${existing.id})`);
     }
 
     // Find associated sensor
-    const sensor = db.getPrimarySensorForDevice(existing.id);
+    const sensor = mode === 'db'
+      ? loadDbModule().getPrimarySensorForDevice(existing.id)
+      : null;
 
     seeded.push({
       profile,
@@ -176,7 +205,10 @@ async function seedDevices(token: string): Promise<SeededDevice[]> {
 // ── Authentication ──────────────────────────────────────────
 
 async function authenticate(): Promise<string> {
-  const creds = config.server?.credentials || { username: 'admin', password: 'admin123' };
+  const creds = {
+    username: process.env.ADMIN_USERNAME || config.server?.credentials?.username || 'admin',
+    password: process.env.ADMIN_PASSWORD || config.server?.credentials?.password || 'admin123',
+  };
   try {
     const res = await apiRequest('POST', '/api/auth/login', creds);
     log('Auth', C.green, `Authenticated as ${C.bold}${creds.username}${C.reset}`);
@@ -189,8 +221,8 @@ async function authenticate(): Promise<string> {
 
 // ── Metric injection ────────────────────────────────────────
 
-function injectMetric(device: SeededDevice, metric: SimulatedMetric): void {
-  db.recordMetric(
+function injectMetricDb(device: SeededDevice, metric: SimulatedMetric): void {
+  loadDbModule().recordMetric(
     device.dbId,
     metric.status,
     metric.responseTime,
@@ -200,9 +232,23 @@ function injectMetric(device: SeededDevice, metric: SimulatedMetric): void {
   );
 }
 
+async function injectMetricsApi(metrics: Array<{ device: SeededDevice; metric: SimulatedMetric }>, token: string): Promise<void> {
+  await apiRequest('POST', '/api/simulator/metrics', {
+    metrics: metrics.map(({ device, metric }) => ({
+      deviceId: device.dbId,
+      deviceName: device.profile.name,
+      sensorId: device.sensorId,
+      status: metric.status,
+      responseTime: metric.responseTime,
+      value: metric.value,
+      message: metric.message,
+    })),
+  }, token);
+}
+
 // ── Alert creation ──────────────────────────────────────────
 
-function checkAndCreateAlert(device: SeededDevice, metric: SimulatedMetric): void {
+function getAlertInfo(device: SeededDevice, metric: SimulatedMetric) {
   let severity: string | null = null;
   let message: string | null = null;
 
@@ -216,24 +262,71 @@ function checkAndCreateAlert(device: SeededDevice, metric: SimulatedMetric): voi
     }
   }
 
-  if (!severity || !message) return;
+  return severity && message ? { severity, message } : null;
+}
+
+function getAlertKey(deviceId: number, message: string) {
+  return `${deviceId}:${message}`;
+}
+
+function checkAndCreateAlertDb(device: SeededDevice, metric: SimulatedMetric): boolean {
+  const alert = getAlertInfo(device, metric);
+  if (!alert) return false;
 
   // Don't duplicate active alerts
-  const existing = db.findActiveAlert(device.dbId, message);
-  if (existing) return;
+  const localDb = loadDbModule();
+  const existing = localDb.findActiveAlert(device.dbId, alert.message);
+  if (existing) return false;
 
-  db.createAlert(device.dbId, severity, message);
-  const icon = severity === 'critical' ? '🔴' : '🟡';
-  log('Alert', severity === 'critical' ? C.red : C.yellow,
-    `${icon} ${severity.toUpperCase()}: ${message}`);
+  localDb.createAlert(device.dbId, alert.severity, alert.message);
+  const icon = alert.severity === 'critical' ? '🔴' : '🟡';
+  log('Alert', alert.severity === 'critical' ? C.red : C.yellow,
+    `${icon} ${alert.severity.toUpperCase()}: ${alert.message}`);
+  return true;
+}
+
+async function loadActiveAlertKeys(token: string): Promise<Set<string>> {
+  const res = await tryApiRequest('GET', '/api/alerts?status=active&limit=500', undefined, token);
+  const alerts = Array.isArray(res?.data) ? res.data : [];
+  return new Set(alerts.map((a: any) => getAlertKey(Number(a.device_id), String(a.message))));
+}
+
+async function checkAndCreateAlertApi(
+  device: SeededDevice,
+  metric: SimulatedMetric,
+  token: string,
+  activeAlertKeys: Set<string>
+): Promise<boolean> {
+  const alert = getAlertInfo(device, metric);
+  if (!alert) return false;
+
+  const key = getAlertKey(device.dbId, alert.message);
+  if (activeAlertKeys.has(key)) return false;
+
+  await apiRequest('POST', '/api/v1/alerts', {
+    deviceId: device.dbId,
+    severity: alert.severity,
+    message: alert.message,
+    status: 'active',
+  }, token);
+  activeAlertKeys.add(key);
+
+  const icon = alert.severity === 'critical' ? '🔴' : '🟡';
+  log('Alert', alert.severity === 'critical' ? C.red : C.yellow,
+    `${icon} ${alert.severity.toUpperCase()}: ${alert.message}`);
+  return true;
 }
 
 // ── Flow injection ──────────────────────────────────────────
 
-function injectFlows(deviceIps: string[], batchSize: number, multiplier: number): void {
+async function injectFlows(deviceIps: string[], batchSize: number, multiplier: number, mode: 'api' | 'db', token: string): Promise<void> {
   const records = generateFlowBatch(deviceIps, batchSize, multiplier);
   try {
-    db.insertFlowBatch(records);
+    if (mode === 'api') {
+      await apiRequest('POST', '/api/simulator/flows', { flows: records }, token);
+    } else {
+      loadDbModule().insertFlowBatch(records);
+    }
   } catch (err) {
     log('Flow', C.red, `DB insert error: ${(err as Error).message}`);
   }
@@ -274,6 +367,7 @@ async function main() {
   console.log(`  ${C.dim}Duration:${C.reset}    ${args.duration}s`);
   console.log(`  ${C.dim}Speed:${C.reset}       ${args.speed}x`);
   console.log(`  ${C.dim}Scenario:${C.reset}    ${args.scenario}`);
+  console.log(`  ${C.dim}Write mode:${C.reset}  ${args.writeMode}`);
   console.log(`  ${C.dim}NetFlow:${C.reset}     ${args.netflow ? 'enabled' : 'disabled'}`);
   console.log(`  ${C.dim}Scenarios:${C.reset}   ${args.scenarios ? 'enabled' : 'disabled'}`);
   console.log(`  ${C.dim}Server:${C.reset}      ${serverUrl}`);
@@ -282,11 +376,35 @@ async function main() {
 
   // Authenticate
   const token = await authenticate();
+  let writeMode: 'api' | 'db' = 'db';
+
+  if (args.writeMode === 'api') {
+    if (!token) {
+      throw new Error('API write mode requires successful authentication. Check ADMIN_USERNAME/ADMIN_PASSWORD.');
+    }
+    writeMode = 'api';
+  } else if (args.writeMode === 'db') {
+    loadDbModule();
+    writeMode = 'db';
+  } else {
+    const health = token ? await tryApiRequest('GET', '/api/devices', undefined, token) : null;
+    if (health) {
+      writeMode = 'api';
+      log('Init', C.green, 'Using API writes (Docker-compatible)');
+    } else {
+      loadDbModule();
+      writeMode = 'db';
+      log('Init', C.yellow, 'Using direct DB writes (local fallback)');
+    }
+  }
 
   // Seed devices
   log('Init', C.cyan, `Seeding ${ENTERPRISE_TOPOLOGY.length} devices...`);
-  const devices = await seedDevices(token);
+  const devices = await seedDevices(token, writeMode);
   log('Init', C.green, `✓ ${devices.length} devices ready`);
+  const activeAlertKeys = writeMode === 'api'
+    ? await loadActiveAlertKeys(token)
+    : new Set<string>();
 
   // Scenario engine
   const scenarioEngine = args.scenarios
@@ -316,6 +434,7 @@ async function main() {
 
   // ── Metric generation loop ─────────────────────────────
   const metricTimer = setInterval(() => {
+    void (async () => {
     const now = Date.now();
     if (now >= endTime) return;
 
@@ -336,6 +455,7 @@ async function main() {
     let cycleDown = 0;
     let cycleWarn = 0;
     let cycleUp = 0;
+    const cycleMetrics: Array<{ device: SeededDevice; metric: SimulatedMetric }> = [];
 
     for (const device of devices) {
       // Check for time-of-day offline (PCs)
@@ -348,7 +468,11 @@ async function main() {
             value: 0,
             message: 'Device offline (outside working hours)',
           };
-          injectMetric(device, metric);
+          if (writeMode === 'db') {
+            injectMetricDb(device, metric);
+          } else {
+            cycleMetrics.push({ device, metric });
+          }
           cycleDown++;
           totalMetricsInjected++;
           continue;
@@ -369,14 +493,29 @@ async function main() {
         metric = applyGradualDegradation(metric, gradualFactor);
       }
 
-      // Inject into database
-      injectMetric(device, metric);
+      // Queue metric for API batch or inject into local database.
+      if (writeMode === 'db') {
+        injectMetricDb(device, metric);
+      } else {
+        cycleMetrics.push({ device, metric });
+      }
       totalMetricsInjected++;
 
       // Check for alerts
       if (metric.status === 'down' || metric.status === 'warning' || metric.status === 'degraded') {
-        checkAndCreateAlert(device, metric);
-        totalAlertsCreated++;
+        if (writeMode === 'db') {
+          if (checkAndCreateAlertDb(device, metric)) {
+            totalAlertsCreated++;
+          }
+        } else {
+          try {
+            if (await checkAndCreateAlertApi(device, metric, token, activeAlertKeys)) {
+              totalAlertsCreated++;
+            }
+          } catch (err) {
+            log('Alert', C.red, `API create error: ${(err as Error).message}`);
+          }
+        }
       }
 
       // Stats
@@ -385,12 +524,21 @@ async function main() {
       else cycleUp++;
     }
 
+    if (writeMode === 'api' && cycleMetrics.length > 0) {
+      try {
+        await injectMetricsApi(cycleMetrics, token);
+      } catch (err) {
+        log('Metrics', C.red, `API insert error: ${(err as Error).message}`);
+      }
+    }
+
     // Cycle summary
     const statusBar = `${C.green}${cycleUp} up${C.reset} / ${C.yellow}${cycleWarn} warn${C.reset} / ${C.red}${cycleDown} down${C.reset}`;
     const remaining = Math.round((endTime - now) / 1000);
     log('Metrics', C.blue,
       `Cycle #${metricCycleCount}: ${devices.length} metrics injected  [${statusBar}]  ${C.dim}(${remaining}s remaining)${C.reset}`);
 
+    })().catch((err) => log('Metrics', C.red, `Cycle error: ${(err as Error).message}`));
   }, metricIntervalMs);
 
   // ── NetFlow generation loop ────────────────────────────
@@ -404,7 +552,7 @@ async function main() {
       const multiplier = scenarioEngine.getFlowMultiplier();
       const actualBatch = Math.round(flowBatchSize * (multiplier > 1 ? multiplier * 0.5 : 1));
 
-      injectFlows(deviceIps, actualBatch, multiplier);
+      void injectFlows(deviceIps, actualBatch, multiplier, writeMode, token);
       totalFlowsInjected += actualBatch;
 
       if (flowCycleCount % 10 === 0) {
