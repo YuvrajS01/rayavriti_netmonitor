@@ -155,4 +155,74 @@ var migrations = []string{
 		service   TEXT,
 		scanned_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 	)`,
+
+	// V13: monitoring_http_requests hypertable
+	`CREATE TABLE IF NOT EXISTS monitoring_http_requests (
+		id            BIGSERIAL,
+		request_id    TEXT,
+		method        TEXT NOT NULL,
+		path          TEXT NOT NULL,
+		status_code   INT NOT NULL,
+		duration_ms   DOUBLE PRECISION NOT NULL,
+		user_id       BIGINT,
+		remote_addr   TEXT,
+		user_agent    TEXT,
+		response_size BIGINT,
+		timestamp     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+		PRIMARY KEY (id, timestamp)
+	);
+	SELECT create_hypertable('monitoring_http_requests', 'timestamp', if_not_exists => TRUE);`,
+
+	// V14: monitoring_db_queries hypertable
+	`CREATE TABLE IF NOT EXISTS monitoring_db_queries (
+		id             BIGSERIAL,
+		trace_id       TEXT,
+		operation      TEXT NOT NULL,
+		table_name     TEXT,
+		duration_ms    DOUBLE PRECISION NOT NULL,
+		rows_returned  BIGINT,
+		slow_query     BOOLEAN NOT NULL DEFAULT FALSE,
+		timestamp      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+		PRIMARY KEY (id, timestamp)
+	);
+	SELECT create_hypertable('monitoring_db_queries', 'timestamp', if_not_exists => TRUE);`,
+
+	// V15: monitoring_collector_runs hypertable
+	`CREATE TABLE IF NOT EXISTS monitoring_collector_runs (
+		id          BIGSERIAL,
+		device_id   BIGINT NOT NULL,
+		protocol    TEXT NOT NULL,
+		status      TEXT NOT NULL,
+		duration_ms DOUBLE PRECISION NOT NULL,
+		error       TEXT,
+		timestamp   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+		PRIMARY KEY (id, timestamp)
+	);
+	SELECT create_hypertable('monitoring_collector_runs', 'timestamp', if_not_exists => TRUE);`,
+
+	// V16: monitoring_system_metrics hypertable
+	`CREATE TABLE IF NOT EXISTS monitoring_system_metrics (
+		id              BIGSERIAL,
+		memory_used_mb  DOUBLE PRECISION NOT NULL,
+		goroutines      INT NOT NULL,
+		gc_pause_ms_avg DOUBLE PRECISION,
+		uptime_seconds  BIGINT NOT NULL,
+		timestamp       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+		PRIMARY KEY (id, timestamp)
+	);
+	SELECT create_hypertable('monitoring_system_metrics', 'timestamp', if_not_exists => TRUE);`,
+
+	// V17: monitoring_alerts hypertable
+	`CREATE TABLE IF NOT EXISTS monitoring_alerts (
+		id         BIGSERIAL,
+		alert_id   BIGINT NOT NULL,
+		rule_id    BIGINT,
+		device_id  BIGINT,
+		severity   TEXT NOT NULL,
+		event_type TEXT NOT NULL,
+		message    TEXT,
+		timestamp  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+		PRIMARY KEY (id, timestamp)
+	);
+	SELECT create_hypertable('monitoring_alerts', 'timestamp', if_not_exists => TRUE);`,
 }

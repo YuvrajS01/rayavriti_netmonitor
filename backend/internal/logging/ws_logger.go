@@ -10,27 +10,42 @@ type WSLogger struct {
 	base *Logger
 }
 
+// NewWSLogger creates a WebSocket event logger.
 func NewWSLogger(base *Logger) *WSLogger {
-	return &WSLogger{base: base}
+	return &WSLogger{base: base.With("websocket")}
 }
 
-func (w *WSLogger) LogConnect(ctx context.Context, clientID string, userID int64) {
-	w.base.base.LogAttrs(ctx, slog.LevelInfo, "ws.connected",
-		slog.String("client_id", clientID),
+// LogConnect logs a WebSocket client connection.
+func (w *WSLogger) LogConnect(ctx context.Context, clientID string, userID int64, username, remoteAddr string, totalConnections int) {
+	w.base.base.LogAttrs(ctx, slog.LevelInfo, "Client connected",
+		slog.String("event", "ws.connect"),
+		slog.String("socket_id", clientID),
 		slog.Int64("user_id", userID),
+		slog.String("username", username),
+		slog.String("remote_addr", remoteAddr),
+		slog.String("transport", "websocket"),
+		slog.Int("total_connections", totalConnections),
 	)
 }
 
-func (w *WSLogger) LogDisconnect(ctx context.Context, clientID string, userID int64) {
-	w.base.base.LogAttrs(ctx, slog.LevelInfo, "ws.disconnected",
-		slog.String("client_id", clientID),
+// LogDisconnect logs a WebSocket client disconnection.
+func (w *WSLogger) LogDisconnect(ctx context.Context, clientID string, userID int64, username string, totalConnections int) {
+	w.base.base.LogAttrs(ctx, slog.LevelInfo, "Client disconnected",
+		slog.String("event", "ws.disconnect"),
+		slog.String("socket_id", clientID),
 		slog.Int64("user_id", userID),
+		slog.String("username", username),
+		slog.Int("total_connections", totalConnections),
 	)
 }
 
-func (w *WSLogger) LogBroadcast(ctx context.Context, event string, count int) {
-	w.base.base.LogAttrs(ctx, slog.LevelDebug, "ws.broadcast",
-		slog.String("event", event),
-		slog.Int("recipients", count),
+// LogBroadcast logs a WebSocket event broadcast.
+func (w *WSLogger) LogBroadcast(ctx context.Context, eventName string, payloadBytes, recipientCount int, deviceID int64) {
+	w.base.base.LogAttrs(ctx, slog.LevelDebug, "Broadcasting "+eventName,
+		slog.String("event", "ws.broadcast"),
+		slog.String("event_name", eventName),
+		slog.Int("payload_bytes", payloadBytes),
+		slog.Int("recipient_count", recipientCount),
+		slog.Int64("device_id", deviceID),
 	)
 }

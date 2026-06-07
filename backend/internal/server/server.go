@@ -30,23 +30,23 @@ func New(cfg *config.Config, db database.Database, hub *websocket.Hub, logger *l
 func (s *Server) Start() error {
 	r := chi.NewRouter()
 
-	// Middleware
-	r.Use(Recovery)
-	r.Use(SecurityHeaders)
-	r.Use(logging.RequestLogger(s.logger))
-	r.Use(RequestSize(1 << 20)) // 1MB
-	if s.cfg.App.NodeEnv == "production" {
-		r.Use(RateLimiter(100, 200))
-	}
-
-	// CORS
+	// CORS (before logging to avoid logging preflight OPTIONS requests)
 	corsHandler := cors.New(cors.Options{
-		AllowedOrigins:   []string{"*"},
+		AllowOriginFunc:  func(origin string) bool { return true },
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"*"},
 		AllowCredentials: true,
 	})
 	r.Use(corsHandler.Handler)
+
+	// Middleware
+	r.Use(Recovery)
+	r.Use(SecurityHeaders)
+	r.Use(logging.RequestLogger(s.logger, s.cfg.Logging.SlowRequestMs))
+	r.Use(RequestSize(1 << 20)) // 1MB
+	if s.cfg.App.NodeEnv == "production" {
+		r.Use(RateLimiter(100, 200))
+	}
 
 	// Auth helper
 	requireAuth := auth.RequireAuth(s.cfg.Auth.JWTSecret, func(ctx context.Context, hash string) (*auth.Claims, error) {

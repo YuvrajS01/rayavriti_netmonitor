@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -108,7 +109,7 @@ func run() error {
 	// 13. Start server in goroutine
 	errChan := make(chan error, 1)
 	go func() {
-		if err := srv.Start(); err != nil {
+		if err := srv.Start(); err != nil && err != http.ErrServerClosed {
 			errChan <- err
 		}
 	}()
@@ -129,6 +130,7 @@ func run() error {
 	sched.Stop()
 	anomalyEng.Stop()
 	retSched.Stop()
+	hub.Stop()
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	if err := srv.Shutdown(ctx); err != nil {

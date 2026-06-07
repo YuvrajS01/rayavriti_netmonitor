@@ -133,3 +133,48 @@ type PagedResult[T any] struct {
 	Page     int `json:"page"`
 	PageSize int `json:"pageSize"`
 }
+
+type Sensor struct {
+	ID        int64          `json:"id"`
+	DeviceID  int64          `json:"deviceId"`
+	Name      string         `json:"name"`
+	Type      string         `json:"type"` // ping, http, port, snmp, system
+	Enabled   bool           `json:"enabled"`
+	Interval  int            `json:"interval"` // seconds
+	Config    map[string]any `json:"config,omitempty"`
+	CreatedAt time.Time      `json:"createdAt"`
+	UpdatedAt time.Time      `json:"updatedAt"`
+}
+
+type AlertRule struct {
+	ID          int64                `json:"id"`
+	Name        string               `json:"name"`
+	Description string               `json:"description"`
+	Enabled     bool                 `json:"enabled"`
+	Severity    string               `json:"severity"` // critical, warning, info
+	DeviceID    *int64               `json:"deviceId,omitempty"` // nil = all devices
+	CooldownSec int                  `json:"cooldownSec"`
+	Conditions  []AlertRuleCondition `json:"conditions"`
+	ChannelIDs  []int64              `json:"channelIds"`
+	CreatedAt   time.Time            `json:"createdAt"`
+	UpdatedAt   time.Time            `json:"updatedAt"`
+}
+
+type AlertRuleCondition struct {
+	ID          int64   `json:"id"`
+	RuleID      int64   `json:"ruleId"`
+	Type        string  `json:"type"` // threshold, status_change, absence
+	Field       string  `json:"field"` // status, response_time, packet_loss, cpu, memory
+	Operator    string  `json:"operator"` // gt, lt, gte, lte, eq, neq
+	Threshold   float64 `json:"threshold"`
+	DurationSec int     `json:"durationSec"` // sustained duration before firing
+}
+
+type NotificationChannel struct {
+	ID        int64          `json:"id"`
+	Name      string         `json:"name"`
+	Type      string         `json:"type"` // webhook, email, slack
+	Enabled   bool           `json:"enabled"`
+	Config    map[string]any `json:"config"`
+	CreatedAt time.Time      `json:"createdAt"`
+}

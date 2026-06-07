@@ -32,14 +32,19 @@ func (s *SessionStore) Set(token string, sess *Session) {
 }
 
 func (s *SessionStore) Get(token string) (*Session, bool) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	sess, ok := s.entries[token]
-	if !ok || time.Now().After(sess.ExpireAt) {
+	if !ok {
+		return nil, false
+	}
+	if time.Now().After(sess.ExpireAt) {
+		delete(s.entries, token)
 		return nil, false
 	}
 	return sess, true
 }
+
 
 func (s *SessionStore) Delete(token string) {
 	s.mu.Lock()

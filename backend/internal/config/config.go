@@ -24,8 +24,11 @@ type AppConfig struct {
 }
 
 type DatabaseConfig struct {
-	DSN      string
-	MaxConns int
+	DSN             string
+	MaxConns        int
+	MinConns        int
+	MaxConnLifetime time.Duration
+	HealthCheckPeriod time.Duration
 }
 
 type AuthConfig struct {
@@ -56,6 +59,9 @@ type LoggingConfig struct {
 	FileMaxAgeDays int
 	FileCompress   bool
 	DBEnabled      bool
+	DBSampleRate   float64
+	DBQueueSize    int
+	DBDropPolicy   string
 	ModuleLevels   map[string]string
 	SlowQueryMs    int
 	SlowRequestMs  int
@@ -93,8 +99,11 @@ func Load() (*Config, error) {
 			Version: envStr("VERSION", "1.1.0"),
 		},
 		Database: DatabaseConfig{
-			DSN:      envStr("DATABASE_DSN", "postgres://postgres:postgres@localhost:5432/netmonitor?sslmode=disable"),
-			MaxConns: envInt("DB_MAX_CONNS", 20),
+			DSN:               envStr("DATABASE_DSN", "postgres://postgres:postgres@localhost:5432/netmonitor?sslmode=disable"),
+			MaxConns:           envInt("DB_MAX_CONNS", 20),
+			MinConns:           envInt("DB_MIN_CONNS", 2),
+			MaxConnLifetime:    envDuration("DB_MAX_CONN_LIFETIME", 1*time.Hour),
+			HealthCheckPeriod:  envDuration("DB_HEALTH_CHECK_PERIOD", 30*time.Second),
 		},
 		Auth: AuthConfig{
 			JWTSecret:          jwtSecret,
@@ -116,12 +125,15 @@ func Load() (*Config, error) {
 			Level:          envStr("LOG_LEVEL", "info"),
 			Format:         envStr("LOG_FORMAT", "pretty"),
 			FileEnabled:    envBool("LOG_FILE_ENABLED", false),
-			FilePath:       envStr("LOG_FILE_PATH", "logs/netmonitor.log"),
+			FilePath:       envStr("LOG_FILE_PATH", "./data/logs/netmonitor.log"),
 			FileMaxSizeMB:  envInt("LOG_FILE_MAX_SIZE_MB", 100),
 			FileMaxBackups: envInt("LOG_FILE_MAX_BACKUPS", 10),
 			FileMaxAgeDays: envInt("LOG_FILE_MAX_AGE_DAYS", 30),
-			FileCompress:   envBool("LOG_FILE_COMPRESS", false),
-			DBEnabled:      envBool("LOG_DB_ENABLED", false),
+			FileCompress:   envBool("LOG_FILE_COMPRESS", true),
+			DBEnabled:      envBool("LOG_DB_ENABLED", true),
+			DBSampleRate:   envFloat64("LOG_DB_SAMPLE_RATE", 1.0),
+			DBQueueSize:    envInt("LOG_DB_QUEUE_SIZE", 10000),
+			DBDropPolicy:   envStr("LOG_DB_DROP_POLICY", "drop_debug"),
 			ModuleLevels:   moduleLevels,
 			SlowQueryMs:    envInt("LOG_SLOW_QUERY_MS", 100),
 			SlowRequestMs:  envInt("LOG_SLOW_REQUEST_MS", 1000),
@@ -168,6 +180,15 @@ func envDuration(key string, def time.Duration) time.Duration {
 	if v := os.Getenv(key); v != "" {
 		if d, err := time.ParseDuration(v); err == nil {
 			return d
+		}
+	}
+	return def
+}
+
+func envFloat64(key string, def float64) float64 {
+	if v := os.Getenv(key); v != "" {
+		if f, err := strconv.ParseFloat(v, 64); err == nil {
+			return f
 		}
 	}
 	return def

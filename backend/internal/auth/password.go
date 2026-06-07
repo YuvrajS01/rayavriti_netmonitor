@@ -3,6 +3,7 @@ package auth
 import (
 	"crypto/rand"
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/hex"
 	"fmt"
 	"strings"
@@ -25,7 +26,7 @@ func HashPassword(password string) (string, error) {
 	return fmt.Sprintf("scrypt:%s:%s", hex.EncodeToString(salt), hex.EncodeToString(hash)), nil
 }
 
-// CheckPassword verifies scrypt or legacy sha256 hashes.
+// CheckPassword verifies scrypt or legacy sha256 hashes using constant-time comparison.
 func CheckPassword(password, stored string) bool {
 	if strings.HasPrefix(stored, "scrypt:") {
 		parts := strings.Split(stored, ":")
@@ -44,12 +45,13 @@ func CheckPassword(password, stored string) bool {
 		if err != nil {
 			return false
 		}
-		return hex.EncodeToString(got) == hex.EncodeToString(want)
+		return subtle.ConstantTimeCompare(got, want) == 1
 	}
 	// legacy sha256:<hex>
 	if strings.HasPrefix(stored, "sha256:") {
 		h := sha256.Sum256([]byte(password))
-		return "sha256:"+hex.EncodeToString(h[:]) == stored
+		expected := "sha256:" + hex.EncodeToString(h[:])
+		return subtle.ConstantTimeCompare([]byte(expected), []byte(stored)) == 1
 	}
 	return false
 }

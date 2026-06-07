@@ -74,6 +74,18 @@ func (h *Hub) Broadcast(msg Message) {
 	}
 }
 
+// Stop closes the broadcast channel, ending the Run goroutine.
+func (h *Hub) Stop() {
+	close(h.broadcast)
+}
+
+// ConnectionCount returns the number of active WebSocket connections.
+func (h *Hub) ConnectionCount() int {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	return len(h.clients)
+}
+
 func (h *Hub) ServeWS(w http.ResponseWriter, r *http.Request) {
 	// Authenticate via ?token= query param
 	token := r.URL.Query().Get("token")
