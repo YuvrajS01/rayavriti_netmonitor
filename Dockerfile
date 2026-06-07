@@ -1,94 +1,78 @@
-# ── Stage 1: Development ────────────────────────────────────────
-FROM node:22-slim AS development
-
-# Install native dependencies used by monitoring collectors.
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-      python3 make g++ libpcap-dev iputils-ping wget && \
-    rm -rf /var/lib/apt/lists/*
+# ── Stage 1: Build React client ─────────────────────────────────
+FROM node:22-alpine AS client-builder
 
 WORKDIR /app
 
-# Copy workspace manifests first (for layer caching)
-COPY package.json package-lock.json ./
-COPY server/package.json server/
-COPY client/package.json client/
+COPY client/package.json client/package-lock.json ./client/
+RUN cd client && npm ci
 
-RUN npm ci
+COPY client/ ./client/
+RUN cd client && npm run build
 
-# Keep simulator sources in the development image so the optional Docker
-# Compose simulator service can run without bind-mounting the repository.
-COPY simulator/ simulator/
+# ── Stage 2: Build Go backend (development) ─────────────────────
+FROM golang:1.24-alpine AS development
+
+RUN apk add --no-cache gcc musl-dev libpcap-dev make git bash
+
+WORKDIR /app
+
+# Install air for hot reload
+RUN go install github.com/air-verse/air@latest
+
+COPY backend/go.mod backend/go.sum ./backend/
+RUN cd backend && go mod download
+
+COPY backend/ ./backend/
 
 ENV NODE_ENV=development
 ENV PORT=3000
-ENV DB_PATH=/app/data/netmonitor-dev.db
+ENV DATABASE_URL=postgres://netmonitor:netmonitor@localhost:5432/netmonitor?sslmode=disable
 ENV CAPTURE_ENABLED=false
 
 EXPOSE 3000
 EXPOSE 5173
 EXPOSE 2055/udp
 
-CMD ["npm", "run", "dev:server"]
+CMD ["air", "-c", ".air.toml"]
 
-# ── Stage 2: Build ──────────────────────────────────────────────
-FROM node:22-slim AS builder
+# ── Stage 3: Build Go backend (production builder) ──────────────
+FROM golang:1.24-alpine AS go-builder
 
-# Install build tools for native modules (better-sqlite3, cap)
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-      python3 make g++ libpcap-dev && \
-    rm -rf /var/lib/apt/lists/*
+RUN apk add --no-cache gcc musl-dev libpcap-dev
 
 WORKDIR /app
 
-# Copy workspace manifests first (for layer caching)
-COPY package.json package-lock.json ./
-COPY server/package.json server/
-COPY client/package.json client/
+COPY backend/go.mod backend/go.sum ./backend/
+RUN cd backend && go mod download
 
-# Install all dependencies (including dev for building)
-RUN npm ci
+COPY backend/ ./backend/
 
-# Copy source files
-COPY server/ server/
-COPY client/ client/
+RUN cd backend && CGO_ENABLED=1 go build -tags pcap -ldflags="-s -w" -o /netmonitor ./cmd/server
 
-# Build server (TypeScript → JavaScript)
-RUN npm run build:server
-
-# Build client (React → static files) into server/dist/public
-RUN npm run build:client
-
-# ── Stage 3: Production ────────────────────────────────────────
-FROM node:22-slim AS production
-
-# Install runtime dependencies and build tools for native modules
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-      libpcap-dev wget python3 make g++ iputils-ping && \
-    rm -rf /var/lib/apt/lists/*
+# ── Stage 4: Build React client (production) ────────────────────
+FROM node:22-alpine AS client-builder-prod
 
 WORKDIR /app
 
-# Copy workspace manifests
-COPY package.json package-lock.json ./
-COPY server/package.json server/
+COPY client/package.json client/package-lock.json ./client/
+RUN cd client && npm ci
 
-# Install production dependencies only (needs build tools for native addons)
-RUN npm ci --omit=dev -w server && \
-    npm cache clean --force && \
-    apt-get purge -y python3 make g++ && \
-    apt-get autoremove -y && \
-    rm -rf /var/lib/apt/lists/*
+COPY client/ ./client/
+RUN cd client && npm run build
 
-# Copy compiled server code (includes client build in dist/public/)
-COPY --from=builder /app/server/dist server/dist/
+# ── Stage 5: Production image ──────────────────────────────────
+FROM alpine:3.21
 
-# Create data directory for SQLite
-RUN mkdir -p /app/data
+RUN apk add --no-cache ca-certificates libpcap tzdata wget
 
-# Expose ports
+COPY --from=go-builder /netmonitor /usr/local/bin/netmonitor
+COPY --from=client-builder-prod /app/client/dist /app/public
+
+WORKDIR /app
+
+# Create data directory for logs
+RUN mkdir -p /app/data/logs
+
 EXPOSE 3000
 EXPOSE 2055/udp
 
@@ -99,7 +83,6 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
 # Environment defaults
 ENV NODE_ENV=production
 ENV PORT=3000
-ENV DB_PATH=/app/data/netmonitor.db
 
 # Start the server
-CMD ["node", "server/dist/index.js"]
+ENTRYPOINT ["netmonitor"]

@@ -46,6 +46,47 @@ type Metric struct {
 	Details      map[string]any `json:"details,omitempty"`
 }
 
+type MetricQuery struct {
+	DeviceID    *int64    `json:"deviceId,omitempty"`
+	From        time.Time `json:"from"`
+	To          time.Time `json:"to"`
+	Status      string    `json:"status,omitempty"`
+	Limit       int       `json:"limit,omitempty"`
+	Aggregation string    `json:"aggregation,omitempty"` // avg, max, min, p95
+	BucketMin   int       `json:"bucketMin,omitempty"`   // bucket size in minutes
+}
+
+type ReportMetricRow struct {
+	DeviceID     int64    `json:"deviceId"`
+	DeviceName   string   `json:"deviceName"`
+	Protocol     string   `json:"protocol"`
+	Status       string   `json:"status"`
+	ResponseTime *float64 `json:"responseTime,omitempty"`
+	Value        *float64 `json:"value,omitempty"`
+	Message      string   `json:"message,omitempty"`
+	Timestamp    string   `json:"timestamp"`
+}
+
+type ReportTimeseriesPoint struct {
+	BucketTime  string  `json:"bucketTime"`
+	SampleCount int     `json:"sampleCount"`
+	AvgResponse float64 `json:"avgResponse"`
+	DownCount   int     `json:"downCount"`
+	WarnCount   int     `json:"warnCount"`
+}
+
+type DeviceBreakdown struct {
+	DeviceID    int64   `json:"deviceId"`
+	DeviceName  string  `json:"deviceName"`
+	Protocol    string  `json:"protocol"`
+	SampleCount int     `json:"sampleCount"`
+	DownCount   int     `json:"downCount"`
+	WarnCount   int     `json:"warnCount"`
+	AvgResponse float64 `json:"avgResponse"`
+	MinResponse float64 `json:"minResponse"`
+	MaxResponse float64 `json:"maxResponse"`
+}
+
 type Alert struct {
 	ID             int64      `json:"id"`
 	DeviceID       int64      `json:"deviceId"`
@@ -59,6 +100,12 @@ type Alert struct {
 	AcknowledgedBy *string    `json:"acknowledgedBy,omitempty"`
 	ResolvedBy     *string    `json:"resolvedBy,omitempty"`
 	RuleID         *int64     `json:"ruleId,omitempty"`
+}
+
+type AlertCounts struct {
+	Active       int `json:"active"`
+	Acknowledged int `json:"acknowledged"`
+	Resolved     int `json:"resolved"`
 }
 
 type User struct {
@@ -97,17 +144,66 @@ type Flow struct {
 	Duration  float64   `json:"duration"`
 }
 
+type FlowTimeseriesPoint struct {
+	BucketTime   string `json:"bucketTime"`
+	TotalBytes   int64  `json:"totalBytes"`
+	TotalPackets int64  `json:"totalPackets"`
+	FlowCount    int64  `json:"flowCount"`
+}
+
+type FlowSummaryStats struct {
+	TotalFlows         int64 `json:"totalFlows"`
+	TotalBytes         int64 `json:"totalBytes"`
+	TotalPackets       int64 `json:"totalPackets"`
+	UniqueSources      int64 `json:"uniqueSources"`
+	UniqueDestinations int64 `json:"uniqueDestinations"`
+}
+
 type IPCount struct {
 	IP    string `json:"ip"`
 	Count int64  `json:"count"`
 }
 
+type CaptureSession struct {
+	ID            int64      `json:"id"`
+	InterfaceName string     `json:"interfaceName"`
+	Filter        string     `json:"filter"`
+	Status        string     `json:"status"` // running, stopped, error
+	StartedBy     string     `json:"startedBy,omitempty"`
+	TotalPackets  int64      `json:"totalPackets"`
+	TotalBytes    int64      `json:"totalBytes"`
+	Protocols     map[string]int64 `json:"protocols,omitempty"`
+	StartedAt     time.Time  `json:"startedAt"`
+	StoppedAt     *time.Time `json:"stoppedAt,omitempty"`
+	ErrorMessage  string     `json:"errorMessage,omitempty"`
+}
+
+type CaptureSessionStats struct {
+	TotalPackets int64 `json:"totalPackets"`
+	TotalBytes   int64 `json:"totalBytes"`
+	ErrorMessage string `json:"errorMessage,omitempty"`
+}
+
 type CaptureStats struct {
-	TotalPackets int64             `json:"totalPackets"`
-	TotalBytes   int64             `json:"totalBytes"`
-	Protocols    map[string]int64  `json:"protocols"`
-	TopSrcIPs    []IPCount         `json:"topSrcIps"`
-	TopDstIPs    []IPCount         `json:"topDstIps"`
+	TotalPackets int64            `json:"totalPackets"`
+	TotalBytes   int64            `json:"totalBytes"`
+	Protocols    map[string]int64 `json:"protocols"`
+	TopSrcIPs    []IPCount        `json:"topSrcIps"`
+	TopDstIPs    []IPCount        `json:"topDstIps"`
+}
+
+type PortScanResult struct {
+	ID            int64      `json:"id"`
+	DeviceID      int64      `json:"deviceId"`
+	Port          int        `json:"port"`
+	Protocol      string     `json:"protocol"`
+	State         string     `json:"state"` // open, closed, filtered
+	Service       string     `json:"service,omitempty"`
+	ResponseTime  *float64   `json:"responseTime,omitempty"`
+	FirstSeen     time.Time  `json:"firstSeen"`
+	LastSeen      time.Time  `json:"lastSeen"`
+	LastChangedAt time.Time  `json:"lastChangedAt"`
+	ScannedAt     time.Time  `json:"scannedAt"`
 }
 
 type Dashboard struct {
@@ -147,27 +243,33 @@ type Sensor struct {
 }
 
 type AlertRule struct {
-	ID          int64                `json:"id"`
-	Name        string               `json:"name"`
-	Description string               `json:"description"`
-	Enabled     bool                 `json:"enabled"`
-	Severity    string               `json:"severity"` // critical, warning, info
-	DeviceID    *int64               `json:"deviceId,omitempty"` // nil = all devices
-	CooldownSec int                  `json:"cooldownSec"`
-	Conditions  []AlertRuleCondition `json:"conditions"`
-	ChannelIDs  []int64              `json:"channelIds"`
-	CreatedAt   time.Time            `json:"createdAt"`
-	UpdatedAt   time.Time            `json:"updatedAt"`
+	ID             int64                `json:"id"`
+	Name           string               `json:"name"`
+	Description    string               `json:"description"`
+	Enabled        bool                 `json:"enabled"`
+	Severity       string               `json:"severity"` // critical, warning, info
+	ScopeType      string               `json:"scopeType"` // global, device
+	ScopeValue     string               `json:"scopeValue,omitempty"`
+	DeviceID       *int64               `json:"deviceId,omitempty"` // nil = all devices
+	ConditionLogic string               `json:"conditionLogic"` // all, any
+	CooldownSec    int                  `json:"cooldownSec"`
+	AutoResolve    bool                 `json:"autoResolve"`
+	CreatedBy      *int64               `json:"createdBy,omitempty"`
+	Conditions     []AlertRuleCondition `json:"conditions"`
+	ChannelIDs     []int64              `json:"channelIds"`
+	CreatedAt      time.Time            `json:"createdAt"`
+	UpdatedAt      time.Time            `json:"updatedAt"`
 }
 
 type AlertRuleCondition struct {
-	ID          int64   `json:"id"`
-	RuleID      int64   `json:"ruleId"`
-	Type        string  `json:"type"` // threshold, status_change, absence
-	Field       string  `json:"field"` // status, response_time, packet_loss, cpu, memory
-	Operator    string  `json:"operator"` // gt, lt, gte, lte, eq, neq
-	Threshold   float64 `json:"threshold"`
-	DurationSec int     `json:"durationSec"` // sustained duration before firing
+	ID              int64          `json:"id"`
+	RuleID          int64          `json:"ruleId"`
+	Type            string         `json:"type"` // threshold, status_change, absence, anomaly
+	MetricField     string         `json:"metricField"` // status, response_time, packet_loss, cpu, memory
+	Operator        string         `json:"operator"` // gt, lt, gte, lte, eq, neq
+	Value           string         `json:"value"`
+	DurationSeconds int            `json:"durationSeconds"` // sustained duration before firing
+	Config          map[string]any `json:"config,omitempty"`
 }
 
 type NotificationChannel struct {
@@ -177,4 +279,26 @@ type NotificationChannel struct {
 	Enabled   bool           `json:"enabled"`
 	Config    map[string]any `json:"config"`
 	CreatedAt time.Time      `json:"createdAt"`
+}
+
+type AlertHistory struct {
+	ID        int64          `json:"id"`
+	AlertID   int64          `json:"alertId"`
+	RuleID    *int64         `json:"ruleId,omitempty"`
+	Action    string         `json:"action"` // fired, notified, acknowledged, resolved, auto_resolved
+	Actor     string         `json:"actor,omitempty"` // system, user:admin, rule:5
+	Details   map[string]any `json:"details,omitempty"`
+	CreatedAt time.Time      `json:"createdAt"`
+}
+
+type AlertRuleState struct {
+	RuleID            int64          `json:"ruleId"`
+	DeviceID          int64          `json:"deviceId"`
+	State             string         `json:"state"` // idle, pending, firing, notified, acknowledged, resolved
+	FirstMetAt        *time.Time     `json:"firstMetAt,omitempty"`
+	LastEvaluatedAt   *time.Time     `json:"lastEvaluatedAt,omitempty"`
+	LastFiredAt       *time.Time     `json:"lastFiredAt,omitempty"`
+	LastResolvedAt    *time.Time     `json:"lastResolvedAt,omitempty"`
+	ActiveAlertID     *int64         `json:"activeAlertId,omitempty"`
+	ConditionSnapshot map[string]any `json:"conditionSnapshot,omitempty"`
 }

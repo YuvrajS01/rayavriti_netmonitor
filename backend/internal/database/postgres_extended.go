@@ -1,0 +1,366 @@
+package database
+
+import (
+	"context"
+	"fmt"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/rayavriti/netmonitor-backend/internal/models"
+)
+
+// ── Device extended ──────────────────────────────────────────────────────────
+
+// GetEnabledDevices returns all devices with enabled=TRUE, ordered by id.
+func (p *Postgres) GetEnabledDevices(ctx context.Context) ([]models.Device, error) {
+	rows, err := p.pool.Query(ctx, `
+		SELECT id,name,ip_address,protocol,enabled,status,tags,
+		       snmp_community,snmp_version,snmp_port,http_path,http_expected_status,
+		       interval_sec,location_id,parent_device_id,rack_position,asset_tag,
+		       mac_address,manufacturer,model,device_category,notes,created_at,updated_at
+		FROM devices WHERE enabled=TRUE ORDER BY id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	devices, err := scanDevices(rows)
+	if err != nil {
+		return nil, err
+	}
+	if devices == nil {
+		devices = []models.Device{}
+	}
+	return devices, nil
+}
+
+// GetDevicesByStatus returns all devices matching the given status, ordered by id.
+func (p *Postgres) GetDevicesByStatus(ctx context.Context, status string) ([]models.Device, error) {
+	rows, err := p.pool.Query(ctx, `
+		SELECT id,name,ip_address,protocol,enabled,status,tags,
+		       snmp_community,snmp_version,snmp_port,http_path,http_expected_status,
+		       interval_sec,location_id,parent_device_id,rack_position,asset_tag,
+		       mac_address,manufacturer,model,device_category,notes,created_at,updated_at
+		FROM devices WHERE status=$1 ORDER BY id`, status)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	devices, err := scanDevices(rows)
+	if err != nil {
+		return nil, err
+	}
+	if devices == nil {
+		devices = []models.Device{}
+	}
+	return devices, nil
+}
+
+// ── Alert extended ───────────────────────────────────────────────────────────
+
+// GetAlertCounts returns counts of alerts grouped by status.
+func (p *Postgres) GetAlertCounts(ctx context.Context) (models.AlertCounts, error) {
+	var counts models.AlertCounts
+
+	rows, err := p.pool.Query(ctx, `SELECT status, COUNT(*) FROM alerts GROUP BY status`)
+	if err != nil {
+		return counts, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var status string
+		var n int
+		if err := rows.Scan(&status, &n); err != nil {
+			return counts, err
+		}
+		switch status {
+		case "active":
+			counts.Active = n
+		case "acknowledged":
+			counts.Acknowledged = n
+		case "resolved":
+			counts.Resolved = n
+		}
+	}
+	return counts, rows.Err()
+}
+
+// FindActiveAlert returns the first active alert for a device with the given message,
+// or nil if none exists.
+func (p *Postgres) FindActiveAlert(ctx context.Context, deviceID int64, message string) (*models.Alert, error) {
+	rows, err := p.pool.Query(ctx, `
+		SELECT id,device_id,device_name,severity,message,status,rule_id,
+		       created_at,acknowledged_at,resolved_at,acknowledged_by,resolved_by
+		FROM alerts
+		WHERE device_id=$1 AND message=$2 AND status='active'
+		LIMIT 1`, deviceID, message)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	alerts, err := scanAlerts(rows)
+	if err != nil {
+		return nil, err
+	}
+	if len(alerts) == 0 {
+		return nil, nil
+	}
+	return &alerts[0], nil
+}
+
+// ── Metrics extended ─────────────────────────────────────────────────────────
+
+// GetMetricsForReport returns metric rows joined with device info for reporting.
+// Results are filtered by time range and optionally by device_id.
+func (p *Postgres) GetMetricsForReport(ctx context.Context, from, to time.Time, deviceID *int64, interval string) ([]models.ReportMetricRow, error) {
+	args := []any{from, to}
+	query := `
+		SELECT m.device_id, d.name, d.protocol, m.status,
+		       m.response_time, m.custom_value, '', m.timestamp
+		FROM metrics m
+		JOIN devices d ON d.id = m.device_id
+		WHERE m.timestamp BETWEEN $1 AND $2`
+
+	paramIdx := 3
+	if deviceID != nil {
+		query += fmt.Sprintf(` AND m.device_id=$%d`, paramIdx)
+		args = append(args, *deviceID)
+		paramIdx++
+	}
+	query += ` ORDER BY m.timestamp DESC LIMIT 5000`
+
+	rows, err := p.pool.Query(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []models.ReportMetricRow
+	for rows.Next() {
+		var r models.ReportMetricRow
+		var ts time.Time
+		if err := rows.Scan(
+			&r.DeviceID, &r.DeviceName, &r.Protocol, &r.Status,
+			&r.ResponseTime, &r.Value, &r.Message, &ts,
+		); err != nil {
+			return nil, err
+		}
+		r.Timestamp = ts.Format(time.RFC3339)
+		out = append(out, r)
+	}
+	if out == nil {
+		out = []models.ReportMetricRow{}
+	}
+	return out, rows.Err()
+}
+
+// QueryMetrics builds a dynamic query to retrieve metrics with optional filters.
+func (p *Postgres) QueryMetrics(ctx context.Context, q models.MetricQuery) ([]models.Metric, error) {
+	var clauses []string
+	args := []any{}
+	paramIdx := 1
+
+	if q.DeviceID != nil {
+		clauses = append(clauses, fmt.Sprintf("device_id=$%d", paramIdx))
+		args = append(args, *q.DeviceID)
+		paramIdx++
+	}
+	if !q.From.IsZero() {
+		clauses = append(clauses, fmt.Sprintf("timestamp >= $%d", paramIdx))
+		args = append(args, q.From)
+		paramIdx++
+	}
+	if !q.To.IsZero() {
+		clauses = append(clauses, fmt.Sprintf("timestamp <= $%d", paramIdx))
+		args = append(args, q.To)
+		paramIdx++
+	}
+	if q.Status != "" {
+		clauses = append(clauses, fmt.Sprintf("status=$%d", paramIdx))
+		args = append(args, q.Status)
+		paramIdx++
+	}
+
+	query := `SELECT id,device_id,timestamp,status,response_time,packet_loss,
+	                 cpu_usage,memory_usage,bandwidth,custom_value,details
+	          FROM metrics`
+	if len(clauses) > 0 {
+		query += " WHERE " + strings.Join(clauses, " AND ")
+	}
+	query += " ORDER BY timestamp DESC"
+
+	limit := q.Limit
+	if limit <= 0 {
+		limit = 500
+	}
+	query += fmt.Sprintf(" LIMIT $%d", paramIdx)
+	args = append(args, limit)
+
+	rows, err := p.pool.Query(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	metrics, err := scanMetrics(rows)
+	if err != nil {
+		return nil, err
+	}
+	if metrics == nil {
+		metrics = []models.Metric{}
+	}
+	return metrics, nil
+}
+
+// GetMetricsInWindow extracts a specific numeric field's values from metrics
+// within a time window for a device. Returns the values as []float64.
+func (p *Postgres) GetMetricsInWindow(ctx context.Context, deviceID int64, field string, from, to time.Time) ([]float64, error) {
+	col, err := metricFieldToColumn(field)
+	if err != nil {
+		return nil, err
+	}
+
+	query := fmt.Sprintf(`
+		SELECT %s FROM metrics
+		WHERE device_id=$1 AND timestamp BETWEEN $2 AND $3
+		  AND %s IS NOT NULL
+		ORDER BY timestamp ASC`, col, col)
+
+	rows, err := p.pool.Query(ctx, query, deviceID, from, to)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []float64
+	for rows.Next() {
+		var v float64
+		if err := rows.Scan(&v); err != nil {
+			return nil, err
+		}
+		out = append(out, v)
+	}
+	if out == nil {
+		out = []float64{}
+	}
+	return out, rows.Err()
+}
+
+// metricFieldToColumn maps user-facing field names to actual column names.
+// Returns an error for unrecognized fields to prevent SQL injection.
+func metricFieldToColumn(field string) (string, error) {
+	switch field {
+	case "response_time":
+		return "response_time", nil
+	case "cpu_usage":
+		return "cpu_usage", nil
+	case "memory_usage":
+		return "memory_usage", nil
+	case "packet_loss":
+		return "packet_loss", nil
+	case "bandwidth":
+		return "bandwidth", nil
+	case "custom_value":
+		return "custom_value", nil
+	default:
+		return "", fmt.Errorf("unknown metric field: %s", field)
+	}
+}
+
+// ── Flow extended ────────────────────────────────────────────────────────────
+
+// GetFlowTimeseries returns flow data bucketed into time intervals.
+// The interval string supports formats like "5m", "1h", "1d".
+func (p *Postgres) GetFlowTimeseries(ctx context.Context, from, to time.Time, interval string) ([]models.FlowTimeseriesPoint, error) {
+	bucketSec, err := parseIntervalSeconds(interval)
+	if err != nil {
+		return nil, fmt.Errorf("invalid interval %q: %w", interval, err)
+	}
+
+	rows, err := p.pool.Query(ctx, `
+		SELECT
+		    to_timestamp(EXTRACT(EPOCH FROM created_at)::bigint / $1 * $1) AS bucket,
+		    COALESCE(SUM(bytes), 0),
+		    COALESCE(SUM(packets), 0),
+		    COUNT(*)
+		FROM flows
+		WHERE created_at BETWEEN $2 AND $3
+		GROUP BY bucket
+		ORDER BY bucket ASC`, bucketSec, from, to)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []models.FlowTimeseriesPoint
+	for rows.Next() {
+		var pt models.FlowTimeseriesPoint
+		var ts time.Time
+		if err := rows.Scan(&ts, &pt.TotalBytes, &pt.TotalPackets, &pt.FlowCount); err != nil {
+			return nil, err
+		}
+		pt.BucketTime = ts.Format(time.RFC3339)
+		out = append(out, pt)
+	}
+	if out == nil {
+		out = []models.FlowTimeseriesPoint{}
+	}
+	return out, rows.Err()
+}
+
+// GetFlowStats returns aggregate statistics for flows within a time range.
+func (p *Postgres) GetFlowStats(ctx context.Context, from, to time.Time) (models.FlowSummaryStats, error) {
+	var stats models.FlowSummaryStats
+
+	err := p.pool.QueryRow(ctx, `
+		SELECT
+		    COUNT(*),
+		    COALESCE(SUM(bytes), 0),
+		    COALESCE(SUM(packets), 0),
+		    COUNT(DISTINCT src_ip),
+		    COUNT(DISTINCT dst_ip)
+		FROM flows
+		WHERE created_at BETWEEN $1 AND $2`, from, to).Scan(
+		&stats.TotalFlows,
+		&stats.TotalBytes,
+		&stats.TotalPackets,
+		&stats.UniqueSources,
+		&stats.UniqueDestinations,
+	)
+	if err != nil {
+		return stats, err
+	}
+	return stats, nil
+}
+
+// parseIntervalSeconds converts a duration string like "5m", "1h", "1d" to seconds.
+func parseIntervalSeconds(interval string) (int64, error) {
+	if len(interval) < 2 {
+		return 0, fmt.Errorf("interval too short: %s", interval)
+	}
+
+	suffix := interval[len(interval)-1]
+	numStr := interval[:len(interval)-1]
+	num, err := strconv.ParseInt(numStr, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("invalid number in interval: %w", err)
+	}
+	if num <= 0 {
+		return 0, fmt.Errorf("interval must be positive")
+	}
+
+	switch suffix {
+	case 's':
+		return num, nil
+	case 'm':
+		return num * 60, nil
+	case 'h':
+		return num * 3600, nil
+	case 'd':
+		return num * 86400, nil
+	default:
+		return 0, fmt.Errorf("unsupported interval suffix: %c (use s, m, h, or d)", suffix)
+	}
+}

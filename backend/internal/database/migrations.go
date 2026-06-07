@@ -127,17 +127,22 @@ var migrations = []string{
 	CREATE INDEX IF NOT EXISTS idx_alerts_device    ON alerts(device_id, status, created_at DESC);
 	CREATE INDEX IF NOT EXISTS idx_flows_ips        ON flows(src_ip, dst_ip, created_at DESC);`,
 
-	// V10: alert_rules
+	// V10: alert_rules (enriched for rule-based alert engine)
 	`CREATE TABLE IF NOT EXISTS alert_rules (
 		id               BIGSERIAL PRIMARY KEY,
 		name             TEXT NOT NULL,
+		description      TEXT,
 		enabled          BOOLEAN NOT NULL DEFAULT TRUE,
-		device_id        BIGINT REFERENCES devices(id) ON DELETE CASCADE,
-		condition        TEXT NOT NULL,
-		threshold        DOUBLE PRECISION,
 		severity         TEXT NOT NULL DEFAULT 'warning',
-		message_template TEXT,
-		created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		scope_type       TEXT NOT NULL DEFAULT 'global',
+		scope_value      TEXT,
+		device_id        BIGINT REFERENCES devices(id) ON DELETE CASCADE,
+		condition_logic  TEXT NOT NULL DEFAULT 'all',
+		cooldown_seconds INT NOT NULL DEFAULT 300,
+		auto_resolve     BOOLEAN NOT NULL DEFAULT TRUE,
+		created_by       BIGINT REFERENCES users(id) ON DELETE SET NULL,
+		created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+		updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
 	)`,
 
 	// V11: default admin user (password set via seed, placeholder hash here)
@@ -147,13 +152,18 @@ var migrations = []string{
 
 	// V12: port_scan_results
 	`CREATE TABLE IF NOT EXISTS port_scan_results (
-		id        BIGSERIAL PRIMARY KEY,
-		device_id BIGINT NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
-		port      INT NOT NULL,
-		protocol  TEXT NOT NULL DEFAULT 'tcp',
-		state     TEXT NOT NULL,
-		service   TEXT,
-		scanned_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		id             BIGSERIAL PRIMARY KEY,
+		device_id      BIGINT NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+		port           INT NOT NULL,
+		protocol       TEXT NOT NULL DEFAULT 'tcp',
+		state          TEXT NOT NULL,
+		service        TEXT,
+		response_time  DOUBLE PRECISION,
+		first_seen     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+		last_seen      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+		last_changed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+		scanned_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+		UNIQUE(device_id, port, protocol)
 	)`,
 
 	// V13: monitoring_http_requests hypertable
@@ -225,4 +235,167 @@ var migrations = []string{
 		PRIMARY KEY (id, timestamp)
 	);
 	SELECT create_hypertable('monitoring_alerts', 'timestamp', if_not_exists => TRUE);`,
+
+	// V18: sensors table
+	`CREATE TABLE IF NOT EXISTS sensors (
+		id          BIGSERIAL PRIMARY KEY,
+		device_id   BIGINT NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+		name        TEXT NOT NULL,
+		type        TEXT NOT NULL,
+		enabled     BOOLEAN NOT NULL DEFAULT TRUE,
+		interval    INT NOT NULL DEFAULT 60,
+		config      JSONB NOT NULL DEFAULT '{}',
+		created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+		updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+	);
+	CREATE INDEX IF NOT EXISTS idx_sensors_device ON sensors(device_id);`,
+
+	// V19: capture_sessions table
+	`CREATE TABLE IF NOT EXISTS capture_sessions (
+		id              BIGSERIAL PRIMARY KEY,
+		interface_name  TEXT NOT NULL,
+		filter          TEXT NOT NULL DEFAULT '',
+		status          TEXT NOT NULL DEFAULT 'running',
+		started_by      TEXT,
+		total_packets   BIGINT NOT NULL DEFAULT 0,
+		total_bytes     BIGINT NOT NULL DEFAULT 0,
+		protocols       JSONB NOT NULL DEFAULT '{}',
+		started_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+		stopped_at      TIMESTAMPTZ,
+		error_message   TEXT
+	)`,
+
+	// V20: alert_rule_conditions table
+	`CREATE TABLE IF NOT EXISTS alert_rule_conditions (
+		id               BIGSERIAL PRIMARY KEY,
+		rule_id          BIGINT NOT NULL REFERENCES alert_rules(id) ON DELETE CASCADE,
+		type             TEXT NOT NULL,
+		metric_field     TEXT,
+		operator         TEXT,
+		value            TEXT,
+		duration_seconds INT DEFAULT 0,
+		config           JSONB NOT NULL DEFAULT '{}'
+	);
+	CREATE INDEX IF NOT EXISTS idx_conditions_rule ON alert_rule_conditions(rule_id);`,
+
+	// V21: notification_channels table
+	`CREATE TABLE IF NOT EXISTS notification_channels (
+		id         BIGSERIAL PRIMARY KEY,
+		name       TEXT NOT NULL,
+		type       TEXT NOT NULL,
+		config     JSONB NOT NULL DEFAULT '{}',
+		enabled    BOOLEAN NOT NULL DEFAULT TRUE,
+		created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+	)`,
+
+	// V22: alert_rule_channels (many-to-many)
+	`CREATE TABLE IF NOT EXISTS alert_rule_channels (
+		rule_id    BIGINT NOT NULL REFERENCES alert_rules(id) ON DELETE CASCADE,
+		channel_id BIGINT NOT NULL REFERENCES notification_channels(id) ON DELETE CASCADE,
+		PRIMARY KEY (rule_id, channel_id)
+	)`,
+
+	// V23: alert_history hypertable
+	`CREATE TABLE IF NOT EXISTS alert_history (
+		id         BIGSERIAL,
+		alert_id   BIGINT NOT NULL,
+		rule_id    BIGINT,
+		action     TEXT NOT NULL,
+		actor      TEXT,
+		details    JSONB,
+		created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+		PRIMARY KEY (id, created_at)
+	);
+	SELECT create_hypertable('alert_history', 'created_at', if_not_exists => TRUE);
+	CREATE INDEX IF NOT EXISTS idx_alert_history_alert ON alert_history(alert_id, created_at DESC);`,
+
+	// V24: alert_rule_state (durable per-rule/per-device state)
+	`CREATE TABLE IF NOT EXISTS alert_rule_state (
+		rule_id            BIGINT NOT NULL REFERENCES alert_rules(id) ON DELETE CASCADE,
+		device_id          BIGINT NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+		state              TEXT NOT NULL DEFAULT 'idle',
+		first_met_at       TIMESTAMPTZ,
+		last_evaluated_at  TIMESTAMPTZ,
+		last_fired_at      TIMESTAMPTZ,
+		last_resolved_at   TIMESTAMPTZ,
+		active_alert_id    BIGINT,
+		condition_snapshot JSONB,
+		PRIMARY KEY (rule_id, device_id)
+	)`,
+
+	// V25: monitoring_audit_log table
+	`CREATE TABLE IF NOT EXISTS monitoring_audit_log (
+		id            BIGSERIAL PRIMARY KEY,
+		request_id    TEXT,
+		event_type    TEXT NOT NULL,
+		severity      TEXT NOT NULL DEFAULT 'info',
+		actor         TEXT,
+		actor_ip      TEXT,
+		resource_type TEXT,
+		resource_id   TEXT,
+		description   TEXT NOT NULL,
+		details       JSONB,
+		created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+	);
+	CREATE INDEX IF NOT EXISTS idx_mon_audit_time   ON monitoring_audit_log(created_at);
+	CREATE INDEX IF NOT EXISTS idx_mon_audit_event  ON monitoring_audit_log(event_type);
+	CREATE INDEX IF NOT EXISTS idx_mon_audit_actor  ON monitoring_audit_log(actor);`,
+
+	// V26: monitoring_app_health table
+	`CREATE TABLE IF NOT EXISTS monitoring_app_health (
+		id                      BIGSERIAL PRIMARY KEY,
+		uptime_seconds          BIGINT NOT NULL,
+		goroutine_count         INT NOT NULL,
+		heap_alloc_bytes        BIGINT NOT NULL,
+		heap_sys_bytes          BIGINT NOT NULL,
+		stack_in_use_bytes      BIGINT NOT NULL,
+		gc_pause_total_ns       BIGINT NOT NULL,
+		gc_runs                 INT NOT NULL,
+		gc_last_pause_ns        BIGINT,
+		num_cpu                 INT NOT NULL,
+		active_ws_connections   INT NOT NULL DEFAULT 0,
+		active_capture_sessions INT NOT NULL DEFAULT 0,
+		scheduler_jobs_active   INT NOT NULL DEFAULT 0,
+		db_open_connections     INT,
+		db_idle_connections     INT,
+		db_wait_count           BIGINT,
+		db_wait_duration_ms     DOUBLE PRECISION,
+		requests_total          BIGINT NOT NULL DEFAULT 0,
+		requests_active         INT NOT NULL DEFAULT 0,
+		errors_total            BIGINT NOT NULL DEFAULT 0,
+		created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
+	);
+	CREATE INDEX IF NOT EXISTS idx_mon_health_time ON monitoring_app_health(created_at);`,
+
+	// V27: monitoring_alert_activity table
+	`CREATE TABLE IF NOT EXISTS monitoring_alert_activity (
+		id            BIGSERIAL,
+		trace_id      TEXT,
+		rule_id       BIGINT,
+		rule_name     TEXT,
+		device_id     BIGINT,
+		device_name   TEXT,
+		action        TEXT NOT NULL,
+		severity      TEXT,
+		alert_id      BIGINT,
+		channel_id    BIGINT,
+		channel_type  TEXT,
+		details       JSONB,
+		duration_ms   DOUBLE PRECISION,
+		error_message TEXT,
+		created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+		PRIMARY KEY (id, created_at)
+	);
+	SELECT create_hypertable('monitoring_alert_activity', 'created_at', if_not_exists => TRUE);
+	CREATE INDEX IF NOT EXISTS idx_mon_alert_act_rule   ON monitoring_alert_activity(rule_id);
+	CREATE INDEX IF NOT EXISTS idx_mon_alert_act_device ON monitoring_alert_activity(device_id);
+	CREATE INDEX IF NOT EXISTS idx_mon_alert_act_action ON monitoring_alert_activity(action);`,
+
+	// V28: additional indexes for Phase 2
+	`CREATE INDEX IF NOT EXISTS idx_alerts_status     ON alerts(status, created_at DESC);
+	CREATE INDEX IF NOT EXISTS idx_alerts_rule        ON alerts(rule_id);
+	CREATE INDEX IF NOT EXISTS idx_metrics_status     ON metrics(device_id, status, timestamp DESC);
+	CREATE INDEX IF NOT EXISTS idx_devices_status     ON devices(status, enabled);
+	CREATE INDEX IF NOT EXISTS idx_port_scan_device   ON port_scan_results(device_id, scanned_at DESC);
+	CREATE INDEX IF NOT EXISTS idx_capture_status     ON capture_sessions(status);`,
 }

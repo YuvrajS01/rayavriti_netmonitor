@@ -10,6 +10,23 @@
 # All ports (3000, 2055/udp) are exposed directly on the host.
 
 services:
+  timescaledb:
+    image: timescale/timescaledb:latest-pg16
+    container_name: rayavriti-timescaledb
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-netmonitor}
+      POSTGRES_USER: ${POSTGRES_USER:-netmonitor}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-netmonitor}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-netmonitor} -d ${POSTGRES_DB:-netmonitor}"]
+      interval: 10s
+      timeout: 5s
+      start_period: 10s
+      retries: 5
+    restart: unless-stopped
+
   netmonitor:
     build: .
     container_name: rayavriti-netmonitor
@@ -19,9 +36,12 @@ services:
     #  - Packet capture on host interfaces
     # Ports 3000 (HTTP) and 2055 (NetFlow UDP) are available on the host.
     network_mode: host
-    volumes:
-      - netmonitor-data:/app/data    # Persist SQLite database
     env_file: .env
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-netmonitor}:${POSTGRES_PASSWORD:-netmonitor}@localhost:5432/${POSTGRES_DB:-netmonitor}?sslmode=disable
+    depends_on:
+      timescaledb:
+        condition: service_healthy
     restart: unless-stopped
     cap_add:
       - NET_RAW              # Required for packet capture (libpcap/cap)
@@ -55,5 +75,5 @@ services:
       - netmonitor
 
 volumes:
-  netmonitor-data:
+  postgres_data:
     driver: local

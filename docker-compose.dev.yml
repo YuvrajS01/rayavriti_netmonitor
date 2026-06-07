@@ -9,28 +9,50 @@
 # NetFlow, ping, and packet-capture behavior close to the deployed app.
 
 services:
-  server:
+  timescaledb:
+    image: timescale/timescaledb:latest-pg16
+    container_name: rayavriti-timescaledb-dev
+    environment:
+      POSTGRES_DB: netmonitor
+      POSTGRES_USER: netmonitor
+      POSTGRES_PASSWORD: netmonitor
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U netmonitor -d netmonitor"]
+      interval: 10s
+      timeout: 5s
+      start_period: 10s
+      retries: 5
+
+  backend:
     build:
       context: .
+      dockerfile: Dockerfile
       target: development
-    container_name: rayavriti-netmonitor-server-dev
+    container_name: rayavriti-netmonitor-backend-dev
     network_mode: host
     env_file:
       - path: .env.dev
         required: false
+    environment:
+      DATABASE_URL: postgres://netmonitor:netmonitor@localhost:5432/netmonitor?sslmode=disable
     volumes:
       - .:/app
-      - netmonitor-node-modules:/app/node_modules
-      - netmonitor-dev-data:/app/data
-    command: npm --workspace server run dev
+      - backend-go-modules:/go/pkg/mod
+    command: air -c .air.toml
     cap_add:
       - NET_RAW
       - NET_ADMIN
+    depends_on:
+      timescaledb:
+        condition: service_healthy
 
   client:
     build:
       context: .
-      target: development
+      dockerfile: Dockerfile
+      target: client-development
     container_name: rayavriti-netmonitor-client-dev
     network_mode: host
     env_file:
@@ -38,14 +60,15 @@ services:
         required: false
     volumes:
       - .:/app
-      - netmonitor-node-modules:/app/node_modules
+      - client-node-modules:/app/client/node_modules
     command: npm --workspace client run dev -- --host 0.0.0.0
     depends_on:
-      - server
+      - backend
 
   simulator:
     build:
       context: .
+      dockerfile: Dockerfile
       target: development
     container_name: rayavriti-netmonitor-simulator-dev
     network_mode: host
@@ -59,7 +82,7 @@ services:
       SIMULATOR_WRITE_MODE: api
     volumes:
       - .:/app
-      - netmonitor-node-modules:/app/node_modules
+      - backend-go-modules:/go/pkg/mod
     command: >
       sh -c "until wget -qO- http://localhost:3000/health >/dev/null 2>&1;
       do sleep 2; done;
@@ -67,10 +90,12 @@ services:
       --speed=${SIMULATOR_SPEED:-1}
       --scenario=${SIMULATOR_SCENARIO:-mixed}"
     depends_on:
-      - server
+      - backend
 
 volumes:
-  netmonitor-node-modules:
+  postgres_dev_data:
     driver: local
-  netmonitor-dev-data:
+  backend-go-modules:
+    driver: local
+  client-node-modules:
     driver: local
