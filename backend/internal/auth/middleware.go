@@ -5,6 +5,10 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
+	"sync"
+	"time"
+
+	"golang.org/x/time/rate"
 )
 
 type contextKey int
@@ -80,4 +84,80 @@ func sendUnauth(w http.ResponseWriter, msg string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusUnauthorized)
 	_ = json.NewEncoder(w).Encode(map[string]any{"success": false, "error": msg})
+}
+
+type rateLimitKey struct {
+	userID  int64
+	apiKey  bool
+}
+
+type rateLimitClient struct {
+	lim      *rate.Limiter
+	lastSeen time.Time
+}
+
+// UserRateLimiter creates a per-user/API-key rate limiter middleware.
+// JWT users: 1000 req/hr, API keys: 5000 req/hr.
+func UserRateLimiter() func(http.Handler) http.Handler {
+	var mu sync.Mutex
+	clients := map[rateLimitKey]*rateLimitClient{}
+
+	go func() {
+		for {
+			time.Sleep(3 * time.Minute)
+			mu.Lock()
+			for k, c := range clients {
+				if time.Since(c.lastSeen) > 5*time.Minute {
+					delete(clients, k)
+				}
+			}
+			mu.Unlock()
+		}
+	}()
+
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			claims := GetClaims(r.Context())
+			if claims == nil {
+				next.ServeHTTP(w, r)
+				return
+			}
+
+			key := rateLimitKey{userID: claims.UserID}
+			isAPIKey := r.Header.Get("X-Api-Key") != ""
+			if isAPIKey {
+				key.apiKey = true
+			}
+
+			var limit rate.Limit
+			var burst int
+			if isAPIKey {
+				limit = rate.Limit(5000.0 / 3600.0)
+				burst = 100
+			} else {
+				limit = rate.Limit(1000.0 / 3600.0)
+				burst = 50
+			}
+
+			mu.Lock()
+			c, ok := clients[key]
+			if !ok {
+				c = &rateLimitClient{lim: rate.NewLimiter(limit, burst)}
+				clients[key] = c
+			}
+			c.lastSeen = time.Now()
+			mu.Unlock()
+
+			if !c.lim.Allow() {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusTooManyRequests)
+				_ = json.NewEncoder(w).Encode(map[string]any{
+					"success": false,
+					"error":   "rate limit exceeded",
+				})
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
 }

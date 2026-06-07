@@ -87,6 +87,7 @@ func (s *Server) Start() error {
 	// Protected routes
 	r.Group(func(r chi.Router) {
 		r.Use(requireAuth)
+		r.Use(auth.UserRateLimiter())
 		r.Get("/api/auth/me", authH.Me)
 		r.Get("/api/stats", health.Stats)
 
