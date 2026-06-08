@@ -269,7 +269,7 @@ func (s *Scheduler) collectOnce(ctx context.Context, device models.Device) {
 
 	// Evaluate alert rules if alert engine is configured
 	if s.alertEng != nil {
-		if err := s.alertEng.EvaluateMetric(ctx, metric); err != nil {
+		if err := s.alertEng.ProcessMetric(ctx, &device, metric, previousStatus); err != nil {
 			slog.Warn("Alert evaluation failed",
 				"device_id", device.ID,
 				"error", err,

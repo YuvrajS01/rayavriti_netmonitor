@@ -2,14 +2,18 @@ package handlers
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/rayavriti/netmonitor-backend/internal/database"
+	"github.com/rayavriti/netmonitor-backend/internal/engine"
 	"github.com/rayavriti/netmonitor-backend/internal/httputil"
 	"github.com/rayavriti/netmonitor-backend/internal/models"
 )
 
-type NotificationChannelHandler struct{ db database.Database }
+type NotificationChannelHandler struct {
+	db database.Database
+}
 
 func NewNotificationChannelHandler(db database.Database) *NotificationChannelHandler {
 	return &NotificationChannelHandler{db: db}
@@ -103,6 +107,7 @@ func (h *NotificationChannelHandler) Delete(w http.ResponseWriter, r *http.Reque
 	httputil.SendOK(w, map[string]bool{"deleted": true})
 }
 
+// Test sends an actual test notification through the channel.
 func (h *NotificationChannelHandler) Test(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(chi.URLParam(r, "id"))
 	if err != nil {
@@ -114,11 +119,31 @@ func (h *NotificationChannelHandler) Test(w http.ResponseWriter, r *http.Request
 		httputil.SendError(w, 404, "notification channel not found")
 		return
 	}
+
+	testAlert := &models.Alert{
+		ID:         0,
+		DeviceID:   0,
+		DeviceName: "Test Device",
+		Severity:   "info",
+		Message:    "This is a test notification from Rayavriti NetMonitor",
+		Status:     "active",
+		CreatedAt:  time.Now(),
+	}
+
+	notifier := engine.NewNotifier()
+	start := time.Now()
+	if err := notifier.Send(r.Context(), *ch, testAlert); err != nil {
+		httputil.SendError(w, 500, "test notification failed: "+err.Error())
+		return
+	}
+	duration := time.Since(start)
+
 	httputil.SendOK(w, map[string]any{
 		"channelId":   ch.ID,
 		"channelName": ch.Name,
 		"channelType": ch.Type,
 		"success":     true,
-		"message":     "test notification sent (placeholder)",
+		"durationMs":  duration.Milliseconds(),
+		"message":     "test notification sent successfully",
 	})
 }

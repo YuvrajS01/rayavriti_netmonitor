@@ -152,6 +152,7 @@ func (s *Server) Start() error {
 		r.Post("/api/v1/alerts/{id}/acknowledge", alert.Acknowledge)
 		r.Post("/api/v1/alerts/{id}/resolve", alert.Resolve)
 		r.Get("/api/v1/alerts/{id}/history", alert.History)
+		r.Get("/api/v1/alert-stats", alert.AlertStats)
 
 		// Reports
 		r.Get("/api/reports/summary", report.Summary)

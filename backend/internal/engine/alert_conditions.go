@@ -1,82 +1,162 @@
 package engine
 
 import (
-	"fmt"
+	"math"
+	"strconv"
+	"time"
 
 	"github.com/rayavriti/netmonitor-backend/internal/models"
 )
 
-// AlertCondition tests a single field of a Metric against a threshold.
-type AlertCondition struct {
-	Field string // status | response_time | packet_loss | cpu_usage | memory_usage | bandwidth
-	Op    string // eq | ne | gt | lt | gte | lte
-	Value any    // string for status, float64 for numeric fields
+// ConditionResult holds the evaluation result for a single alert condition.
+type ConditionResult struct {
+	ConditionID         int64   `json:"condition_id"`
+	Type                string  `json:"type"`
+	Field               string  `json:"field"`
+	Operator            string  `json:"operator"`
+	Threshold           float64 `json:"threshold"`
+	ActualValue         float64 `json:"actual_value"`
+	Result              bool    `json:"result"`
+	SustainedSeconds    int     `json:"sustained_seconds"`
+	RequiredDurationSec int     `json:"required_duration_seconds"`
 }
 
-// Match returns true if the condition is satisfied by the given metric.
-func (c AlertCondition) Match(m *models.Metric) bool {
-	switch c.Field {
-	case "status":
-		v, ok := c.Value.(string)
-		if !ok {
-			return false
-		}
-		switch c.Op {
-		case "eq":
-			return m.Status == v
-		case "ne":
-			return m.Status != v
-		}
-	case "response_time":
-		return matchFloat(c.Op, m.ResponseTime, c.Value)
-	case "packet_loss":
-		return matchFloat(c.Op, m.PacketLoss, c.Value)
-	case "cpu_usage":
-		return matchFloat(c.Op, m.CPUUsage, c.Value)
-	case "memory_usage":
-		return matchFloat(c.Op, m.MemoryUsage, c.Value)
-	case "bandwidth":
-		return matchFloat(c.Op, m.Bandwidth, c.Value)
+// EvaluateCondition evaluates a single alert rule condition against a metric.
+func EvaluateCondition(condition models.AlertRuleCondition, metric *models.Metric, previousStatus string) ConditionResult {
+	switch condition.Type {
+	case "threshold":
+		return evaluateThreshold(condition, metric)
+	case "state_change":
+		return evaluateStateChange(condition, metric, previousStatus)
+	case "absence":
+		// Absence is evaluated by the background loop, not on new metric arrival.
+		return ConditionResult{ConditionID: condition.ID, Type: "absence", Result: false}
+	case "anomaly":
+		return evaluateAnomaly(condition, metric)
+	default:
+		return ConditionResult{ConditionID: condition.ID, Type: condition.Type, Result: false}
 	}
-	return false
 }
 
-func matchFloat(op string, field *float64, threshold any) bool {
-	if field == nil {
-		return false
+func evaluateThreshold(condition models.AlertRuleCondition, metric *models.Metric) ConditionResult {
+	result := ConditionResult{
+		ConditionID: condition.ID,
+		Type:        "threshold",
+		Field:       condition.MetricField,
+		Operator:    condition.Operator,
 	}
-	t, err := toFloat64(threshold)
+
+	threshold, err := strconv.ParseFloat(condition.Value, 64)
 	if err != nil {
-		return false
+		return result
 	}
+	result.Threshold = threshold
+
+	var actual *float64
+	switch condition.MetricField {
+	case "response_time":
+		actual = metric.ResponseTime
+	case "packet_loss":
+		actual = metric.PacketLoss
+	case "cpu_usage":
+		actual = metric.CPUUsage
+	case "memory_usage":
+		actual = metric.MemoryUsage
+	case "bandwidth":
+		actual = metric.Bandwidth
+	case "custom_value":
+		actual = metric.CustomValue
+	}
+
+	if actual == nil {
+		return result
+	}
+	result.ActualValue = *actual
+	result.Result = compareFloat(condition.Operator, *actual, threshold)
+	return result
+}
+
+func evaluateStateChange(condition models.AlertRuleCondition, metric *models.Metric, previousStatus string) ConditionResult {
+	result := ConditionResult{
+		ConditionID: condition.ID,
+		Type:        "state_change",
+		Field:       condition.MetricField,
+		Operator:    condition.Operator,
+	}
+
+	if condition.MetricField != "status" {
+		return result
+	}
+
+	currentStatus := metric.Status
+	expectedValue := condition.Value
+
+	switch condition.Operator {
+	case "eq", "==":
+		result.Result = currentStatus == expectedValue
+	case "neq", "!=":
+		result.Result = currentStatus != expectedValue
+	}
+
+	return result
+}
+
+func evaluateAnomaly(condition models.AlertRuleCondition, metric *models.Metric) ConditionResult {
+	result := ConditionResult{
+		ConditionID: condition.ID,
+		Type:        "anomaly",
+		Field:       condition.MetricField,
+		Result:      false,
+	}
+
+	sensitivity, err := strconv.ParseFloat(condition.Value, 64)
+	if err != nil || sensitivity <= 0 {
+		sensitivity = 2.5
+	}
+	result.Threshold = sensitivity
+
+	// Get the actual metric value for the anomaly field
+	var actual *float64
+	switch condition.MetricField {
+	case "response_time":
+		actual = metric.ResponseTime
+	case "packet_loss":
+		actual = metric.PacketLoss
+	case "cpu_usage":
+		actual = metric.CPUUsage
+	case "memory_usage":
+		actual = metric.MemoryUsage
+	case "bandwidth":
+		actual = metric.Bandwidth
+	}
+
+	if actual == nil {
+		return result
+	}
+	result.ActualValue = *actual
+
+	// Anomaly detection requires historical baseline data.
+	// For now, this is a stub that never fires. A future enhancement can compute
+	// a rolling mean/stddev from recent metrics and compare against the sensitivity.
+	_ = time.Now()
+	result.Result = false
+	return result
+}
+
+func compareFloat(op string, actual, threshold float64) bool {
 	switch op {
 	case "gt", ">":
-		return *field > t
+		return actual > threshold
 	case "lt", "<":
-		return *field < t
+		return actual < threshold
 	case "gte", ">=":
-		return *field >= t
+		return actual >= threshold
 	case "lte", "<=":
-		return *field <= t
+		return actual <= threshold
 	case "eq", "==":
-		return *field == t
-	case "ne", "!=":
-		return *field != t
+		return math.Abs(actual-threshold) < 1e-9
+	case "neq", "!=":
+		return math.Abs(actual-threshold) >= 1e-9
 	}
 	return false
-}
-
-func toFloat64(v any) (float64, error) {
-	switch val := v.(type) {
-	case float64:
-		return val, nil
-	case float32:
-		return float64(val), nil
-	case int:
-		return float64(val), nil
-	case int64:
-		return float64(val), nil
-	default:
-		return 0, fmt.Errorf("cannot convert %T to float64", v)
-	}
 }

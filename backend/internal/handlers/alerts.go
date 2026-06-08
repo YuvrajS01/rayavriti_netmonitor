@@ -184,3 +184,50 @@ func (h *AlertHandler) History(w http.ResponseWriter, r *http.Request) {
 	}
 	httputil.SendOK(w, history)
 }
+
+// AlertStats returns alert engine statistics: counts by status, recent activity, and rule breakdown.
+func (h *AlertHandler) AlertStats(w http.ResponseWriter, r *http.Request) {
+	counts, err := h.db.GetAlertCounts(r.Context())
+	if err != nil {
+		httputil.SendError(w, 500, err.Error())
+		return
+	}
+
+	rules, err := h.db.GetAlertRules(r.Context())
+	if err != nil {
+		httputil.SendError(w, 500, err.Error())
+		return
+	}
+
+	rulesSummary := make([]map[string]any, 0, len(rules))
+	for _, rule := range rules {
+		rulesSummary = append(rulesSummary, map[string]any{
+			"id":       rule.ID,
+			"name":     rule.Name,
+			"severity": rule.Severity,
+			"enabled":  rule.Enabled,
+		})
+	}
+
+	channels, err := h.db.GetNotificationChannels(r.Context())
+	if err != nil {
+		channels = []models.NotificationChannel{}
+	}
+	channelsSummary := make([]map[string]any, 0, len(channels))
+	for _, ch := range channels {
+		channelsSummary = append(channelsSummary, map[string]any{
+			"id":      ch.ID,
+			"name":    ch.Name,
+			"type":    ch.Type,
+			"enabled": ch.Enabled,
+		})
+	}
+
+	httputil.SendOK(w, map[string]any{
+		"alertCounts":   counts,
+		"rules":         rulesSummary,
+		"channels":      channelsSummary,
+		"totalRules":    len(rules),
+		"totalChannels": len(channels),
+	})
+}

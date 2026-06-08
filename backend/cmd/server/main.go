@@ -107,7 +107,8 @@ func run() error {
 	logger.Info("Collectors registered", "count", 5)
 
 	// 8. Initialize alert engine (used by scheduler for rule evaluation)
-	alertEng := engine.NewAlertEngine(db)
+	notifier := engine.NewNotifier()
+	alertEng := engine.NewAlertEngine(db, hub, notifier)
 
 	// 9. Initialize scheduler
 	sched := scheduler.New(db, registry, hub, alertEng, cfg.Collector.CollectorIntervalSec)
