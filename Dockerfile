@@ -11,14 +11,14 @@ COPY client/ ./client/
 RUN npm run build -w client
 
 # ── Stage 2: Build Go backend (development) ─────────────────────
-FROM golang:1.24-alpine AS development
+FROM golang:1.26-alpine AS development
 
 RUN apk add --no-cache gcc musl-dev libpcap-dev make git bash
 
 WORKDIR /app
 
-# Install air for hot reload (pre-built binary, no Go version constraint)
-RUN wget -qO- https://raw.githubusercontent.com/air-verse/air/master/install.sh | sh -s -- -b /usr/local/bin
+# Install air for hot reload
+RUN go install github.com/air-verse/air@latest
 
 COPY backend/go.mod backend/go.sum ./backend/
 RUN cd backend && go mod download
@@ -52,7 +52,7 @@ EXPOSE 5173
 CMD ["npm", "--workspace", "client", "run", "dev", "--", "--host", "0.0.0.0"]
 
 # ── Stage 4: Build Go backend (production builder) ──────────────
-FROM golang:1.24-alpine AS go-builder
+FROM golang:1.26-alpine AS go-builder
 
 RUN apk add --no-cache gcc musl-dev libpcap-dev
 
