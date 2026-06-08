@@ -35,7 +35,21 @@ EXPOSE 2055/udp
 
 CMD ["air", "-c", ".air.toml"]
 
-# ── Stage 3: Build Go backend (production builder) ──────────────
+# ── Stage 3: Client development (Vite dev server) ───────────────
+FROM node:22-alpine AS client-development
+
+WORKDIR /app
+
+COPY client/package.json client/package-lock.json ./client/
+RUN cd client && npm ci
+
+COPY client/ ./client/
+
+EXPOSE 5173
+
+CMD ["npm", "--workspace", "client", "run", "dev", "--", "--host", "0.0.0.0"]
+
+# ── Stage 4: Build Go backend (production builder) ──────────────
 FROM golang:1.24-alpine AS go-builder
 
 RUN apk add --no-cache gcc musl-dev libpcap-dev
@@ -49,24 +63,13 @@ COPY backend/ ./backend/
 
 RUN cd backend && CGO_ENABLED=1 go build -tags pcap -ldflags="-s -w" -o /netmonitor ./cmd/server
 
-# ── Stage 4: Build React client (production) ────────────────────
-FROM node:22-alpine AS client-builder-prod
-
-WORKDIR /app
-
-COPY client/package.json client/package-lock.json ./client/
-RUN cd client && npm ci
-
-COPY client/ ./client/
-RUN cd client && npm run build
-
 # ── Stage 5: Production image ──────────────────────────────────
 FROM alpine:3.21
 
 RUN apk add --no-cache ca-certificates libpcap tzdata wget
 
 COPY --from=go-builder /netmonitor /usr/local/bin/netmonitor
-COPY --from=client-builder-prod /app/client/dist /app/public
+COPY --from=client-builder /app/client/dist /app/public
 
 WORKDIR /app
 
