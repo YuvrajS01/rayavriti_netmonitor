@@ -82,18 +82,18 @@ func run() error {
 	registry.Register(collectors.SystemCollector{})
 	logger.Info("Collectors registered", "count", 5)
 
-	// 8. Initialize scheduler
-	sched := scheduler.New(db, registry, hub, cfg.Collector.CollectorIntervalSec)
+	// 8. Initialize alert engine (used by scheduler for rule evaluation)
+	alertEng := engine.NewAlertEngine(db)
+
+	// 9. Initialize scheduler
+	sched := scheduler.New(db, registry, hub, alertEng, cfg.Collector.CollectorIntervalSec)
 	sched.Start(context.Background())
 	logger.Info("Scheduler started")
 
-	// 9. Initialize anomaly engine
+	// 10. Initialize anomaly engine
 	anomalyEng := engine.NewAnomalyEngine(db)
 	anomalyEng.Start(context.Background())
 	logger.Info("Anomaly engine started")
-
-	// 10. Initialize alert engine (passive, called by scheduler)
-	_ = engine.NewAlertEngine(db)
 
 	// 11. Initialize retention scheduler
 	retSched := retention.New(db,
