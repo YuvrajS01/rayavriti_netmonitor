@@ -3,11 +3,12 @@ FROM node:22-alpine AS client-builder
 
 WORKDIR /app
 
-COPY client/package.json client/package-lock.json ./client/
-RUN cd client && npm ci
+COPY package.json package-lock.json ./
+COPY client/package.json ./client/
+RUN npm ci --workspace client
 
 COPY client/ ./client/
-RUN cd client && npm run build
+RUN npm run build -w client
 
 # ── Stage 2: Build Go backend (development) ─────────────────────
 FROM golang:1.24-alpine AS development
@@ -40,8 +41,9 @@ FROM node:22-alpine AS client-development
 
 WORKDIR /app
 
-COPY client/package.json client/package-lock.json ./client/
-RUN cd client && npm ci
+COPY package.json package-lock.json ./
+COPY client/package.json ./client/
+RUN npm ci --workspace client
 
 COPY client/ ./client/
 
