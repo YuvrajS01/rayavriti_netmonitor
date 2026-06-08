@@ -12,6 +12,8 @@ services:
   timescaledb:
     image: timescale/timescaledb:latest-pg16
     container_name: rayavriti-timescaledb-dev
+    ports:
+      - "5433:5432"
     environment:
       POSTGRES_DB: netmonitor
       POSTGRES_USER: netmonitor
@@ -36,7 +38,7 @@ services:
       - path: .env.dev
         required: false
     environment:
-      DATABASE_URL: postgres://netmonitor:netmonitor@localhost:5432/netmonitor?sslmode=disable
+      DATABASE_URL: postgres://netmonitor:netmonitor@localhost:5433/netmonitor?sslmode=disable
     volumes:
       - .:/app
       - backend-go-modules:/go/pkg/mod

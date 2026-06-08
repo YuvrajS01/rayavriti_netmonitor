@@ -27,7 +27,7 @@ COPY backend/ ./backend/
 
 ENV NODE_ENV=development
 ENV PORT=3000
-ENV DATABASE_URL=postgres://netmonitor:netmonitor@localhost:5432/netmonitor?sslmode=disable
+ENV DATABASE_URL=postgres://netmonitor:netmonitor@localhost:5433/netmonitor?sslmode=disable
 ENV CAPTURE_ENABLED=false
 
 EXPOSE 3000

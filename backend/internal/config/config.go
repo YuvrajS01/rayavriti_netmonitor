@@ -101,7 +101,7 @@ func Load() (*Config, error) {
 			CORSOrigins: envSlice("CORS_ORIGINS"),
 		},
 		Database: DatabaseConfig{
-			DSN:               envStr("DATABASE_DSN", "postgres://postgres:postgres@localhost:5432/netmonitor?sslmode=disable"),
+			DSN:               envStr("DATABASE_URL", envStr("DATABASE_DSN", "postgres://postgres:postgres@localhost:5432/netmonitor?sslmode=disable")),
 			MaxConns:           envInt("DB_MAX_CONNS", 20),
 			MinConns:           envInt("DB_MIN_CONNS", 2),
 			MaxConnLifetime:    envDuration("DB_MAX_CONN_LIFETIME", 1*time.Hour),

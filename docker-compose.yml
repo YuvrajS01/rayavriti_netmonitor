@@ -13,6 +13,8 @@ services:
   timescaledb:
     image: timescale/timescaledb:latest-pg16
     container_name: rayavriti-timescaledb
+    ports:
+      - "5433:5432"
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-netmonitor}
       POSTGRES_USER: ${POSTGRES_USER:-netmonitor}
@@ -38,7 +40,7 @@ services:
     network_mode: host
     env_file: .env
     environment:
-      DATABASE_URL: postgres://${POSTGRES_USER:-netmonitor}:${POSTGRES_PASSWORD:-netmonitor}@localhost:5432/${POSTGRES_DB:-netmonitor}?sslmode=disable
+      DATABASE_URL: postgres://${POSTGRES_USER:-netmonitor}:${POSTGRES_PASSWORD:-netmonitor}@localhost:5433/${POSTGRES_DB:-netmonitor}?sslmode=disable
     depends_on:
       timescaledb:
         condition: service_healthy

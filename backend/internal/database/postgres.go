@@ -396,7 +396,7 @@ func scanAlerts(rows pgx.Rows) ([]models.Alert, error) {
 func (p *Postgres) GetUserByUsername(ctx context.Context, username string) (*models.User, error) {
 	var u models.User
 	err := p.pool.QueryRow(ctx, `
-		SELECT id,username,password_hash,role,display_name,email,phone,enabled,last_login_at,created_at
+		SELECT id,username,password_hash,role,COALESCE(display_name,''),COALESCE(email,''),COALESCE(phone,''),enabled,last_login_at,created_at
 		FROM users WHERE username=$1`, username).Scan(
 		&u.ID, &u.Username, &u.PasswordHash, &u.Role,
 		&u.DisplayName, &u.Email, &u.Phone, &u.Enabled, &u.LastLoginAt, &u.CreatedAt)
@@ -409,7 +409,7 @@ func (p *Postgres) GetUserByUsername(ctx context.Context, username string) (*mod
 func (p *Postgres) GetUserByID(ctx context.Context, id int64) (*models.User, error) {
 	var u models.User
 	err := p.pool.QueryRow(ctx, `
-		SELECT id,username,password_hash,role,display_name,email,phone,enabled,last_login_at,created_at
+		SELECT id,username,password_hash,role,COALESCE(display_name,''),COALESCE(email,''),COALESCE(phone,''),enabled,last_login_at,created_at
 		FROM users WHERE id=$1`, id).Scan(
 		&u.ID, &u.Username, &u.PasswordHash, &u.Role,
 		&u.DisplayName, &u.Email, &u.Phone, &u.Enabled, &u.LastLoginAt, &u.CreatedAt)

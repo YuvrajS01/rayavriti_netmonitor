@@ -1,9 +1,9 @@
 root = "."
-tmp_dir = "tmp"
+tmp_dir = "./tmp"
 
 [build]
   bin = "./tmp/netmonitor"
-  cmd = "go build -o ./tmp/netmonitor ./cmd/server"
+  cmd = "cd backend && go build -buildvcs=false -o ../tmp/netmonitor ./cmd/server"
   delay = 1000
   exclude_dir = ["tmp", "client", "data", "documentation", "server", "simulator", "node_modules"]
   exclude_file = []
