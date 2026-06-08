@@ -78,6 +78,8 @@ type Database interface {
 	GetUserByUsername(ctx context.Context, username string) (*models.User, error)
 	GetUserByID(ctx context.Context, id int64) (*models.User, error)
 	CreateUser(ctx context.Context, u *models.User) (*models.User, error)
+	UpdateUser(ctx context.Context, id int64, u *models.User) (*models.User, error)
+	DeleteUser(ctx context.Context, id int64) error
 	GetAPIKey(ctx context.Context, keyHash string) (*models.APIKey, error)
 	CreateAPIKey(ctx context.Context, k *models.APIKey) (*models.APIKey, error)
 	GetAPIKeysByUser(ctx context.Context, userID int64) ([]models.APIKey, error)

@@ -208,20 +208,60 @@ func (p *Postgres) QueryMetrics(ctx context.Context, q models.MetricQuery) ([]mo
 		paramIdx++
 	}
 
-	query := `SELECT id,device_id,timestamp,status,response_time,packet_loss,
-	                 cpu_usage,memory_usage,bandwidth,custom_value,details
-	          FROM metrics`
-	if len(clauses) > 0 {
-		query += " WHERE " + strings.Join(clauses, " AND ")
-	}
-	query += " ORDER BY timestamp DESC"
-
 	limit := q.Limit
 	if limit <= 0 {
 		limit = 500
 	}
-	query += fmt.Sprintf(" LIMIT $%d", paramIdx)
-	args = append(args, limit)
+
+	var query string
+	if q.BucketMin > 0 {
+		bucketSec := int64(q.BucketMin) * 60
+		switch q.Aggregation {
+		case "avg":
+			query = fmt.Sprintf(`
+				SELECT 0,device_id,
+				       to_timestamp(EXTRACT(EPOCH FROM timestamp)::bigint / %d * %d),
+				       '',AVG(response_time),AVG(packet_loss),
+				       AVG(cpu_usage),AVG(memory_usage),AVG(bandwidth),AVG(custom_value),NULL
+				FROM metrics`, bucketSec, bucketSec)
+		case "max":
+			query = fmt.Sprintf(`
+				SELECT 0,device_id,
+				       to_timestamp(EXTRACT(EPOCH FROM timestamp)::bigint / %d * %d),
+				       '',MAX(response_time),MAX(packet_loss),
+				       MAX(cpu_usage),MAX(memory_usage),MAX(bandwidth),MAX(custom_value),NULL
+				FROM metrics`, bucketSec, bucketSec)
+		case "min":
+			query = fmt.Sprintf(`
+				SELECT 0,device_id,
+				       to_timestamp(EXTRACT(EPOCH FROM timestamp)::bigint / %d * %d),
+				       '',MIN(response_time),MIN(packet_loss),
+				       MIN(cpu_usage),MIN(memory_usage),MIN(bandwidth),MIN(custom_value),NULL
+				FROM metrics`, bucketSec, bucketSec)
+		default:
+			query = fmt.Sprintf(`
+				SELECT 0,device_id,
+				       to_timestamp(EXTRACT(EPOCH FROM timestamp)::bigint / %d * %d),
+				       '',AVG(response_time),AVG(packet_loss),
+				       AVG(cpu_usage),AVG(memory_usage),AVG(bandwidth),AVG(custom_value),NULL
+				FROM metrics`, bucketSec, bucketSec)
+		}
+		if len(clauses) > 0 {
+			query += " WHERE " + strings.Join(clauses, " AND ")
+		}
+		query += fmt.Sprintf(" GROUP BY device_id, bucket ORDER BY bucket DESC LIMIT $%d", paramIdx)
+		args = append(args, limit)
+	} else {
+		query = `SELECT id,device_id,timestamp,status,response_time,packet_loss,
+		                cpu_usage,memory_usage,bandwidth,custom_value,details
+		         FROM metrics`
+		if len(clauses) > 0 {
+			query += " WHERE " + strings.Join(clauses, " AND ")
+		}
+		query += " ORDER BY timestamp DESC"
+		query += fmt.Sprintf(" LIMIT $%d", paramIdx)
+		args = append(args, limit)
+	}
 
 	rows, err := p.pool.Query(ctx, query, args...)
 	if err != nil {

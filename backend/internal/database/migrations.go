@@ -398,4 +398,22 @@ var migrations = []string{
 	CREATE INDEX IF NOT EXISTS idx_devices_status     ON devices(status, enabled);
 	CREATE INDEX IF NOT EXISTS idx_port_scan_device   ON port_scan_results(device_id, scanned_at DESC);
 	CREATE INDEX IF NOT EXISTS idx_capture_status     ON capture_sessions(status);`,
+
+	// V29: capture_packets table (was missing — queried by GetCapturePackets)
+	`CREATE TABLE IF NOT EXISTS capture_packets (
+		id          BIGSERIAL,
+		session_id  BIGINT NOT NULL REFERENCES capture_sessions(id) ON DELETE CASCADE,
+		timestamp   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+		src_ip      TEXT,
+		dst_ip      TEXT,
+		src_port    INT,
+		dst_port    INT,
+		protocol    TEXT,
+		length      INT,
+		flags       TEXT,
+		payload     TEXT,
+		PRIMARY KEY (id, timestamp)
+	);
+	SELECT create_hypertable('capture_packets', 'timestamp', if_not_exists => TRUE);
+	CREATE INDEX IF NOT EXISTS idx_capture_packets_session ON capture_packets(session_id, timestamp ASC);`,
 }

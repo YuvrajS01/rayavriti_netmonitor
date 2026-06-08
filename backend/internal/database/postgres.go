@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -431,6 +432,23 @@ func (p *Postgres) CreateUser(ctx context.Context, u *models.User) (*models.User
 	return p.GetUserByID(ctx, id)
 }
 
+func (p *Postgres) UpdateUser(ctx context.Context, id int64, u *models.User) (*models.User, error) {
+	_, err := p.pool.Exec(ctx, `
+		UPDATE users SET username=$1,role=$2,display_name=$3,email=$4,phone=$5,enabled=$6
+		WHERE id=$7`,
+		u.Username, u.Role, nullStr(u.DisplayName),
+		nullStr(u.Email), nullStr(u.Phone), u.Enabled, id)
+	if err != nil {
+		return nil, err
+	}
+	return p.GetUserByID(ctx, id)
+}
+
+func (p *Postgres) DeleteUser(ctx context.Context, id int64) error {
+	_, err := p.pool.Exec(ctx, `DELETE FROM users WHERE id=$1`, id)
+	return err
+}
+
 func (p *Postgres) GetAPIKey(ctx context.Context, keyHash string) (*models.APIKey, error) {
 	var k models.APIKey
 	err := p.pool.QueryRow(ctx, `
@@ -663,12 +681,24 @@ func (p *Postgres) GetDashboardStats(ctx context.Context) (map[string]any, error
 
 	since := time.Now().Add(-24 * time.Hour)
 
-	_ = p.pool.QueryRow(ctx, `SELECT COUNT(*) FROM devices`).Scan(&totalDevices)
-	_ = p.pool.QueryRow(ctx, `SELECT COUNT(*) FROM devices WHERE status='up'`).Scan(&onlineDevices)
-	_ = p.pool.QueryRow(ctx, `SELECT COUNT(*) FROM devices WHERE status='down'`).Scan(&offlineDevices)
-	_ = p.pool.QueryRow(ctx, `SELECT COUNT(*) FROM alerts WHERE status='active'`).Scan(&activeAlerts)
-	_ = p.pool.QueryRow(ctx, `SELECT COUNT(*) FROM metrics WHERE timestamp > $1`, since).Scan(&totalMetrics24h)
-	_ = p.pool.QueryRow(ctx, `SELECT AVG(response_time) FROM metrics WHERE timestamp > $1`, since).Scan(&avgRT)
+	if err := p.pool.QueryRow(ctx, `SELECT COUNT(*) FROM devices`).Scan(&totalDevices); err != nil {
+		slog.Error("dashboard_stats: count devices", "error", err)
+	}
+	if err := p.pool.QueryRow(ctx, `SELECT COUNT(*) FROM devices WHERE status='up'`).Scan(&onlineDevices); err != nil {
+		slog.Error("dashboard_stats: count online devices", "error", err)
+	}
+	if err := p.pool.QueryRow(ctx, `SELECT COUNT(*) FROM devices WHERE status='down'`).Scan(&offlineDevices); err != nil {
+		slog.Error("dashboard_stats: count offline devices", "error", err)
+	}
+	if err := p.pool.QueryRow(ctx, `SELECT COUNT(*) FROM alerts WHERE status='active'`).Scan(&activeAlerts); err != nil {
+		slog.Error("dashboard_stats: count active alerts", "error", err)
+	}
+	if err := p.pool.QueryRow(ctx, `SELECT COUNT(*) FROM metrics WHERE timestamp > $1`, since).Scan(&totalMetrics24h); err != nil {
+		slog.Error("dashboard_stats: count metrics 24h", "error", err)
+	}
+	if err := p.pool.QueryRow(ctx, `SELECT AVG(response_time) FROM metrics WHERE timestamp > $1`, since).Scan(&avgRT); err != nil {
+		slog.Error("dashboard_stats: avg response time", "error", err)
+	}
 
 	return map[string]any{
 		"totalDevices":    totalDevices,
