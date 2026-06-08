@@ -94,13 +94,15 @@ func splitStatements(sql string) []string {
 
 // ── Devices ──────────────────────────────────────────────────────────────────
 
-func (p *Postgres) GetDevices(ctx context.Context) ([]models.Device, error) {
-	rows, err := p.pool.Query(ctx, `
+const deviceSelectCols = `
 		SELECT id,name,ip_address,protocol,enabled,status,tags,
-		       snmp_community,snmp_version,snmp_port,http_path,http_expected_status,
-		       interval_sec,location_id,parent_device_id,rack_position,asset_tag,
-		       mac_address,manufacturer,model,device_category,notes,created_at,updated_at
-		FROM devices ORDER BY id`)
+		       COALESCE(snmp_community,''),COALESCE(snmp_version,''),COALESCE(snmp_port,0),COALESCE(http_path,''),COALESCE(http_expected_status,0),
+		       interval_sec,location_id,parent_device_id,COALESCE(rack_position,''),COALESCE(asset_tag,''),
+		       COALESCE(mac_address,''),COALESCE(manufacturer,''),COALESCE(model,''),COALESCE(device_category,''),COALESCE(notes,''),created_at,updated_at
+		FROM devices`
+
+func (p *Postgres) GetDevices(ctx context.Context) ([]models.Device, error) {
+	rows, err := p.pool.Query(ctx, deviceSelectCols+` ORDER BY id`)
 	if err != nil {
 		return nil, err
 	}
@@ -109,12 +111,7 @@ func (p *Postgres) GetDevices(ctx context.Context) ([]models.Device, error) {
 }
 
 func (p *Postgres) GetDevice(ctx context.Context, id int64) (*models.Device, error) {
-	rows, err := p.pool.Query(ctx, `
-		SELECT id,name,ip_address,protocol,enabled,status,tags,
-		       snmp_community,snmp_version,snmp_port,http_path,http_expected_status,
-		       interval_sec,location_id,parent_device_id,rack_position,asset_tag,
-		       mac_address,manufacturer,model,device_category,notes,created_at,updated_at
-		FROM devices WHERE id=$1`, id)
+	rows, err := p.pool.Query(ctx, deviceSelectCols+` WHERE id=$1`, id)
 	if err != nil {
 		return nil, err
 	}

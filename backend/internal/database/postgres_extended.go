@@ -14,12 +14,7 @@ import (
 
 // GetEnabledDevices returns all devices with enabled=TRUE, ordered by id.
 func (p *Postgres) GetEnabledDevices(ctx context.Context) ([]models.Device, error) {
-	rows, err := p.pool.Query(ctx, `
-		SELECT id,name,ip_address,protocol,enabled,status,tags,
-		       snmp_community,snmp_version,snmp_port,http_path,http_expected_status,
-		       interval_sec,location_id,parent_device_id,rack_position,asset_tag,
-		       mac_address,manufacturer,model,device_category,notes,created_at,updated_at
-		FROM devices WHERE enabled=TRUE ORDER BY id`)
+	rows, err := p.pool.Query(ctx, deviceSelectCols+` WHERE enabled=TRUE ORDER BY id`)
 	if err != nil {
 		return nil, err
 	}
@@ -36,12 +31,7 @@ func (p *Postgres) GetEnabledDevices(ctx context.Context) ([]models.Device, erro
 
 // GetDevicesByStatus returns all devices matching the given status, ordered by id.
 func (p *Postgres) GetDevicesByStatus(ctx context.Context, status string) ([]models.Device, error) {
-	rows, err := p.pool.Query(ctx, `
-		SELECT id,name,ip_address,protocol,enabled,status,tags,
-		       snmp_community,snmp_version,snmp_port,http_path,http_expected_status,
-		       interval_sec,location_id,parent_device_id,rack_position,asset_tag,
-		       mac_address,manufacturer,model,device_category,notes,created_at,updated_at
-		FROM devices WHERE status=$1 ORDER BY id`, status)
+	rows, err := p.pool.Query(ctx, deviceSelectCols+` WHERE status=$1 ORDER BY id`, status)
 	if err != nil {
 		return nil, err
 	}
