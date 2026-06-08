@@ -70,10 +70,11 @@ func (s *Server) Start() error {
 	flow := handlers.NewFlowHandler(s.db)
 	report := handlers.NewReportHandler(s.db)
 	insight := handlers.NewInsightHandler(s.db)
-	capture := handlers.NewCaptureHandler()
+	capture := handlers.NewCaptureHandler(s.db)
 	ports := handlers.NewPortsHandler()
 	dashboard := handlers.NewDashboardHandler(s.db)
 	simulator := handlers.NewSimulatorHandler(s.db)
+	sensor := handlers.NewSensorHandler(s.db)
 
 	// Public routes
 	r.Get("/health", health.Health)
@@ -83,6 +84,12 @@ func (s *Server) Start() error {
 	r.Post("/api/auth/login", authH.Login)
 	r.Post("/api/auth/logout", authH.Logout)
 	r.Post("/api/auth/refresh", authH.Refresh)
+
+	// V1 Auth (public)
+	r.Post("/api/v1/auth/login", authH.V1Login)
+	r.Post("/api/v1/auth/refresh", authH.Refresh)
+	r.Post("/api/v1/auth/2fa/verify", authH.Verify2FA)
+	r.Post("/api/v1/auth/logout", authH.V1Logout)
 
 	// Protected routes
 	r.Group(func(r chi.Router) {
@@ -108,6 +115,11 @@ func (s *Server) Start() error {
 		r.Get("/api/metrics/{deviceId}", metric.ForDevice)
 		r.Get("/api/v1/metrics/query", metric.Query)
 
+		// Devices
+		r.Get("/api/devices/{id}/ports", ports.ForDevice)
+		r.Post("/api/devices/{id}/scan-ports", device.ScanPorts)
+		r.Get("/api/v1/devices/{id}/metrics", metric.ForDevice)
+
 		// Alerts
 		r.Get("/api/alerts", alert.List)
 		r.Post("/api/alerts", alert.Create)
@@ -115,11 +127,13 @@ func (s *Server) Start() error {
 		r.Post("/api/alerts/{id}/acknowledge", alert.Acknowledge)
 		r.Post("/api/alerts/{id}/resolve", alert.Resolve)
 		r.Delete("/api/alerts/{id}", alert.Delete)
+		r.Get("/api/alerts/counts", alert.Counts)
 
 		// Reports
 		r.Get("/api/reports/summary", report.Summary)
 		r.Get("/api/reports/timeseries", report.Timeseries)
 		r.Get("/api/reports/devices", report.Devices)
+		r.Get("/api/reports/alerts", report.Alerts)
 		r.Get("/api/reports/export", report.Export)
 
 		// Insights
@@ -130,14 +144,23 @@ func (s *Server) Start() error {
 		r.Get("/api/v1/flows", flow.List)
 		r.Get("/api/v1/flows/top-talkers", flow.TopTalkers)
 		r.Get("/api/v1/flows/protocols", flow.Protocols)
+		r.Get("/api/v1/flows/timeseries", flow.Timeseries)
+		r.Get("/api/v1/flows/stats", flow.Stats)
 
 		// Capture
+		r.Get("/api/v1/capture/interfaces", capture.Interfaces)
 		r.Post("/api/v1/capture/start", capture.Start)
-		r.Post("/api/v1/capture/stop", capture.Stop)
-		r.Get("/api/v1/capture/stats", capture.Stats)
+		r.Post("/api/v1/capture/{id}/stop", capture.Stop)
+		r.Get("/api/v1/capture/{id}", capture.GetSession)
+		r.Get("/api/v1/capture/{id}/packets", capture.GetPackets)
+		r.Get("/api/v1/capture/sessions", capture.ListSessions)
 
 		// Ports
 		r.Get("/api/v1/devices/{id}/ports", ports.ForDevice)
+
+		// Sensors
+		r.Get("/api/v1/sensors", sensor.List)
+		r.Get("/api/v1/sensors/{id}", sensor.Get)
 
 		// Dashboards
 		r.Get("/api/v1/dashboards", dashboard.List)

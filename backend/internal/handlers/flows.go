@@ -43,3 +43,27 @@ func (h *FlowHandler) Protocols(w http.ResponseWriter, r *http.Request) {
 	}
 	httputil.SendOK(w, stats)
 }
+
+func (h *FlowHandler) Timeseries(w http.ResponseWriter, r *http.Request) {
+	from, to, _ := parseTimeRange(r)
+	interval := r.URL.Query().Get("interval")
+	if interval == "" {
+		interval = "5m"
+	}
+	points, err := h.db.GetFlowTimeseries(r.Context(), from, to, interval)
+	if err != nil {
+		httputil.SendError(w, 500, err.Error())
+		return
+	}
+	httputil.SendOK(w, points)
+}
+
+func (h *FlowHandler) Stats(w http.ResponseWriter, r *http.Request) {
+	from, to, _ := parseTimeRange(r)
+	stats, err := h.db.GetFlowStats(r.Context(), from, to)
+	if err != nil {
+		httputil.SendError(w, 500, err.Error())
+		return
+	}
+	httputil.SendOK(w, stats)
+}

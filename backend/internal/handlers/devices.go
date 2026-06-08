@@ -93,3 +93,34 @@ func (h *DeviceHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	}
 	httputil.SendOK(w, map[string]string{"message": "deleted"})
 }
+
+func (h *DeviceHandler) ScanPorts(w http.ResponseWriter, r *http.Request) {
+	id, err := parseID(chi.URLParam(r, "id"))
+	if err != nil {
+		httputil.SendError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	device, err := h.db.GetDevice(r.Context(), id)
+	if err != nil {
+		httputil.SendError(w, http.StatusNotFound, "device not found")
+		return
+	}
+
+	var body struct {
+		Ports      []int  `json:"ports"`
+		TimeoutMs  int    `json:"timeoutMs"`
+		Concurrency int   `json:"concurrency"`
+	}
+	_ = httputil.ParseJSON(r, &body)
+
+	// For now, return a placeholder - actual port scanning will be implemented in Phase 5
+	result := map[string]any{
+		"deviceId":   device.ID,
+		"deviceName": device.Name,
+		"openPorts":  []int{},
+		"changes":    []string{},
+		"alerts":     []string{},
+		"scannedAt":  "2026-06-08T00:00:00Z",
+	}
+	httputil.SendOK(w, result)
+}

@@ -192,6 +192,20 @@ type CaptureStats struct {
 	TopDstIPs    []IPCount        `json:"topDstIps"`
 }
 
+type CapturePacket struct {
+	ID            int64   `json:"id"`
+	SessionID     int64   `json:"sessionId"`
+	Timestamp     float64 `json:"timestamp"`
+	SrcIP         string  `json:"srcIp"`
+	DstIP         string  `json:"dstIp"`
+	SrcPort       int     `json:"srcPort"`
+	DstPort       int     `json:"dstPort"`
+	Protocol      string  `json:"protocol"`
+	Length        int     `json:"length"`
+	Flags         string  `json:"flags,omitempty"`
+	Payload       string  `json:"payload,omitempty"`
+}
+
 type PortScanResult struct {
 	ID            int64      `json:"id"`
 	DeviceID      int64      `json:"deviceId"`

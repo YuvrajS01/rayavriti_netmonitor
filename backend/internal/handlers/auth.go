@@ -92,6 +92,51 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 	httputil.SendOK(w, map[string]string{"accessToken": at, "refreshToken": rt})
 }
 
+func (h *AuthHandler) V1Login(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Username string `json:"username"`
+		Password string `json:"password"`
+	}
+	if err := httputil.ParseJSON(r, &body); err != nil {
+		httputil.SendError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	user, err := h.db.GetUserByUsername(r.Context(), body.Username)
+	if err != nil || !auth.CheckPassword(body.Password, user.PasswordHash) {
+		httputil.SendError(w, http.StatusUnauthorized, "invalid credentials")
+		return
+	}
+	if !user.Enabled {
+		httputil.SendError(w, http.StatusForbidden, "account disabled")
+		return
+	}
+	at, rt, err := auth.GenerateTokenPair(user.ID, user.Username, user.Role,
+		h.cfg.Auth.JWTSecret, h.cfg.Auth.AccessTokenExpiry, h.cfg.Auth.RefreshTokenExpiry)
+	if err != nil {
+		httputil.SendError(w, http.StatusInternalServerError, "token generation failed")
+		return
+	}
+	expiresIn := int(h.cfg.Auth.AccessTokenExpiry.Seconds())
+	httputil.SendOK(w, map[string]any{
+		"accessToken":  at,
+		"refreshToken": rt,
+		"expiresIn":    expiresIn,
+		"user": map[string]any{
+			"id":       user.ID,
+			"username": user.Username,
+			"role":     user.Role,
+		},
+	})
+}
+
+func (h *AuthHandler) Verify2FA(w http.ResponseWriter, r *http.Request) {
+	httputil.SendOK(w, map[string]bool{"verified": true})
+}
+
+func (h *AuthHandler) V1Logout(w http.ResponseWriter, r *http.Request) {
+	httputil.SendOK(w, map[string]bool{"loggedOut": true})
+}
+
 func (h *AuthHandler) ListAPIKeys(w http.ResponseWriter, r *http.Request) {
 	claims := auth.GetClaims(r.Context())
 	keys, err := h.db.GetAPIKeysByUser(r.Context(), claims.UserID)

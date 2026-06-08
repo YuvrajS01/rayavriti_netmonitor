@@ -110,6 +110,31 @@ func (p *Postgres) FindActiveAlert(ctx context.Context, deviceID int64, message 
 	return &alerts[0], nil
 }
 
+// GetAlertsForReport returns alerts for reporting within a time range.
+func (p *Postgres) GetAlertsForReport(ctx context.Context, from, to time.Time, deviceID *int64) ([]models.Alert, error) {
+	args := []any{from, to}
+	query := `
+		SELECT id,device_id,device_name,severity,message,status,rule_id,
+		       created_at,acknowledged_at,resolved_at,acknowledged_by,resolved_by
+		FROM alerts
+		WHERE created_at BETWEEN $1 AND $2`
+
+	paramIdx := 3
+	if deviceID != nil {
+		query += fmt.Sprintf(` AND device_id=$%d`, paramIdx)
+		args = append(args, *deviceID)
+		paramIdx++
+	}
+	query += ` ORDER BY created_at DESC LIMIT 5000`
+
+	rows, err := p.pool.Query(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanAlerts(rows)
+}
+
 // ── Metrics extended ─────────────────────────────────────────────────────────
 
 // GetMetricsForReport returns metric rows joined with device info for reporting.

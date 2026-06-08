@@ -49,6 +49,7 @@ type Database interface {
 	DeleteAlert(ctx context.Context, id int64) error
 	GetAlertCounts(ctx context.Context) (models.AlertCounts, error)
 	FindActiveAlert(ctx context.Context, deviceID int64, message string) (*models.Alert, error)
+	GetAlertsForReport(ctx context.Context, from, to time.Time, deviceID *int64) ([]models.Alert, error)
 
 	// Alert Rules
 	GetAlertRules(ctx context.Context) ([]models.AlertRule, error)
@@ -95,6 +96,7 @@ type Database interface {
 	GetCaptureSession(ctx context.Context, id int64) (*models.CaptureSession, error)
 	GetCaptureSessions(ctx context.Context) ([]models.CaptureSession, error)
 	StopCaptureSession(ctx context.Context, id int64, stats models.CaptureSessionStats) error
+	GetCapturePackets(ctx context.Context, sessionID int64, limit, offset int) ([]models.CapturePacket, error)
 
 	// Port Scans
 	UpsertPortScanResults(ctx context.Context, deviceID int64, results []models.PortScanResult) error

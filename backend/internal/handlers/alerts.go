@@ -7,8 +7,8 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/rayavriti/netmonitor-backend/internal/auth"
 	"github.com/rayavriti/netmonitor-backend/internal/database"
-	"github.com/rayavriti/netmonitor-backend/internal/models"
 	"github.com/rayavriti/netmonitor-backend/internal/httputil"
+	"github.com/rayavriti/netmonitor-backend/internal/models"
 )
 
 type AlertHandler struct{ db database.Database }
@@ -48,13 +48,66 @@ func (h *AlertHandler) Create(w http.ResponseWriter, r *http.Request) {
 		httputil.SendError(w, 400, "invalid body")
 		return
 	}
-	a.Status = "active"
+	if a.Status == "" {
+		a.Status = "active"
+	}
 	created, err := h.db.CreateAlert(r.Context(), &a)
 	if err != nil {
 		httputil.SendError(w, 500, err.Error())
 		return
 	}
 	httputil.SendCreated(w, created)
+}
+
+func (h *AlertHandler) Update(w http.ResponseWriter, r *http.Request) {
+	id, err := parseID(chi.URLParam(r, "id"))
+	if err != nil {
+		httputil.SendError(w, 400, "invalid id")
+		return
+	}
+	existing, err := h.db.GetAlert(r.Context(), id)
+	if err != nil {
+		httputil.SendError(w, 404, "alert not found")
+		return
+	}
+	var payload struct {
+		Severity *string `json:"severity"`
+		Message  *string `json:"message"`
+		Status   *string `json:"status"`
+		Comment  *string `json:"comment"`
+	}
+	if err := httputil.ParseJSON(r, &payload); err != nil {
+		httputil.SendError(w, 400, "invalid body")
+		return
+	}
+	if payload.Severity != nil {
+		existing.Severity = *payload.Severity
+	}
+	if payload.Message != nil {
+		existing.Message = *payload.Message
+	}
+	if payload.Status != nil {
+		claims := auth.GetClaims(r.Context())
+		by := ""
+		if claims != nil {
+			by = claims.Username
+		}
+		status := *payload.Status
+		// Normalize "triggered" → "active" for compatibility
+		if status == "triggered" {
+			status = "active"
+		}
+		if err := h.db.UpdateAlertStatus(r.Context(), id, status, by); err != nil {
+			httputil.SendError(w, 500, err.Error())
+			return
+		}
+	}
+	updated, err := h.db.GetAlert(r.Context(), id)
+	if err != nil {
+		httputil.SendError(w, 500, err.Error())
+		return
+	}
+	httputil.SendOK(w, updated)
 }
 
 func (h *AlertHandler) Acknowledge(w http.ResponseWriter, r *http.Request) {
@@ -72,7 +125,7 @@ func (h *AlertHandler) Acknowledge(w http.ResponseWriter, r *http.Request) {
 		httputil.SendError(w, 500, err.Error())
 		return
 	}
-	httputil.SendOK(w, map[string]string{"message": "acknowledged"})
+	httputil.SendOK(w, map[string]bool{"acknowledged": true})
 }
 
 func (h *AlertHandler) Resolve(w http.ResponseWriter, r *http.Request) {
@@ -90,7 +143,7 @@ func (h *AlertHandler) Resolve(w http.ResponseWriter, r *http.Request) {
 		httputil.SendError(w, 500, err.Error())
 		return
 	}
-	httputil.SendOK(w, map[string]string{"message": "resolved"})
+	httputil.SendOK(w, map[string]bool{"resolved": true})
 }
 
 func (h *AlertHandler) Delete(w http.ResponseWriter, r *http.Request) {
@@ -104,4 +157,30 @@ func (h *AlertHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httputil.SendOK(w, map[string]string{"message": "deleted"})
+}
+
+func (h *AlertHandler) Counts(w http.ResponseWriter, r *http.Request) {
+	counts, err := h.db.GetAlertCounts(r.Context())
+	if err != nil {
+		httputil.SendError(w, 500, err.Error())
+		return
+	}
+	httputil.SendOK(w, counts)
+}
+
+func (h *AlertHandler) History(w http.ResponseWriter, r *http.Request) {
+	id, err := parseID(chi.URLParam(r, "id"))
+	if err != nil {
+		httputil.SendError(w, 400, "invalid id")
+		return
+	}
+	history, err := h.db.GetAlertHistory(r.Context(), id)
+	if err != nil {
+		httputil.SendError(w, 500, err.Error())
+		return
+	}
+	if history == nil {
+		history = []models.AlertHistory{}
+	}
+	httputil.SendOK(w, history)
 }

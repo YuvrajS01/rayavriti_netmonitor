@@ -46,6 +46,23 @@ func (h *ReportHandler) Devices(w http.ResponseWriter, r *http.Request) {
 	httputil.SendOK(w, stats)
 }
 
+func (h *ReportHandler) Alerts(w http.ResponseWriter, r *http.Request) {
+	from, to, _ := parseTimeRange(r)
+	deviceID := r.URL.Query().Get("deviceId")
+	var id *int64
+	if deviceID != "" {
+		var parsed int64
+		fmt.Sscanf(deviceID, "%d", &parsed)
+		id = &parsed
+	}
+	alerts, err := h.db.GetAlertsForReport(r.Context(), from, to, id)
+	if err != nil {
+		httputil.SendError(w, 500, err.Error())
+		return
+	}
+	httputil.SendOK(w, alerts)
+}
+
 func (h *ReportHandler) Export(w http.ResponseWriter, r *http.Request) {
 	from, to, limit := parseTimeRange(r)
 	metrics, err := h.db.GetDeviceMetrics(r.Context(), 0, from, to, limit)
@@ -72,4 +89,13 @@ func (h *ReportHandler) Export(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 	cw.Flush()
+}
+
+func (h *ReportHandler) List(w http.ResponseWriter, r *http.Request) {
+	reports := []map[string]string{
+		{"id": "availability", "name": "Availability Report"},
+		{"id": "performance", "name": "Performance Report"},
+		{"id": "sla", "name": "SLA Report"},
+	}
+	httputil.SendOK(w, reports)
 }

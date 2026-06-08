@@ -110,3 +110,30 @@ func scanCaptureSessions(rows pgx.Rows) ([]models.CaptureSession, error) {
 	}
 	return out, rows.Err()
 }
+
+func (p *Postgres) GetCapturePackets(ctx context.Context, sessionID int64, limit, offset int) ([]models.CapturePacket, error) {
+	rows, err := p.pool.Query(ctx, `
+		SELECT id,session_id,timestamp,src_ip,dst_ip,src_port,dst_port,protocol,length,flags,payload
+		FROM capture_packets
+		WHERE session_id=$1
+		ORDER BY timestamp ASC
+		LIMIT $2 OFFSET $3`, sessionID, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []models.CapturePacket
+	for rows.Next() {
+		var cp models.CapturePacket
+		err := rows.Scan(
+			&cp.ID, &cp.SessionID, &cp.Timestamp, &cp.SrcIP, &cp.DstIP,
+			&cp.SrcPort, &cp.DstPort, &cp.Protocol, &cp.Length, &cp.Flags, &cp.Payload,
+		)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, cp)
+	}
+	return out, rows.Err()
+}
