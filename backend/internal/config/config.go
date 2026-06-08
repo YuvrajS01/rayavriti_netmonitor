@@ -18,9 +18,10 @@ type Config struct {
 }
 
 type AppConfig struct {
-	Port    int
-	NodeEnv string
-	Version string
+	Port       int
+	NodeEnv    string
+	Version    string
+	CORSOrigins []string
 }
 
 type DatabaseConfig struct {
@@ -94,9 +95,10 @@ func Load() (*Config, error) {
 
 	cfg := &Config{
 		App: AppConfig{
-			Port:    envInt("PORT", 3000),
-			NodeEnv: envStr("NODE_ENV", "development"),
-			Version: envStr("VERSION", "1.1.0"),
+			Port:       envInt("PORT", 3000),
+			NodeEnv:    envStr("NODE_ENV", "development"),
+			Version:    envStr("VERSION", "1.1.0"),
+			CORSOrigins: envSlice("CORS_ORIGINS"),
 		},
 		Database: DatabaseConfig{
 			DSN:               envStr("DATABASE_DSN", "postgres://postgres:postgres@localhost:5432/netmonitor?sslmode=disable"),
@@ -192,4 +194,19 @@ func envFloat64(key string, def float64) float64 {
 		}
 	}
 	return def
+}
+
+func envSlice(key string) []string {
+	if v := os.Getenv(key); v != "" {
+		parts := strings.Split(v, ",")
+		result := make([]string, 0, len(parts))
+		for _, p := range parts {
+			p = strings.TrimSpace(p)
+			if p != "" {
+				result = append(result, p)
+			}
+		}
+		return result
+	}
+	return nil
 }

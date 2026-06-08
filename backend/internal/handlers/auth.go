@@ -55,6 +55,11 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
+	var body struct{ RefreshToken string `json:"refreshToken"` }
+	_ = httputil.ParseJSON(r, &body)
+	if body.RefreshToken != "" {
+		auth.DeleteSession(body.RefreshToken)
+	}
 	httputil.SendOK(w, map[string]string{"message": "logged out"})
 }
 
@@ -134,6 +139,11 @@ func (h *AuthHandler) Verify2FA(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AuthHandler) V1Logout(w http.ResponseWriter, r *http.Request) {
+	var body struct{ RefreshToken string `json:"refreshToken"` }
+	_ = httputil.ParseJSON(r, &body)
+	if body.RefreshToken != "" {
+		auth.DeleteSession(body.RefreshToken)
+	}
 	httputil.SendOK(w, map[string]bool{"loggedOut": true})
 }
 

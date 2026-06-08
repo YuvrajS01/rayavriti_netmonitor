@@ -2,6 +2,9 @@ package handlers
 
 import (
 	"net/http"
+	"sort"
+	"strconv"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/rayavriti/netmonitor-backend/internal/database"
@@ -19,7 +22,117 @@ func (h *DeviceHandler) List(w http.ResponseWriter, r *http.Request) {
 		httputil.SendError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	httputil.SendOK(w, devices)
+
+	q := r.URL.Query()
+
+	// Filter by status
+	if status := q.Get("status"); status != "" {
+		filtered := make([]models.Device, 0)
+		for _, d := range devices {
+			if d.Status == status {
+				filtered = append(filtered, d)
+			}
+		}
+		devices = filtered
+	}
+
+	// Filter by protocol
+	if protocol := q.Get("protocol"); protocol != "" {
+		filtered := make([]models.Device, 0)
+		for _, d := range devices {
+			if d.Protocol == protocol {
+				filtered = append(filtered, d)
+			}
+		}
+		devices = filtered
+	}
+
+	// Filter by enabled
+	if enabledStr := q.Get("enabled"); enabledStr != "" {
+		enabled := enabledStr == "true"
+		filtered := make([]models.Device, 0)
+		for _, d := range devices {
+			if d.Enabled == enabled {
+				filtered = append(filtered, d)
+			}
+		}
+		devices = filtered
+	}
+
+	// Search by name or IP
+	if search := q.Get("search"); search != "" {
+		search = strings.ToLower(search)
+		filtered := make([]models.Device, 0)
+		for _, d := range devices {
+			if strings.Contains(strings.ToLower(d.Name), search) ||
+				strings.Contains(strings.ToLower(d.IPAddress), search) {
+				filtered = append(filtered, d)
+			}
+		}
+		devices = filtered
+	}
+
+	total := len(devices)
+
+	// Sort
+	sortBy := q.Get("sort")
+	sortDir := q.Get("dir")
+	if sortBy == "" {
+		sortBy = "id"
+	}
+	if sortDir == "" {
+		sortDir = "asc"
+	}
+	sort.Slice(devices, func(i, j int) bool {
+		var less bool
+		switch sortBy {
+		case "name":
+			less = devices[i].Name < devices[j].Name
+		case "status":
+			less = devices[i].Status < devices[j].Status
+		case "protocol":
+			less = devices[i].Protocol < devices[j].Protocol
+		case "ipAddress":
+			less = devices[i].IPAddress < devices[j].IPAddress
+		default:
+			less = devices[i].ID < devices[j].ID
+		}
+		if sortDir == "desc" {
+			return !less
+		}
+		return less
+	})
+
+	// Pagination
+	page, _ := strconv.Atoi(q.Get("page"))
+	pageSize, _ := strconv.Atoi(q.Get("pageSize"))
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 {
+		pageSize = 50
+	}
+	if pageSize > 200 {
+		pageSize = 200
+	}
+	start := (page - 1) * pageSize
+	if start > len(devices) {
+		start = len(devices)
+	}
+	end := start + pageSize
+	if end > len(devices) {
+		end = len(devices)
+	}
+	paged := devices[start:end]
+	if paged == nil {
+		paged = []models.Device{}
+	}
+
+	httputil.SendOKWithMeta(w, paged, &httputil.ResponseMeta{
+		Page:     page,
+		PageSize: pageSize,
+		Total:    total,
+	})
 }
 
 func (h *DeviceHandler) Get(w http.ResponseWriter, r *http.Request) {

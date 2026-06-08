@@ -31,8 +31,19 @@ func (s *Server) Start() error {
 	r := chi.NewRouter()
 
 	// CORS (before logging to avoid logging preflight OPTIONS requests)
+	allowAll := s.cfg.App.NodeEnv != "production" || len(s.cfg.App.CORSOrigins) == 0
 	corsHandler := cors.New(cors.Options{
-		AllowOriginFunc:  func(origin string) bool { return true },
+		AllowOriginFunc: func(origin string) bool {
+			if allowAll {
+				return true
+			}
+			for _, o := range s.cfg.App.CORSOrigins {
+				if o == origin {
+					return true
+				}
+			}
+			return false
+		},
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"*"},
 		AllowCredentials: true,
@@ -75,6 +86,8 @@ func (s *Server) Start() error {
 	dashboard := handlers.NewDashboardHandler(s.db)
 	simulator := handlers.NewSimulatorHandler(s.db)
 	sensor := handlers.NewSensorHandler(s.db)
+	alertRule := handlers.NewAlertRuleHandler(s.db)
+	notifChannel := handlers.NewNotificationChannelHandler(s.db)
 
 	// Public routes
 	r.Get("/health", health.Health)
@@ -129,12 +142,25 @@ func (s *Server) Start() error {
 		r.Delete("/api/alerts/{id}", alert.Delete)
 		r.Get("/api/alerts/counts", alert.Counts)
 
+		// V1 Alerts
+		r.Get("/api/v1/alerts", alert.List)
+		r.Post("/api/v1/alerts", alert.Create)
+		r.Get("/api/v1/alerts/{id}", alert.Get)
+		r.Put("/api/v1/alerts/{id}", alert.Update)
+		r.Delete("/api/v1/alerts/{id}", alert.Delete)
+		r.Post("/api/v1/alerts/{id}/acknowledge", alert.Acknowledge)
+		r.Post("/api/v1/alerts/{id}/resolve", alert.Resolve)
+		r.Get("/api/v1/alerts/{id}/history", alert.History)
+
 		// Reports
 		r.Get("/api/reports/summary", report.Summary)
 		r.Get("/api/reports/timeseries", report.Timeseries)
 		r.Get("/api/reports/devices", report.Devices)
 		r.Get("/api/reports/alerts", report.Alerts)
 		r.Get("/api/reports/export", report.Export)
+
+		// V1 Reports
+		r.Get("/api/v1/reports", report.List)
 
 		// Insights
 		r.Get("/api/insights", insight.Current)
@@ -161,6 +187,9 @@ func (s *Server) Start() error {
 		// Sensors
 		r.Get("/api/v1/sensors", sensor.List)
 		r.Get("/api/v1/sensors/{id}", sensor.Get)
+		r.Post("/api/v1/sensors", sensor.Create)
+		r.Put("/api/v1/sensors/{id}", sensor.Update)
+		r.Delete("/api/v1/sensors/{id}", sensor.Delete)
 
 		// Dashboards
 		r.Get("/api/v1/dashboards", dashboard.List)
@@ -168,6 +197,23 @@ func (s *Server) Start() error {
 		r.Get("/api/v1/dashboards/{id}", dashboard.Get)
 		r.Put("/api/v1/dashboards/{id}", dashboard.Save)
 		r.Delete("/api/v1/dashboards/{id}", dashboard.Delete)
+
+		// Alert Rules
+		r.Get("/api/v1/alert-rules", alertRule.List)
+		r.Post("/api/v1/alert-rules", alertRule.Create)
+		r.Get("/api/v1/alert-rules/{id}", alertRule.Get)
+		r.Put("/api/v1/alert-rules/{id}", alertRule.Update)
+		r.Delete("/api/v1/alert-rules/{id}", alertRule.Delete)
+		r.Post("/api/v1/alert-rules/{id}/toggle", alertRule.Toggle)
+		r.Post("/api/v1/alert-rules/{id}/test", alertRule.Test)
+
+		// Notification Channels
+		r.Get("/api/v1/notification-channels", notifChannel.List)
+		r.Post("/api/v1/notification-channels", notifChannel.Create)
+		r.Get("/api/v1/notification-channels/{id}", notifChannel.Get)
+		r.Put("/api/v1/notification-channels/{id}", notifChannel.Update)
+		r.Delete("/api/v1/notification-channels/{id}", notifChannel.Delete)
+		r.Post("/api/v1/notification-channels/{id}/test", notifChannel.Test)
 
 		// API Keys
 		r.Get("/api/v1/auth/apikeys", authH.ListAPIKeys)

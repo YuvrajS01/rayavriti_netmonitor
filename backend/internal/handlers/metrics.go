@@ -8,6 +8,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/rayavriti/netmonitor-backend/internal/database"
 	"github.com/rayavriti/netmonitor-backend/internal/httputil"
+	"github.com/rayavriti/netmonitor-backend/internal/models"
 )
 
 type MetricHandler struct{ db database.Database }
@@ -42,9 +43,44 @@ func (h *MetricHandler) Query(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	deviceIDStr := q.Get("deviceId")
 	from, to, limit := parseTimeRange(r)
+
+	// Build MetricQuery for aggregation/bucketing support
+	mq := models.MetricQuery{
+		From:        from,
+		To:          to,
+		Status:      q.Get("status"),
+		Aggregation: q.Get("aggregation"), // avg, max, min, p95
+		BucketMin:   0,
+	}
+	if bucketStr := q.Get("bucketMin"); bucketStr != "" {
+		if b, err := strconv.Atoi(bucketStr); err == nil {
+			mq.BucketMin = b
+		}
+	}
+
 	if deviceIDStr != "" {
 		id, _ := strconv.ParseInt(deviceIDStr, 10, 64)
-		metrics, err := h.db.GetDeviceMetrics(r.Context(), id, from, to, limit)
+		mq.DeviceID = &id
+	}
+
+	if limit > 0 {
+		mq.Limit = limit
+	}
+
+	// Use QueryMetrics if aggregation or bucketing is requested
+	if mq.Aggregation != "" || mq.BucketMin > 0 {
+		metrics, err := h.db.QueryMetrics(r.Context(), mq)
+		if err != nil {
+			httputil.SendError(w, 500, err.Error())
+			return
+		}
+		httputil.SendOK(w, metrics)
+		return
+	}
+
+	// Fallback to original behavior
+	if mq.DeviceID != nil {
+		metrics, err := h.db.GetDeviceMetrics(r.Context(), *mq.DeviceID, from, to, limit)
 		if err != nil {
 			httputil.SendError(w, 500, err.Error())
 			return

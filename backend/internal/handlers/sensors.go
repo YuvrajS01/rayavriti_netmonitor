@@ -16,46 +16,104 @@ func NewSensorHandler(db database.Database) *SensorHandler { return &SensorHandl
 
 // List returns all sensors for a device (or all if no deviceId query param).
 func (h *SensorHandler) List(w http.ResponseWriter, r *http.Request) {
-	devices, err := h.db.GetDevices(r.Context())
+	var deviceID *int64
+	if s := r.URL.Query().Get("deviceId"); s != "" {
+		id, err := parseID(s)
+		if err == nil {
+			deviceID = &id
+		}
+	}
+	sensors, err := h.db.GetSensors(r.Context(), deviceID)
 	if err != nil {
 		httputil.SendError(w, 500, err.Error())
 		return
 	}
-	// Derive sensors from device list — one virtual sensor per monitoring protocol.
-	var sensors []map[string]any
-	for _, d := range devices {
-		sensors = append(sensors, deviceToSensor(d))
-	}
 	if sensors == nil {
-		sensors = []map[string]any{}
+		sensors = []models.Sensor{}
 	}
 	httputil.SendOK(w, sensors)
 }
 
-// Get returns a single sensor by device ID.
+// Get returns a single sensor by ID.
 func (h *SensorHandler) Get(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(chi.URLParam(r, "id"))
 	if err != nil {
 		httputil.SendError(w, 400, "invalid id")
 		return
 	}
-	d, err := h.db.GetDevice(r.Context(), id)
+	s, err := h.db.GetSensor(r.Context(), id)
 	if err != nil {
 		httputil.SendError(w, 404, "sensor not found")
 		return
 	}
-	httputil.SendOK(w, deviceToSensor(*d))
+	httputil.SendOK(w, s)
 }
 
-func deviceToSensor(d models.Device) map[string]any {
-	return map[string]any{
-		"id":         d.ID,
-		"deviceId":   d.ID,
-		"name":       d.Name + " — " + d.Protocol,
-		"protocol":   d.Protocol,
-		"enabled":    d.Enabled,
-		"status":     d.Status,
-		"interval":   d.Interval,
-		"ipAddress":  d.IPAddress,
+// Create creates a new sensor.
+func (h *SensorHandler) Create(w http.ResponseWriter, r *http.Request) {
+	var s models.Sensor
+	if err := httputil.ParseJSON(r, &s); err != nil {
+		httputil.SendError(w, 400, "invalid body")
+		return
 	}
+	if s.Name == "" {
+		httputil.SendError(w, 400, "name is required")
+		return
+	}
+	if s.DeviceID == 0 {
+		httputil.SendError(w, 400, "deviceId is required")
+		return
+	}
+	if s.Type == "" {
+		httputil.SendError(w, 400, "type is required")
+		return
+	}
+	if s.Interval == 0 {
+		s.Interval = 60
+	}
+	s.Enabled = true
+	created, err := h.db.CreateSensor(r.Context(), &s)
+	if err != nil {
+		httputil.SendError(w, 500, err.Error())
+		return
+	}
+	httputil.SendCreated(w, created)
+}
+
+// Update updates an existing sensor.
+func (h *SensorHandler) Update(w http.ResponseWriter, r *http.Request) {
+	id, err := parseID(chi.URLParam(r, "id"))
+	if err != nil {
+		httputil.SendError(w, 400, "invalid id")
+		return
+	}
+	if _, err := h.db.GetSensor(r.Context(), id); err != nil {
+		httputil.SendError(w, 404, "sensor not found")
+		return
+	}
+	var s models.Sensor
+	if err := httputil.ParseJSON(r, &s); err != nil {
+		httputil.SendError(w, 400, "invalid body")
+		return
+	}
+	updated, err := h.db.UpdateSensor(r.Context(), id, &s)
+	if err != nil {
+		httputil.SendError(w, 500, err.Error())
+		return
+	}
+	httputil.SendOK(w, updated)
+}
+
+// Delete deletes a sensor.
+func (h *SensorHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	id, err := parseID(chi.URLParam(r, "id"))
+	if err != nil {
+		httputil.SendError(w, 400, "invalid id")
+		return
+	}
+	if err := h.db.DeleteSensor(r.Context(), id); err != nil {
+		httputil.SendError(w, 500, err.Error())
+		return
+	}
+	httputil.SendOK(w, map[string]bool{"deleted": true})
 }
