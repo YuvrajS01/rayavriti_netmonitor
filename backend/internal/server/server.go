@@ -92,6 +92,7 @@ func (s *Server) Start() error {
 	// Public routes
 	r.Get("/health", health.Health)
 	r.Get("/ws", s.hub.ServeWS)
+	r.Get("/api/v1/ws", s.hub.ServeWS)
 
 	// Auth routes
 	r.Post("/api/auth/login", authH.Login)

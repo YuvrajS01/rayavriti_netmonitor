@@ -1,12 +1,23 @@
 package websocket
 
 import (
+	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
+	"strings"
 	"sync"
+	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/rayavriti/netmonitor-backend/internal/auth"
+)
+
+const (
+	writeWait      = 10 * time.Second
+	pongWait       = 60 * time.Second
+	pingPeriod     = (pongWait * 9) / 10
+	maxMessageSize = 4096
 )
 
 type EventType string
@@ -15,19 +26,32 @@ const (
 	EventMetricUpdate   EventType = "metric:update"
 	EventAlertTriggered EventType = "alert:triggered"
 	EventAlertUpdated   EventType = "alert:updated"
+	EventAlertResolved  EventType = "alert:resolved"
 	EventDeviceStatus   EventType = "device:status"
 	EventFlowUpdate     EventType = "flow:update"
-	EventCaptureStats   EventType = "capture:stats"
+	EventCapturePacket  EventType = "capture:packet"
+	EventCaptureStatus  EventType = "capture:status"
+	EventPortsScanned   EventType = "ports:scanned"
+	EventBootstrap      EventType = "bootstrap"
 )
 
 type Message struct {
-	Type EventType `json:"type"`
-	Data any       `json:"data"`
+	Type      EventType `json:"type"`
+	RequestID string    `json:"request_id,omitempty"`
+	Data      any       `json:"data"`
+}
+
+type ClientInfo struct {
+	UserID   int64
+	Username string
+	Role     string
 }
 
 type client struct {
-	conn *websocket.Conn
-	send chan []byte
+	conn   *websocket.Conn
+	send   chan []byte
+	info   ClientInfo
+	closed chan struct{}
 }
 
 type Hub struct {
@@ -36,13 +60,18 @@ type Hub struct {
 	broadcast chan Message
 	upgrader  websocket.Upgrader
 	jwtSecret string
+	bootstrap BootstrapFunc
 }
 
-func NewHub(jwtSecret string) *Hub {
+// BootstrapFunc generates the initial bootstrap payload for a newly connected client.
+type BootstrapFunc func(ctx context.Context, userID int64, username, role string) (map[string]any, error)
+
+func NewHub(jwtSecret string, bootstrap BootstrapFunc) *Hub {
 	return &Hub{
 		clients:   make(map[*client]struct{}),
 		broadcast: make(chan Message, 256),
 		jwtSecret: jwtSecret,
+		bootstrap: bootstrap,
 		upgrader: websocket.Upgrader{
 			CheckOrigin: func(r *http.Request) bool { return true },
 		},
@@ -56,14 +85,24 @@ func (h *Hub) Run() {
 			continue
 		}
 		h.mu.RLock()
+		count := 0
 		for c := range h.clients {
 			select {
 			case c.send <- b:
+				count++
 			default:
-				// slow client: drop
+				// slow client: drop message for this client
 			}
 		}
 		h.mu.RUnlock()
+
+		if count > 0 {
+			slog.Debug("WebSocket broadcast",
+				"event", string(msg.Type),
+				"payload_bytes", len(b),
+				"recipients", count,
+			)
+		}
 	}
 }
 
@@ -71,65 +110,184 @@ func (h *Hub) Broadcast(msg Message) {
 	select {
 	case h.broadcast <- msg:
 	default:
+		slog.Warn("WebSocket broadcast channel full, dropping message", "event", string(msg.Type))
 	}
 }
 
-// Stop closes the broadcast channel, ending the Run goroutine.
 func (h *Hub) Stop() {
 	close(h.broadcast)
+	h.mu.Lock()
+	for c := range h.clients {
+		c.conn.Close()
+	}
+	h.mu.Unlock()
+	slog.Info("WebSocket hub stopped")
 }
 
-// ConnectionCount returns the number of active WebSocket connections.
 func (h *Hub) ConnectionCount() int {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 	return len(h.clients)
 }
 
+// extractToken tries to extract a JWT from the request using multiple methods:
+// 1. Authorization: Bearer <token> header
+// 2. Sec-WebSocket-Protocol: <token>
+// 3. ?token=<token> query parameter
+func (h *Hub) extractToken(r *http.Request) string {
+	// Method 1: Authorization header
+	if authHeader := r.Header.Get("Authorization"); authHeader != "" {
+		if strings.HasPrefix(authHeader, "Bearer ") {
+			return strings.TrimPrefix(authHeader, "Bearer ")
+		}
+	}
+
+	// Method 2: Sec-WebSocket-Protocol header
+	if proto := r.Header.Get("Sec-WebSocket-Protocol"); proto != "" {
+		// The protocol header may contain multiple values comma-separated
+		// The first one is typically the token
+		parts := strings.SplitN(proto, ",", 2)
+		token := strings.TrimSpace(parts[0])
+		if token != "" {
+			return token
+		}
+	}
+
+	// Method 3: query parameter
+	return r.URL.Query().Get("token")
+}
+
 func (h *Hub) ServeWS(w http.ResponseWriter, r *http.Request) {
-	// Authenticate via ?token= query param
-	token := r.URL.Query().Get("token")
+	token := h.extractToken(r)
 	if token == "" {
-		http.Error(w, "missing token", http.StatusUnauthorized)
+		http.Error(w, "missing authentication token", http.StatusUnauthorized)
 		return
 	}
-	if _, err := auth.ValidateToken(token, h.jwtSecret); err != nil {
+
+	claims, err := auth.ValidateToken(token, h.jwtSecret)
+	if err != nil {
 		http.Error(w, "invalid token", http.StatusUnauthorized)
 		return
 	}
 
 	conn, err := h.upgrader.Upgrade(w, r, nil)
 	if err != nil {
+		slog.Warn("WebSocket upgrade failed", "error", err)
 		return
 	}
-	c := &client{conn: conn, send: make(chan []byte, 64)}
+
+	c := &client{
+		conn:   conn,
+		send:   make(chan []byte, 64),
+		info:   ClientInfo{UserID: claims.UserID, Username: claims.Username, Role: claims.Role},
+		closed: make(chan struct{}),
+	}
+
 	h.mu.Lock()
 	h.clients[c] = struct{}{}
 	h.mu.Unlock()
 
-	// writer goroutine
+	totalConns := h.ConnectionCount()
+	slog.Info("WebSocket client connected",
+		"user_id", c.info.UserID,
+		"username", c.info.Username,
+		"remote_addr", r.RemoteAddr,
+		"total_connections", totalConns,
+	)
+
+	// Send bootstrap data
+	if h.bootstrap != nil {
+		go func() {
+			data, err := h.bootstrap(r.Context(), c.info.UserID, c.info.Username, c.info.Role)
+			if err != nil {
+				slog.Error("Failed to generate bootstrap data", "error", err, "user_id", c.info.UserID)
+				return
+			}
+			msg := Message{Type: EventBootstrap, Data: data}
+			b, err := json.Marshal(msg)
+			if err != nil {
+				return
+			}
+			select {
+			case c.send <- b:
+			default:
+			}
+		}()
+	}
+
+	// Writer goroutine with ping/pong
 	go func() {
+		ticker := time.NewTicker(pingPeriod)
 		defer func() {
+			ticker.Stop()
 			conn.Close()
 			h.mu.Lock()
 			delete(h.clients, c)
 			h.mu.Unlock()
+			close(c.closed)
+			slog.Info("WebSocket client disconnected",
+				"user_id", c.info.UserID,
+				"username", c.info.Username,
+				"total_connections", h.ConnectionCount(),
+			)
 		}()
-		for b := range c.send {
-			if err := conn.WriteMessage(websocket.TextMessage, b); err != nil {
-				return
+
+		conn.SetWriteDeadline(time.Now().Add(writeWait))
+		for {
+			select {
+			case msg, ok := <-c.send:
+				conn.SetWriteDeadline(time.Now().Add(writeWait))
+				if !ok {
+					conn.WriteMessage(websocket.CloseMessage, nil)
+					return
+				}
+				if err := conn.WriteMessage(websocket.TextMessage, msg); err != nil {
+					return
+				}
+			case <-ticker.C:
+				conn.SetWriteDeadline(time.Now().Add(writeWait))
+				if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+					return
+				}
 			}
 		}
 	}()
 
-	// reader (keep-alive, discard incoming)
+	// Reader goroutine (handles pong, reads for keep-alive)
+	conn.SetReadLimit(maxMessageSize)
+	conn.SetReadDeadline(time.Now().Add(pongWait))
+	conn.SetPongHandler(func(string) error {
+		conn.SetReadDeadline(time.Now().Add(pongWait))
+		return nil
+	})
 	for {
-		if _, _, err := conn.ReadMessage(); err != nil {
+		_, _, err := conn.ReadMessage()
+		if err != nil {
 			break
 		}
 	}
+
 	h.mu.Lock()
 	delete(h.clients, c)
 	h.mu.Unlock()
 	close(c.send)
+}
+
+// SendToClient sends a message to a specific client (by user ID).
+// Useful for targeted notifications.
+func (h *Hub) SendToClient(userID int64, msg Message) {
+	b, err := json.Marshal(msg)
+	if err != nil {
+		return
+	}
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	for c := range h.clients {
+		if c.info.UserID == userID {
+			select {
+			case c.send <- b:
+			default:
+			}
+		}
+	}
 }

@@ -18,8 +18,7 @@
     "react-is": "^19.2.5",
     "react-redux": "^9.2.0",
     "react-router-dom": "^7.14.2",
-    "recharts": "^3.8.1",
-    "socket.io-client": "^4.8.3"
+    "recharts": "^3.8.1"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

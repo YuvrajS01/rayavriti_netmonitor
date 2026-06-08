@@ -68,8 +68,32 @@ func run() error {
 	}
 	logger.Info("Defaults seeded", "admin_user", cfg.Auth.AdminUsername)
 
-	// 6. Initialize WebSocket hub
-	hub := websocket.NewHub(cfg.Auth.JWTSecret)
+	// 6. Initialize WebSocket hub with bootstrap function
+	bootstrapFn := func(ctx context.Context, userID int64, username, role string) (map[string]any, error) {
+		stats, err := db.GetDashboardStats(ctx)
+		if err != nil {
+			stats = map[string]any{}
+		}
+		latestMetrics, err := db.GetLatestMetrics(ctx)
+		if err != nil {
+			latestMetrics = nil
+		}
+		alerts, _, err := db.GetAlerts(ctx, "active", 50, 0)
+		if err != nil {
+			alerts = nil
+		}
+		return map[string]any{
+			"stats":         stats,
+			"latestMetrics": latestMetrics,
+			"alerts":        alerts,
+			"user": map[string]any{
+				"id":       userID,
+				"username": username,
+				"role":     role,
+			},
+		}, nil
+	}
+	hub := websocket.NewHub(cfg.Auth.JWTSecret, bootstrapFn)
 	go hub.Run()
 	logger.Info("WebSocket hub started")
 
