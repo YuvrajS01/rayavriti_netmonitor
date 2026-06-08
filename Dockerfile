@@ -17,8 +17,8 @@ RUN apk add --no-cache gcc musl-dev libpcap-dev make git bash
 
 WORKDIR /app
 
-# Install air for hot reload
-RUN go install github.com/air-verse/air@latest
+# Install air for hot reload (pre-built binary, no Go version constraint)
+RUN curl -sSfL https://raw.githubusercontent.com/air-verse/air/master/install.sh | sh -s -- -b /usr/local/bin
 
 COPY backend/go.mod backend/go.sum ./backend/
 RUN cd backend && go mod download
