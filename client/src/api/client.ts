@@ -4,7 +4,8 @@ import type {
   DashboardStats, ReportSummary, ReportTimeseriesPoint, DeviceBreakdown, ReportAlert,
   FlowRecord, TopTalker, ProtocolBreakdown, FlowStats, FlowTimeseriesPoint,
   CaptureSession, CapturedPacket, NetworkInterface,
-  PortScanResult, PortScanResponse, InsightsResponse, HealthHistoryResponse
+  PortScanResult, PortScanResponse, InsightsResponse, HealthHistoryResponse,
+  SystemInfo
 } from './types';
 export type { Device, Metric, Alert, AlertCounts, DashboardStats, ReportSummary, ReportTimeseriesPoint, DeviceBreakdown, ReportAlert, PortScanResult, PortScanResponse, InsightsResponse, HealthHistoryResponse };
 
@@ -333,5 +334,15 @@ export const getReportAlerts = (query = '') =>
 
 export const downloadMetricsCsv = (query = '') =>
   api.get(`/reports/export${query}`, { responseType: 'blob' }).then((r) => r.data);
+
+// ── System Info ─────────────────────────────────────────────
+
+export const getSystemInfo = () =>
+  v1.get('/system/info').then((r) => {
+    const raw = r.data;
+    const body = raw as Record<string, unknown>;
+    const data = body?.data !== undefined ? body.data : body;
+    return { data: data as SystemInfo, success: true };
+  });
 
 export default api;

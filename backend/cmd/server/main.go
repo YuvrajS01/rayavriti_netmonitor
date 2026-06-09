@@ -101,10 +101,11 @@ func run() error {
 	registry := collectors.NewRegistry()
 	registry.Register(collectors.PingCollector{})
 	registry.Register(collectors.HTTPCollector{})
+	registry.Register(collectors.HTTPSCollector{})
 	registry.Register(collectors.PortCollector{})
 	registry.Register(collectors.SNMPCollector{})
 	registry.Register(collectors.SystemCollector{})
-	logger.Info("Collectors registered", "count", 5)
+	logger.Info("Collectors registered", "count", 6)
 
 	// 8. Initialize alert engine (used by scheduler for rule evaluation)
 	notifier := engine.NewNotifier()

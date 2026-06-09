@@ -82,12 +82,13 @@ func (s *Server) Start() error {
 	report := handlers.NewReportHandler(s.db)
 	insight := handlers.NewInsightHandler(s.db)
 	capture := handlers.NewCaptureHandler(s.db)
-	ports := handlers.NewPortsHandler()
+	ports := handlers.NewPortsHandler(s.db)
 	dashboard := handlers.NewDashboardHandler(s.db)
 	simulator := handlers.NewSimulatorHandler(s.db)
 	sensor := handlers.NewSensorHandler(s.db)
 	alertRule := handlers.NewAlertRuleHandler(s.db)
 	notifChannel := handlers.NewNotificationChannelHandler(s.db)
+	system := handlers.NewSystemHandler()
 
 	// Public routes
 	r.Get("/health", health.Health)
@@ -221,6 +222,9 @@ func (s *Server) Start() error {
 		r.Get("/api/v1/auth/apikeys", authH.ListAPIKeys)
 		r.Post("/api/v1/auth/apikeys", authH.CreateAPIKey)
 		r.Delete("/api/v1/auth/apikeys/{id}", authH.DeleteAPIKey)
+
+		// System Info
+		r.Get("/api/v1/system/info", system.Info)
 
 		// Simulator
 		r.Post("/api/simulator/metrics", simulator.Metrics)

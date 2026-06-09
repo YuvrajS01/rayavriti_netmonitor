@@ -14,7 +14,7 @@ type PortCollector struct{}
 func (PortCollector) Name() string { return "port" }
 
 func (PortCollector) Collect(ctx context.Context, device *models.Device) (*Result, error) {
-	port := device.SNMPPort
+	port := device.Port
 	if port == 0 {
 		port = 80
 	}

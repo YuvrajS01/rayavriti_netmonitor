@@ -186,7 +186,7 @@ export default function PacketCapture() {
             >
               {interfaces.map((iface) => (
                 <option key={iface.name} value={iface.name}>
-                  {iface.name} {iface.flags.includes('up') ? '●' : '○'}
+                  {iface.name} {iface.flags?.includes('up') ? '●' : '○'}
                 </option>
               ))}
             </select>

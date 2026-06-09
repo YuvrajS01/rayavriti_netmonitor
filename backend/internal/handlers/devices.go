@@ -1,15 +1,18 @@
 package handlers
 
 import (
+	"log/slog"
 	"net/http"
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/rayavriti/netmonitor-backend/internal/database"
 	"github.com/rayavriti/netmonitor-backend/internal/models"
 	"github.com/rayavriti/netmonitor-backend/internal/httputil"
+	"github.com/rayavriti/netmonitor-backend/internal/scanner"
 )
 
 type DeviceHandler struct{ db database.Database }
@@ -234,20 +237,61 @@ func (h *DeviceHandler) ScanPorts(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var body struct {
-		Ports      []int  `json:"ports"`
-		TimeoutMs  int    `json:"timeoutMs"`
+		Ports       []int `json:"ports"`
+		TimeoutMs   int   `json:"timeoutMs"`
 		Concurrency int   `json:"concurrency"`
 	}
 	_ = httputil.ParseJSON(r, &body)
 
-	// For now, return a placeholder - actual port scanning will be implemented in Phase 5
-	result := map[string]any{
+	portsToScan := body.Ports
+	if len(portsToScan) == 0 {
+		portsToScan = scanner.CommonPorts
+	}
+	timeout := 2 * time.Second
+	if body.TimeoutMs > 0 {
+		timeout = time.Duration(body.TimeoutMs) * time.Millisecond
+	}
+	concurrency := 100
+	if body.Concurrency > 0 {
+		concurrency = body.Concurrency
+	}
+
+	results := scanner.ScanPorts(r.Context(), device.IPAddress, portsToScan, scanner.ScanOptions{
+		Timeout:     timeout,
+		Concurrency: concurrency,
+	})
+
+	// Convert to models and persist
+	var modelResults []models.PortScanResult
+	var openPorts []int
+	for _, r := range results {
+		state := "closed"
+		if r.Open {
+			state = "open"
+			openPorts = append(openPorts, r.Port)
+		}
+		modelResults = append(modelResults, models.PortScanResult{
+			DeviceID:     device.ID,
+			Port:         r.Port,
+			Protocol:     "tcp",
+			State:        state,
+			ResponseTime: nil,
+			ScannedAt:    time.Now(),
+		})
+	}
+
+	if err := h.db.UpsertPortScanResults(r.Context(), device.ID, modelResults); err != nil {
+		slog.Error("Failed to persist port scan results", "device_id", device.ID, "error", err)
+	}
+
+	httputil.SendOK(w, map[string]any{
 		"deviceId":   device.ID,
 		"deviceName": device.Name,
-		"openPorts":  []int{},
+		"host":       device.IPAddress,
+		"scannedPorts": len(portsToScan),
+		"openPorts":  len(openPorts),
+		"results":    modelResults,
 		"changes":    []string{},
-		"alerts":     []string{},
-		"scannedAt":  "2026-06-08T00:00:00Z",
-	}
-	httputil.SendOK(w, result)
+		"scannedAt":  time.Now().Format(time.RFC3339),
+	})
 }

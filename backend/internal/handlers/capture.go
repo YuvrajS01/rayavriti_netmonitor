@@ -1,8 +1,10 @@
 package handlers
 
 import (
+	"net"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync/atomic"
 
 	"github.com/go-chi/chi/v5"
@@ -84,12 +86,59 @@ func (h *CaptureHandler) Stats(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *CaptureHandler) Interfaces(w http.ResponseWriter, r *http.Request) {
-	interfaces := []map[string]string{
-		{"name": "eth0", "description": "Ethernet interface"},
-		{"name": "lo", "description": "Loopback interface"},
-		{"name": "wlan0", "description": "Wireless interface"},
+	netInterfaces, err := net.Interfaces()
+	if err != nil {
+		httputil.SendError(w, http.StatusInternalServerError, "failed to list interfaces")
+		return
 	}
-	httputil.SendOK(w, interfaces)
+
+	type ifaceInfo struct {
+		Name        string   `json:"name"`
+		Description string   `json:"description"`
+		Addresses   []string `json:"addresses"`
+		Flags       []string `json:"flags"`
+	}
+
+	var result []ifaceInfo
+	for _, iface := range netInterfaces {
+		info := ifaceInfo{
+			Name:        iface.Name,
+			Description: iface.HardwareAddr.String(),
+			Flags:       parseFlags(iface.Flags.String()),
+		}
+		addrs, err := iface.Addrs()
+		if err == nil {
+			for _, addr := range addrs {
+				info.Addresses = append(info.Addresses, addr.String())
+			}
+		}
+		if info.Addresses == nil {
+			info.Addresses = []string{}
+		}
+		if info.Flags == nil {
+			info.Flags = []string{}
+		}
+		result = append(result, info)
+	}
+	if result == nil {
+		result = []ifaceInfo{}
+	}
+	httputil.SendOK(w, result)
+}
+
+func parseFlags(flags string) []string {
+	if flags == "" {
+		return []string{}
+	}
+	parts := strings.Split(flags, ",")
+	var out []string
+	for _, p := range parts {
+		p = strings.TrimSpace(strings.ToLower(p))
+		if p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 func (h *CaptureHandler) GetSession(w http.ResponseWriter, r *http.Request) {

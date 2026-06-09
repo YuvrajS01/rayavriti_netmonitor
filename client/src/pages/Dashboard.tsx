@@ -3,9 +3,9 @@ import {
   LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip, Legend,
   PieChart, Pie, Cell,
 } from 'recharts';
-import { getStats, getLatestMetrics, getAlerts, getInsights } from '../api/client';
+import { getStats, getLatestMetrics, getAlerts, getInsights, getSystemInfo } from '../api/client';
 import { useSocket } from '../hooks/useSocket';
-import type { DashboardStats, Metric, Alert, InsightsResponse } from '../api/types';
+import type { DashboardStats, Metric, Alert, InsightsResponse, SystemInfo } from '../api/types';
 import ExpandedChartsModal from '../components/ExpandedChartsModal';
 import ResourceLoadModal from '../components/ResourceLoadModal';
 
@@ -131,7 +131,7 @@ export default function Dashboard() {
   const [historyMetrics, setHistoryMetrics] = useState<Metric[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [lastUpdated, setLastUpdated] = useState('Waiting for updates...');
-  const [systemInfo, setSystemInfo] = useState<{ cpu: number; memory: number; errorRate: number }>({ cpu: 0, memory: 0, errorRate: 0 });
+  const [systemInfo, setSystemInfo] = useState<{ cpu: number; memory: number; errorRate: number; raw?: SystemInfo }>({ cpu: 0, memory: 0, errorRate: 0 });
   const [insights, setInsights] = useState<InsightsResponse | null>(null);
   const [showExpandedCharts, setShowExpandedCharts] = useState(false);
   const [showResourceModal, setShowResourceModal] = useState(false);
@@ -156,6 +156,11 @@ export default function Dashboard() {
       setAlerts(alertsRes.data || []);
       setInsights(insightsRes.data);
       computeSystemInfo(metricsData);
+      getSystemInfo().then((res) => {
+        if (res.data) {
+          setSystemInfo((prev) => ({ ...prev, raw: res.data }));
+        }
+      }).catch(() => {});
     } catch { /* handled by interceptor */ }
   }, []);
 
@@ -181,11 +186,38 @@ export default function Dashboard() {
       const p = payload as { stats: DashboardStats; latestMetrics: Metric[]; alerts: Alert[] };
       if (p.stats) setStats(p.stats);
       if (p.latestMetrics) {
-        setMetrics(p.latestMetrics);
-        setHistoryMetrics(p.latestMetrics);
-        computeSystemInfo(p.latestMetrics);
+        // Merge: update latest per device, don't replace history
+        setMetrics((prev) => {
+          const merged = [...prev];
+          for (const bm of p.latestMetrics) {
+            const idx = merged.findIndex((m) => m.deviceId === bm.deviceId);
+            if (idx === -1) {
+              merged.push(bm);
+            } else if (new Date(bm.timestamp) > new Date(merged[idx].timestamp)) {
+              merged[idx] = bm;
+            }
+          }
+          computeSystemInfo(merged);
+          return merged;
+        });
+        setHistoryMetrics((prev) => {
+          const existing = new Set(prev.map((m) => `${m.deviceId}-${m.timestamp}`));
+          const merged = [...prev];
+          for (const bm of p.latestMetrics) {
+            if (!existing.has(`${bm.deviceId}-${bm.timestamp}`)) {
+              merged.push(bm);
+            }
+          }
+          if (merged.length > 500) merged.splice(0, merged.length - 500);
+          return merged;
+        });
       }
       if (p.alerts) setAlerts(p.alerts);
+      getSystemInfo().then((res) => {
+        if (res.data) {
+          setSystemInfo((prev) => ({ ...prev, raw: res.data }));
+        }
+      }).catch(() => {});
     },
     onMetricUpdate: (metric) => {
       setMetrics((prev) => {
