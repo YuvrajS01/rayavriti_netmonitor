@@ -153,7 +153,7 @@ export default function Alerts() {
 
 function AlertItem({ alert, onAck, onResolve }: { alert: Alert; onAck: (id: number) => void; onResolve: (id: number) => void }) {
   const sc = severityColors(alert.severity);
-  const deviceName = alert.device_name || `Device ${alert.device_id}`;
+  const deviceName = alert.deviceName || `Device ${alert.deviceId}`;
 
   return (
     <div className={`group bg-surface-container-low rounded-xl border-l-[6px] ${sc.border} p-5 flex flex-col md:flex-row md:items-center justify-between gap-6 transition-all hover:bg-surface-container-high`}>
@@ -172,7 +172,7 @@ function AlertItem({ alert, onAck, onResolve }: { alert: Alert; onAck: (id: numb
           </div>
           <p className="text-sm text-on-surface-variant">{deviceName}</p>
           <span className="text-[10px] font-mono text-on-surface-variant uppercase mt-2 block">
-            {new Date(alert.created_at).toLocaleString()} • {alert.status}
+            {new Date(alert.createdAt).toLocaleString()} • {alert.status}
           </span>
         </div>
       </div>

@@ -1,4 +1,4 @@
-import type { ReportSummary, TimeseriesPoint } from '../../api/types';
+import type { ReportSummary, ReportTimeseriesPoint as TimeseriesPoint } from '../../api/types';
 import {
   ComposedChart, Area, Line, XAxis, YAxis, ResponsiveContainer, Tooltip,
   CartesianGrid, Bar, BarChart, Legend,
@@ -26,9 +26,9 @@ function formatLabel(ts: string, idx: number): string {
 
 export default function SummaryTab({ summary, series }: { summary: ReportSummary | null; series: TimeseriesPoint[] }) {
   const chartSeries = series.map((p, i) => ({
-    label: formatLabel(p.timestamp ?? (p as any).bucket ?? String(i), i),
+    label: formatLabel(p.bucketTime ?? String(i), i),
     availability: Number(p.availabilityPercent ?? 0),
-    response: Number(p.avgResponseMs ?? 0),
+    response: Number(p.avgResponse ?? 0),
     samples: Number(p.sampleCount ?? 0),
     down: Number(p.downCount ?? 0),
   }));

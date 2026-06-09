@@ -134,7 +134,7 @@ export default function PacketCapture() {
   useSocket({
     onPacketCaptured: (data) => {
       const pkt = data as unknown as CapturedPacket;
-      if (activeSession && pkt.session_id === activeSession.id) {
+      if (activeSession && pkt.sessionId === activeSession.id) {
         setPackets((prev) => {
           const next = [...prev, pkt];
           if (next.length > 1000) next.shift();
@@ -296,10 +296,10 @@ export default function PacketCapture() {
                 ) : (
                   packets.map((pkt) => {
                     const style = getProtoStyle(pkt.protocol);
-                    const isSelected = selectedPacket?.no === pkt.no;
+                    const isSelected = selectedPacket?.id === pkt.id;
                     return (
                       <tr
-                        key={pkt.no}
+                        key={pkt.id}
                         onClick={() => setSelectedPacket(isSelected ? null : pkt)}
                         className={`border-b cursor-pointer transition-colors ${
                           isSelected
@@ -308,15 +308,15 @@ export default function PacketCapture() {
                         }`}
                         style={{ borderLeftWidth: 2, borderLeftColor: style.text }}
                       >
-                        <td className="py-1.5 px-3 text-on-surface-variant">{pkt.no}</td>
+                        <td className="py-1.5 px-3 text-on-surface-variant">{pkt.id}</td>
                         <td className="py-1.5 px-2 text-on-surface-variant">
                           {new Date(pkt.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3 } as any)}
                         </td>
                         <td className="py-1.5 px-2 text-on-surface">
-                          {pkt.src_ip}{pkt.src_port ? `:${pkt.src_port}` : ''}
+                          {pkt.srcIp}{pkt.srcPort ? `:${pkt.srcPort}` : ''}
                         </td>
                         <td className="py-1.5 px-2 text-on-surface">
-                          {pkt.dst_ip}{pkt.dst_port ? `:${pkt.dst_port}` : ''}
+                          {pkt.dstIp}{pkt.dstPort ? `:${pkt.dstPort}` : ''}
                         </td>
                         <td className="py-1.5 px-2">
                           <span className="inline-block px-1.5 py-0.5 rounded text-[9px] font-bold"
@@ -325,7 +325,7 @@ export default function PacketCapture() {
                           </span>
                         </td>
                         <td className="py-1.5 px-2 text-right text-on-surface-variant">{pkt.length}</td>
-                        <td className="py-1.5 px-2 text-on-surface-variant truncate max-w-[200px]" title={pkt.info}>{pkt.info}</td>
+                        <td className="py-1.5 px-2 text-on-surface-variant truncate max-w-[200px]" title={pkt.flags || ''}>{pkt.flags || ''}</td>
                       </tr>
                     );
                   })
@@ -357,11 +357,11 @@ export default function PacketCapture() {
                     </div>
                     <div className="flex items-center gap-2 text-xs">
                       <span className="text-on-surface-variant w-14">Source:</span>
-                      <span className="font-mono text-on-surface">{selectedPacket.src_ip}:{selectedPacket.src_port}</span>
+                      <span className="font-mono text-on-surface">{selectedPacket.srcIp}:{selectedPacket.srcPort}</span>
                     </div>
                     <div className="flex items-center gap-2 text-xs">
                       <span className="text-on-surface-variant w-14">Dest:</span>
-                      <span className="font-mono text-on-surface">{selectedPacket.dst_ip}:{selectedPacket.dst_port}</span>
+                      <span className="font-mono text-on-surface">{selectedPacket.dstIp}:{selectedPacket.dstPort}</span>
                     </div>
                     <div className="flex items-center gap-2 text-xs">
                       <span className="text-on-surface-variant w-14">Length:</span>
@@ -369,7 +369,7 @@ export default function PacketCapture() {
                     </div>
                     <div className="flex items-center gap-2 text-xs">
                       <span className="text-on-surface-variant w-14">Info:</span>
-                      <span className="text-on-surface text-[11px]">{selectedPacket.info}</span>
+                      <span className="text-on-surface text-[11px]">{selectedPacket.flags || '-'}</span>
                     </div>
                   </div>
 
@@ -377,7 +377,7 @@ export default function PacketCapture() {
                   <div>
                     <p className="text-[10px] uppercase tracking-widest text-on-surface-variant mb-2">Hex Dump</p>
                     <div className="bg-[#0e0e09] rounded-lg p-3 border border-outline-variant/10 overflow-x-auto">
-                      <HexDump hex={selectedPacket.payload_hex} />
+                      <HexDump hex={selectedPacket.payload} />
                     </div>
                   </div>
                 </div>
@@ -451,7 +451,7 @@ export default function PacketCapture() {
                   return (
                     <tr key={s.id} className="border-b border-outline-variant/10 hover:bg-surface-container-highest/50 transition-colors">
                       <td className="py-2.5 font-mono text-on-surface-variant">#{s.id}</td>
-                      <td className="py-2.5 font-mono text-on-surface">{s.interface_name}</td>
+                      <td className="py-2.5 font-mono text-on-surface">{s.interfaceName}</td>
                       <td className="py-2.5 text-on-surface-variant font-mono">{s.filter || '—'}</td>
                       <td className="py-2.5">
                         <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
@@ -463,13 +463,13 @@ export default function PacketCapture() {
                           {s.status}
                         </span>
                       </td>
-                      <td className="py-2.5 text-right font-mono text-on-surface">{s.packet_count}</td>
-                      <td className="py-2.5 text-right font-mono text-on-surface-variant">{formatBytes(s.bytes_captured)}</td>
+                      <td className="py-2.5 text-right font-mono text-on-surface">{s.totalPackets}</td>
+                      <td className="py-2.5 text-right font-mono text-on-surface-variant">{formatBytes(s.totalBytes)}</td>
                       <td className="py-2.5 text-on-surface-variant font-mono">
-                        {new Date(s.started_at).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                        {new Date(s.startedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                       </td>
                       <td className="py-2.5">
-                        {!isRunning && s.packet_count > 0 && (
+                        {!isRunning && s.totalPackets > 0 && (
                           <button
                             onClick={() => { setActiveSession(s); loadSessionPackets(s.id); }}
                             className="text-primary hover:text-primary/80 text-[10px] uppercase tracking-wider font-bold"

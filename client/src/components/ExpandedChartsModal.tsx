@@ -21,7 +21,7 @@ export default function ExpandedChartsModal({ metrics, onClose }: ExpandedCharts
   // Group metrics by device
   const byDevice = new Map<string, Metric[]>();
   for (const m of metrics) {
-    const key = m.device_name || `Device ${m.device_id}`;
+    const key = m.deviceName || `Device ${m.deviceId}`;
     if (!byDevice.has(key)) byDevice.set(key, []);
     byDevice.get(key)!.push(m);
   }
@@ -61,8 +61,8 @@ export default function ExpandedChartsModal({ metrics, onClose }: ExpandedCharts
                 const devMetrics = byDevice.get(dev) ?? [];
                 // Take up to 30 recent readings, reverse so oldest is first (left to right)
                 const chartData = devMetrics.slice(0, 30).reverse().map(m => ({
-                  time: new Date(m.timestamp || m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-                  response: m.response_time ?? 0,
+                  time: new Date(m.timestamp || m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+                  response: m.responseTime ?? 0,
                   status: m.status
                 }));
                 const latest = chartData[chartData.length - 1];

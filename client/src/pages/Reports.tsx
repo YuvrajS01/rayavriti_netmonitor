@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getReportSummary, getReportTimeseries, getReportDeviceBreakdown, getReportAlerts, downloadMetricsCsv, getDevices } from '../api/client';
-import type { ReportSummary, TimeseriesPoint, DeviceBreakdown, ReportAlert, Device } from '../api/types';
+import type { ReportSummary, ReportTimeseriesPoint as TimeseriesPoint, DeviceBreakdown, ReportAlert, Device } from '../api/types';
 import SummaryTab from '../components/reports/SummaryTab';
 import DeviceTab from '../components/reports/DeviceTab';
 import SlaTab from '../components/reports/SlaTab';

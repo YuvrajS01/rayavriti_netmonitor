@@ -1,4 +1,4 @@
-import type { ReportSummary, TimeseriesPoint } from '../../api/types';
+import type { ReportSummary, ReportTimeseriesPoint as TimeseriesPoint } from '../../api/types';
 import { AreaChart, Area, XAxis, YAxis, ResponsiveContainer, Tooltip, ReferenceLine, CartesianGrid } from 'recharts';
 
 const TT = { background: '#1a1a13', border: '1px solid #494840', borderRadius: '8px', fontSize: '12px', color: '#f4f1e6' };
@@ -34,7 +34,7 @@ export default function SlaTab({ summary, series }: { summary: ReportSummary | n
   const totalBuckets = series.length;
 
   const chartData = series.map((p, i) => ({
-    label: (() => { const d = new Date(p.timestamp ?? (p as any).bucket ?? ''); return isNaN(d.getTime()) ? String(i) : d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); })(),
+    label: (() => { const d = new Date(p.bucketTime ?? ''); return isNaN(d.getTime()) ? String(i) : d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); })(),
     availability: Number(p.availabilityPercent ?? 0),
   }));
 

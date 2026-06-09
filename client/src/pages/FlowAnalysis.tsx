@@ -77,11 +77,38 @@ export default function FlowAnalysis() {
         getProtocolDistribution(),
         getFlowRecords({ limit: 50 }),
       ]);
-      setStats(statsRes.data);
+      const rawStats = statsRes.data as unknown as Record<string, unknown> | null;
+      if (rawStats) {
+        setStats({
+          totalFlows: Number(rawStats.totalFlows) || 0,
+          totalBytes: Number(rawStats.totalBytes) || 0,
+          totalBytesFormatted: formatBytes(Number(rawStats.totalBytes) || 0),
+          totalPackets: Number(rawStats.totalPackets) || 0,
+          uniqueSources: Number(rawStats.uniqueSources) || 0,
+          uniqueDestinations: Number(rawStats.uniqueDestinations) || 0,
+          activeCollectors: 0,
+          collectorTypes: [],
+        });
+      }
       setTimeseries(tsRes.data || []);
       setTopSources(srcRes.data || []);
       setTopDestinations(dstRes.data || []);
-      setProtocols(protoRes.data || []);
+      const rawProtos = protoRes.data as unknown as Record<string, number> | ProtocolBreakdown[] | null;
+      if (rawProtos && !Array.isArray(rawProtos)) {
+        const entries = Object.entries(rawProtos);
+        const totalBytes = entries.reduce((s, [, v]) => s + (v as number), 0);
+        setProtocols(entries.map(([name, bytes]) => ({
+          protocolName: name,
+          protocolNumber: 0,
+          bytes: bytes as number,
+          bytesFormatted: formatBytes(bytes as number),
+          packets: 0,
+          flows: 0,
+          percentage: totalBytes > 0 ? Math.round(((bytes as number) / totalBytes) * 100) : 0,
+        })));
+      } else {
+        setProtocols((rawProtos as ProtocolBreakdown[]) || []);
+      }
       setFlows(flowsRes.data || []);
     } catch { /* handled by interceptor */ }
   }, []);
@@ -104,13 +131,27 @@ export default function FlowAnalysis() {
         });
       }
       // Refresh stats periodically on flow events
-      getFlowStats().then((r) => setStats(r.data)).catch(() => {});
+      getFlowStats().then((r) => {
+        const raw = r.data as unknown as Record<string, unknown> | null;
+        if (raw) {
+          setStats({
+            totalFlows: Number(raw.totalFlows) || 0,
+            totalBytes: Number(raw.totalBytes) || 0,
+            totalBytesFormatted: formatBytes(Number(raw.totalBytes) || 0),
+            totalPackets: Number(raw.totalPackets) || 0,
+            uniqueSources: Number(raw.uniqueSources) || 0,
+            uniqueDestinations: Number(raw.uniqueDestinations) || 0,
+            activeCollectors: 0,
+            collectorTypes: [],
+          });
+        }
+      }).catch(() => {});
     },
   });
 
   const filteredFlows = flows.filter((f) => {
-    if (filterIp && !f.src_ip.includes(filterIp) && !f.dst_ip.includes(filterIp)) return false;
-    if (filterProto && f.protocol_name !== filterProto) return false;
+    if (filterIp && !f.srcIp.includes(filterIp) && !f.dstIp.includes(filterIp)) return false;
+    if (filterProto && f.protocolName !== filterProto) return false;
     return true;
   });
 
@@ -264,11 +305,11 @@ export default function FlowAnalysis() {
                     outerRadius={80}
                     paddingAngle={3}
                     dataKey="bytes"
-                    nameKey="protocol_name"
+                    nameKey="protocolName"
                     labelLine={false}
                   >
                     {protocols.map((entry, i) => (
-                      <Cell key={entry.protocol_name} fill={PROTOCOL_COLORS[entry.protocol_name] || CHART_COLORS[i % CHART_COLORS.length]} stroke="transparent" />
+                      <Cell key={entry.protocolName} fill={PROTOCOL_COLORS[entry.protocolName] || CHART_COLORS[i % CHART_COLORS.length]} stroke="transparent" />
                     ))}
                   </Pie>
                   <Tooltip
@@ -279,9 +320,9 @@ export default function FlowAnalysis() {
               </ResponsiveContainer>
               <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 mt-2">
                 {protocols.map((p, i) => (
-                  <div key={p.protocol_name} className="flex items-center gap-1.5 text-xs">
-                    <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: PROTOCOL_COLORS[p.protocol_name] || CHART_COLORS[i % CHART_COLORS.length] }} />
-                    <span className="text-on-surface-variant">{p.protocol_name}</span>
+                  <div key={p.protocolName} className="flex items-center gap-1.5 text-xs">
+                    <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: PROTOCOL_COLORS[p.protocolName] || CHART_COLORS[i % CHART_COLORS.length] }} />
+                    <span className="text-on-surface-variant">{p.protocolName}</span>
                     <span className="font-bold text-on-surface">{p.percentage}%</span>
                   </div>
                 ))}
@@ -342,18 +383,18 @@ export default function FlowAnalysis() {
                   </td></tr>
                 ) : (
                   filteredFlows.map((f) => {
-                    const protoColor = PROTOCOL_COLORS[f.protocol_name] || '#8a8a78';
+                    const protoColor = PROTOCOL_COLORS[f.protocolName] || '#8a8a78';
                     return (
                       <tr key={f.id} className="border-b border-outline-variant/10 hover:bg-surface-container-highest/50 transition-colors">
                         <td className="py-2.5 text-on-surface-variant font-mono">
                           {new Date(f.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                         </td>
-                        <td className="py-2.5 font-mono text-on-surface">{f.src_ip}{f.src_port ? `:${f.src_port}` : ''}</td>
-                        <td className="py-2.5 font-mono text-on-surface">{f.dst_ip}{f.dst_port ? `:${f.dst_port}` : ''}</td>
+                        <td className="py-2.5 font-mono text-on-surface">{f.srcIp}{f.srcPort ? `:${f.srcPort}` : ''}</td>
+                        <td className="py-2.5 font-mono text-on-surface">{f.dstIp}{f.dstPort ? `:${f.dstPort}` : ''}</td>
                         <td className="py-2.5">
                           <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border"
                             style={{ color: protoColor, borderColor: `${protoColor}33`, backgroundColor: `${protoColor}15` }}>
-                            {f.protocol_name}
+                            {f.protocolName}
                           </span>
                         </td>
                         <td className="py-2.5 text-right font-mono text-on-surface">{formatBytes(f.bytes)}</td>

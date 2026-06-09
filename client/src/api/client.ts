@@ -1,55 +1,29 @@
 import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios';
 import type {
   ApiResponse, Device, Metric, Alert, AlertCounts,
-  DashboardStats, ReportSummary, TimeseriesPoint, DeviceBreakdown, ReportAlert,
+  DashboardStats, ReportSummary, ReportTimeseriesPoint, DeviceBreakdown, ReportAlert,
   FlowRecord, TopTalker, ProtocolBreakdown, FlowStats, FlowTimeseriesPoint,
   CaptureSession, CapturedPacket, NetworkInterface,
   PortScanResult, PortScanResponse, InsightsResponse, HealthHistoryResponse
 } from './types';
-export type { Device, Metric, Alert, AlertCounts, DashboardStats, ReportSummary, TimeseriesPoint, DeviceBreakdown, ReportAlert, PortScanResult, PortScanResponse, InsightsResponse, HealthHistoryResponse };
-
-// ── camelCase → snake_case transformer ───────────────────────
-
-function camelToSnake(str: string): string {
-  return str.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
-}
-
-function transformKeys(obj: unknown): unknown {
-  if (Array.isArray(obj)) return obj.map(transformKeys);
-  if (obj !== null && typeof obj === 'object' && !(obj instanceof Date)) {
-    const result: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
-      result[camelToSnake(key)] = transformKeys(value);
-    }
-    return result;
-  }
-  return obj;
-}
+export type { Device, Metric, Alert, AlertCounts, DashboardStats, ReportSummary, ReportTimeseriesPoint, DeviceBreakdown, ReportAlert, PortScanResult, PortScanResponse, InsightsResponse, HealthHistoryResponse };
 
 // ── Go backend response unwrapping ───────────────────────────
 // Go wraps responses in { success, data } via httputil.SendOK.
+// Go returns camelCase natively — no key transformation needed.
 
 function unwrapGoResponse<T>(raw: unknown): T {
-  const transformed = transformKeys(raw) as Record<string, unknown>;
-  const data = transformed.data !== undefined ? transformed.data : transformed;
+  const body = raw as Record<string, unknown>;
+  const data = body?.data !== undefined ? body.data : body;
+  // Special case: alerts list endpoint returns { alerts: [...], total } wrapper
   if (data && typeof data === 'object' && 'alerts' in data && 'total' in data) {
     return (data as Record<string, unknown>).alerts as T;
   }
   return data as T;
 }
 
-// Transform raw response data (unwraps Go envelope + converts camelCase → snake_case)
-function tx<T>(raw: unknown): T {
-  const body = raw as Record<string, unknown>;
-  if (body && typeof body === 'object' && 'data' in body) {
-    return unwrapGoResponse<T>(body);
-  }
-  return transformKeys(raw) as T;
-}
-
-// Wraps transformed data in { data: ... } to match ApiResponse<T> that pages expect
 function wrap<T>(raw: unknown): ApiResponse<T> {
-  return { data: tx<T>(raw), success: true } as ApiResponse<T>;
+  return { data: unwrapGoResponse<T>(raw), success: true } as ApiResponse<T>;
 }
 
 // ── Configurable Axios instances ─────────────────────────────
@@ -130,7 +104,6 @@ const handleTokenRefresh = async (error: AxiosError) => {
       { refreshToken }
     );
 
-    // Go returns { success, data: { accessToken, refreshToken } }
     const newToken = (raw as any).data?.accessToken || (raw as any).data?.token;
     localStorage.setItem('netmonitor_token', newToken);
     const newRefresh = (raw as any).data?.refreshToken;
@@ -287,7 +260,57 @@ export const getStats = () =>
 // ── Insights / AI Health ─────────────────────────────────────
 
 export const getInsights = () =>
-  api.get('/insights').then((r) => wrap<InsightsResponse>(r.data));
+  api.get('/insights').then((r) => {
+    const raw = r.data;
+    const body = raw as Record<string, unknown>;
+    const inner = body?.data !== undefined ? body.data : body;
+
+    // Go returns a flat array of { deviceId, deviceName, score, status }
+    // Transform into InsightsResponse shape the AIHealth page expects
+    if (Array.isArray(inner)) {
+      const items = inner as Array<{ deviceId: number; deviceName: string; score: number; status: string }>;
+      const avgScore = items.length ? Math.round(items.reduce((s, d) => s + d.score, 0) / items.length) : 0;
+      const critical = items.filter((d) => d.score < 40).length;
+      const watch = items.filter((d) => d.score >= 40 && d.score < 70).length;
+      const healthy = items.filter((d) => d.score >= 70).length;
+      const health = items.map((d) => ({
+        deviceId: d.deviceId,
+        deviceName: d.deviceName,
+        score: d.score,
+        label: (d.score < 40 ? 'critical' : d.score < 60 ? 'risk' : d.score < 80 ? 'watch' : 'healthy') as 'critical' | 'risk' | 'watch' | 'healthy',
+        availabilityPercent: 0,
+        avgResponseMs: 0,
+        activeAlerts: 0,
+        openPorts: 0,
+        samples: 0,
+        factors: { availability: { score: 0, weight: 0, penalty: 0 }, latency: { score: 0, weight: 0, penalty: 0 }, alerts: { score: 0, weight: 0, penalty: 0 }, stability: { score: 0, weight: 0, penalty: 0 }, ports: { score: 0, weight: 0, penalty: 0 } },
+        trend: 'stable' as const,
+        trendDelta: 0,
+        issues: [] as Array<{ severity: 'critical' | 'warning' | 'info'; type: string; message: string }>,
+      }));
+      return {
+        data: {
+          generatedAt: new Date().toISOString(),
+          networkScore: avgScore,
+          healthDistribution: { critical, risk: 0, watch, healthy },
+          topRisks: items.filter((d) => d.score < 70).slice(0, 5).map((d) => ({
+            deviceId: d.deviceId, deviceName: d.deviceName, score: d.score,
+            label: d.score < 40 ? 'critical' : 'risk',
+            trend: 'stable' as const, trendDelta: 0, primaryIssue: d.status !== 'up' ? `Status: ${d.status}` : 'No issues',
+          })),
+          health,
+          insights: items.filter((d) => d.score < 70).map((d) => ({
+            deviceId: d.deviceId, deviceName: d.deviceName, score: d.score, status: d.status,
+            type: 'health', severity: d.score < 40 ? 'critical' as const : 'warning' as const,
+            title: `${d.deviceName} — ${d.score}%`, message: d.status !== 'up' ? `Device is ${d.status}` : `Score: ${d.score}%`,
+          })),
+        },
+        success: true,
+      };
+    }
+
+    return wrap<InsightsResponse>(raw);
+  });
 
 export const getInsightsHistory = (hours?: number) => {
   const qs = hours ? `?hours=${hours}` : '';
@@ -300,7 +323,7 @@ export const getReportSummary = (query = '') =>
   api.get(`/reports/summary${query}`).then((r) => wrap<ReportSummary>(r.data));
 
 export const getReportTimeseries = (query = '') =>
-  api.get(`/reports/timeseries${query}`).then((r) => wrap<TimeseriesPoint[]>(r.data));
+  api.get(`/reports/timeseries${query}`).then((r) => wrap<ReportTimeseriesPoint[]>(r.data));
 
 export const getReportDeviceBreakdown = (query = '') =>
   api.get(`/reports/devices${query}`).then((r) => wrap<DeviceBreakdown[]>(r.data));

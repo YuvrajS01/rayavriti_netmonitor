@@ -63,8 +63,8 @@ export default function AlertTab({ alerts }: { alerts: ReportAlert[] }) {
                     <span className="material-symbols-outlined mt-0.5 text-sm" style={{ color }}>{SEV_ICONS[a.severity] || 'info'}</span>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2 mb-0.5">
-                        <span className="font-headline font-bold text-xs text-on-surface truncate">{a.device_name || `Device ${a.device_id}`}</span>
-                        <span className="text-[10px] font-mono text-on-surface-variant shrink-0">{new Date(a.created_at).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                        <span className="font-headline font-bold text-xs text-on-surface truncate">{a.deviceName || `Device ${a.deviceId}`}</span>
+                        <span className="text-[10px] font-mono text-on-surface-variant shrink-0">{new Date(a.createdAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
                       </div>
                       <p className="text-xs text-on-surface-variant truncate">{a.message}</p>
                     </div>

@@ -27,19 +27,19 @@ function iconFor(protocol: string) {
   return 'sensors';
 }
 
-function formatMessage(message: string, protocol: string): string {
-  if (!message) return '-';
+function formatMessage(details: Record<string, unknown> | undefined, protocol: string): string {
+  if (!details) return '-';
   if (protocol === 'system' || protocol === 'snmp') {
-    try {
-      const info = JSON.parse(message);
-      const parts: string[] = [];
-      if (info.cpu) parts.push(`CPU ${info.cpu.usage}%`);
-      if (info.memory) parts.push(`Mem ${info.memory.percent}%`);
-      if (info.disk) parts.push(`Disk ${info.disk.percent}%`);
-      if (parts.length > 0) return parts.join(' | ');
-    } catch { /* not json */ }
+    const parts: string[] = [];
+    const cpu = details.cpu as { usage?: number } | undefined;
+    const memory = details.memory as { percent?: number } | undefined;
+    const disk = details.disk as { percent?: number } | undefined;
+    if (cpu?.usage != null) parts.push(`CPU ${cpu.usage}%`);
+    if (memory?.percent != null) parts.push(`Mem ${memory.percent}%`);
+    if (disk?.percent != null) parts.push(`Disk ${disk.percent}%`);
+    if (parts.length > 0) return parts.join(' | ');
   }
-  return message;
+  return JSON.stringify(details);
 }
 
 const TOOLTIP_STYLE = {
@@ -76,9 +76,9 @@ interface RadarPoint { subject: string; value: number; fullMark: number }
 
 function buildAvgResponseRadar(metrics: Metric[], protocols: string[]): RadarPoint[] {
   return protocols.map((proto) => {
-    const group = metrics.filter((m) => m.protocol === proto && m.response_time != null);
+    const group = metrics.filter((m) => m.protocol === proto && m.responseTime != null);
     const avg = group.length
-      ? Math.round(group.reduce((s, m) => s + (m.response_time || 0), 0) / group.length)
+      ? Math.round(group.reduce((s, m) => s + (m.responseTime || 0), 0) / group.length)
       : 0;
     return { subject: proto.toUpperCase(), value: avg, fullMark: 2000 };
   });
@@ -215,11 +215,11 @@ export default function Sensors() {
                       <span className={`material-symbols-outlined ${statusColor(m.status)}`}>{iconFor(m.protocol)}</span>
                     </div>
                     <div>
-                      <p className="font-bold text-on-surface tracking-tight">{m.device_name}</p>
+                      <p className="font-bold text-on-surface tracking-tight">{m.deviceName}</p>
                       <div className="flex gap-3 mt-1">
                         <span className="text-[10px] text-outline font-label flex items-center gap-1">
                           <span className="material-symbols-outlined text-[14px]">schedule</span>
-                          {new Date(m.timestamp || m.created_at).toLocaleTimeString()}
+                          {new Date(m.timestamp || m.createdAt).toLocaleTimeString()}
                         </span>
                         <span className="text-[10px] text-outline font-label flex items-center gap-1">
                           <span className="material-symbols-outlined text-[14px]">lan</span>
@@ -230,9 +230,9 @@ export default function Sensors() {
                   </div>
                   <div className="text-right">
                     <p className={`text-xl font-headline font-bold ${statusColor(m.status)} tracking-tighter`}>
-                      {m.response_time != null ? `${m.response_time}ms` : m.status.toUpperCase()}
+                      {m.responseTime != null ? `${m.responseTime}ms` : m.status.toUpperCase()}
                     </p>
-                    <p className="text-[10px] text-outline uppercase font-label max-w-xs truncate">{formatMessage(m.message, m.protocol)}</p>
+                    <p className="text-[10px] text-outline uppercase font-label max-w-xs truncate">{formatMessage(m.details, m.protocol)}</p>
                   </div>
                 </div>
               </div>

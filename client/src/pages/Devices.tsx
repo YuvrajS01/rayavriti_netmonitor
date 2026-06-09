@@ -38,14 +38,14 @@ export default function Devices() {
   const load = useCallback(async () => {
     const [dRes, mRes] = await Promise.all([getDevices(), getLatestMetrics()]);
     setDevices(dRes.data || []);
-    setMetricsMap(new Map((mRes.data || []).map((m) => [m.device_id, m])));
+    setMetricsMap(new Map((mRes.data || []).map((m) => [m.deviceId, m])));
   }, []);
 
   useEffect(() => { load(); }, [load]);
 
   const filtered = devices.filter((d) => {
     const status = statusOf(d.id, metricsMap);
-    const text = `${d.name} ${d.host} ${d.protocol}`.toLowerCase();
+    const text = `${d.name} ${d.ipAddress} ${d.protocol}`.toLowerCase();
     const matchSearch = !search || text.includes(search.toLowerCase());
     let matchStatus = true;
     if (statusFilter === 'up') matchStatus = status === 'up' || status === 'ok';
@@ -224,15 +224,15 @@ export default function Devices() {
                   </div>
                 </div>
                 <h3 className={`font-headline text-xl font-bold mb-1 group-hover:${sc.text} transition-colors`}>{device.name}</h3>
-                <code className="text-on-surface-variant text-xs mb-4 block">{device.host}:{device.port}</code>
+                <code className="text-on-surface-variant text-xs mb-4 block">{device.ipAddress}:{device.port}</code>
                 <div className="space-y-2 text-xs">
                   <div className="flex justify-between"><span className="text-on-surface-variant uppercase tracking-widest">Protocol</span><span className="font-bold">{device.protocol.toUpperCase()}</span></div>
-                  <div className="flex justify-between"><span className="text-on-surface-variant uppercase tracking-widest">Interval</span><span className="font-bold">{device.interval_seconds}s</span></div>
-                  {metric && <div className="flex justify-between"><span className="text-on-surface-variant uppercase tracking-widest">Response</span><span className="font-bold">{metric.response_time}ms</span></div>}
+                  <div className="flex justify-between"><span className="text-on-surface-variant uppercase tracking-widest">Interval</span><span className="font-bold">{device.interval}s</span></div>
+                  {metric && <div className="flex justify-between"><span className="text-on-surface-variant uppercase tracking-widest">Response</span><span className="font-bold">{metric.responseTime}ms</span></div>}
                 </div>
               </div>
               <div className="mt-auto bg-surface-container-high p-4 flex justify-between items-center">
-                <span className="text-[10px] text-on-surface-variant uppercase">{metric ? new Date(metric.timestamp || metric.created_at).toLocaleTimeString() : 'No data'}</span>
+                <span className="text-[10px] text-on-surface-variant uppercase">{metric ? new Date(metric.timestamp || metric.createdAt).toLocaleTimeString() : 'No data'}</span>
                 <button 
                   onClick={(e) => { e.stopPropagation(); handleDelete(device.id); }} 
                   className="text-error text-[10px] font-bold uppercase tracking-widest hover:bg-error/10 px-2 py-1 rounded transition-colors"

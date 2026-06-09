@@ -10,7 +10,7 @@ export interface User {
   username: string;
   email: string;
   role: string;
-  created_at: string;
+  createdAt: string;
 }
 
 export interface AuthTokens {
@@ -22,39 +22,35 @@ export interface AuthTokens {
 export interface Device {
   id: number;
   name: string;
-  host: string;
+  ipAddress: string;
   protocol: string;
   port: number;
-  interval_seconds: number;
-  enabled: number;
-  created_at: string;
-  snmp_community?: string | null;
-  snmp_version?: string | null;
-}
-
-export interface Sensor {
-  id: number;
-  device_id: number;
-  type: string;
-  name: string;
-  config: string;
-  enabled: number;
-  created_at: string;
-  device_name?: string;
+  interval: number;
+  enabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+  status: 'up' | 'down' | 'warning' | 'unknown';
+  tags: string[];
+  snmpPort: number;
+  httpPath?: string;
+  httpExpectedStatus?: number;
+  locationId?: number;
+  snmpCommunity?: string | null;
+  snmpVersion?: string | null;
 }
 
 export interface Metric {
   id: number;
-  device_id: number;
-  sensor_id?: number;
+  deviceId: number;
+  sensorId?: number;
   status: 'up' | 'down' | 'warning' | 'degraded' | 'ok' | 'unknown';
-  response_time: number;
+  responseTime: number;
   value: number | null;
-  message: string;
+  details?: Record<string, unknown>;
   protocol: string;
-  device_name: string;
+  deviceName: string;
   timestamp: string;
-  created_at: string;
+  createdAt: string;
 }
 
 export interface TrafficInterfaceSample {
@@ -76,15 +72,15 @@ export interface MetricMessagePayload {
 
 export interface Alert {
   id: number;
-  device_id: number;
-  sensor_id?: number;
+  deviceId: number;
+  sensorId?: number;
   severity: 'critical' | 'warning' | 'info';
   message: string;
   status: 'active' | 'acknowledged' | 'resolved';
-  device_name?: string;
-  acknowledged_by?: string;
-  resolved_at?: string;
-  created_at: string;
+  deviceName?: string;
+  acknowledgedBy?: string;
+  resolvedAt?: string;
+  createdAt: string;
 }
 
 export interface AlertCounts {
@@ -99,8 +95,31 @@ export interface DashboardStats {
   offlineDevices: number;
   warningDevices: number;
   uptimePercent: number;
+  totalMetrics24h: number;
   activeAlerts: number;
   avgResponseTime: number;
+}
+
+export interface DeviceBreakdown {
+  deviceId: number;
+  deviceName: string;
+  protocol: string;
+  sampleCount: number;
+  downCount: number;
+  warnCount: number;
+  avgResponse: number;
+  minResponse: number;
+  maxResponse: number;
+  availabilityPercent?: number;
+}
+
+export interface ReportTimeseriesPoint {
+  bucketTime: string;
+  sampleCount: number;
+  avgResponse: number;
+  downCount: number;
+  warnCount: number;
+  availabilityPercent?: number;
 }
 
 export interface ReportSummary {
@@ -113,39 +132,16 @@ export interface ReportSummary {
   averageResponseMs: number;
 }
 
-export interface TimeseriesPoint {
-  bucket: string;
-  timestamp?: string;
-  availabilityPercent: number;
-  avgResponseMs: number;
-  count: number;
-  sampleCount?: number;
-  downCount?: number;
-}
-
-export interface DeviceBreakdown {
-  deviceId: number;
-  deviceName: string;
-  protocol: string;
-  sampleCount: number;
-  downCount: number;
-  warnCount: number;
-  availabilityPercent: number;
-  avgResponseMs: number;
-  minResponseMs: number;
-  maxResponseMs: number;
-}
-
 export interface ReportAlert {
   id: number;
-  device_id: number;
-  device_name: string;
+  deviceId: number;
+  deviceName: string;
   severity: 'critical' | 'warning' | 'info';
   message: string;
   status: string;
-  created_at: string;
-  acknowledged_at?: string;
-  resolved_at?: string;
+  createdAt: string;
+  acknowledgedAt?: string;
+  resolvedAt?: string;
   comment?: string;
 }
 
@@ -157,22 +153,20 @@ export interface SystemInfo {
   loadAvg: number[];
 }
 
-// ── Flow Analysis Types ──────────────────────────────────────
-
 export interface FlowRecord {
   id: number;
-  collector_type: string;
-  src_ip: string;
-  dst_ip: string;
-  src_port: number;
-  dst_port: number;
+  collectorType: string;
+  srcIp: string;
+  dstIp: string;
+  srcPort: number;
+  dstPort: number;
   protocol: number;
-  protocol_name: string;
+  protocolName: string;
   bytes: number;
   packets: number;
-  flow_start: string;
-  flow_end: string;
-  exporter_ip: string;
+  flowStart: string;
+  flowEnd: string;
+  exporterIp: string;
   timestamp: string;
 }
 
@@ -186,8 +180,8 @@ export interface TopTalker {
 }
 
 export interface ProtocolBreakdown {
-  protocol_name: string;
-  protocol_number: number;
+  protocolName: string;
+  protocolNumber: number;
   bytes: number;
   bytesFormatted: string;
   packets: number;
@@ -207,38 +201,37 @@ export interface FlowStats {
 }
 
 export interface FlowTimeseriesPoint {
-  timestamp: string;
+  bucketTime: string;
   totalBytes: number;
   totalPackets: number;
   flowCount: number;
 }
 
-// ── Packet Capture Types ─────────────────────────────────────
-
 export interface CaptureSession {
   id: number;
-  interface_name: string;
+  interfaceName: string;
   filter: string | null;
   status: 'running' | 'stopped' | 'error';
-  packet_count: number;
-  bytes_captured: number;
-  started_at: string;
-  stopped_at: string | null;
-  error_message: string | null;
+  totalPackets: number;
+  totalBytes: number;
+  protocols: string[];
+  startedAt: string;
+  stoppedAt: string | null;
+  errorMessage: string | null;
 }
 
 export interface CapturedPacket {
-  no: number;
-  session_id: number;
-  src_ip: string;
-  dst_ip: string;
-  src_port: number;
-  dst_port: number;
+  id: number;
+  sessionId: number;
+  timestamp: string;
+  srcIp: string;
+  dstIp: string;
+  srcPort: number;
+  dstPort: number;
   protocol: string;
   length: number;
-  payload_hex: string;
-  info: string;
-  timestamp: string;
+  flags: string;
+  payload: string;
 }
 
 export interface NetworkInterface {
@@ -249,38 +242,37 @@ export interface NetworkInterface {
 
 export interface PortScanResult {
   id?: number;
-  device_id?: number;
+  deviceId?: number;
   port: number;
-  status: 'open' | 'closed';
-  service_guess?: string;
-  serviceGuess?: string;
-  response_time?: number | null;
+  protocol: string;
+  state: 'open' | 'closed';
+  service?: string;
   responseTime?: number | null;
-  first_seen?: string;
-  last_seen?: string;
-  last_changed_at?: string;
-  message?: string | null;
+  firstSeen?: string;
+  lastSeen?: string;
+  lastChangedAt?: string;
+  scannedAt?: string;
 }
 
 export interface PortScanResponse {
   deviceId: number;
   host: string;
   scannedPorts: number;
-  openPorts: PortScanResult[];
+  openPorts: number;
   results: PortScanResult[];
   changes: Array<{ port: number; from: string; to: string; serviceGuess: string }>;
 }
 
 export interface InsightItem {
-  type: string;
-  severity: 'critical' | 'warning' | 'info';
-  title: string;
-  message: string;
-  deviceId?: number;
-  timestamp?: string;
+  deviceId: number;
+  deviceName: string;
+  score: number;
+  status: string;
+  type?: string;
+  severity?: 'critical' | 'warning' | 'info';
+  title?: string;
+  message?: string;
 }
-
-// ── Health Score Factor Breakdown ─────────────────────────────
 
 export interface HealthFactor {
   score: number;
@@ -339,13 +331,8 @@ export interface InsightsResponse {
   healthDistribution: HealthDistribution;
   topRisks: TopRiskDevice[];
   health: DeviceHealth[];
-  responseAnomalies: unknown[];
-  alertGroups: unknown[];
-  flowAnomalies: unknown[];
   insights: InsightItem[];
 }
-
-// ── Health History Timeline ──────────────────────────────────
 
 export interface HealthHistoryPoint {
   timestamp: string;

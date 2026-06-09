@@ -11,11 +11,10 @@ interface TrafficPoint {
   totalMbps: number;
 }
 
-function parseMetricMessage(message?: string | null): MetricMessagePayload | null {
-  if (!message) return null;
+function parseMetricMessage(details?: Record<string, unknown> | null): MetricMessagePayload | null {
+  if (!details) return null;
   try {
-    const parsed = JSON.parse(message) as MetricMessagePayload;
-    return parsed && typeof parsed === 'object' ? parsed : null;
+    return details as unknown as MetricMessagePayload;
   } catch {
     return null;
   }
@@ -37,11 +36,11 @@ function buildTrafficData(metrics: Metric[]): TrafficPoint[] {
   for (let i = 1; i < metrics.length; i += 1) {
     const prev = metrics[i - 1];
     const curr = metrics[i];
-    const prevPayload = parseMetricMessage(prev.message);
-    const currPayload = parseMetricMessage(curr.message);
+    const prevPayload = parseMetricMessage(prev.details as Record<string, unknown> | null);
+    const currPayload = parseMetricMessage(curr.details as Record<string, unknown> | null);
     if (!prevPayload?.interfaces?.length || !currPayload?.interfaces?.length) continue;
 
-    const seconds = (new Date(curr.timestamp || curr.created_at).getTime() - new Date(prev.timestamp || prev.created_at).getTime()) / 1000;
+    const seconds = (new Date(curr.timestamp || curr.createdAt).getTime() - new Date(prev.timestamp || prev.createdAt).getTime()) / 1000;
     if (!Number.isFinite(seconds) || seconds <= 0) continue;
 
     const inDelta = totalOctets(currPayload.interfaces, 'inOctets') - totalOctets(prevPayload.interfaces, 'inOctets');
@@ -51,7 +50,7 @@ function buildTrafficData(metrics: Metric[]): TrafficPoint[] {
     const inMbps = (inDelta * 8) / seconds / 1_000_000;
     const outMbps = (outDelta * 8) / seconds / 1_000_000;
     points.push({
-      time: new Date(curr.timestamp || curr.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+      time: new Date(curr.timestamp || curr.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
       inMbps: Math.round(inMbps * 100) / 100,
       outMbps: Math.round(outMbps * 100) / 100,
       totalMbps: Math.round((inMbps + outMbps) * 100) / 100
@@ -88,7 +87,7 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
   useSocket({
     onMetricUpdate: (metric: Record<string, unknown>) => {
       const m = metric as unknown as Metric;
-      if (m.device_id === device.id) {
+      if (m.deviceId === device.id) {
         setMetrics((prev) => {
           const updated = [...prev, m as Metric];
           if (updated.length > 50) updated.shift();
@@ -110,9 +109,7 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
       const res = await scanDevicePorts(device.id);
       setPorts(res.data.results.map((result) => ({
         ...result,
-        device_id: device.id,
-        service_guess: result.serviceGuess,
-        response_time: result.responseTime
+        deviceId: device.id,
       })));
     } finally {
       setScanning(false);
@@ -120,18 +117,18 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
   };
 
   const chartData = metrics.map((m) => ({
-    time: new Date(m.timestamp || m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-    response: m.response_time ?? 0,
+    time: new Date(m.timestamp || m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+    response: m.responseTime ?? 0,
     status: m.status
   }));
 
   const latestMetric = metrics[metrics.length - 1];
-  const latestPayload = parseMetricMessage(latestMetric?.message);
+  const latestPayload = parseMetricMessage(latestMetric?.details as Record<string, unknown> | null);
   const trafficData = buildTrafficData(metrics);
   const latestTraffic = trafficData[trafficData.length - 1];
   const supportsTraffic = device.protocol === 'snmp';
   const activeInterfaces = latestPayload?.interfaces || [];
-  const openPorts = ports.filter((port) => port.status === 'open');
+  const openPorts = ports.filter((port) => port.state === 'open');
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={onClose}>
@@ -143,7 +140,7 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
         <div className="p-6 border-b border-outline-variant/20 flex justify-between items-start">
           <div>
             <h2 className="font-headline text-3xl font-black text-on-surface uppercase tracking-tight">{device.name}</h2>
-            <p className="text-on-surface-variant text-sm font-mono">{device.host}:{device.port} ({device.protocol.toUpperCase()})</p>
+            <p className="text-on-surface-variant text-sm font-mono">{device.ipAddress}:{device.port} ({device.protocol.toUpperCase()})</p>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-surface-container-highest rounded-full transition-colors">
             <span className="material-symbols-outlined text-outline hover:text-on-surface">close</span>
@@ -160,11 +157,11 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
              </div>
              <div className="bg-surface-container-high p-4 rounded-lg">
                <p className="text-[10px] text-on-surface-variant uppercase tracking-widest mb-1">Response</p>
-               <p className="font-bold text-on-surface">{latestMetric?.response_time ?? '-'} ms</p>
+                <p className="font-bold text-on-surface">{latestMetric?.responseTime ?? '-'} ms</p>
              </div>
              <div className="bg-surface-container-high p-4 rounded-lg">
                <p className="text-[10px] text-on-surface-variant uppercase tracking-widest mb-1">Interval</p>
-               <p className="font-bold text-on-surface">{device.interval_seconds}s</p>
+                <p className="font-bold text-on-surface">{device.interval}s</p>
              </div>
              <div className="bg-surface-container-high p-4 rounded-lg">
                <p className="text-[10px] text-on-surface-variant uppercase tracking-widest mb-1">Protocol</p>
@@ -192,9 +189,9 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
              ) : (
                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                  {ports.slice(0, 16).map((port) => {
-                   const service = port.service_guess || port.serviceGuess || 'Unknown';
-                   const response = port.response_time ?? port.responseTime;
-                   const isOpen = port.status === 'open';
+                    const service = port.service || 'Unknown';
+                    const response = port.responseTime;
+                   const isOpen = port.state === 'open';
                    return (
                      <div key={port.port} className={`flex items-center justify-between rounded-lg px-3 py-2 border ${isOpen ? 'border-primary/25 bg-primary/10' : 'border-outline-variant/15 bg-surface-container-low'}`}>
                        <div className="flex items-center gap-2 min-w-0">
@@ -205,7 +202,7 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
                          </div>
                        </div>
                        <div className="text-right">
-                         <p className={`text-[10px] font-bold uppercase tracking-widest ${isOpen ? 'text-primary' : 'text-outline'}`}>{port.status}</p>
+                         <p className={`text-[10px] font-bold uppercase tracking-widest ${isOpen ? 'text-primary' : 'text-outline'}`}>{port.state}</p>
                          {typeof response === 'number' && <p className="text-[10px] text-on-surface-variant">{response}ms</p>}
                        </div>
                      </div>
