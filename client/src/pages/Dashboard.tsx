@@ -156,6 +156,7 @@ export default function Dashboard() {
       setAlerts(alertsRes.data || []);
       setInsights(insightsRes.data);
       computeSystemInfo(metricsData);
+      setLastUpdated(`Loaded ${new Date().toLocaleTimeString()}`);
       getSystemInfo().then((res) => {
         if (res.data) {
           setSystemInfo((prev) => ({ ...prev, raw: res.data }));
@@ -184,7 +185,7 @@ export default function Dashboard() {
   useSocket({
     onBootstrap: (payload) => {
       const p = payload as { stats: DashboardStats; latestMetrics: Metric[]; alerts: Alert[] };
-      if (p.stats) setStats(p.stats);
+      if (p.stats) setStats((prev) => ({ ...prev, ...p.stats }));
       if (p.latestMetrics) {
         // Merge: update latest per device, don't replace history
         setMetrics((prev) => {
@@ -213,6 +214,7 @@ export default function Dashboard() {
         });
       }
       if (p.alerts) setAlerts(p.alerts);
+      setLastUpdated(`Connected ${new Date().toLocaleTimeString()}`);
       getSystemInfo().then((res) => {
         if (res.data) {
           setSystemInfo((prev) => ({ ...prev, raw: res.data }));
@@ -233,7 +235,7 @@ export default function Dashboard() {
         return updated;
       });
       setLastUpdated(`Updated ${new Date().toLocaleTimeString()}`);
-      getStats().then((r) => setStats(r.data)).catch(() => {});
+      getStats().then((r) => setStats((prev) => ({ ...prev, ...r.data }))).catch(() => {});
       getInsights().then((r) => setInsights(r.data)).catch(() => {});
     },
     onAlertTriggered: () => {

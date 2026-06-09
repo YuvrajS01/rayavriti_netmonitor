@@ -1,10 +1,12 @@
 package logging
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -45,6 +47,14 @@ func (rw *responseWriter) Flush() {
 // Unwrap returns the original ResponseWriter for http.ResponseController.
 func (rw *responseWriter) Unwrap() http.ResponseWriter {
 	return rw.ResponseWriter
+}
+
+// Hijack implements http.Hijacker to support WebSocket upgrades.
+func (rw *responseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	if h, ok := rw.ResponseWriter.(http.Hijacker); ok {
+		return h.Hijack()
+	}
+	return nil, nil, fmt.Errorf("underlying ResponseWriter does not support Hijack")
 }
 
 // RequestLogger returns middleware that logs each HTTP request/response with full detail.

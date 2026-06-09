@@ -171,6 +171,85 @@ func (p *Postgres) GetMetricsForReport(ctx context.Context, from, to time.Time, 
 	return out, rows.Err()
 }
 
+func (p *Postgres) GetReportTimeseries(ctx context.Context, from, to time.Time, bucketMinutes int) ([]models.ReportTimeseriesPoint, error) {
+	if bucketMinutes <= 0 {
+		bucketMinutes = 60
+	}
+	bucketSec := int64(bucketMinutes) * 60
+
+	rows, err := p.pool.Query(ctx, `
+		SELECT to_timestamp(EXTRACT(EPOCH FROM timestamp)::bigint / $1 * $1) AS bucket,
+		       COUNT(*)::int,
+		       COALESCE(AVG(response_time), 0),
+		       COUNT(*) FILTER (WHERE status = 'down')::int,
+		       COUNT(*) FILTER (WHERE status IN ('warning','degraded'))::int
+		FROM metrics
+		WHERE timestamp BETWEEN $2 AND $3
+		GROUP BY bucket
+		ORDER BY bucket ASC`, bucketSec, from, to)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []models.ReportTimeseriesPoint
+	for rows.Next() {
+		var p models.ReportTimeseriesPoint
+		var bucket time.Time
+		if err := rows.Scan(&bucket, &p.SampleCount, &p.AvgResponse, &p.DownCount, &p.WarnCount); err != nil {
+			return nil, err
+		}
+		p.BucketTime = bucket.Format(time.RFC3339)
+		out = append(out, p)
+	}
+	if out == nil {
+		out = []models.ReportTimeseriesPoint{}
+	}
+	return out, rows.Err()
+}
+
+func (p *Postgres) GetReportDeviceBreakdown(ctx context.Context, from, to time.Time) ([]models.DeviceBreakdown, error) {
+	rows, err := p.pool.Query(ctx, `
+		SELECT m.device_id, COALESCE(d.name, 'Unknown'), COALESCE(d.protocol, ''),
+		       COUNT(*)::int,
+		       COUNT(*) FILTER (WHERE m.status = 'down')::int,
+		       COUNT(*) FILTER (WHERE m.status IN ('warning','degraded'))::int,
+		       COALESCE(AVG(m.response_time), 0),
+		       COALESCE(MIN(m.response_time), 0),
+		       COALESCE(MAX(m.response_time), 0)
+		FROM metrics m
+		LEFT JOIN devices d ON d.id = m.device_id
+		WHERE m.timestamp BETWEEN $1 AND $2
+		GROUP BY m.device_id, d.name, d.protocol
+		ORDER BY COUNT(*) DESC`, from, to)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []models.DeviceBreakdown
+	for rows.Next() {
+		var db models.DeviceBreakdown
+		if err := rows.Scan(
+			&db.DeviceID, &db.DeviceName, &db.Protocol,
+			&db.SampleCount, &db.DownCount, &db.WarnCount,
+			&db.AvgResponse, &db.MinResponse, &db.MaxResponse,
+		); err != nil {
+			return nil, err
+		}
+		if db.SampleCount > 0 {
+			db.AvailabilityPercent = float64(db.SampleCount-db.DownCount) / float64(db.SampleCount) * 100
+		} else {
+			db.AvailabilityPercent = 100
+		}
+		out = append(out, db)
+	}
+	if out == nil {
+		out = []models.DeviceBreakdown{}
+	}
+	return out, rows.Err()
+}
+
 // QueryMetrics builds a dynamic query to retrieve metrics with optional filters.
 func (p *Postgres) QueryMetrics(ctx context.Context, q models.MetricQuery) ([]models.Metric, error) {
 	var clauses []string

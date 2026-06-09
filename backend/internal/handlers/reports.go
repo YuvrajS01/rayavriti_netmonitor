@@ -28,22 +28,27 @@ func (h *ReportHandler) Summary(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ReportHandler) Timeseries(w http.ResponseWriter, r *http.Request) {
-	from, to, limit := parseTimeRange(r)
-	metrics, err := h.db.GetDeviceMetrics(r.Context(), 0, from, to, limit)
+	from, to, _ := parseTimeRange(r)
+	bucketMinutes := 60
+	if b := r.URL.Query().Get("bucket"); b != "" {
+		fmt.Sscanf(b, "%d", &bucketMinutes)
+	}
+	points, err := h.db.GetReportTimeseries(r.Context(), from, to, bucketMinutes)
 	if err != nil {
 		httputil.SendError(w, 500, err.Error())
 		return
 	}
-	httputil.SendOK(w, metrics)
+	httputil.SendOK(w, points)
 }
 
 func (h *ReportHandler) Devices(w http.ResponseWriter, r *http.Request) {
-	stats, err := h.db.GetDashboardStats(r.Context())
+	from, to, _ := parseTimeRange(r)
+	breakdown, err := h.db.GetReportDeviceBreakdown(r.Context(), from, to)
 	if err != nil {
 		httputil.SendError(w, 500, err.Error())
 		return
 	}
-	httputil.SendOK(w, stats)
+	httputil.SendOK(w, breakdown)
 }
 
 func (h *ReportHandler) Alerts(w http.ResponseWriter, r *http.Request) {

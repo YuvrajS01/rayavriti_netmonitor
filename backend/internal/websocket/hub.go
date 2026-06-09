@@ -52,6 +52,8 @@ type client struct {
 	send   chan []byte
 	info   ClientInfo
 	closed chan struct{}
+	mu     sync.Mutex
+	dead   bool
 }
 
 type Hub struct {
@@ -87,6 +89,12 @@ func (h *Hub) Run() {
 		h.mu.RLock()
 		count := 0
 		for c := range h.clients {
+			c.mu.Lock()
+			dead := c.dead
+			c.mu.Unlock()
+			if dead {
+				continue
+			}
 			select {
 			case c.send <- b:
 				count++
@@ -118,6 +126,7 @@ func (h *Hub) Stop() {
 	close(h.broadcast)
 	h.mu.Lock()
 	for c := range h.clients {
+		c.dead = true
 		c.conn.Close()
 	}
 	h.mu.Unlock()
@@ -208,6 +217,12 @@ func (h *Hub) ServeWS(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				return
 			}
+			c.mu.Lock()
+			dead := c.dead
+			c.mu.Unlock()
+			if dead {
+				return
+			}
 			select {
 			case c.send <- b:
 			default:
@@ -221,9 +236,6 @@ func (h *Hub) ServeWS(w http.ResponseWriter, r *http.Request) {
 		defer func() {
 			ticker.Stop()
 			conn.Close()
-			h.mu.Lock()
-			delete(h.clients, c)
-			h.mu.Unlock()
 			close(c.closed)
 			slog.Info("WebSocket client disconnected",
 				"user_id", c.info.UserID,
@@ -234,6 +246,12 @@ func (h *Hub) ServeWS(w http.ResponseWriter, r *http.Request) {
 
 		conn.SetWriteDeadline(time.Now().Add(writeWait))
 		for {
+			c.mu.Lock()
+			dead := c.dead
+			c.mu.Unlock()
+			if dead {
+				return
+			}
 			select {
 			case msg, ok := <-c.send:
 				conn.SetWriteDeadline(time.Now().Add(writeWait))
@@ -270,7 +288,11 @@ func (h *Hub) ServeWS(w http.ResponseWriter, r *http.Request) {
 	h.mu.Lock()
 	delete(h.clients, c)
 	h.mu.Unlock()
-	close(c.send)
+	c.mu.Lock()
+	c.dead = true
+	c.mu.Unlock()
+	// Don't close c.send here — the writer goroutine detects disconnection
+	// via conn.ReadMessage() and handles cleanup safely.
 }
 
 // SendToClient sends a message to a specific client (by user ID).
@@ -284,6 +306,12 @@ func (h *Hub) SendToClient(userID int64, msg Message) {
 	defer h.mu.RUnlock()
 	for c := range h.clients {
 		if c.info.UserID == userID {
+			c.mu.Lock()
+			dead := c.dead
+			c.mu.Unlock()
+			if dead {
+				continue
+			}
 			select {
 			case c.send <- b:
 			default:

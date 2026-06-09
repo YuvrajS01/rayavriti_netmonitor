@@ -81,7 +81,7 @@ func (s *Server) Start() error {
 	flow := handlers.NewFlowHandler(s.db)
 	report := handlers.NewReportHandler(s.db)
 	insight := handlers.NewInsightHandler(s.db)
-	capture := handlers.NewCaptureHandler(s.db)
+	capture := handlers.NewCaptureHandler(s.db, s.hub)
 	ports := handlers.NewPortsHandler(s.db)
 	dashboard := handlers.NewDashboardHandler(s.db)
 	simulator := handlers.NewSimulatorHandler(s.db)
@@ -133,7 +133,7 @@ func (s *Server) Start() error {
 		// Devices
 		r.Get("/api/devices/{id}/ports", ports.ForDevice)
 		r.Post("/api/devices/{id}/scan-ports", device.ScanPorts)
-		r.Get("/api/v1/devices/{id}/metrics", metric.ForDevice)
+		r.Get("/api/v1/devices/{deviceId}/metrics", metric.ForDevice)
 
 		// Alerts
 		r.Get("/api/alerts", alert.List)

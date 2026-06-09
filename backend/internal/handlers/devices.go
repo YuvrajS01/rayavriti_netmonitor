@@ -17,6 +17,17 @@ import (
 
 type DeviceHandler struct{ db database.Database }
 
+func normalizeHost(raw string) string {
+	h := strings.TrimSpace(raw)
+	for _, prefix := range []string{"https://", "http://"} {
+		if strings.HasPrefix(strings.ToLower(h), prefix) {
+			h = h[len(prefix):]
+			break
+		}
+	}
+	return strings.TrimRight(h, "/")
+}
+
 func NewDeviceHandler(db database.Database) *DeviceHandler { return &DeviceHandler{db: db} }
 
 func (h *DeviceHandler) List(w http.ResponseWriter, r *http.Request) {
@@ -162,6 +173,18 @@ func (h *DeviceHandler) Create(w http.ResponseWriter, r *http.Request) {
 		httputil.SendError(w, http.StatusBadRequest, "name and ipAddress are required")
 		return
 	}
+	// Auto-detect protocol from pasted URL before normalizing
+	origIP := strings.TrimSpace(d.IPAddress)
+	if strings.HasPrefix(strings.ToLower(origIP), "https://") {
+		if d.Protocol == "" || d.Protocol == "ping" {
+			d.Protocol = "https"
+		}
+	} else if strings.HasPrefix(strings.ToLower(origIP), "http://") {
+		if d.Protocol == "" || d.Protocol == "ping" {
+			d.Protocol = "http"
+		}
+	}
+	d.IPAddress = normalizeHost(origIP)
 	if d.Protocol == "" {
 		d.Protocol = "ping"
 	}
@@ -175,6 +198,9 @@ func (h *DeviceHandler) Create(w http.ResponseWriter, r *http.Request) {
 			d.Port = 161
 		case "ssh":
 			d.Port = 22
+		case "port":
+			httputil.SendError(w, http.StatusBadRequest, "port protocol requires a valid port number")
+			return
 		default:
 			d.Port = 0
 		}
@@ -203,6 +229,9 @@ func (h *DeviceHandler) Update(w http.ResponseWriter, r *http.Request) {
 		httputil.SendError(w, http.StatusBadRequest, "invalid body")
 		return
 	}
+	if d.IPAddress != "" {
+		d.IPAddress = normalizeHost(d.IPAddress)
+	}
 	updated, err := h.db.UpdateDevice(r.Context(), id, &d)
 	if err != nil {
 		httputil.SendError(w, http.StatusInternalServerError, err.Error())
@@ -222,6 +251,14 @@ func (h *DeviceHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httputil.SendOK(w, map[string]string{"message": "deleted"})
+}
+
+var portServiceNames = map[int]string{
+	21: "FTP", 22: "SSH", 23: "Telnet", 25: "SMTP", 53: "DNS",
+	80: "HTTP", 110: "POP3", 143: "IMAP", 161: "SNMP", 443: "HTTPS",
+	465: "SMTPS", 587: "Submission", 993: "IMAPS", 995: "POP3S",
+	1433: "MSSQL", 3306: "MySQL", 3389: "RDP", 5432: "PostgreSQL",
+	6379: "Redis", 8080: "HTTP-Alt", 8443: "HTTPS-Alt", 27017: "MongoDB",
 }
 
 func (h *DeviceHandler) ScanPorts(w http.ResponseWriter, r *http.Request) {
@@ -275,6 +312,7 @@ func (h *DeviceHandler) ScanPorts(w http.ResponseWriter, r *http.Request) {
 			Port:         r.Port,
 			Protocol:     "tcp",
 			State:        state,
+			Service:      portServiceNames[r.Port],
 			ResponseTime: nil,
 			ScannedAt:    time.Now(),
 		})

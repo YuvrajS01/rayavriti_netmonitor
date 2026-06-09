@@ -1,26 +1,44 @@
 package handlers
 
 import (
+	"bufio"
+	"context"
+	"log/slog"
 	"net"
 	"net/http"
+	"os/exec"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/rayavriti/netmonitor-backend/internal/database"
 	"github.com/rayavriti/netmonitor-backend/internal/httputil"
 	"github.com/rayavriti/netmonitor-backend/internal/models"
+	"github.com/rayavriti/netmonitor-backend/internal/websocket"
 )
 
-// CaptureHandler provides start/stop/stats for packet capture.
-// It stores an atomic running flag; real capture is wired via the collector in Phase 1.
 type CaptureHandler struct {
 	running int32
 	db      database.Database
+	hub     *websocket.Hub
+
+	mu      sync.Mutex
+	cancel  context.CancelFunc
+	stats   captureStats
 }
 
-func NewCaptureHandler(db database.Database) *CaptureHandler { return &CaptureHandler{db: db} }
+type captureStats struct {
+	totalPackets int64
+	totalBytes   int64
+	protocols    map[string]int64
+}
+
+func NewCaptureHandler(db database.Database, hub *websocket.Hub) *CaptureHandler {
+	return &CaptureHandler{db: db, hub: hub}
+}
 
 func (h *CaptureHandler) Start(w http.ResponseWriter, r *http.Request) {
 	var body struct {
@@ -54,6 +72,20 @@ func (h *CaptureHandler) Start(w http.ResponseWriter, r *http.Request) {
 		httputil.SendError(w, 500, err.Error())
 		return
 	}
+
+	h.mu.Lock()
+	h.stats = captureStats{protocols: map[string]int64{}}
+	ctx, cancel := context.WithCancel(context.Background())
+	h.cancel = cancel
+	h.mu.Unlock()
+
+	go h.runCapture(ctx, created.ID, body.Interface, body.Filter)
+
+	h.hub.Broadcast(websocket.Message{
+		Type: websocket.EventCaptureStatus,
+		Data: map[string]any{"sessionId": created.ID, "status": "running", "interface": body.Interface},
+	})
+
 	httputil.SendCreated(w, created)
 }
 
@@ -64,24 +96,45 @@ func (h *CaptureHandler) Stop(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	stats := models.CaptureSessionStats{
-		TotalPackets: 0,
-		TotalBytes:   0,
+	h.mu.Lock()
+	cancel := h.cancel
+	h.mu.Unlock()
+
+	if cancel != nil {
+		cancel()
 	}
+
+	h.mu.Lock()
+	stats := models.CaptureSessionStats{
+		TotalPackets: h.stats.totalPackets,
+		TotalBytes:   h.stats.totalBytes,
+	}
+	h.mu.Unlock()
+
 	if err := h.db.StopCaptureSession(r.Context(), id, stats); err != nil {
 		httputil.SendError(w, 500, err.Error())
 		return
 	}
 	atomic.StoreInt32(&h.running, 0)
-	httputil.SendOK(w, map[string]string{"status": "stopped"})
+
+	h.hub.Broadcast(websocket.Message{
+		Type: websocket.EventCaptureStatus,
+		Data: map[string]any{"sessionId": id, "status": "stopped"},
+	})
+
+	httputil.SendOK(w, map[string]any{"status": "stopped", "totalPackets": stats.TotalPackets, "totalBytes": stats.TotalBytes})
 }
 
 func (h *CaptureHandler) Stats(w http.ResponseWriter, r *http.Request) {
+	h.mu.Lock()
+	s := h.stats
+	h.mu.Unlock()
+
 	httputil.SendOK(w, map[string]any{
 		"running":      atomic.LoadInt32(&h.running) == 1,
-		"totalPackets": 0,
-		"totalBytes":   0,
-		"protocols":    map[string]int{},
+		"totalPackets": s.totalPackets,
+		"totalBytes":   s.totalBytes,
+		"protocols":    s.protocols,
 	})
 }
 
@@ -188,4 +241,270 @@ func (h *CaptureHandler) ListSessions(w http.ResponseWriter, r *http.Request) {
 		sessions = sessions[:limit]
 	}
 	httputil.SendOK(w, sessions)
+}
+
+// runCapture launches tcpdump and parses its output into packets.
+func (h *CaptureHandler) runCapture(ctx context.Context, sessionID int64, iface, filter string) {
+	args := []string{"-i", iface, "-nn", "-l", "-q"}
+	if filter != "" {
+		args = append(args, filter)
+	}
+	// -e adds link-level headers, -tttt adds human-readable timestamps
+	args = append(args, "-e", "-tttt")
+
+	cmd := exec.CommandContext(ctx, "tcpdump", args...)
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		slog.Error("failed to start tcpdump", "error", err)
+		h.stopSession(sessionID, "error", "failed to start tcpdump: "+err.Error())
+		return
+	}
+	if err := cmd.Start(); err != nil {
+		slog.Error("failed to start tcpdump", "error", err)
+		h.stopSession(sessionID, "error", "failed to start tcpdump: "+err.Error())
+		return
+	}
+
+	slog.Info("tcpdump started", "interface", iface, "filter", filter, "pid", cmd.Process.Pid)
+
+	go func() {
+		<-ctx.Done()
+		if cmd.Process != nil {
+			cmd.Process.Kill()
+		}
+	}()
+
+	scanner := bufio.NewScanner(stdout)
+	scanner.Buffer(make([]byte, 0, 64*1024), 64*1024)
+
+	var batch []models.CapturePacket
+	batchTimer := time.NewTimer(500 * time.Millisecond)
+	defer batchTimer.Stop()
+
+	flushBatch := func() {
+		if len(batch) == 0 {
+			return
+		}
+		packets := batch
+		batch = nil
+
+		// Store in DB (best effort)
+		for _, p := range packets {
+			p := p
+			if err := h.db.InsertCapturePacket(ctx, sessionID, &p); err != nil {
+				slog.Warn("failed to insert packet", "error", err)
+			}
+		}
+
+		// Broadcast via WebSocket
+		packetData := make([]map[string]any, 0, len(packets))
+		for _, p := range packets {
+			packetData = append(packetData, map[string]any{
+				"timestamp": p.Timestamp,
+				"srcIp":     p.SrcIP,
+				"dstIp":     p.DstIP,
+				"srcPort":   p.SrcPort,
+				"dstPort":   p.DstPort,
+				"protocol":  p.Protocol,
+				"length":    p.Length,
+				"flags":     p.Flags,
+			})
+		}
+		h.hub.Broadcast(websocket.Message{
+			Type: websocket.EventCapturePacket,
+			Data: map[string]any{
+				"sessionId": sessionID,
+				"packets":   packetData,
+				"count":     len(packetData),
+			},
+		})
+	}
+
+	for scanner.Scan() {
+		line := scanner.Text()
+		pkt := parseTcpdumpLine(line)
+		if pkt == nil {
+			continue
+		}
+
+		h.mu.Lock()
+		h.stats.totalPackets++
+		h.stats.totalBytes += int64(pkt.Length)
+		h.stats.protocols[pkt.Protocol]++
+		h.mu.Unlock()
+
+		batch = append(batch, *pkt)
+
+		select {
+		case <-batchTimer.C:
+			flushBatch()
+			batchTimer.Reset(500 * time.Millisecond)
+		default:
+		}
+
+		select {
+		case <-ctx.Done():
+			flushBatch()
+			return
+		default:
+		}
+	}
+
+	flushBatch()
+
+	if err := cmd.Wait(); err != nil {
+		if ctx.Err() == nil {
+			slog.Error("tcpdump exited with error", "error", err)
+			h.stopSession(sessionID, "error", "tcpdump exited: "+err.Error())
+			return
+		}
+	}
+
+	if atomic.LoadInt32(&h.running) == 1 {
+		h.stopSession(sessionID, "stopped", "")
+	}
+}
+
+func (h *CaptureHandler) stopSession(sessionID int64, status, errMsg string) {
+	h.mu.Lock()
+	stats := models.CaptureSessionStats{
+		TotalPackets: h.stats.totalPackets,
+		TotalBytes:   h.stats.totalBytes,
+		ErrorMessage: errMsg,
+	}
+	h.mu.Unlock()
+
+	if err := h.db.StopCaptureSession(context.Background(), sessionID, stats); err != nil {
+		slog.Error("failed to stop capture session in DB", "error", err)
+	}
+	atomic.StoreInt32(&h.running, 0)
+
+	h.hub.Broadcast(websocket.Message{
+		Type: websocket.EventCaptureStatus,
+		Data: map[string]any{"sessionId": sessionID, "status": status},
+	})
+}
+
+// parseTcpdumpLine parses a tcpdump -nn -l -e -tttt output line.
+// Example: "06:28:34.123456 IntelCor_xxxx > Broadcast, IPv4 (len=66), ..."
+func parseTcpdumpLine(line string) *models.CapturePacket {
+	if line == "" || strings.HasPrefix(line, "tcpdump:") || strings.HasPrefix(line, "listening") {
+		return nil
+	}
+
+	pkt := &models.CapturePacket{
+		Timestamp: time.Now(),
+		Protocol:  "unknown",
+	}
+
+	// Try to extract timestamp (first 15 chars: "MM/DD/YYYY HH:MM:SS")
+	if len(line) > 15 {
+		tsPart := strings.TrimSpace(line[:15])
+		if t, err := time.Parse("01/02/2006 15:04:05", tsPart); err == nil {
+			pkt.Timestamp = t
+		}
+	}
+
+	lower := strings.ToLower(line)
+
+	// Detect protocol from content
+	switch {
+	case strings.Contains(lower, "ipv6"):
+		pkt.Protocol = "IPv6"
+	case strings.Contains(lower, "arp"):
+		pkt.Protocol = "ARP"
+	case strings.Contains(lower, "icmp"):
+		pkt.Protocol = "ICMP"
+	case strings.Contains(lower, "tcp"):
+		pkt.Protocol = "TCP"
+	case strings.Contains(lower, "udp"):
+		pkt.Protocol = "UDP"
+	}
+
+	// Extract length: look for "len=NNN" or "(len NNN)"
+	if idx := strings.Index(line, "len="); idx >= 0 {
+		rest := line[idx+4:]
+		end := strings.IndexAny(rest, ",) \t")
+		if end > 0 {
+			if n, err := strconv.Atoi(rest[:end]); err == nil {
+				pkt.Length = n
+			}
+		}
+	} else if idx := strings.Index(line, "(len "); idx >= 0 {
+		rest := line[idx+5:]
+		end := strings.IndexAny(rest, ",) \t")
+		if end > 0 {
+			if n, err := strconv.Atoi(rest[:end]); err == nil {
+				pkt.Length = n
+			}
+		}
+	}
+	if pkt.Length == 0 {
+		pkt.Length = 64 // default
+	}
+
+	// Try to extract IP addresses: look for patterns like "A.B.C.D" or "A.B.C.D.port"
+	// tcpdump -nn output has IPs like "192.168.1.1.443" or "10.0.0.1"
+	words := strings.Fields(line)
+	for _, w := range words {
+		w = strings.Trim(w, ",:;()>[]")
+		parts := strings.Split(w, ".")
+		if len(parts) == 4 {
+			// Check if all parts are numeric
+			allNum := true
+			for _, p := range parts {
+				if _, err := strconv.Atoi(p); err != nil {
+					allNum = false
+					break
+				}
+			}
+			if allNum {
+				if pkt.SrcIP == "" {
+					pkt.SrcIP = w
+				} else if pkt.DstIP == "" {
+					pkt.DstIP = w
+				}
+			}
+		}
+	}
+
+	// If we couldn't parse IPs from the line, use placeholder
+	if pkt.SrcIP == "" {
+		pkt.SrcIP = "unknown"
+	}
+	if pkt.DstIP == "" {
+		pkt.DstIP = "unknown"
+	}
+
+	// Extract port from "port.NNN" pattern (tcpdump -nn output)
+	if idx := strings.Index(lower, ".port"); idx >= 0 {
+		rest := line[idx+5:]
+		end := strings.IndexAny(rest, ",) \t")
+		if end > 0 {
+			if n, err := strconv.Atoi(rest[:end]); err == nil && n > 0 && n < 65536 {
+				if pkt.SrcPort == 0 {
+					pkt.SrcPort = n
+				} else {
+					pkt.DstPort = n
+				}
+			}
+		}
+	}
+
+	// Extract flags
+	if idx := strings.Index(lower, "flags ["); idx >= 0 {
+		rest := line[idx+7:]
+		end := strings.IndexByte(rest, ']')
+		if end > 0 {
+			pkt.Flags = strings.TrimSpace(rest[:end])
+		}
+	} else if idx := strings.Index(lower, "flags "); idx >= 0 {
+		rest := line[idx+6:]
+		end := strings.IndexAny(rest, ",) \t")
+		if end > 0 {
+			pkt.Flags = strings.TrimSpace(rest[:end])
+		}
+	}
+
+	return pkt
 }

@@ -15,12 +15,12 @@ func NewFlowHandler(db database.Database) *FlowHandler { return &FlowHandler{db:
 func (h *FlowHandler) List(w http.ResponseWriter, r *http.Request) {
 	from, to, limit := parseTimeRange(r)
 	offset, _ := strconv.Atoi(r.URL.Query().Get("offset"))
-	flows, total, err := h.db.GetFlows(r.Context(), from, to, limit, offset)
+	flows, _, err := h.db.GetFlows(r.Context(), from, to, limit, offset)
 	if err != nil {
 		httputil.SendError(w, 500, err.Error())
 		return
 	}
-	httputil.SendOK(w, map[string]any{"flows": flows, "total": total})
+	httputil.SendOK(w, flows)
 }
 
 func (h *FlowHandler) TopTalkers(w http.ResponseWriter, r *http.Request) {

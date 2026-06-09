@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"math"
 	"strings"
 	"time"
 
@@ -228,7 +229,7 @@ func (p *Postgres) GetLatestMetrics(ctx context.Context) ([]models.Metric, error
 		    m.cpu_usage, m.memory_usage, m.bandwidth, m.custom_value, m.details,
 		    d.protocol, d.name
 		FROM metrics m
-		LEFT JOIN devices d ON d.id = m.device_id
+		INNER JOIN devices d ON d.id = m.device_id
 		ORDER BY m.device_id, m.timestamp DESC`)
 	if err != nil {
 		return nil, err
@@ -246,7 +247,7 @@ func (p *Postgres) GetDeviceMetrics(ctx context.Context, deviceID int64, from, t
 		       m.cpu_usage, m.memory_usage, m.bandwidth, m.custom_value, m.details,
 		       d.protocol, d.name
 		FROM metrics m
-		LEFT JOIN devices d ON d.id = m.device_id
+		INNER JOIN devices d ON d.id = m.device_id
 		WHERE m.device_id=$1 AND m.timestamp BETWEEN $2 AND $3
 		ORDER BY m.timestamp DESC LIMIT $4`,
 		deviceID, from, to, limit)
@@ -258,15 +259,33 @@ func (p *Postgres) GetDeviceMetrics(ctx context.Context, deviceID int64, from, t
 }
 
 func (p *Postgres) GetMetricsSummary(ctx context.Context, from, to time.Time) (map[string]any, error) {
-	var total int64
+	var totalSamples, downSamples, warningSamples int64
 	var avgRT *float64
 	err := p.pool.QueryRow(ctx, `
-		SELECT COUNT(*), AVG(response_time)
-		FROM metrics WHERE timestamp BETWEEN $1 AND $2`, from, to).Scan(&total, &avgRT)
+		SELECT
+			COUNT(*),
+			COUNT(*) FILTER (WHERE status = 'down'),
+			COUNT(*) FILTER (WHERE status IN ('warning','degraded')),
+			AVG(response_time)
+		FROM metrics WHERE timestamp BETWEEN $1 AND $2`, from, to).Scan(&totalSamples, &downSamples, &warningSamples, &avgRT)
 	if err != nil {
 		return nil, err
 	}
-	return map[string]any{"total": total, "avgResponseTime": avgRT}, nil
+	availabilityPercent := float64(0)
+	if totalSamples > 0 {
+		availabilityPercent = float64(totalSamples-downSamples) / float64(totalSamples) * 100
+	}
+	averageResponseMs := float64(0)
+	if avgRT != nil {
+		averageResponseMs = *avgRT
+	}
+	return map[string]any{
+		"totalSamples":       totalSamples,
+		"downSamples":        downSamples,
+		"warningSamples":     warningSamples,
+		"availabilityPercent": math.Round(availabilityPercent*100) / 100,
+		"averageResponseMs":  math.Round(averageResponseMs*100) / 100,
+	}, nil
 }
 
 func scanMetrics(rows pgx.Rows) ([]models.Metric, error) {
@@ -333,7 +352,7 @@ func (p *Postgres) GetAlerts(ctx context.Context, status string, limit, offset i
 	if err := p.pool.QueryRow(ctx, countSQL, args...).Scan(&total); err != nil {
 		return nil, 0, err
 	}
-	listSQL := `SELECT id,device_id,device_name,severity,message,status,rule_id,
+	listSQL := `SELECT id,COALESCE(device_id,0),COALESCE(device_name,''),severity,message,status,rule_id,
 	                   created_at,acknowledged_at,resolved_at,acknowledged_by,resolved_by ` +
 		base + ` ORDER BY created_at DESC`
 	n := len(args)
@@ -350,7 +369,7 @@ func (p *Postgres) GetAlerts(ctx context.Context, status string, limit, offset i
 
 func (p *Postgres) GetAlert(ctx context.Context, id int64) (*models.Alert, error) {
 	rows, err := p.pool.Query(ctx, `
-		SELECT id,device_id,device_name,severity,message,status,rule_id,
+		SELECT id,COALESCE(device_id,0),COALESCE(device_name,''),severity,message,status,rule_id,
 		       created_at,acknowledged_at,resolved_at,acknowledged_by,resolved_by
 		FROM alerts WHERE id=$1`, id)
 	if err != nil {

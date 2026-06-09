@@ -38,6 +38,8 @@ type Database interface {
 	GetDeviceMetrics(ctx context.Context, deviceID int64, from, to time.Time, limit int) ([]models.Metric, error)
 	GetMetricsSummary(ctx context.Context, from, to time.Time) (map[string]any, error)
 	GetMetricsForReport(ctx context.Context, from, to time.Time, deviceID *int64, interval string) ([]models.ReportMetricRow, error)
+	GetReportTimeseries(ctx context.Context, from, to time.Time, bucketMinutes int) ([]models.ReportTimeseriesPoint, error)
+	GetReportDeviceBreakdown(ctx context.Context, from, to time.Time) ([]models.DeviceBreakdown, error)
 	QueryMetrics(ctx context.Context, q models.MetricQuery) ([]models.Metric, error)
 	GetMetricsInWindow(ctx context.Context, deviceID int64, field string, from, to time.Time) ([]float64, error)
 
@@ -98,6 +100,7 @@ type Database interface {
 	GetCaptureSession(ctx context.Context, id int64) (*models.CaptureSession, error)
 	GetCaptureSessions(ctx context.Context) ([]models.CaptureSession, error)
 	StopCaptureSession(ctx context.Context, id int64, stats models.CaptureSessionStats) error
+	InsertCapturePacket(ctx context.Context, sessionID int64, p *models.CapturePacket) error
 	GetCapturePackets(ctx context.Context, sessionID int64, limit, offset int) ([]models.CapturePacket, error)
 
 	// Port Scans

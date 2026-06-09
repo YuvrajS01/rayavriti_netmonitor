@@ -83,15 +83,16 @@ type ReportTimeseriesPoint struct {
 }
 
 type DeviceBreakdown struct {
-	DeviceID    int64   `json:"deviceId"`
-	DeviceName  string  `json:"deviceName"`
-	Protocol    string  `json:"protocol"`
-	SampleCount int     `json:"sampleCount"`
-	DownCount   int     `json:"downCount"`
-	WarnCount   int     `json:"warnCount"`
-	AvgResponse float64 `json:"avgResponse"`
-	MinResponse float64 `json:"minResponse"`
-	MaxResponse float64 `json:"maxResponse"`
+	DeviceID             int64   `json:"deviceId"`
+	DeviceName           string  `json:"deviceName"`
+	Protocol             string  `json:"protocol"`
+	SampleCount          int     `json:"sampleCount"`
+	DownCount            int     `json:"downCount"`
+	WarnCount            int     `json:"warnCount"`
+	AvgResponse          float64 `json:"avgResponse"`
+	MinResponse          float64 `json:"minResponse"`
+	MaxResponse          float64 `json:"maxResponse"`
+	AvailabilityPercent  float64 `json:"availabilityPercent,omitempty"`
 }
 
 type Alert struct {
@@ -200,17 +201,17 @@ type CaptureStats struct {
 }
 
 type CapturePacket struct {
-	ID            int64   `json:"id"`
-	SessionID     int64   `json:"sessionId"`
-	Timestamp     float64 `json:"timestamp"`
-	SrcIP         string  `json:"srcIp"`
-	DstIP         string  `json:"dstIp"`
-	SrcPort       int     `json:"srcPort"`
-	DstPort       int     `json:"dstPort"`
-	Protocol      string  `json:"protocol"`
-	Length        int     `json:"length"`
-	Flags         string  `json:"flags,omitempty"`
-	Payload       string  `json:"payload,omitempty"`
+	ID        int64     `json:"id"`
+	SessionID int64     `json:"sessionId"`
+	Timestamp time.Time `json:"timestamp"`
+	SrcIP     string    `json:"srcIp"`
+	DstIP     string    `json:"dstIp"`
+	SrcPort   int       `json:"srcPort"`
+	DstPort   int       `json:"dstPort"`
+	Protocol  string    `json:"protocol"`
+	Length    int       `json:"length"`
+	Flags     string    `json:"flags,omitempty"`
+	Payload   string    `json:"payload,omitempty"`
 }
 
 type PortScanResult struct {

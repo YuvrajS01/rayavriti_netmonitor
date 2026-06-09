@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback, type FormEvent } from 'react';
 import { getDevices, getLatestMetrics, addDevice, deleteDevice } from '../api/client';
+import { useSocket } from '../hooks/useSocket';
 import type { Device, Metric } from '../api/types';
 import DeviceModal from '../components/DeviceModal';
 
-function statusOf(deviceId: number, metricsMap: Map<number, Metric>): string {
-  return metricsMap.get(deviceId)?.status || 'unknown';
+function statusOf(device: Device, metricsMap: Map<number, Metric>): string {
+  return metricsMap.get(device.id)?.status || device.status || 'unknown';
 }
 
 function statusColor(status: string) {
@@ -43,8 +44,25 @@ export default function Devices() {
 
   useEffect(() => { load(); }, [load]);
 
+  useSocket({
+    onMetricUpdate: (metric) => {
+      const m = metric as unknown as Metric;
+      setMetricsMap((prev) => {
+        const next = new Map(prev);
+        next.set(m.deviceId, m);
+        return next;
+      });
+    },
+    onDeviceStatus: (status) => {
+      const s = status as { device_id: number; new_status: string };
+      setDevices((prev) => prev.map((d) =>
+        d.id === s.device_id ? { ...d, status: s.new_status as Device['status'] } : d
+      ));
+    },
+  });
+
   const filtered = devices.filter((d) => {
-    const status = statusOf(d.id, metricsMap);
+    const status = statusOf(d, metricsMap);
     const text = `${d.name} ${d.ipAddress} ${d.protocol}`.toLowerCase();
     const matchSearch = !search || text.includes(search.toLowerCase());
     let matchStatus = true;
@@ -87,9 +105,9 @@ export default function Devices() {
 
   // Stats
   const total = devices.length;
-  const up = devices.filter((d) => { const s = statusOf(d.id, metricsMap); return s === 'up' || s === 'ok'; }).length;
-  const down = devices.filter((d) => statusOf(d.id, metricsMap) === 'down').length;
-  const warn = devices.filter((d) => { const s = statusOf(d.id, metricsMap); return s === 'warning' || s === 'degraded'; }).length;
+  const up = devices.filter((d) => { const s = statusOf(d, metricsMap); return s === 'up' || s === 'ok'; }).length;
+  const down = devices.filter((d) => statusOf(d, metricsMap) === 'down').length;
+  const warn = devices.filter((d) => { const s = statusOf(d, metricsMap); return s === 'warning' || s === 'degraded'; }).length;
 
   return (
     <div>
@@ -153,7 +171,8 @@ export default function Devices() {
               max="65535"
               value={formPort}
               onChange={(e) => setFormPort(Number(e.target.value || 0))}
-              placeholder="Port"
+              placeholder={formProtocol === 'port' ? 'Port to check' : 'Port'}
+              required={formProtocol === 'port'}
               className="bg-surface-container-highest border border-outline-variant/20 rounded-lg px-3 py-2 text-sm text-on-surface outline-none"
             />
             <select
@@ -165,6 +184,8 @@ export default function Devices() {
                 if (next === 'https') setFormPort(443);
                 if (next === 'http') setFormPort(80);
                 if (next === 'snmp') setFormPort(161);
+                if (next === 'ping') setFormPort(0);
+                if (next === 'port') setFormPort(0);
               }}
               className="bg-surface-container-highest border border-outline-variant/20 rounded-lg px-3 py-2 text-sm text-on-surface outline-none"
             >
@@ -204,7 +225,7 @@ export default function Devices() {
       {/* Device Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filtered.map((device) => {
-          const status = statusOf(device.id, metricsMap);
+          const status = statusOf(device, metricsMap);
           const sc = statusColor(status);
           const metric = metricsMap.get(device.id);
           return (
@@ -224,11 +245,11 @@ export default function Devices() {
                   </div>
                 </div>
                 <h3 className={`font-headline text-xl font-bold mb-1 group-hover:${sc.text} transition-colors`}>{device.name}</h3>
-                <code className="text-on-surface-variant text-xs mb-4 block">{device.ipAddress}:{device.port}</code>
+                <code className="text-on-surface-variant text-xs mb-4 block">{device.protocol === 'http' || device.protocol === 'https' ? `${device.protocol}://${device.ipAddress}` : device.ipAddress}{device.port > 0 && !['http','https'].includes(device.protocol) ? `:${device.port}` : ''}</code>
                 <div className="space-y-2 text-xs">
                   <div className="flex justify-between"><span className="text-on-surface-variant uppercase tracking-widest">Protocol</span><span className="font-bold">{device.protocol.toUpperCase()}</span></div>
                   <div className="flex justify-between"><span className="text-on-surface-variant uppercase tracking-widest">Interval</span><span className="font-bold">{device.interval}s</span></div>
-                  {metric && <div className="flex justify-between"><span className="text-on-surface-variant uppercase tracking-widest">Response</span><span className="font-bold">{metric.responseTime}ms</span></div>}
+                  {metric && <div className="flex justify-between"><span className="text-on-surface-variant uppercase tracking-widest">Response</span><span className="font-bold">{metric.responseTime ?? '-'}ms</span></div>}
                 </div>
               </div>
               <div className="mt-auto bg-surface-container-high p-4 flex justify-between items-center">

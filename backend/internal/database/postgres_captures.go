@@ -33,9 +33,9 @@ func (p *Postgres) CreateCaptureSession(ctx context.Context, cs *models.CaptureS
 
 func (p *Postgres) GetCaptureSession(ctx context.Context, id int64) (*models.CaptureSession, error) {
 	rows, err := p.pool.Query(ctx, `
-		SELECT id,interface_name,filter,status,started_by,
+		SELECT id,interface_name,filter,status,COALESCE(started_by,''),
 		       total_packets,total_bytes,protocols,
-		       started_at,stopped_at,error_message
+		       started_at,stopped_at,COALESCE(error_message,'')
 		FROM capture_sessions WHERE id=$1`, id)
 	if err != nil {
 		return nil, err
@@ -54,9 +54,9 @@ func (p *Postgres) GetCaptureSession(ctx context.Context, id int64) (*models.Cap
 
 func (p *Postgres) GetCaptureSessions(ctx context.Context) ([]models.CaptureSession, error) {
 	rows, err := p.pool.Query(ctx, `
-		SELECT id,interface_name,filter,status,started_by,
+		SELECT id,interface_name,filter,status,COALESCE(started_by,''),
 		       total_packets,total_bytes,protocols,
-		       started_at,stopped_at,error_message
+		       started_at,stopped_at,COALESCE(error_message,'')
 		FROM capture_sessions ORDER BY started_at DESC`)
 	if err != nil {
 		return nil, err
@@ -84,6 +84,16 @@ func (p *Postgres) StopCaptureSession(ctx context.Context, id int64, stats model
 		SET status=$1, stopped_at=NOW(), total_packets=$2, total_bytes=$3, error_message=$4
 		WHERE id=$5`,
 		status, stats.TotalPackets, stats.TotalBytes, nullStr(stats.ErrorMessage), id)
+	return err
+}
+
+func (p *Postgres) InsertCapturePacket(ctx context.Context, sessionID int64, pkt *models.CapturePacket) error {
+	_, err := p.pool.Exec(ctx, `
+		INSERT INTO capture_packets(session_id,timestamp,src_ip,dst_ip,src_port,dst_port,protocol,length,flags,payload)
+		VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+		sessionID, pkt.Timestamp, pkt.SrcIP, pkt.DstIP, pkt.SrcPort, pkt.DstPort,
+		pkt.Protocol, pkt.Length, pkt.Flags, pkt.Payload,
+	)
 	return err
 }
 

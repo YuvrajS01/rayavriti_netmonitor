@@ -140,7 +140,7 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
         <div className="p-6 border-b border-outline-variant/20 flex justify-between items-start">
           <div>
             <h2 className="font-headline text-3xl font-black text-on-surface uppercase tracking-tight">{device.name}</h2>
-            <p className="text-on-surface-variant text-sm font-mono">{device.ipAddress}:{device.port} ({device.protocol.toUpperCase()})</p>
+            <p className="text-on-surface-variant text-sm font-mono">{device.protocol === 'http' || device.protocol === 'https' ? `${device.protocol}://${device.ipAddress}` : device.ipAddress}{device.port > 0 && !['http','https'].includes(device.protocol) ? `:${device.port}` : ''} ({device.protocol.toUpperCase()})</p>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-surface-container-highest rounded-full transition-colors">
             <span className="material-symbols-outlined text-outline hover:text-on-surface">close</span>

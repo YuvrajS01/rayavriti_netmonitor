@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/rayavriti/netmonitor-backend/internal/models"
@@ -14,8 +15,22 @@ type HTTPCollector struct{}
 
 func (HTTPCollector) Name() string { return "http" }
 
+// normalizeHost strips any scheme prefix from the host field, in case
+// the user pasted a full URL like "https://example.com" as the IP address.
+func normalizeHost(raw string) string {
+	h := strings.TrimSpace(raw)
+	for _, prefix := range []string{"https://", "http://"} {
+		if strings.HasPrefix(strings.ToLower(h), prefix) {
+			h = h[len(prefix):]
+			break
+		}
+	}
+	h = strings.TrimRight(h, "/")
+	return h
+}
+
 func (HTTPCollector) Collect(ctx context.Context, device *models.Device) (*Result, error) {
-	host := device.IPAddress
+	host := normalizeHost(device.IPAddress)
 	port := device.Port
 	protocol := device.Protocol
 
