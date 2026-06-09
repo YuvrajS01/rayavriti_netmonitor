@@ -82,12 +82,9 @@ export default function FlowAnalysis() {
         setStats({
           totalFlows: Number(rawStats.totalFlows) || 0,
           totalBytes: Number(rawStats.totalBytes) || 0,
-          totalBytesFormatted: formatBytes(Number(rawStats.totalBytes) || 0),
           totalPackets: Number(rawStats.totalPackets) || 0,
           uniqueSources: Number(rawStats.uniqueSources) || 0,
           uniqueDestinations: Number(rawStats.uniqueDestinations) || 0,
-          activeCollectors: 0,
-          collectorTypes: [],
         });
       }
       setTimeseries(tsRes.data || []);
@@ -137,12 +134,9 @@ export default function FlowAnalysis() {
           setStats({
             totalFlows: Number(raw.totalFlows) || 0,
             totalBytes: Number(raw.totalBytes) || 0,
-            totalBytesFormatted: formatBytes(Number(raw.totalBytes) || 0),
             totalPackets: Number(raw.totalPackets) || 0,
             uniqueSources: Number(raw.uniqueSources) || 0,
             uniqueDestinations: Number(raw.uniqueDestinations) || 0,
-            activeCollectors: 0,
-            collectorTypes: [],
           });
         }
       }).catch(() => {});
@@ -151,7 +145,7 @@ export default function FlowAnalysis() {
 
   const filteredFlows = flows.filter((f) => {
     if (filterIp && !f.srcIp.includes(filterIp) && !f.dstIp.includes(filterIp)) return false;
-    if (filterProto && f.protocolName !== filterProto) return false;
+    if (filterProto && f.protocol !== filterProto) return false;
     return true;
   });
 
@@ -170,7 +164,7 @@ export default function FlowAnalysis() {
         <div className="flex items-center gap-2">
           <div className="w-2 h-2 rounded-full bg-[#6ee7f7] animate-pulse" />
           <span className="text-[#6ee7f7] font-mono text-xs">
-            {stats ? `${stats.collectorTypes.length > 0 ? stats.collectorTypes.join(', ') : 'Awaiting flows'}` : 'Loading...'}
+            {stats ? (stats.totalFlows > 0 ? 'Flows active' : 'Awaiting flows') : 'Loading...'}
           </span>
         </div>
       </header>
@@ -178,7 +172,7 @@ export default function FlowAnalysis() {
       {/* Stats Grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         <StatCard label="Total Flows" value={stats ? formatNumber(stats.totalFlows) : '—'} icon="swap_horiz" />
-        <StatCard label="Bandwidth" value={stats ? stats.totalBytesFormatted : '—'} icon="cloud_download" color="text-[#6ee7f7]" />
+        <StatCard label="Bandwidth" value={stats ? formatBytes(stats.totalBytes) : '—'} icon="cloud_download" color="text-[#6ee7f7]" />
         <StatCard label="Unique Sources" value={stats ? formatNumber(stats.uniqueSources) : '—'} icon="upload" />
         <StatCard label="Unique Destinations" value={stats ? formatNumber(stats.uniqueDestinations) : '—'} icon="download" />
       </div>
@@ -210,7 +204,7 @@ export default function FlowAnalysis() {
                 </linearGradient>
               </defs>
               <XAxis
-                dataKey="timestamp"
+                dataKey="bucketTime"
                 tick={{ fill: '#8a8a78', fontSize: 10 }}
                 tickLine={false}
                 axisLine={false}
@@ -259,7 +253,7 @@ export default function FlowAnalysis() {
                 <XAxis type="number" tick={{ fill: '#8a8a78', fontSize: 9 }} tickLine={false} axisLine={false} tickFormatter={(v) => formatBytes(v)} />
                 <YAxis type="category" dataKey="ip" tick={{ fill: '#c8c5b0', fontSize: 10 }} tickLine={false} axisLine={false} width={110} />
                 <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: unknown) => [formatBytes(Number(v ?? 0)), 'Bytes']} />
-                <Bar dataKey="bytes" fill="#d9fd3a" radius={[0, 4, 4, 0]} barSize={16} />
+                <Bar dataKey="count" fill="#d9fd3a" radius={[0, 4, 4, 0]} barSize={16} />
               </BarChart>
             </ResponsiveContainer>
           )}
@@ -279,7 +273,7 @@ export default function FlowAnalysis() {
                 <XAxis type="number" tick={{ fill: '#8a8a78', fontSize: 9 }} tickLine={false} axisLine={false} tickFormatter={(v) => formatBytes(v)} />
                 <YAxis type="category" dataKey="ip" tick={{ fill: '#c8c5b0', fontSize: 10 }} tickLine={false} axisLine={false} width={110} />
                 <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: unknown) => [formatBytes(Number(v ?? 0)), 'Bytes']} />
-                <Bar dataKey="bytes" fill="#6ee7f7" radius={[0, 4, 4, 0]} barSize={16} />
+                <Bar dataKey="count" fill="#6ee7f7" radius={[0, 4, 4, 0]} barSize={16} />
               </BarChart>
             </ResponsiveContainer>
           )}
@@ -383,7 +377,7 @@ export default function FlowAnalysis() {
                   </td></tr>
                 ) : (
                   filteredFlows.map((f) => {
-                    const protoColor = PROTOCOL_COLORS[f.protocolName] || '#8a8a78';
+                    const protoColor = PROTOCOL_COLORS[f.protocol] || '#8a8a78';
                     return (
                       <tr key={f.id} className="border-b border-outline-variant/10 hover:bg-surface-container-highest/50 transition-colors">
                         <td className="py-2.5 text-on-surface-variant font-mono">
@@ -394,7 +388,7 @@ export default function FlowAnalysis() {
                         <td className="py-2.5">
                           <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border"
                             style={{ color: protoColor, borderColor: `${protoColor}33`, backgroundColor: `${protoColor}15` }}>
-                            {f.protocolName}
+                            {f.protocol}
                           </span>
                         </td>
                         <td className="py-2.5 text-right font-mono text-on-surface">{formatBytes(f.bytes)}</td>

@@ -37,7 +37,7 @@ Rayavriti NetMonitor is a full-stack network monitoring platform built for local
 └────────────────────────┬────────────────────────────────┘
                          │ WebSocket + REST API
 ┌────────────────────────▼────────────────────────────────┐
-│              Node.js Express Server                     │
+│                  Go Backend (go-chi)                     │
 │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌───────────┐  │
 │  │ Scheduler│ │Collectors│ │ Anomaly  │ │ Retention │  │
 │  │  (cron)  │ │ping/http │ │  Engine  │ │ Scheduler │  │
@@ -50,9 +50,8 @@ Rayavriti NetMonitor is a full-stack network monitoring platform built for local
 └────────────────────────┬────────────────────────────────┘
                          │
             ┌────────────▼────────────┐
-            │   SQLite (WAL mode)     │
-            │   + DB Abstraction      │
-            │   (Postgres-ready)      │
+            │  PostgreSQL + TimescaleDB │
+            │  Hypertables + Retention │
             └─────────────────────────┘
 ```
 
@@ -60,8 +59,9 @@ Rayavriti NetMonitor is a full-stack network monitoring platform built for local
 ```
 rayavriti-netmonitor/
 ├── client/           # React frontend (Vite + Tailwind CSS v4)
-├── server/           # Node.js backend (Express + Socket.IO)
-│   └── src/services/db/   # Database abstraction layer
+├── backend/          # Go backend (go-chi + pgx + TimescaleDB)
+│   ├── cmd/server/   # Application entry point
+│   └── internal/     # Handlers, database, models, collectors
 ├── simulator/        # Network device simulator for testing
 ├── documentation/    # Product specs, API docs, deployment guide
 ├── Dockerfile        # Multi-stage production build
@@ -75,7 +75,8 @@ rayavriti-netmonitor/
 
 | Requirement | Version | Notes |
 |---|---|---|
-| **Node.js** | 20.x, 22.x, or 26.x | Defined in `.nvmrc` and `engines` |
+| **Go** | 1.26+ | Backend runtime |
+| **Node.js** | 22.x | Frontend build (defined in `engines`) |
 | **npm** | 9+ | Comes with Node.js |
 | **libpcap** | — | Required for packet capture (`apt install libpcap-dev`) |
 | **Docker** (optional) | 24+ | For containerized deployment |
@@ -133,19 +134,20 @@ The development compose file starts two services:
 # 1. Clone and install
 git clone <repository-url>
 cd rayavriti-netmonitor
-nvm use        # or ensure Node 22+ is active
-npm install
+npm install --workspace client
 
-# 2. Build for production
-npm run build
+# 2. Build Go backend
+cd backend && make build && cd ..
 
-# 3. Configure
+# 3. Build client
+npm run build -w client
+
+# 4. Configure
 cp .env.example .env
 # Edit .env — set JWT_SECRET and ADMIN_PASSWORD
 
-# 4. Start
-npm run start:prod
-# or: NODE_ENV=production node server/dist/index.js
+# 5. Start
+./backend/bin/netmonitor
 ```
 
 > **Note:** Packet capture and SNMP require root or `NET_RAW` capability:
@@ -160,7 +162,7 @@ npm run start:prod
 
 ```bash
 # Terminal 1 — Backend (with hot reload)
-npm run dev:server
+npm run dev
 # May need sudo for packet capture
 
 # Terminal 2 — Frontend (Vite dev server)
@@ -204,15 +206,11 @@ All configuration is via environment variables. See [`.env.example`](.env.exampl
 
 | Command | Description |
 |---|---|
-| `npm run dev:server` | Start backend with hot reload (nodemon) |
+| `npm run dev` | Start Go backend with hot reload (air) |
 | `npm run dev:client` | Start Vite dev server |
-| `npm run build` | Build both server and client for production |
-| `npm run build:server` | Build server TypeScript only |
+| `npm run build` | Build Go backend and React client for production |
 | `npm run build:client` | Build client React bundle only |
 | `npm run start` | Start production server |
-| `npm run start:prod` | Start production server (explicit `NODE_ENV=production`) |
-| `npm run typecheck` | Run TypeScript type checking |
-| `npm run simulate` | Run the network device simulator |
 
 ---
 
@@ -240,7 +238,7 @@ docker compose up -d --build
 **Important Docker notes:**
 - `network_mode: host` — Required for ping, SNMP, and packet capture to reach local devices
 - `cap_add: NET_RAW, NET_ADMIN` — Required for raw socket access
-- SQLite data persists in the `netmonitor-data` Docker volume
+- PostgreSQL + TimescaleDB data persists in the `postgres_data` Docker volume
 - Health check runs every 30s against `/health`
 
 ---
@@ -316,25 +314,22 @@ See [`documentation/api_documentation.md`](documentation/api_documentation.md) a
 
 ## 🗄️ Database
 
-Rayavriti NetMonitor uses **SQLite** with WAL mode for high-performance single-server operation.
+Rayavriti NetMonitor uses **PostgreSQL + TimescaleDB** for time-series data storage and high-performance queries.
 
-### Migration Path to PostgreSQL + TimescaleDB
+### Hypertables
 
-The database layer uses a **repository pattern** (`server/src/services/db/`):
+The following tables are partitioned as TimescaleDB hypertables for efficient time-series operations:
 
-```
-db/
-├── types.ts      # Interface definitions (IDatabase, IMetricRepo, etc.)
-├── sqlite.ts     # Current SQLite implementation
-├── index.ts      # Re-exports active adapter (change this to swap)
-└── (postgres.ts) # Future: PostgreSQL + TimescaleDB adapter
-```
-
-To migrate: implement `postgres.ts` with the same interfaces, update the re-export in `index.ts`.
+| Table | Time Column | Purpose |
+|---|---|---|
+| `metrics` | `timestamp` | Device metrics (ping, HTTP, SNMP, etc.) |
+| `flows` | `created_at` | NetFlow/sFlow records |
+| `capture_packets` | `timestamp` | Captured packet data |
+| `alert_history` | `created_at` | Alert lifecycle events |
 
 ### Data Retention
 
-Automated pruning runs every 6 hours:
+Automated pruning runs every 6 hours via the Go retention scheduler:
 - **Metrics:** 30 days (configurable via `METRICS_RETENTION_DAYS`)
 - **Flow records:** 7 days (configurable via `FLOW_RETENTION_DAYS`)
 - **Resolved alerts:** 90 days (configurable via `ALERTS_RETENTION_DAYS`)
@@ -345,12 +340,12 @@ Automated pruning runs every 6 hours:
 
 - **Password hashing:** scrypt with random 32-byte salt (backward-compatible with legacy SHA-256)
 - **JWT authentication:** HS256 signed tokens with 15-minute access / 7-day refresh
-- **Security headers:** Helmet (CSP, X-Frame-Options, HSTS, X-Content-Type-Options)
+- **Security headers:** Go middleware (CORS, X-Frame-Options, rate limiting)
 - **CORS:** Restricted in production mode
 - **Request limits:** 1MB body size limit
 - **Rate limiting:** Per-IP request throttling
-- **Error handling:** Stack traces hidden in production, global error boundary
-- **Structured logging:** JSON logs via pino (machine-parsable in production)
+- **Error handling:** Stack traces hidden in production, global error recovery middleware
+- **Structured logging:** Go slog with structured fields (machine-parsable in production)
 
 ---
 

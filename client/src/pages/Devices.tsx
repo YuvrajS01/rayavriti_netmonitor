@@ -60,7 +60,7 @@ export default function Devices() {
     const fd = new FormData(e.currentTarget);
     const payload: Parameters<typeof addDevice>[0] = {
       name: fd.get('name') as string,
-      host: fd.get('host') as string,
+      ipAddress: fd.get('host') as string,
       protocol: formProtocol,
       port: formPort,
       interval: Number(fd.get('interval') || 60),

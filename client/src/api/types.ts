@@ -31,7 +31,7 @@ export interface Device {
   updatedAt: string;
   status: 'up' | 'down' | 'warning' | 'unknown';
   tags: string[];
-  snmpPort: number;
+  snmpPort?: number;
   httpPath?: string;
   httpExpectedStatus?: number;
   locationId?: number;
@@ -155,28 +155,19 @@ export interface SystemInfo {
 
 export interface FlowRecord {
   id: number;
-  collectorType: string;
   srcIp: string;
   dstIp: string;
   srcPort: number;
   dstPort: number;
-  protocol: number;
-  protocolName: string;
+  protocol: string;
   bytes: number;
   packets: number;
-  flowStart: string;
-  flowEnd: string;
-  exporterIp: string;
   timestamp: string;
 }
 
 export interface TopTalker {
   ip: string;
-  bytes: number;
-  bytesFormatted: string;
-  packets: number;
-  flows: number;
-  percentage: number;
+  count: number;
 }
 
 export interface ProtocolBreakdown {
@@ -192,12 +183,9 @@ export interface ProtocolBreakdown {
 export interface FlowStats {
   totalFlows: number;
   totalBytes: number;
-  totalBytesFormatted: string;
   totalPackets: number;
   uniqueSources: number;
   uniqueDestinations: number;
-  activeCollectors: number;
-  collectorTypes: string[];
 }
 
 export interface FlowTimeseriesPoint {

@@ -10,6 +10,7 @@ type Device struct {
 	Name               string    `json:"name"`
 	IPAddress          string    `json:"ipAddress"`
 	Protocol           string    `json:"protocol"`
+	Port               int       `json:"port"`
 	Enabled            bool      `json:"enabled"`
 	Status             string    `json:"status"`
 	Tags               []string  `json:"tags"`

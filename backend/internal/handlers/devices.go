@@ -162,6 +162,20 @@ func (h *DeviceHandler) Create(w http.ResponseWriter, r *http.Request) {
 	if d.Protocol == "" {
 		d.Protocol = "ping"
 	}
+	if d.Port == 0 {
+		switch d.Protocol {
+		case "http":
+			d.Port = 80
+		case "https":
+			d.Port = 443
+		case "snmp":
+			d.Port = 161
+		case "ssh":
+			d.Port = 22
+		default:
+			d.Port = 0
+		}
+	}
 	if d.Interval == 0 {
 		d.Interval = 60
 	}

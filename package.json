@@ -11,13 +11,10 @@
   ],
   "scripts": {
     "dev": "cd backend && make run",
-    "dev:server": "cd backend && make run",
     "dev:client": "npm run dev -w client",
     "build": "cd backend && make build && npm run build -w client",
-    "build:server": "cd backend && make build",
     "build:client": "npm run build -w client",
     "start": "./backend/bin/netmonitor",
-    "start:prod": "NODE_ENV=production ./backend/bin/netmonitor",
     "simulate": "npx ts-node simulator/run.ts"
   }
 }

@@ -6,7 +6,7 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   cacheDir: '../node_modules/.vite/client',
   build: {
-    outDir: '../server/dist/public',
+    outDir: 'dist',
     emptyOutDir: true,
     sourcemap: true,
     rollupOptions: {

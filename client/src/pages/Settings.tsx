@@ -78,7 +78,7 @@ export default function Settings() {
             </div>
             <div>
               <p className="text-[10px] text-primary uppercase tracking-[0.2em] mb-1">Backend</p>
-              <p className="font-bold">Node.js + Express + SQLite</p>
+              <p className="font-bold">Go + PostgreSQL + TimescaleDB</p>
             </div>
             <div>
               <p className="text-[10px] text-primary uppercase tracking-[0.2em] mb-1">Frontend</p>

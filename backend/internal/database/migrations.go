@@ -416,4 +416,7 @@ var migrations = []string{
 	);
 	SELECT create_hypertable('capture_packets', 'timestamp', if_not_exists => TRUE);
 	CREATE INDEX IF NOT EXISTS idx_capture_packets_session ON capture_packets(session_id, timestamp ASC);`,
+
+	// V30: add port column to devices
+	`ALTER TABLE devices ADD COLUMN IF NOT EXISTS port INT NOT NULL DEFAULT 0;`,
 }

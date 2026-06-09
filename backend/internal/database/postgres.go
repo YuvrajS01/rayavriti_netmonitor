@@ -95,7 +95,7 @@ func splitStatements(sql string) []string {
 // ── Devices ──────────────────────────────────────────────────────────────────
 
 const deviceSelectCols = `
-		SELECT id,name,ip_address,protocol,enabled,status,tags,
+		SELECT id,name,ip_address,protocol,port,enabled,status,tags,
 		       COALESCE(snmp_community,''),COALESCE(snmp_version,''),COALESCE(snmp_port,0),COALESCE(http_path,''),COALESCE(http_expected_status,0),
 		       interval_sec,location_id,parent_device_id,COALESCE(rack_position,''),COALESCE(asset_tag,''),
 		       COALESCE(mac_address,''),COALESCE(manufacturer,''),COALESCE(model,''),COALESCE(device_category,''),COALESCE(notes,''),created_at,updated_at
@@ -130,13 +130,13 @@ func (p *Postgres) CreateDevice(ctx context.Context, d *models.Device) (*models.
 	tags, _ := json.Marshal(d.Tags)
 	var id int64
 	err := p.pool.QueryRow(ctx, `
-		INSERT INTO devices(name,ip_address,protocol,enabled,tags,snmp_community,snmp_version,
+		INSERT INTO devices(name,ip_address,protocol,port,enabled,tags,snmp_community,snmp_version,
 		                    snmp_port,http_path,http_expected_status,interval_sec,
 		                    location_id,rack_position,asset_tag,mac_address,manufacturer,
 		                    model,device_category,notes)
-		VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
+		VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
 		RETURNING id`,
-		d.Name, d.IPAddress, d.Protocol, d.Enabled, tags,
+		d.Name, d.IPAddress, d.Protocol, d.Port, d.Enabled, tags,
 		nullStr(d.SNMPCommunity), nullStr(d.SNMPVersion), nullInt(d.SNMPPort),
 		nullStr(d.HTTPPath), nullInt(d.HTTPExpectedStatus), d.Interval,
 		d.LocationID, nullStr(d.RackPosition), nullStr(d.AssetTag),
@@ -152,13 +152,13 @@ func (p *Postgres) CreateDevice(ctx context.Context, d *models.Device) (*models.
 func (p *Postgres) UpdateDevice(ctx context.Context, id int64, d *models.Device) (*models.Device, error) {
 	tags, _ := json.Marshal(d.Tags)
 	_, err := p.pool.Exec(ctx, `
-		UPDATE devices SET name=$1,ip_address=$2,protocol=$3,enabled=$4,tags=$5,
-		    snmp_community=$6,snmp_version=$7,snmp_port=$8,http_path=$9,
-		    http_expected_status=$10,interval_sec=$11,location_id=$12,
-		    rack_position=$13,asset_tag=$14,mac_address=$15,manufacturer=$16,
-		    model=$17,device_category=$18,notes=$19,updated_at=NOW()
-		WHERE id=$20`,
-		d.Name, d.IPAddress, d.Protocol, d.Enabled, tags,
+		UPDATE devices SET name=$1,ip_address=$2,protocol=$3,port=$4,enabled=$5,tags=$6,
+		    snmp_community=$7,snmp_version=$8,snmp_port=$9,http_path=$10,
+		    http_expected_status=$11,interval_sec=$12,location_id=$13,
+		    rack_position=$14,asset_tag=$15,mac_address=$16,manufacturer=$17,
+		    model=$18,device_category=$19,notes=$20,updated_at=NOW()
+		WHERE id=$21`,
+		d.Name, d.IPAddress, d.Protocol, d.Port, d.Enabled, tags,
 		nullStr(d.SNMPCommunity), nullStr(d.SNMPVersion), nullInt(d.SNMPPort),
 		nullStr(d.HTTPPath), nullInt(d.HTTPExpectedStatus), d.Interval,
 		d.LocationID, nullStr(d.RackPosition), nullStr(d.AssetTag),
@@ -181,7 +181,7 @@ func scanDevices(rows pgx.Rows) ([]models.Device, error) {
 		var d models.Device
 		var tagsRaw []byte
 		err := rows.Scan(
-			&d.ID, &d.Name, &d.IPAddress, &d.Protocol, &d.Enabled, &d.Status, &tagsRaw,
+			&d.ID, &d.Name, &d.IPAddress, &d.Protocol, &d.Port, &d.Enabled, &d.Status, &tagsRaw,
 			&d.SNMPCommunity, &d.SNMPVersion, &d.SNMPPort, &d.HTTPPath, &d.HTTPExpectedStatus,
 			&d.Interval, &d.LocationID, &d.ParentDeviceID, &d.RackPosition, &d.AssetTag,
 			&d.MACAddress, &d.Manufacturer, &d.Model, &d.DeviceCategory, &d.Notes,
