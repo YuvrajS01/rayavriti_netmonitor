@@ -35,7 +35,9 @@ type Device struct {
 type Metric struct {
 	ID           int64          `json:"id"`
 	DeviceID     int64          `json:"deviceId"`
+	SensorID     *int64         `json:"sensorId,omitempty"`
 	Timestamp    time.Time      `json:"timestamp"`
+	CreatedAt    time.Time      `json:"createdAt"`
 	Status       string         `json:"status"`
 	ResponseTime *float64       `json:"responseTime,omitempty"`
 	PacketLoss   *float64       `json:"packetLoss,omitempty"`
@@ -43,6 +45,10 @@ type Metric struct {
 	MemoryUsage  *float64       `json:"memoryUsage,omitempty"`
 	Bandwidth    *float64       `json:"bandwidth,omitempty"`
 	CustomValue  *float64       `json:"customValue,omitempty"`
+	Value        *float64       `json:"value,omitempty"`
+	Message      string         `json:"message,omitempty"`
+	Protocol     string         `json:"protocol,omitempty"`
+	DeviceName   string         `json:"deviceName,omitempty"`
 	Details      map[string]any `json:"details,omitempty"`
 }
 

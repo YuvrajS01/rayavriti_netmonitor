@@ -1,12 +1,56 @@
 import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios';
 import type {
-  ApiResponse, AuthTokens, Device, Metric, Alert, AlertCounts,
+  ApiResponse, Device, Metric, Alert, AlertCounts,
   DashboardStats, ReportSummary, TimeseriesPoint, DeviceBreakdown, ReportAlert,
   FlowRecord, TopTalker, ProtocolBreakdown, FlowStats, FlowTimeseriesPoint,
   CaptureSession, CapturedPacket, NetworkInterface,
   PortScanResult, PortScanResponse, InsightsResponse, HealthHistoryResponse
 } from './types';
 export type { Device, Metric, Alert, AlertCounts, DashboardStats, ReportSummary, TimeseriesPoint, DeviceBreakdown, ReportAlert, PortScanResult, PortScanResponse, InsightsResponse, HealthHistoryResponse };
+
+// ── camelCase → snake_case transformer ───────────────────────
+
+function camelToSnake(str: string): string {
+  return str.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
+}
+
+function transformKeys(obj: unknown): unknown {
+  if (Array.isArray(obj)) return obj.map(transformKeys);
+  if (obj !== null && typeof obj === 'object' && !(obj instanceof Date)) {
+    const result: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
+      result[camelToSnake(key)] = transformKeys(value);
+    }
+    return result;
+  }
+  return obj;
+}
+
+// ── Go backend response unwrapping ───────────────────────────
+// Go wraps responses in { success, data } via httputil.SendOK.
+
+function unwrapGoResponse<T>(raw: unknown): T {
+  const transformed = transformKeys(raw) as Record<string, unknown>;
+  const data = transformed.data !== undefined ? transformed.data : transformed;
+  if (data && typeof data === 'object' && 'alerts' in data && 'total' in data) {
+    return (data as Record<string, unknown>).alerts as T;
+  }
+  return data as T;
+}
+
+// Transform raw response data (unwraps Go envelope + converts camelCase → snake_case)
+function tx<T>(raw: unknown): T {
+  const body = raw as Record<string, unknown>;
+  if (body && typeof body === 'object' && 'data' in body) {
+    return unwrapGoResponse<T>(body);
+  }
+  return transformKeys(raw) as T;
+}
+
+// Wraps transformed data in { data: ... } to match ApiResponse<T> that pages expect
+function wrap<T>(raw: unknown): ApiResponse<T> {
+  return { data: tx<T>(raw), success: true } as ApiResponse<T>;
+}
 
 // ── Configurable Axios instances ─────────────────────────────
 
@@ -24,7 +68,7 @@ const v1 = axios.create({
 
 const attachToken = (config: InternalAxiosRequestConfig) => {
   const token = localStorage.getItem('netmonitor_token');
-  if (token) {
+  if (token && token !== 'undefined') {
     config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
@@ -55,12 +99,10 @@ const processQueue = (error: unknown, token: string | null = null) => {
 const handleTokenRefresh = async (error: AxiosError) => {
   const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
 
-  // Only attempt refresh on 401, and never retry a retry
   if (error.response?.status !== 401 || originalRequest._retry) {
     return Promise.reject(error);
   }
 
-  // Don't try to refresh the refresh endpoint itself
   if (originalRequest.url?.includes('/auth/refresh')) {
     clearCredentials();
     window.location.href = '/login';
@@ -68,7 +110,6 @@ const handleTokenRefresh = async (error: AxiosError) => {
   }
 
   if (isRefreshing) {
-    // Another refresh is in progress — queue this request
     return new Promise<string>((resolve, reject) => {
       failedQueue.push({ resolve, reject });
     }).then((token) => {
@@ -82,17 +123,19 @@ const handleTokenRefresh = async (error: AxiosError) => {
 
   try {
     const refreshToken = localStorage.getItem('netmonitor_refresh_token');
-    if (!refreshToken) throw new Error('No refresh token');
+    if (!refreshToken || refreshToken === 'undefined') throw new Error('No refresh token');
 
-    const { data } = await axios.post<ApiResponse<AuthTokens>>(
+    const { data: raw } = await axios.post(
       `${import.meta.env.VITE_API_V1_URL || '/api/v1'}/auth/refresh`,
       { refreshToken }
     );
 
-    const newToken = data.data.token;
+    // Go returns { success, data: { accessToken, refreshToken } }
+    const newToken = (raw as any).data?.accessToken || (raw as any).data?.token;
     localStorage.setItem('netmonitor_token', newToken);
-    if (data.data.refreshToken) {
-      localStorage.setItem('netmonitor_refresh_token', data.data.refreshToken);
+    const newRefresh = (raw as any).data?.refreshToken;
+    if (newRefresh) {
+      localStorage.setItem('netmonitor_refresh_token', newRefresh);
     }
 
     processQueue(null, newToken);
@@ -108,72 +151,76 @@ const handleTokenRefresh = async (error: AxiosError) => {
   }
 };
 
-// ── Attach interceptors to both clients ──────────────────────
+// ── Attach interceptors ──────────────────────────────────────
 
 api.interceptors.request.use(attachToken);
 v1.interceptors.request.use(attachToken);
-
 api.interceptors.response.use((res) => res, handleTokenRefresh);
 v1.interceptors.response.use((res) => res, handleTokenRefresh);
+
+// ── Flow Analysis ────────────────────────────────────────────
 
 export const getFlowRecords = (params: Record<string, string | number> = {}) => {
   const qs = new URLSearchParams();
   for (const [k, v] of Object.entries(params)) { if (v) qs.set(k, String(v)); }
-  return v1.get<ApiResponse<FlowRecord[]>>(`/flows?${qs}`).then((r) => r.data);
+  return v1.get(`/flows?${qs}`).then((r) => wrap<FlowRecord[]>(r.data));
 };
 
 export const getTopTalkers = (params: Record<string, string | number> = {}) => {
   const qs = new URLSearchParams();
   for (const [k, v] of Object.entries(params)) { if (v) qs.set(k, String(v)); }
-  return v1.get<ApiResponse<TopTalker[]>>(`/flows/top-talkers?${qs}`).then((r) => r.data);
+  return v1.get(`/flows/top-talkers?${qs}`).then((r) => wrap<TopTalker[]>(r.data));
 };
 
 export const getProtocolDistribution = (params: Record<string, string> = {}) => {
   const qs = new URLSearchParams(params);
-  return v1.get<ApiResponse<ProtocolBreakdown[]>>(`/flows/protocols?${qs}`).then((r) => r.data);
+  return v1.get(`/flows/protocols?${qs}`).then((r) => wrap<ProtocolBreakdown[]>(r.data));
 };
 
 export const getFlowTimeseries = (params: Record<string, string | number> = {}) => {
   const qs = new URLSearchParams();
   for (const [k, v] of Object.entries(params)) { if (v) qs.set(k, String(v)); }
-  return v1.get<ApiResponse<FlowTimeseriesPoint[]>>(`/flows/timeseries?${qs}`).then((r) => r.data);
+  return v1.get(`/flows/timeseries?${qs}`).then((r) => wrap<FlowTimeseriesPoint[]>(r.data));
 };
 
 export const getFlowStats = () =>
-  v1.get<ApiResponse<FlowStats>>('/flows/stats').then((r) => r.data);
+  v1.get('/flows/stats').then((r) => wrap<FlowStats>(r.data));
 
 // ── Packet Capture ────────────────────────────────────────────
 
 export const getInterfaces = () =>
-  v1.get<ApiResponse<NetworkInterface[]>>('/capture/interfaces').then((r) => r.data);
+  v1.get('/capture/interfaces').then((r) => wrap<NetworkInterface[]>(r.data));
 
 export const startCaptureSession = (body: { interface: string; filter?: string }) =>
-  v1.post<ApiResponse<CaptureSession>>('/capture/start', body).then((r) => r.data);
+  v1.post('/capture/start', body).then((r) => wrap<CaptureSession>(r.data));
 
 export const stopCaptureSession = (id: number) =>
-  v1.post<ApiResponse<CaptureSession>>(`/capture/${id}/stop`).then((r) => r.data);
+  v1.post(`/capture/${id}/stop`).then((r) => wrap<CaptureSession>(r.data));
 
 export const getCaptureSession = (id: number) =>
-  v1.get<ApiResponse<CaptureSession>>(`/capture/${id}`).then((r) => r.data);
+  v1.get(`/capture/${id}`).then((r) => wrap<CaptureSession>(r.data));
 
 export const getCapturePackets = (sessionId: number, params: Record<string, number> = {}) => {
   const qs = new URLSearchParams();
   for (const [k, v] of Object.entries(params)) { qs.set(k, String(v)); }
-  return v1.get<ApiResponse<CapturedPacket[]>>(`/capture/${sessionId}/packets?${qs}`).then((r) => r.data);
+  return v1.get(`/capture/${sessionId}/packets?${qs}`).then((r) => wrap<CapturedPacket[]>(r.data));
 };
 
 export const getCaptureSessions = () =>
-  v1.get<ApiResponse<CaptureSession[]>>('/capture/sessions').then((r) => r.data);
+  v1.get('/capture/sessions').then((r) => wrap<CaptureSession[]>(r.data));
 
 // ── Auth ─────────────────────────────────────────────────────
 
 export const login = (username: string, password: string) =>
-  api.post<ApiResponse<AuthTokens>>('/auth/login', { username, password }).then((r) => {
-    const { token, refreshToken, user } = r.data.data;
+  api.post('/auth/login', { username, password }).then((r) => {
+    const raw = r.data;
+    const token = (raw as any).data?.accessToken || (raw as any).data?.token;
+    const refreshToken = (raw as any).data?.refreshToken;
+    const user = (raw as any).data?.user;
     localStorage.setItem('netmonitor_token', token);
     localStorage.setItem('netmonitor_refresh_token', refreshToken);
     localStorage.setItem('netmonitor_user', JSON.stringify(user));
-    return r.data;
+    return { success: true, data: { token, refreshToken, user } };
   });
 
 export const logout = () => {
@@ -182,34 +229,37 @@ export const logout = () => {
   });
 };
 
-export const getToken = () => localStorage.getItem('netmonitor_token');
+export const getToken = () => {
+  const t = localStorage.getItem('netmonitor_token');
+  return t && t !== 'undefined' ? t : null;
+};
 
 // ── Devices ──────────────────────────────────────────────────
 
 export const getDevices = () =>
-  api.get<ApiResponse<Device[]>>('/devices').then((r) => r.data);
+  api.get('/devices').then((r) => wrap<Device[]>(r.data));
 
 export const addDevice = (device: Record<string, unknown>) =>
-  api.post<ApiResponse<Device>>('/devices', device).then((r) => r.data);
+  api.post('/devices', device).then((r) => wrap<Device>(r.data));
 
 export const deleteDevice = (id: number) =>
-  api.delete<ApiResponse<void>>(`/devices/${id}`).then((r) => r.data);
+  api.delete(`/devices/${id}`).then((r) => r.data);
 
 // ── Metrics ──────────────────────────────────────────────────
 
 export const getLatestMetrics = () =>
-  api.get<ApiResponse<Metric[]>>('/metrics/latest').then((r) => r.data);
+  api.get('/metrics/latest').then((r) => wrap<Metric[]>(r.data));
 
 export const getDeviceMetrics = (id: number, limit?: number) =>
-  api.get<ApiResponse<Metric[]>>(`/metrics/device/${id}${limit ? `?limit=${limit}` : ''}`).then((r) => r.data);
+  api.get(`/v1/devices/${id}/metrics${limit ? `?limit=${limit}` : ''}`).then((r) => wrap<Metric[]>(r.data));
 
 // ── Ports ────────────────────────────────────────────────────
 
 export const getDevicePorts = (id: number) =>
-  api.get<ApiResponse<PortScanResult[]>>(`/devices/${id}/ports`).then((r) => r.data);
+  api.get(`/devices/${id}/ports`).then((r) => wrap<PortScanResult[]>(r.data));
 
 export const scanDevicePorts = (id: number) =>
-  api.post<ApiResponse<PortScanResponse>>(`/devices/${id}/scan-ports`).then((r) => r.data);
+  api.post(`/devices/${id}/scan-ports`).then((r) => wrap<PortScanResponse>(r.data));
 
 // ── Alerts ───────────────────────────────────────────────────
 
@@ -217,48 +267,48 @@ export const getAlerts = (status?: string, limit?: number) => {
   const qs = new URLSearchParams();
   if (status) qs.set('status', status);
   if (limit) qs.set('limit', String(limit));
-  return api.get<ApiResponse<Alert[]>>(`/alerts?${qs}`).then((r) => r.data);
+  return api.get(`/alerts?${qs}`).then((r) => wrap<Alert[]>(r.data));
 };
 
 export const getAlertCounts = () =>
-  api.get<ApiResponse<AlertCounts>>('/alerts/counts').then((r) => r.data);
+  api.get('/alerts/counts').then((r) => wrap<AlertCounts>(r.data));
 
 export const acknowledgeAlert = (id: number) =>
-  api.post<ApiResponse<void>>(`/alerts/${id}/acknowledge`).then((r) => r.data);
+  api.post(`/alerts/${id}/acknowledge`).then((r) => r.data);
 
 export const resolveAlert = (id: number) =>
-  api.post<ApiResponse<void>>(`/alerts/${id}/resolve`).then((r) => r.data);
+  api.post(`/alerts/${id}/resolve`).then((r) => r.data);
 
 // ── Dashboard ────────────────────────────────────────────────
 
 export const getStats = () =>
-  api.get<ApiResponse<DashboardStats>>('/stats').then((r) => r.data);
+  api.get('/stats').then((r) => wrap<DashboardStats>(r.data));
 
 // ── Insights / AI Health ─────────────────────────────────────
 
 export const getInsights = () =>
-  api.get<ApiResponse<InsightsResponse>>('/insights').then((r) => r.data);
+  api.get('/insights').then((r) => wrap<InsightsResponse>(r.data));
 
 export const getInsightsHistory = (hours?: number) => {
   const qs = hours ? `?hours=${hours}` : '';
-  return api.get<ApiResponse<HealthHistoryResponse>>(`/insights/history${qs}`).then((r) => r.data);
+  return api.get(`/insights/history${qs}`).then((r) => wrap<HealthHistoryResponse>(r.data));
 };
 
 // ── Reports ──────────────────────────────────────────────────
 
 export const getReportSummary = (query = '') =>
-  api.get<ApiResponse<ReportSummary>>(`/reports/summary${query}`).then((r) => r.data);
+  api.get(`/reports/summary${query}`).then((r) => wrap<ReportSummary>(r.data));
 
 export const getReportTimeseries = (query = '') =>
-  api.get<ApiResponse<TimeseriesPoint[]>>(`/reports/timeseries${query}`).then((r) => r.data);
+  api.get(`/reports/timeseries${query}`).then((r) => wrap<TimeseriesPoint[]>(r.data));
 
 export const getReportDeviceBreakdown = (query = '') =>
-  api.get<ApiResponse<DeviceBreakdown[]>>(`/reports/devices${query}`).then((r) => r.data);
+  api.get(`/reports/devices${query}`).then((r) => wrap<DeviceBreakdown[]>(r.data));
 
 export const getReportAlerts = (query = '') =>
-  api.get<ApiResponse<ReportAlert[]>>(`/reports/alerts${query}`).then((r) => r.data);
+  api.get(`/reports/alerts${query}`).then((r) => wrap<ReportAlert[]>(r.data));
 
 export const downloadMetricsCsv = (query = '') =>
-  api.get(`/reports/metrics.csv${query}`, { responseType: 'blob' }).then((r) => r.data);
+  api.get(`/reports/export${query}`, { responseType: 'blob' }).then((r) => r.data);
 
 export default api;

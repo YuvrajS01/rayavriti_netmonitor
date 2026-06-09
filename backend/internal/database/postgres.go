@@ -223,15 +223,18 @@ func (p *Postgres) RecordMetric(ctx context.Context, m *models.Metric) error {
 
 func (p *Postgres) GetLatestMetrics(ctx context.Context) ([]models.Metric, error) {
 	rows, err := p.pool.Query(ctx, `
-		SELECT DISTINCT ON (device_id)
-		    id,device_id,timestamp,status,response_time,packet_loss,
-		    cpu_usage,memory_usage,bandwidth,custom_value,details
-		FROM metrics ORDER BY device_id, timestamp DESC`)
+		SELECT DISTINCT ON (m.device_id)
+		    m.id, m.device_id, m.timestamp, m.status, m.response_time, m.packet_loss,
+		    m.cpu_usage, m.memory_usage, m.bandwidth, m.custom_value, m.details,
+		    d.protocol, d.name
+		FROM metrics m
+		LEFT JOIN devices d ON d.id = m.device_id
+		ORDER BY m.device_id, m.timestamp DESC`)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	return scanMetrics(rows)
+	return scanMetricsWithDevice(rows)
 }
 
 func (p *Postgres) GetDeviceMetrics(ctx context.Context, deviceID int64, from, to time.Time, limit int) ([]models.Metric, error) {
@@ -239,17 +242,19 @@ func (p *Postgres) GetDeviceMetrics(ctx context.Context, deviceID int64, from, t
 		limit = 500
 	}
 	rows, err := p.pool.Query(ctx, `
-		SELECT id,device_id,timestamp,status,response_time,packet_loss,
-		       cpu_usage,memory_usage,bandwidth,custom_value,details
-		FROM metrics
-		WHERE device_id=$1 AND timestamp BETWEEN $2 AND $3
-		ORDER BY timestamp DESC LIMIT $4`,
+		SELECT m.id, m.device_id, m.timestamp, m.status, m.response_time, m.packet_loss,
+		       m.cpu_usage, m.memory_usage, m.bandwidth, m.custom_value, m.details,
+		       d.protocol, d.name
+		FROM metrics m
+		LEFT JOIN devices d ON d.id = m.device_id
+		WHERE m.device_id=$1 AND m.timestamp BETWEEN $2 AND $3
+		ORDER BY m.timestamp DESC LIMIT $4`,
 		deviceID, from, to, limit)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	return scanMetrics(rows)
+	return scanMetricsWithDevice(rows)
 }
 
 func (p *Postgres) GetMetricsSummary(ctx context.Context, from, to time.Time) (map[string]any, error) {
@@ -280,6 +285,32 @@ func scanMetrics(rows pgx.Rows) ([]models.Metric, error) {
 		if detailsRaw != nil {
 			_ = json.Unmarshal(detailsRaw, &m.Details)
 		}
+		out = append(out, m)
+	}
+	return out, rows.Err()
+}
+
+func scanMetricsWithDevice(rows pgx.Rows) ([]models.Metric, error) {
+	var out []models.Metric
+	for rows.Next() {
+		var m models.Metric
+		var detailsRaw []byte
+		var protocol, deviceName string
+		err := rows.Scan(
+			&m.ID, &m.DeviceID, &m.Timestamp, &m.Status,
+			&m.ResponseTime, &m.PacketLoss, &m.CPUUsage, &m.MemoryUsage,
+			&m.Bandwidth, &m.CustomValue, &detailsRaw,
+			&protocol, &deviceName,
+		)
+		if err != nil {
+			return nil, err
+		}
+		if detailsRaw != nil {
+			_ = json.Unmarshal(detailsRaw, &m.Details)
+		}
+		m.Protocol = protocol
+		m.DeviceName = deviceName
+		m.CreatedAt = m.Timestamp
 		out = append(out, m)
 	}
 	return out, rows.Err()
