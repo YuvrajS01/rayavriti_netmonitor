@@ -207,7 +207,9 @@ func (h *Hub) ServeWS(w http.ResponseWriter, r *http.Request) {
 	// Send bootstrap data
 	if h.bootstrap != nil {
 		go func() {
-			data, err := h.bootstrap(r.Context(), c.info.UserID, c.info.Username, c.info.Role)
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			data, err := h.bootstrap(ctx, c.info.UserID, c.info.Username, c.info.Role)
 			if err != nil {
 				slog.Error("Failed to generate bootstrap data", "error", err, "user_id", c.info.UserID)
 				return

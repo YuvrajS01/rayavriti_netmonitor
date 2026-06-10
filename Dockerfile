@@ -13,7 +13,7 @@ RUN npm run build -w client
 # ── Stage 2: Build Go backend (development) ─────────────────────
 FROM golang:1.26-alpine AS development
 
-RUN apk add --no-cache gcc musl-dev libpcap-dev make git bash
+RUN apk add --no-cache gcc musl-dev libpcap-dev make git bash tcpdump
 
 WORKDIR /app
 
