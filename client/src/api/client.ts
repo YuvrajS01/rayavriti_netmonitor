@@ -332,8 +332,17 @@ export const getReportDeviceBreakdown = (query = '') =>
 export const getReportAlerts = (query = '') =>
   api.get(`/reports/alerts${query}`).then((r) => wrap<ReportAlert[]>(r.data));
 
-export const downloadMetricsCsv = (query = '') =>
-  api.get(`/reports/export${query}`, { responseType: 'blob' }).then((r) => r.data);
+export const downloadMetricsCsv = async (query = '') => {
+  const blob = await api.get(`/reports/export${query}`, { responseType: 'blob' }).then((r) => r.data);
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'metrics.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+};
 
 // ── System Info ─────────────────────────────────────────────
 

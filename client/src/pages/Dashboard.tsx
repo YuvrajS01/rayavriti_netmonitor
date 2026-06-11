@@ -224,6 +224,10 @@ export default function Dashboard() {
     onMetricUpdate: (metric) => {
       setMetrics((prev) => {
         const m = metric as unknown as Metric;
+        if (!m.protocol) {
+          const existing = prev.find((x) => x.deviceId === m.deviceId);
+          if (existing?.protocol) m.protocol = existing.protocol;
+        }
         const updated = [m, ...prev.filter((x) => x.deviceId !== m.deviceId)];
         computeSystemInfo(updated);
         return updated;

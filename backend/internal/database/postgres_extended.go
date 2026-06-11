@@ -171,22 +171,28 @@ func (p *Postgres) GetMetricsForReport(ctx context.Context, from, to time.Time, 
 	return out, rows.Err()
 }
 
-func (p *Postgres) GetReportTimeseries(ctx context.Context, from, to time.Time, bucketMinutes int) ([]models.ReportTimeseriesPoint, error) {
+func (p *Postgres) GetReportTimeseries(ctx context.Context, from, to time.Time, bucketMinutes int, deviceID *int64) ([]models.ReportTimeseriesPoint, error) {
 	if bucketMinutes <= 0 {
 		bucketMinutes = 60
 	}
 	bucketSec := int64(bucketMinutes) * 60
 
-	rows, err := p.pool.Query(ctx, `
+	query := `
 		SELECT to_timestamp(EXTRACT(EPOCH FROM timestamp)::bigint / $1 * $1) AS bucket,
 		       COUNT(*)::int,
 		       COALESCE(AVG(response_time), 0),
 		       COUNT(*) FILTER (WHERE status = 'down')::int,
 		       COUNT(*) FILTER (WHERE status IN ('warning','degraded'))::int
 		FROM metrics
-		WHERE timestamp BETWEEN $2 AND $3
-		GROUP BY bucket
-		ORDER BY bucket ASC`, bucketSec, from, to)
+		WHERE timestamp BETWEEN $2 AND $3`
+	args := []any{bucketSec, from, to}
+	if deviceID != nil {
+		query += ` AND device_id=$4`
+		args = append(args, *deviceID)
+	}
+	query += ` GROUP BY bucket ORDER BY bucket ASC`
+
+	rows, err := p.pool.Query(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -208,8 +214,8 @@ func (p *Postgres) GetReportTimeseries(ctx context.Context, from, to time.Time, 
 	return out, rows.Err()
 }
 
-func (p *Postgres) GetReportDeviceBreakdown(ctx context.Context, from, to time.Time) ([]models.DeviceBreakdown, error) {
-	rows, err := p.pool.Query(ctx, `
+func (p *Postgres) GetReportDeviceBreakdown(ctx context.Context, from, to time.Time, deviceID *int64) ([]models.DeviceBreakdown, error) {
+	query := `
 		SELECT m.device_id, COALESCE(d.name, 'Unknown'), COALESCE(d.protocol, ''),
 		       COUNT(*)::int,
 		       COUNT(*) FILTER (WHERE m.status = 'down')::int,
@@ -219,9 +225,15 @@ func (p *Postgres) GetReportDeviceBreakdown(ctx context.Context, from, to time.T
 		       COALESCE(MAX(m.response_time), 0)
 		FROM metrics m
 		LEFT JOIN devices d ON d.id = m.device_id
-		WHERE m.timestamp BETWEEN $1 AND $2
-		GROUP BY m.device_id, d.name, d.protocol
-		ORDER BY COUNT(*) DESC`, from, to)
+		WHERE m.timestamp BETWEEN $1 AND $2`
+	args := []any{from, to}
+	if deviceID != nil {
+		query += ` AND m.device_id=$3`
+		args = append(args, *deviceID)
+	}
+	query += ` GROUP BY m.device_id, d.name, d.protocol ORDER BY COUNT(*) DESC`
+
+	rows, err := p.pool.Query(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -346,6 +358,35 @@ func (p *Postgres) QueryMetrics(ctx context.Context, q models.MetricQuery) ([]mo
 		metrics = []models.Metric{}
 	}
 	return metrics, nil
+}
+
+func (p *Postgres) ExportMetrics(ctx context.Context, from, to time.Time, deviceID *int64, limit int) ([]models.Metric, error) {
+	if limit <= 0 {
+		limit = 5000
+	}
+	query := `
+		SELECT m.id, m.device_id, m.timestamp, m.status, m.response_time, m.packet_loss,
+		       m.cpu_usage, m.memory_usage, m.bandwidth, m.custom_value, m.details,
+		       d.protocol, d.name
+		FROM metrics m
+		LEFT JOIN devices d ON d.id = m.device_id
+		WHERE m.timestamp BETWEEN $1 AND $2`
+	args := []any{from, to}
+	paramIdx := 3
+	if deviceID != nil {
+		query += fmt.Sprintf(` AND m.device_id=$%d`, paramIdx)
+		args = append(args, *deviceID)
+		paramIdx++
+	}
+	query += fmt.Sprintf(` ORDER BY m.timestamp DESC LIMIT $%d`, paramIdx)
+	args = append(args, limit)
+
+	rows, err := p.pool.Query(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanMetricsWithDevice(rows)
 }
 
 // GetMetricsInWindow extracts a specific numeric field's values from metrics

@@ -36,11 +36,12 @@ type Database interface {
 	RecordMetric(ctx context.Context, m *models.Metric) error
 	GetLatestMetrics(ctx context.Context) ([]models.Metric, error)
 	GetDeviceMetrics(ctx context.Context, deviceID int64, from, to time.Time, limit int) ([]models.Metric, error)
-	GetMetricsSummary(ctx context.Context, from, to time.Time) (map[string]any, error)
+	GetMetricsSummary(ctx context.Context, from, to time.Time, deviceID *int64) (map[string]any, error)
 	GetMetricsForReport(ctx context.Context, from, to time.Time, deviceID *int64, interval string) ([]models.ReportMetricRow, error)
-	GetReportTimeseries(ctx context.Context, from, to time.Time, bucketMinutes int) ([]models.ReportTimeseriesPoint, error)
-	GetReportDeviceBreakdown(ctx context.Context, from, to time.Time) ([]models.DeviceBreakdown, error)
+	GetReportTimeseries(ctx context.Context, from, to time.Time, bucketMinutes int, deviceID *int64) ([]models.ReportTimeseriesPoint, error)
+	GetReportDeviceBreakdown(ctx context.Context, from, to time.Time, deviceID *int64) ([]models.DeviceBreakdown, error)
 	QueryMetrics(ctx context.Context, q models.MetricQuery) ([]models.Metric, error)
+	ExportMetrics(ctx context.Context, from, to time.Time, deviceID *int64, limit int) ([]models.Metric, error)
 	GetMetricsInWindow(ctx context.Context, deviceID int64, field string, from, to time.Time) ([]float64, error)
 
 	// Alerts

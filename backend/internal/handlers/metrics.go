@@ -88,7 +88,7 @@ func (h *MetricHandler) Query(w http.ResponseWriter, r *http.Request) {
 		httputil.SendOK(w, metrics)
 		return
 	}
-	summary, err := h.db.GetMetricsSummary(r.Context(), from, to)
+	summary, err := h.db.GetMetricsSummary(r.Context(), from, to, nil)
 	if err != nil {
 		httputil.SendError(w, 500, err.Error())
 		return

@@ -64,7 +64,7 @@ export default function Reports() {
       const [sumRes, tsRes, devRes, alertRes] = await Promise.all([
         getReportSummary(query),
         getReportTimeseries(query),
-        getReportDeviceBreakdown(toQuery(from, to)),
+        getReportDeviceBreakdown(query),
         getReportAlerts(query),
       ]);
       setSummary(sumRes.data);

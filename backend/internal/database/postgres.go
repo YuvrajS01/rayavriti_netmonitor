@@ -258,16 +258,22 @@ func (p *Postgres) GetDeviceMetrics(ctx context.Context, deviceID int64, from, t
 	return scanMetricsWithDevice(rows)
 }
 
-func (p *Postgres) GetMetricsSummary(ctx context.Context, from, to time.Time) (map[string]any, error) {
+func (p *Postgres) GetMetricsSummary(ctx context.Context, from, to time.Time, deviceID *int64) (map[string]any, error) {
 	var totalSamples, downSamples, warningSamples int64
 	var avgRT *float64
-	err := p.pool.QueryRow(ctx, `
+	query := `
 		SELECT
 			COUNT(*),
 			COUNT(*) FILTER (WHERE status = 'down'),
 			COUNT(*) FILTER (WHERE status IN ('warning','degraded')),
 			AVG(response_time)
-		FROM metrics WHERE timestamp BETWEEN $1 AND $2`, from, to).Scan(&totalSamples, &downSamples, &warningSamples, &avgRT)
+		FROM metrics WHERE timestamp BETWEEN $1 AND $2`
+	args := []any{from, to}
+	if deviceID != nil {
+		query += ` AND device_id=$3`
+		args = append(args, *deviceID)
+	}
+	err := p.pool.QueryRow(ctx, query, args...).Scan(&totalSamples, &downSamples, &warningSamples, &avgRT)
 	if err != nil {
 		return nil, err
 	}
