@@ -126,7 +126,9 @@ func (h *Hub) Stop() {
 	close(h.broadcast)
 	h.mu.Lock()
 	for c := range h.clients {
+		c.mu.Lock()
 		c.dead = true
+		c.mu.Unlock()
 		c.conn.Close()
 	}
 	h.mu.Unlock()
