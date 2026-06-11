@@ -205,6 +205,7 @@ func (s *Scheduler) collectOnce(ctx context.Context, device models.Device) {
 	// Record metric
 	metric := &models.Metric{
 		DeviceID:     device.ID,
+		DeviceName:   device.Name,
 		Timestamp:    time.Now(),
 		Status:       result.Status,
 		ResponseTime: result.ResponseTime,
