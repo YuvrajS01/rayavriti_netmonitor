@@ -66,7 +66,7 @@ export default function PacketCapture() {
   const [sessions, setSessions] = useState<CaptureSession[]>([]);
   const [isStarting, setIsStarting] = useState(false);
   const [error, setError] = useState('');
-  const [autoScroll, setAutoScroll] = useState(true);
+  const [autoScroll, setAutoScroll] = useState(false);
   const tableEndRef = useRef<HTMLDivElement>(null);
 
   const loadInterfaces = useCallback(async () => {
@@ -133,11 +133,11 @@ export default function PacketCapture() {
 
   useSocket({
     onPacketCaptured: (data) => {
-      const pkt = data as unknown as CapturedPacket;
-      if (activeSession && pkt.sessionId === activeSession.id) {
+      const batch = data as { sessionId: number; packets: CapturedPacket[] };
+      if (activeSession && batch.sessionId === activeSession.id && batch.packets) {
         setPackets((prev) => {
-          const next = [...prev, pkt];
-          if (next.length > 1000) next.shift();
+          const next = [...prev, ...batch.packets];
+          if (next.length > 1000) next.splice(0, next.length - 1000);
           return next;
         });
       }
@@ -181,7 +181,7 @@ export default function PacketCapture() {
             <select
               value={selectedIface}
               onChange={(e) => setSelectedIface(e.target.value)}
-              disabled={!!activeSession}
+              disabled={activeSession?.status === 'running'}
               className="bg-surface-container-highest border border-outline-variant/30 rounded-lg px-4 py-2.5 text-sm text-on-surface font-mono focus:outline-none focus:border-primary/50 disabled:opacity-50 min-w-[140px]"
             >
               {interfaces.map((iface) => (
@@ -199,7 +199,7 @@ export default function PacketCapture() {
               type="text"
               value={bpfFilter}
               onChange={(e) => setBpfFilter(e.target.value)}
-              disabled={!!activeSession}
+              disabled={activeSession?.status === 'running'}
               placeholder="e.g. tcp port 80, icmp, host 192.168.1.1"
               className="w-full bg-surface-container-highest border border-outline-variant/30 rounded-lg px-4 py-2.5 text-sm text-on-surface font-mono placeholder:text-on-surface-variant/40 focus:outline-none focus:border-primary/50 disabled:opacity-50"
             />
@@ -207,7 +207,7 @@ export default function PacketCapture() {
 
           {/* Start/Stop Button */}
           <div className="flex-shrink-0 self-end">
-            {activeSession ? (
+            {activeSession?.status === 'running' ? (
               <button
                 onClick={handleStop}
                 className="flex items-center gap-2 bg-error/20 text-error border border-error/30 px-6 py-2.5 rounded-lg font-headline font-bold text-xs uppercase tracking-widest hover:bg-error hover:text-on-error transition-all"
@@ -228,7 +228,7 @@ export default function PacketCapture() {
           </div>
 
           {/* Live Stats */}
-          {activeSession && (
+          {activeSession?.status === 'running' && (
             <div className="flex items-center gap-4 ml-auto">
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full bg-error animate-pulse" />
@@ -294,12 +294,13 @@ export default function PacketCapture() {
                     </div>
                   </td></tr>
                 ) : (
-                  packets.map((pkt) => {
+                  packets.map((pkt, idx) => {
                     const style = getProtoStyle(pkt.protocol);
-                    const isSelected = selectedPacket?.id === pkt.id;
+                    const pktId = pkt.id ?? idx;
+                    const isSelected = selectedPacket && (selectedPacket.id ?? packets.indexOf(selectedPacket)) === pktId;
                     return (
                       <tr
-                        key={pkt.id}
+                        key={pktId}
                         onClick={() => setSelectedPacket(isSelected ? null : pkt)}
                         className={`border-b cursor-pointer transition-colors ${
                           isSelected
