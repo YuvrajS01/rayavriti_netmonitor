@@ -180,7 +180,7 @@ func (p *Postgres) FindActiveAlert(ctx context.Context, deviceID int64, message 
 func (p *Postgres) GetAlertsForReport(ctx context.Context, from, to time.Time, deviceID *int64) ([]models.Alert, error) {
 	args := []any{from, to}
 	query := `
-		SELECT id,device_id,device_name,severity,message,status,rule_id,
+		SELECT id,COALESCE(device_id,0),COALESCE(device_name,''),severity,message,status,COALESCE(rule_id,0),
 		       created_at,acknowledged_at,resolved_at,acknowledged_by,resolved_by
 		FROM alerts
 		WHERE created_at BETWEEN $1 AND $2`
