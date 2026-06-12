@@ -5,7 +5,7 @@ import { Provider, useSelector, useDispatch } from 'react-redux';
 import { store, type RootState } from './store';
 import { SocketProvider } from './hooks/useSocket';
 import { clearCredentials } from './store/authSlice';
-import { v1 } from './api/http';
+import { api } from './api/http';
 
 import Layout from './components/Layout';
 
@@ -41,7 +41,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
       setChecking(false);
       return;
     }
-    v1.get('/auth/me')
+    api.get('/auth/me')
       .catch(() => {
         dispatch(clearCredentials());
       })
