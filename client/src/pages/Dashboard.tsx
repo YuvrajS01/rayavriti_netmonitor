@@ -177,11 +177,12 @@ export default function Dashboard() {
     const avgResp = latest.reduce((s, x) => s + (x.responseTime || 0), 0) / total;
     let cpu = Math.min(95, Math.round(avgResp / 6 + warn * 4));
     let memory = Math.min(95, Math.round(avgResp / 7 + down * 8 + 28));
-    setSystemInfo({
+    setSystemInfo((prev) => ({
+      ...prev,
       cpu,
       memory,
       errorRate: Math.min(100, Math.round((down / total) * 100)),
-    });
+    }));
   };
 
   useEffect(() => { loadData(); }, [loadData]);
