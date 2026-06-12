@@ -282,6 +282,9 @@ func (p *Postgres) GetReportTimeseries(ctx context.Context, from, to time.Time, 
 			return nil, err
 		}
 		p.BucketTime = bucket.Format(time.RFC3339)
+		if p.SampleCount > 0 {
+			p.AvailabilityPercent = float64(p.SampleCount-p.DownCount) / float64(p.SampleCount) * 100
+		}
 		out = append(out, p)
 	}
 	if out == nil {

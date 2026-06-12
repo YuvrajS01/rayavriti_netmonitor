@@ -75,11 +75,12 @@ type ReportMetricRow struct {
 }
 
 type ReportTimeseriesPoint struct {
-	BucketTime  string  `json:"bucketTime"`
-	SampleCount int     `json:"sampleCount"`
-	AvgResponse float64 `json:"avgResponse"`
-	DownCount   int     `json:"downCount"`
-	WarnCount   int     `json:"warnCount"`
+	BucketTime          string  `json:"bucketTime"`
+	SampleCount         int     `json:"sampleCount"`
+	AvgResponse         float64 `json:"avgResponse"`
+	DownCount           int     `json:"downCount"`
+	WarnCount           int     `json:"warnCount"`
+	AvailabilityPercent float64 `json:"availabilityPercent"`
 }
 
 type DeviceBreakdown struct {
