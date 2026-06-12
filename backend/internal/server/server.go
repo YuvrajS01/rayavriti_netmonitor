@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -258,10 +260,18 @@ func (s *Server) Start() error {
 		})
 	})
 
-	// 404
-	r.NotFound(func(w http.ResponseWriter, r *http.Request) {
-		SendError(w, 404, "not found")
-	})
+	// SPA static file serving (production)
+	publicDir := s.cfg.App.PublicDir
+	if dir, err := os.Stat(publicDir); err == nil && dir.IsDir() {
+		spa := spaHandler{staticDir: publicDir}
+		r.NotFound(spa.ServeHTTP)
+		s.logger.Info("SPA static files serving", "dir", publicDir)
+	} else {
+		r.NotFound(func(w http.ResponseWriter, r *http.Request) {
+			SendError(w, 404, "not found")
+		})
+		s.logger.Info("No static files directory found, API-only mode", "dir", publicDir)
+	}
 
 	s.httpServer = &http.Server{
 		Addr:         fmt.Sprintf(":%d", s.cfg.App.Port),
@@ -283,4 +293,22 @@ func (s *Server) Shutdown(ctx context.Context) error {
 		return s.httpServer.Shutdown(ctx)
 	}
 	return nil
+}
+
+// spaHandler serves static files and falls back to index.html for SPA routing.
+type spaHandler struct {
+	staticDir string
+}
+
+func (h spaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	path := filepath.Join(h.staticDir, filepath.Clean(r.URL.Path))
+
+	// If file exists, serve it
+	if info, err := os.Stat(path); err == nil && !info.IsDir() {
+		http.ServeFile(w, r, path)
+		return
+	}
+
+	// Otherwise serve index.html (SPA fallback)
+	http.ServeFile(w, r, filepath.Join(h.staticDir, "index.html"))
 }

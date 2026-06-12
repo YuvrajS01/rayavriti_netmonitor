@@ -130,6 +130,7 @@ export default function Dashboard() {
   const [metrics, setMetrics] = useState<Metric[]>([]);
   const [historyMetrics, setHistoryMetrics] = useState<Metric[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [loading, setLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState('Waiting for updates...');
   const [systemInfo, setSystemInfo] = useState<{ cpu: number; memory: number; errorRate: number; raw?: SystemInfo }>({ cpu: 0, memory: 0, errorRate: 0 });
   const [insights, setInsights] = useState<InsightsResponse | null>(null);
@@ -167,6 +168,7 @@ export default function Dashboard() {
         }
       }).catch(() => {});
     } catch { /* handled by interceptor */ }
+    finally { setLoading(false); }
   }, []);
 
   const computeSystemInfo = (m: Metric[]) => {
@@ -277,6 +279,13 @@ export default function Dashboard() {
 
   return (
     <div>
+      {loading ? (
+        <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3">
+          <span className="material-symbols-outlined text-3xl text-primary animate-pulse">hourglass_top</span>
+          <p className="text-xs text-on-surface-variant uppercase tracking-widest">Loading dashboard...</p>
+        </div>
+      ) : (
+      <>
       {/* Header */}
       <header className="mb-12 flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div>
@@ -625,6 +634,8 @@ export default function Dashboard() {
 
       {showResourceModal && (
         <ResourceLoadModal systemInfo={systemInfo} onClose={() => setShowResourceModal(false)} />
+      )}
+      </>
       )}
     </div>
   );

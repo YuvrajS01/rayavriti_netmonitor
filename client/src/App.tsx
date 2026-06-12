@@ -1,9 +1,11 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import ErrorBoundary from './components/ErrorBoundary';
-import { Provider, useSelector } from 'react-redux';
+import { Provider, useSelector, useDispatch } from 'react-redux';
 import { store, type RootState } from './store';
 import { SocketProvider } from './hooks/useSocket';
+import { clearCredentials } from './store/authSlice';
+import { v1 } from './api/http';
 
 import Layout from './components/Layout';
 
@@ -31,7 +33,34 @@ function PageLoader() {
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const isAuth = useSelector((s: RootState) => s.auth.isAuthenticated);
+  const dispatch = useDispatch();
+  const [checking, setChecking] = useState(true);
+
+  useEffect(() => {
+    if (!isAuth) {
+      setChecking(false);
+      return;
+    }
+    v1.get('/auth/me')
+      .catch(() => {
+        dispatch(clearCredentials());
+      })
+      .finally(() => setChecking(false));
+  }, [isAuth, dispatch]);
+
   if (!isAuth) return <Navigate to="/login" replace />;
+  if (checking) {
+    return (
+      <Layout>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="flex flex-col items-center gap-3">
+            <span className="material-symbols-outlined text-3xl text-primary animate-pulse">hourglass_top</span>
+            <p className="text-xs text-on-surface-variant uppercase tracking-widest">Verifying session...</p>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
   return <Layout>{children}</Layout>;
 }
 

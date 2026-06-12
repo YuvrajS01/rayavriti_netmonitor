@@ -68,7 +68,7 @@ RUN cd backend && CGO_ENABLED=1 go build -tags pcap -ldflags="-s -w" -o /netmoni
 # ── Stage 5: Production image ──────────────────────────────────
 FROM alpine:3.21
 
-RUN apk add --no-cache ca-certificates libpcap tzdata wget
+RUN apk add --no-cache ca-certificates libpcap tzdata wget tcpdump
 
 COPY --from=go-builder /netmonitor /usr/local/bin/netmonitor
 COPY --from=client-builder /app/client/dist /app/public

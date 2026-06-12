@@ -26,10 +26,11 @@ type RedisConfig struct {
 }
 
 type AppConfig struct {
-	Port       int
-	AppEnv     string
-	Version    string
+	Port        int
+	AppEnv      string
+	Version     string
 	CORSOrigins []string
+	PublicDir   string
 }
 
 type DatabaseConfig struct {
@@ -103,10 +104,11 @@ func Load() (*Config, error) {
 
 	cfg := &Config{
 		App: AppConfig{
-			Port:       envInt("PORT", 3000),
-			AppEnv:     envStr("APP_ENV", envStr("NODE_ENV", "development")),
-			Version:    envStr("VERSION", "1.1.0"),
+			Port:        envInt("PORT", 3000),
+			AppEnv:      envStr("APP_ENV", envStr("NODE_ENV", "development")),
+			Version:     envStr("VERSION", "1.1.0"),
 			CORSOrigins: envSlice("CORS_ORIGINS"),
+			PublicDir:   envStr("PUBLIC_DIR", "/app/public"),
 		},
 		Database: DatabaseConfig{
 			DSN:               envStr("DATABASE_URL", envStr("DATABASE_DSN", "postgres://postgres:postgres@localhost:5432/netmonitor?sslmode=disable")),

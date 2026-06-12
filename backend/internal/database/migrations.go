@@ -430,4 +430,17 @@ var migrations = []string{
 	);
 	CREATE INDEX IF NOT EXISTS idx_refresh_tokens_hash ON refresh_tokens(token_hash);
 	CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user ON refresh_tokens(user_id);`,
+
+	// V32: enable TimescaleDB extension and recreate hypertables
+	`CREATE EXTENSION IF NOT EXISTS timescaledb;
+	SELECT create_hypertable('metrics', 'timestamp', if_not_exists => TRUE);
+	SELECT create_hypertable('flows', 'created_at', if_not_exists => TRUE);
+	SELECT create_hypertable('alert_history', 'created_at', if_not_exists => TRUE);
+	SELECT create_hypertable('capture_packets', 'timestamp', if_not_exists => TRUE);
+	SELECT create_hypertable('monitoring_http_requests', 'timestamp', if_not_exists => TRUE);
+	SELECT create_hypertable('monitoring_db_queries', 'timestamp', if_not_exists => TRUE);
+	SELECT create_hypertable('monitoring_collector_runs', 'timestamp', if_not_exists => TRUE);
+	SELECT create_hypertable('monitoring_system_metrics', 'timestamp', if_not_exists => TRUE);
+	SELECT create_hypertable('monitoring_alerts', 'timestamp', if_not_exists => TRUE);
+	SELECT create_hypertable('monitoring_alert_activity', 'created_at', if_not_exists => TRUE);`,
 }
