@@ -9,6 +9,20 @@
 # NetFlow, ping, and packet-capture behavior close to the deployed app.
 
 services:
+  redis:
+    image: redis:7-alpine
+    container_name: rayavriti-redis-dev
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_dev_data:/data
+    command: redis-server --appendonly yes --maxmemory 128mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
   timescaledb:
     image: timescale/timescaledb:latest-pg16
     container_name: rayavriti-timescaledb-dev
@@ -48,6 +62,8 @@ services:
       - NET_ADMIN
     depends_on:
       timescaledb:
+        condition: service_healthy
+      redis:
         condition: service_healthy
 
   client:
@@ -96,6 +112,8 @@ services:
 
 volumes:
   postgres_dev_data:
+    driver: local
+  redis_dev_data:
     driver: local
   backend-go-modules:
     driver: local
