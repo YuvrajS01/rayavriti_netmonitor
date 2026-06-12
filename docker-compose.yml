@@ -45,7 +45,9 @@ services:
     restart: unless-stopped
 
   netmonitor:
-    build: .
+    build:
+      context: .
+      target: production
     container_name: rayavriti-netmonitor
     # Host networking is required for:
     #  - Monitoring local network devices (ping, SNMP, port scans)
