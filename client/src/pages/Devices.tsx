@@ -87,20 +87,24 @@ export default function Devices() {
       payload.snmpCommunity = snmpCommunity.trim() || 'public';
       payload.snmpVersion = snmpVersion;
     }
-    await addDevice(payload);
+    const result = await addDevice(payload);
+    if (result?.data) {
+      setDevices((prev) => [...prev, result.data]);
+    }
     e.currentTarget.reset();
     setShowForm(false);
     setFormProtocol('https');
     setFormPort(443);
     setSnmpCommunity('public');
     setSnmpVersion('2c');
-    load();
+    load().catch(() => {});
   };
 
   const handleDelete = async (id: number) => {
     if (!confirm('Delete this device?')) return;
     await deleteDevice(id);
-    load();
+    setDevices((prev) => prev.filter((d) => d.id !== id));
+    load().catch(() => {});
   };
 
   // Stats
@@ -164,17 +168,19 @@ export default function Devices() {
           <form onSubmit={handleAdd} className="grid grid-cols-1 md:grid-cols-5 gap-3">
             <input name="name" required placeholder="Name" className="bg-surface-container-highest border border-outline-variant/20 rounded-lg px-3 py-2 text-sm text-on-surface outline-none" />
             <input name="host" required placeholder="Host/IP" className="bg-surface-container-highest border border-outline-variant/20 rounded-lg px-3 py-2 text-sm text-on-surface outline-none" />
-            <input
-              name="port"
-              type="number"
-              min="1"
-              max="65535"
-              value={formPort}
-              onChange={(e) => setFormPort(Number(e.target.value || 0))}
-              placeholder={formProtocol === 'port' ? 'Port to check' : 'Port'}
-              required={formProtocol === 'port'}
-              className="bg-surface-container-highest border border-outline-variant/20 rounded-lg px-3 py-2 text-sm text-on-surface outline-none"
-            />
+            {['https', 'http', 'snmp', 'port'].includes(formProtocol) && (
+              <input
+                name="port"
+                type="number"
+                min="1"
+                max="65535"
+                value={formPort || ''}
+                onChange={(e) => setFormPort(Number(e.target.value || 0))}
+                placeholder={formProtocol === 'port' ? 'Port to check' : 'Port'}
+                required={formProtocol === 'port'}
+                className="bg-surface-container-highest border border-outline-variant/20 rounded-lg px-3 py-2 text-sm text-on-surface outline-none"
+              />
+            )}
             <select
               name="protocol"
               value={formProtocol}
