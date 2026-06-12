@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, memo } from 'react';
 import {
   LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip, Legend,
   PieChart, Pie, Cell,
@@ -9,16 +9,16 @@ import type { DashboardStats, Metric, Alert, InsightsResponse, SystemInfo } from
 import ExpandedChartsModal from '../components/ExpandedChartsModal';
 import ResourceLoadModal from '../components/ResourceLoadModal';
 
-function StatCard({ label, value, color = 'text-primary' }: { label: string; value: string | number; color?: string }) {
+const StatCard = memo(function StatCard({ label, value, color = 'text-primary' }: { label: string; value: string | number; color?: string }) {
   return (
-    <div className="bg-surface-container-low p-6 rounded-xl border-l-2 border-primary/30">
+    <div className="bg-surface-container-low p-6 rounded-xl border-l-2 border-primary/30 content-visibility-auto">
       <p className="text-on-surface-variant text-[10px] uppercase tracking-[0.2em] mb-1">{label}</p>
       <p className={`font-headline text-3xl font-bold ${color}`}>{value}</p>
     </div>
   );
-}
+});
 
-function ResourceBar({ label, value, color }: { label: string; value: number; color: string }) {
+const ResourceBar = memo(function ResourceBar({ label, value, color }: { label: string; value: number; color: string }) {
   return (
     <div>
       <div className="flex justify-between text-xs mb-1">
@@ -26,11 +26,11 @@ function ResourceBar({ label, value, color }: { label: string; value: number; co
         <span>{value}%</span>
       </div>
       <div className="h-2 bg-surface-container-highest rounded">
-        <div className="h-2 rounded transition-all duration-500" style={{ width: `${Math.min(100, value)}%`, background: color }} />
+        <div className="h-2 rounded transition-[width] duration-500" style={{ width: `${Math.min(100, value)}%`, background: color }} />
       </div>
     </div>
   );
-}
+});
 
 const DEVICE_COLORS = ['#d9fd3a', '#ff7351', '#6ee7f7', '#c084fc', '#4ade80', '#fb923c'];
 
@@ -299,7 +299,7 @@ export default function Dashboard() {
         <StatCard label="Active Alerts" value={stats.activeAlerts} color="text-error" />
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-6">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-6 content-visibility-auto">
         <div className={`bg-surface-container-high rounded-xl p-5 border border-outline-variant/20 flex flex-col items-center justify-center ${networkHealth < 40 ? 'glow-critical' : networkHealth < 65 ? 'glow-risk' : networkHealth < 85 ? 'glow-watch' : 'glow-healthy'}`}>
           <p className="text-[10px] text-on-surface-variant uppercase tracking-[0.2em] mb-3">AI Health Score</p>
           <div className="relative inline-flex items-center justify-center" style={{ width: 120, height: 120 }}>
@@ -371,9 +371,9 @@ export default function Dashboard() {
       </div>
 
       {/* Charts Row 1: Multi-device response timeline + Status Distribution */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-6">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-6 content-visibility-auto">
         <div
-          className="xl:col-span-2 bg-surface-container-high rounded-xl p-4 border border-outline-variant/20 hover:border-primary/50 hover:shadow-[0_0_15px_rgba(217,253,58,0.1)] transition-all cursor-pointer group"
+          className="xl:col-span-2 bg-surface-container-high rounded-xl p-4 border border-outline-variant/20 hover:border-primary/50 hover:shadow-[0_0_15px_rgba(217,253,58,0.1)] transition-[border-color,box-shadow] cursor-pointer group"
           onClick={() => setShowExpandedCharts(true)}
         >
           <div className="flex justify-between items-center mb-3">
@@ -465,9 +465,9 @@ export default function Dashboard() {
       </div>
 
       {/* Charts Row 2: Resource Load */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-6">
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-6 content-visibility-auto">
         <div
-          className="bg-surface-container-high rounded-xl p-4 border border-outline-variant/20 hover:border-primary/50 hover:shadow-[0_0_15px_rgba(217,253,58,0.1)] transition-all cursor-pointer group"
+          className="bg-surface-container-high rounded-xl p-4 border border-outline-variant/20 hover:border-primary/50 hover:shadow-[0_0_15px_rgba(217,253,58,0.1)] transition-[border-color,box-shadow] cursor-pointer group"
           onClick={() => setShowResourceModal(true)}
         >
           <div className="flex justify-between items-center mb-3">
@@ -504,7 +504,7 @@ export default function Dashboard() {
                     <span className="text-on-surface-variant">{avg}ms</span>
                   </div>
                   <div className="h-2 bg-surface-container-highest rounded">
-                    <div className="h-2 rounded transition-all duration-500" style={{ width: `${barWidth}%`, background: color }} />
+                    <div className="h-2 rounded transition-[width] duration-500" style={{ width: `${barWidth}%`, background: color }} />
                   </div>
                 </div>
               );
@@ -514,7 +514,7 @@ export default function Dashboard() {
       </div>
 
       {/* Bottom Row: Metrics + Alerts */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 content-visibility-auto">
         <div className="bg-surface-container-high rounded-xl p-6 border border-outline-variant/20 flex flex-col shadow-lg">
           <div className="flex items-center gap-2 mb-6">
             <span className="material-symbols-outlined text-primary text-xl">speed</span>
@@ -539,8 +539,8 @@ export default function Dashboard() {
                   const statusIcon = isDown ? 'cancel' : isWarn ? 'warning' : 'check_circle';
 
                   return (
-                    <tr key={m.id || i} className="border-b border-outline-variant/10 hover:bg-surface-container-highest/50 transition-colors group">
-                      <td className="py-3 font-headline font-semibold text-on-surface group-hover:text-primary transition-colors">{m.deviceName}</td>
+                    <tr key={m.id || i} className="border-b border-outline-variant/10 hover:bg-surface-container-highest/50 transition-[background-color] group">
+                      <td className="py-3 font-headline font-semibold text-on-surface group-hover:text-primary transition-[color]">{m.deviceName}</td>
                       <td className="py-3 text-on-surface-variant text-xs uppercase tracking-wider">
                         <div className="flex items-center gap-1.5">
                           <span className="material-symbols-outlined text-[14px] opacity-70">
@@ -602,7 +602,7 @@ export default function Dashboard() {
                 const icon = isCritical ? 'error' : isWarn ? 'warning' : 'info';
 
                 return (
-                  <div key={alert.id} className={`flex items-start gap-4 p-4 rounded-xl border ${bg} transition-all hover:brightness-110`}>
+                  <div key={alert.id} className={`flex items-start gap-4 p-4 rounded-xl border ${bg} transition-[filter] hover:brightness-110`}>
                     <span className={`material-symbols-outlined ${color} mt-0.5`}>{icon}</span>
                     <div className="flex-1">
                       <div className="flex items-center justify-between mb-1">

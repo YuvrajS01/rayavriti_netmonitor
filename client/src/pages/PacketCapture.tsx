@@ -220,7 +220,7 @@ export default function PacketCapture() {
             {activeSession?.status === 'running' ? (
               <button
                 onClick={handleStop}
-                className="flex items-center gap-2 bg-error/20 text-error border border-error/30 px-6 py-2.5 rounded-lg font-headline font-bold text-xs uppercase tracking-widest hover:bg-error hover:text-on-error transition-all"
+                className="flex items-center gap-2 bg-error/20 text-error border border-error/30 px-6 py-2.5 rounded-lg font-headline font-bold text-xs uppercase tracking-widest hover:bg-error hover:text-on-error transition-[background-color,color]"
               >
                 <span className="material-symbols-outlined text-lg">stop_circle</span>
                 Stop Capture
@@ -229,7 +229,7 @@ export default function PacketCapture() {
               <button
                 onClick={handleStart}
                 disabled={isStarting || !selectedIface}
-                className="flex items-center gap-2 bg-primary/20 text-primary border border-primary/30 px-6 py-2.5 rounded-lg font-headline font-bold text-xs uppercase tracking-widest hover:bg-primary hover:text-on-primary transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex items-center gap-2 bg-primary/20 text-primary border border-primary/30 px-6 py-2.5 rounded-lg font-headline font-bold text-xs uppercase tracking-widest hover:bg-primary hover:text-on-primary transition-[background-color,color] disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <span className="material-symbols-outlined text-lg">play_circle</span>
                 {isStarting ? 'Starting...' : 'Start Capture'}
@@ -310,7 +310,7 @@ export default function PacketCapture() {
                       <tr
                         key={pktId}
                         onClick={() => setSelectedPacket(isSelected ? null : pkt)}
-                        className={`border-b cursor-pointer transition-colors ${
+                        className={`border-b cursor-pointer transition-[background-color] ${
                           isSelected
                             ? 'bg-primary/10 border-primary/20'
                             : 'border-outline-variant/5 hover:bg-surface-container-highest/50'
@@ -414,7 +414,7 @@ export default function PacketCapture() {
                         <span className="text-on-surface-variant">{count} ({pct}%)</span>
                       </div>
                       <div className="h-1.5 bg-surface-container-highest rounded">
-                        <div className="h-1.5 rounded transition-all duration-500" style={{ width: `${pct}%`, background: style.text }} />
+                        <div className="h-1.5 rounded transition-[width] duration-500" style={{ width: `${pct}%`, background: style.text }} />
                       </div>
                     </div>
                   );
@@ -452,7 +452,7 @@ export default function PacketCapture() {
                   const isRunning = s.status === 'running';
                   const isError = s.status === 'error';
                   return (
-                    <tr key={s.id} className="border-b border-outline-variant/10 hover:bg-surface-container-highest/50 transition-colors">
+                    <tr key={s.id} className="border-b border-outline-variant/10 hover:bg-surface-container-highest/50 transition-[background-color]">
                       <td className="py-2.5 font-mono text-on-surface-variant">#{s.id}</td>
                       <td className="py-2.5 font-mono text-on-surface">{s.interfaceName}</td>
                       <td className="py-2.5 text-on-surface-variant font-mono">{s.filter || '—'}</td>

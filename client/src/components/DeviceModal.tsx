@@ -171,7 +171,7 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
   const openPorts = ports.filter((port) => port.state === 'open');
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60" onClick={onClose}>
       <div
         ref={dialogRef}
         role="dialog"
@@ -223,7 +223,7 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
                <button
                  onClick={handleScanPorts}
                  disabled={scanning}
-                 className="bg-primary text-on-primary disabled:opacity-60 font-bold py-2.5 px-4 rounded-lg tracking-widest uppercase hover:brightness-110 active:scale-95 transition-all text-xs flex items-center justify-center gap-2"
+                  className="bg-primary text-on-primary disabled:opacity-60 font-bold py-2.5 px-4 rounded-lg tracking-widest uppercase hover:brightness-110 active:scale-95 transition-[filter,transform] text-xs flex items-center justify-center gap-2"
                >
                  <span className="material-symbols-outlined text-base">{scanning ? 'hourglass_top' : 'radar'}</span>
                  {scanning ? 'Scanning' : 'Scan Ports'}
@@ -343,7 +343,7 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
 
            {/* Actions */}
            <div className="flex gap-4">
-             <button onClick={handleDelete} className="bg-error/10 text-error border border-error/30 font-bold py-3 px-6 rounded-lg tracking-widest uppercase hover:bg-error/20 active:scale-95 transition-all w-full">
+              <button onClick={handleDelete} className="bg-error/10 text-error border border-error/30 font-bold py-3 px-6 rounded-lg tracking-widest uppercase hover:bg-error/20 active:scale-95 transition-[background-color,transform] w-full">
                Delete Device
              </button>
            </div>

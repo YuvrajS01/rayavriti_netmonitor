@@ -8,7 +8,7 @@ const TT = { background: 'var(--color-surface-container)', border: '1px solid va
 
 function KpiCard({ icon, label, value, sub, color = 'text-primary' }: { icon: string; label: string; value: string | number; sub?: string; color?: string }) {
   return (
-    <div className="bg-surface-container-high rounded-xl p-5 border border-outline-variant/20 flex flex-col gap-2 hover:border-primary/30 transition-all">
+    <div className="bg-surface-container-high rounded-xl p-5 border border-outline-variant/20 flex flex-col gap-2 hover:border-primary/30 transition-[border-color]">
       <div className="flex items-center gap-2">
         <span className="material-symbols-outlined text-lg opacity-60">{icon}</span>
         <span className="text-[10px] text-on-surface-variant uppercase tracking-[0.15em] font-bold">{label}</span>

@@ -74,16 +74,19 @@
 }
 
 .neon-glow {
-  box-shadow: 0 0 20px color-mix(in srgb, var(--color-primary) 15%, transparent), inset 0 0 10px color-mix(in srgb, var(--color-primary) 5%, transparent);
+  box-shadow: 0 0 20px rgba(217, 253, 58, 0.15), inset 0 0 10px rgba(217, 253, 58, 0.05);
 }
 
 .glass-panel {
+  background: rgba(38, 38, 29, 0.85);
+}
+
+.glass-panel-light {
   background: rgba(38, 38, 29, 0.7);
-  backdrop-filter: blur(20px);
 }
 
 .ambient-glow-primary {
-  box-shadow: 0 0 30px color-mix(in srgb, var(--color-primary) 8%, transparent);
+  box-shadow: 0 0 30px rgba(217, 253, 58, 0.08);
 }
 
 .geometric-input:focus-within {
@@ -118,16 +121,16 @@
 
 /* ── Health Status Glows ─────────────────────────────────── */
 .glow-healthy {
-  box-shadow: 0 0 20px color-mix(in srgb, var(--color-primary) 15%, transparent), 0 0 40px color-mix(in srgb, var(--color-primary) 5%, transparent);
+  box-shadow: 0 0 20px rgba(217, 253, 58, 0.15), 0 0 40px rgba(217, 253, 58, 0.05);
 }
 .glow-watch {
-  box-shadow: 0 0 20px color-mix(in srgb, var(--color-tertiary) 15%, transparent), 0 0 40px color-mix(in srgb, var(--color-tertiary) 5%, transparent);
+  box-shadow: 0 0 20px rgba(255, 113, 106, 0.15), 0 0 40px rgba(255, 113, 106, 0.05);
 }
 .glow-risk {
-  box-shadow: 0 0 20px color-mix(in srgb, var(--color-error) 15%, transparent), 0 0 40px color-mix(in srgb, var(--color-error) 5%, transparent);
+  box-shadow: 0 0 20px rgba(255, 115, 81, 0.15), 0 0 40px rgba(255, 115, 81, 0.05);
 }
 .glow-critical {
-  box-shadow: 0 0 20px color-mix(in srgb, var(--color-error-dim) 20%, transparent), 0 0 40px color-mix(in srgb, var(--color-error-dim) 8%, transparent);
+  box-shadow: 0 0 20px rgba(213, 61, 24, 0.2), 0 0 40px rgba(213, 61, 24, 0.08);
 }
 
 /* ── Trend Pulse ─────────────────────────────────────────── */
@@ -153,13 +156,30 @@
 .animate-slide-down {
   display: grid;
   grid-template-rows: 0fr;
-  transition: grid-template-rows 0.3s ease-out;
+  transition: grid-template-rows 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: grid-template-rows;
 }
 .animate-slide-down[data-open="true"] {
   grid-template-rows: 1fr;
 }
 .animate-slide-down > * {
   overflow: hidden;
+}
+
+/* ── GPU-Accelerated Utilities ───────────────────────────── */
+.gpu-accelerate {
+  transform: translateZ(0);
+  will-change: transform;
+}
+
+.fade-in-up {
+  animation: report-fade 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+/* ── Content Visibility (skip off-screen rendering) ──────── */
+.content-visibility-auto {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 400px;
 }
 
 /* ── Report Tab Fade-In ─────────────────────────────────────── */

@@ -60,7 +60,7 @@ export default function Settings() {
               Quick Actions
             </h2>
             <div className="space-y-4">
-              <button onClick={handleLogout} className="w-full py-3 border border-error text-error hover:bg-error hover:text-on-error font-bold rounded-lg transition-all text-xs uppercase tracking-widest">
+              <button onClick={handleLogout} className="w-full py-3 border border-error text-error hover:bg-error hover:text-on-error font-bold rounded-lg transition-[background-color,color] text-xs uppercase tracking-widest">
                 SIGN OUT
               </button>
             </div>

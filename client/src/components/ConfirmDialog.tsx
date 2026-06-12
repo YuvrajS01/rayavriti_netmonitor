@@ -62,7 +62,7 @@ export default function ConfirmDialog({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={onCancel}>
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60" onClick={onCancel}>
       <div
         ref={dialogRef}
         role="alertdialog"
@@ -88,7 +88,7 @@ export default function ConfirmDialog({
         <div className="flex border-t border-outline-variant/20">
           <button
             onClick={onCancel}
-            className="flex-1 py-3 text-xs font-headline font-bold uppercase tracking-widest text-on-surface-variant hover:bg-surface-container-high transition-colors"
+            className="flex-1 py-3 text-xs font-headline font-bold uppercase tracking-widest text-on-surface-variant hover:bg-surface-container-high transition-[background-color]"
           >
             {cancelLabel}
           </button>
@@ -96,7 +96,7 @@ export default function ConfirmDialog({
           <button
             ref={confirmBtnRef}
             onClick={onConfirm}
-            className={`flex-1 py-3 text-xs font-headline font-bold uppercase tracking-widest transition-colors ${
+            className={`flex-1 py-3 text-xs font-headline font-bold uppercase tracking-widest transition-[background-color] ${
               danger
                 ? 'text-error hover:bg-error/10'
                 : 'text-primary hover:bg-primary/10'

@@ -46,7 +46,7 @@ function formatNumber(n: number): string {
 
 function StatCard({ label, value, icon, color = 'text-primary' }: { label: string; value: string | number; icon: string; color?: string }) {
   return (
-    <div className="bg-surface-container-low p-5 rounded-xl border-l-2 border-primary/30 hover:border-primary/60 transition-all">
+    <div className="bg-surface-container-low p-5 rounded-xl border-l-2 border-primary/30 hover:border-primary/60 transition-[border-color]">
       <div className="flex items-center gap-2 mb-1">
         <span className="material-symbols-outlined text-sm opacity-60">{icon}</span>
         <p className="text-on-surface-variant text-[10px] uppercase tracking-[0.2em]">{label}</p>
@@ -435,7 +435,7 @@ export default function FlowAnalysis() {
                   </div>
                 ) : (
                   flowFeed.map((f, i) => (
-                    <div key={i} className="flex items-center gap-3 p-2.5 rounded-lg bg-surface-container-highest/50 border border-outline-variant/10 hover:border-[#6ee7f7]/20 transition-all text-xs">
+                    <div key={i} className="flex items-center gap-3 p-2.5 rounded-lg bg-surface-container-highest/50 border border-outline-variant/10 hover:border-[#6ee7f7]/20 transition-[border-color] text-xs">
                       <span className="text-[10px] text-on-surface-variant font-mono w-14 flex-shrink-0">{f.time}</span>
                       <span className="font-mono text-on-surface truncate flex-1">{f.src}</span>
                       <span className="material-symbols-outlined text-[12px] text-on-surface-variant">arrow_forward</span>

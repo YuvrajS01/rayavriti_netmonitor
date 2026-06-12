@@ -127,7 +127,7 @@ export default function Sensors() {
               <p className="text-primary font-bold">{healthPercent}%</p>
             </div>
             <div className="w-12 h-1 bg-surface-container-highest rounded-full overflow-hidden">
-              <div className="h-full bg-primary transition-all" style={{ width: `${healthPercent}%` }} />
+              <div className="h-full bg-primary transition-[width]" style={{ width: `${healthPercent}%` }} />
             </div>
           </div>
         </div>
@@ -229,7 +229,7 @@ export default function Sensors() {
               <h2 className="font-headline text-xl font-bold uppercase tracking-tight px-2">Active Sensor Feed</h2>
               <div className="space-y-3">
                 {metrics.map((m, i) => (
-                  <div key={m.id || i} className={`bg-surface-container-low p-5 rounded-xl border-l-4 ${borderColor(m.status)} group hover:bg-surface-container-high transition-all`}>
+                  <div key={m.id || i} className={`bg-surface-container-low p-5 rounded-xl border-l-4 ${borderColor(m.status)} group hover:bg-surface-container-high transition-[background-color]`}>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-5">
                         <div className={`w-10 h-10 rounded-lg ${m.status === 'down' ? 'bg-error/10' : 'bg-surface-container-highest'} flex items-center justify-center`}>
@@ -278,7 +278,7 @@ export default function Sensors() {
                           <span className="text-xs font-bold text-primary">{h}/{count}</span>
                         </div>
                         <div className="h-1.5 bg-surface-container-highest rounded-full">
-                          <div className="h-1.5 rounded-full bg-primary transition-all" style={{ width: `${pct}%` }} />
+                          <div className="h-1.5 rounded-full bg-primary transition-[width]" style={{ width: `${pct}%` }} />
                         </div>
                       </div>
                     );

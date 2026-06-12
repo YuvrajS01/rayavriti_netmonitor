@@ -128,7 +128,7 @@ export default function Devices() {
           <h1 className="font-headline text-5xl font-black text-on-surface uppercase tracking-tight mb-2">My Devices</h1>
           <p className="text-on-surface-variant font-body max-w-xl">Centralized node management. Monitor real-time telemetry across your infrastructure.</p>
         </div>
-        <button onClick={() => setShowForm(!showForm)} className="bg-primary text-on-primary font-headline font-bold py-4 px-8 rounded-none flex items-center gap-3 tracking-widest hover:brightness-110 active:scale-95 transition-all uppercase">
+        <button onClick={() => setShowForm(!showForm)} className="bg-primary text-on-primary font-headline font-bold py-4 px-8 rounded-none flex items-center gap-3 tracking-widest hover:brightness-110 active:scale-95 transition-[filter,transform] uppercase">
           <span className="material-symbols-outlined">add_circle</span>
           ADD DEVICE
         </button>
@@ -230,7 +230,7 @@ export default function Devices() {
                 </select>
               </>
             )}
-            <button className="md:col-span-5 bg-primary text-on-primary rounded-lg px-4 py-2 text-xs font-bold tracking-widest uppercase hover:brightness-110 active:scale-95 transition-all">Add Device</button>
+            <button className="md:col-span-5 bg-primary text-on-primary rounded-lg px-4 py-2 text-xs font-bold tracking-widest uppercase hover:brightness-110 active:scale-95 transition-[filter,transform]">Add Device</button>
           </form>
         </div>
       )}
@@ -244,7 +244,7 @@ export default function Devices() {
           return (
             <div 
               key={device.id} 
-              className={`bg-surface-container-low rounded-xl group overflow-hidden border border-transparent hover:${sc.border} transition-all duration-300 flex flex-col cursor-pointer`}
+              className={`bg-surface-container-low rounded-xl group overflow-hidden border border-transparent hover:${sc.border} transition-[border-color,box-shadow] duration-300 flex flex-col cursor-pointer`}
               onClick={() => setSelectedDevice(device)}
             >
               <div className="p-6">
@@ -279,7 +279,7 @@ export default function Devices() {
         })}
 
         {/* Add New Card */}
-        <div onClick={() => setShowForm(true)} className="bg-surface-container-low rounded-xl border-2 border-dashed border-outline-variant/30 hover:border-primary/50 transition-all duration-300 flex flex-col items-center justify-center p-12 text-center group cursor-pointer min-h-[200px]">
+        <div onClick={() => setShowForm(true)} className="bg-surface-container-low rounded-xl border-2 border-dashed border-outline-variant/30 hover:border-primary/50 transition-[border-color] duration-300 flex flex-col items-center justify-center p-12 text-center group cursor-pointer min-h-[200px]">
           <div className="w-16 h-16 rounded-full bg-surface-container-high flex items-center justify-center mb-4 group-hover:bg-primary/10 transition-colors">
             <span className="material-symbols-outlined text-3xl text-outline group-hover:text-primary">add</span>
           </div>

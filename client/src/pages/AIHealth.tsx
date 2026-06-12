@@ -184,7 +184,7 @@ function DistributionBar({ distribution }: { distribution: { critical: number; r
         {segments.map((seg) => (
           <div
             key={seg.key}
-            className="h-full transition-all duration-700 first:rounded-l-full last:rounded-r-full"
+            className="h-full transition-[width] duration-700 first:rounded-l-full last:rounded-r-full"
             style={{ width: `${(seg.count / total) * 100}%`, background: seg.color }}
             title={`${seg.label}: ${seg.count}`}
           />
@@ -210,7 +210,7 @@ function DeviceScoreCard({ device, deviceInsights }: { device: DeviceHealth; dev
   const primaryIssue = device.issues.find((issue) => issue.severity !== 'info') || device.issues[0];
 
   return (
-    <div className={`bg-surface-container-high rounded-xl border border-outline-variant/20 overflow-hidden transition-all hover:border-outline-variant/40 ${scoreGlow(device.label)}`}>
+    <div className={`bg-surface-container-high rounded-xl border border-outline-variant/20 overflow-hidden transition-[border-color,box-shadow] hover:border-outline-variant/40 ${scoreGlow(device.label)}`}>
       <div className="p-5 grid grid-cols-1 xl:grid-cols-[auto_1fr_280px] gap-5">
         {/* Left: Gauge + Name + Trend */}
         <div className="flex items-center gap-4">
@@ -394,7 +394,7 @@ export default function AIHealth() {
           <h1 className="font-headline text-5xl font-black text-on-surface uppercase tracking-tight mb-2">AI Health Score</h1>
           <p className="text-on-surface-variant font-body max-w-2xl">Weighted device risk scoring from availability, latency, alerts, stability, and port changes with trend analysis.</p>
         </div>
-        <button onClick={load} className="bg-primary text-on-primary font-bold py-3 px-5 rounded-lg tracking-widest uppercase hover:brightness-110 active:scale-95 transition-all text-xs flex items-center justify-center gap-2">
+        <button onClick={load} className="bg-primary text-on-primary font-bold py-3 px-5 rounded-lg tracking-widest uppercase hover:brightness-110 active:scale-95 transition-[filter,transform] text-xs flex items-center justify-center gap-2">
           <span className="material-symbols-outlined text-base">refresh</span>
           Refresh
         </button>

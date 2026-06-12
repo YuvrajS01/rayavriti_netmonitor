@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, memo } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { clearCredentials } from '../store/authSlice';
@@ -17,14 +17,14 @@ const navItems = [
   { to: '/settings', label: 'Settings', icon: 'settings' },
 ];
 
-function SidebarLink({ to, label, icon, onClick }: { to: string; label: string; icon: string; onClick?: () => void }) {
+const SidebarLink = memo(function SidebarLink({ to, label, icon, onClick }: { to: string; label: string; icon: string; onClick?: () => void }) {
   return (
     <NavLink
       to={to}
       end={to === '/'}
       onClick={onClick}
       className={({ isActive }) =>
-        `group flex items-center gap-4 py-4 px-6 font-label font-medium text-xs uppercase tracking-[0.2em] transition-all duration-200 ${
+        `group flex items-center gap-4 py-4 px-6 font-label font-medium text-xs uppercase tracking-[0.2em] transition-[color,background-color,border-color,box-shadow] duration-200 ${
           isActive
             ? 'bg-gradient-to-r from-primary/10 to-transparent text-primary border-l-4 border-primary shadow-[inset_10px_0_15px_-10px_rgba(217,253,58,0.3)]'
             : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high border-l-4 border-transparent'
@@ -35,7 +35,7 @@ function SidebarLink({ to, label, icon, onClick }: { to: string; label: string; 
       <span>{label}</span>
     </NavLink>
   );
-}
+});
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
@@ -118,7 +118,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           <div className="p-6">
             <button
               onClick={handleLogout}
-              className="w-full bg-surface-container-highest text-error border border-error/20 py-3 font-headline font-bold text-xs tracking-widest rounded-none hover:bg-error hover:text-on-error transition-all uppercase"
+              className="w-full bg-surface-container-highest text-error border border-error/20 py-3 font-headline font-bold text-xs tracking-widest rounded-none hover:bg-error hover:text-on-error transition-[background-color,color] uppercase"
             >
               Sign Out
             </button>
@@ -126,7 +126,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </aside>
 
         {/* Main Content */}
-        <main className={`flex-1 p-8 bg-surface min-h-[calc(100vh-64px)] transition-all duration-300 ${sidebarOpen ? 'ml-64' : 'ml-0'}`}>
+        <main className={`flex-1 p-8 bg-surface min-h-[calc(100vh-64px)] transition-[margin-left] duration-300 ${sidebarOpen ? 'ml-64' : 'ml-0'}`}>
           {children}
         </main>
       </div>

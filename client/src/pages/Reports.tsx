@@ -124,7 +124,7 @@ export default function Reports() {
           <div className="flex flex-wrap items-center gap-2">
             {RANGES.map(r => (
               <button key={r.hours} onClick={() => setRange(r.hours)}
-                className={`px-3 py-2 rounded-lg text-xs border font-bold transition-all ${activeRange === r.hours ? 'border-primary/40 text-primary bg-primary/5' : 'border-outline-variant/20 text-on-surface-variant hover:text-primary'}`}>
+                className={`px-3 py-2 rounded-lg text-xs border font-bold transition-[border-color,color,background-color] ${activeRange === r.hours ? 'border-primary/40 text-primary bg-primary/5' : 'border-outline-variant/20 text-on-surface-variant hover:text-primary'}`}>
                 {r.label}
               </button>
             ))}
@@ -138,7 +138,7 @@ export default function Reports() {
           <div className="flex flex-wrap gap-2">
             <input type="datetime-local" value={from} onChange={e => setFrom(e.target.value)} className="bg-surface-container-highest border border-outline-variant/20 rounded-lg px-3 py-2 text-xs text-on-surface outline-none" />
             <input type="datetime-local" value={to} onChange={e => setTo(e.target.value)} className="bg-surface-container-highest border border-outline-variant/20 rounded-lg px-3 py-2 text-xs text-on-surface outline-none" />
-            <button onClick={refresh} disabled={loading} className="px-4 py-2 rounded-lg text-xs bg-primary text-on-primary font-bold uppercase hover:brightness-110 transition-all flex items-center gap-1.5 disabled:opacity-50">
+            <button onClick={refresh} disabled={loading} className="px-4 py-2 rounded-lg text-xs bg-primary text-on-primary font-bold uppercase hover:brightness-110 transition-[filter] flex items-center gap-1.5 disabled:opacity-50">
               {loading ? <span className="material-symbols-outlined text-sm animate-spin">refresh</span> : <span className="material-symbols-outlined text-sm">play_arrow</span>}
               Run
             </button>
@@ -161,7 +161,7 @@ export default function Reports() {
       <div className="flex gap-1 mb-6 overflow-x-auto no-print border-b border-outline-variant/20 pb-px">
         {TABS.map(tab => (
           <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-2 px-4 py-3 text-xs font-bold uppercase tracking-widest transition-all rounded-t-lg whitespace-nowrap ${activeTab === tab.id ? 'text-primary border-b-2 border-primary bg-primary/5' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest/50'}`}>
+            className={`flex items-center gap-2 px-4 py-3 text-xs font-bold uppercase tracking-widest transition-[color,border-color,background-color] rounded-t-lg whitespace-nowrap ${activeTab === tab.id ? 'text-primary border-b-2 border-primary bg-primary/5' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest/50'}`}>
             <span className="material-symbols-outlined text-sm">{tab.icon}</span>
             {tab.label}
           </button>

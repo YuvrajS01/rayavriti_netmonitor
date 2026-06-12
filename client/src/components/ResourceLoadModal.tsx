@@ -44,7 +44,7 @@ export default function ResourceLoadModal({ systemInfo, onClose }: ResourceLoadM
   }, [onClose]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80" onClick={onClose}>
       <div
         ref={dialogRef}
         role="dialog"
@@ -62,7 +62,7 @@ export default function ResourceLoadModal({ systemInfo, onClose }: ResourceLoadM
               <p className="text-on-surface-variant text-xs font-mono uppercase tracking-widest">Server node performance telemetry</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-surface-container-highest rounded-full transition-colors" aria-label="Close dialog">
+          <button onClick={onClose} className="p-2 hover:bg-surface-container-highest rounded-full transition-[background-color]" aria-label="Close dialog">
             <span className="material-symbols-outlined text-outline hover:text-on-surface">close</span>
           </button>
         </div>
@@ -88,7 +88,7 @@ export default function ResourceLoadModal({ systemInfo, onClose }: ResourceLoadM
                   <span className="text-xs font-mono text-on-surface-variant pb-1">{raw.cpu.cores} Cores</span>
                 </div>
                 <div className="h-2 bg-surface-container-highest rounded w-full mb-4">
-                  <div className="h-2 rounded transition-all duration-500 bg-primary" style={{ width: `${Math.min(100, raw.cpu.usage)}%` }} />
+                  <div className="h-2 rounded transition-[width] duration-500 bg-primary" style={{ width: `${Math.min(100, raw.cpu.usage)}%` }} />
                 </div>
                 <div className="text-[10px] uppercase font-mono tracking-wider text-on-surface-variant bg-surface-container-highest/50 px-3 py-2 rounded-lg truncate">
                   {raw.cpu.model}
@@ -105,7 +105,7 @@ export default function ResourceLoadModal({ systemInfo, onClose }: ResourceLoadM
                   <span className="text-xs font-mono text-on-surface-variant pb-1">{(raw.memory.used || 0).toFixed(1)}GB / {(raw.memory.total || 0).toFixed(1)}GB</span>
                 </div>
                 <div className="h-2 bg-surface-container-highest rounded w-full mb-4">
-                  <div className="h-2 rounded transition-all duration-500 bg-primary-dim" style={{ width: `${Math.min(100, raw.memory.percent)}%` }} />
+                  <div className="h-2 rounded transition-[width] duration-500 bg-primary-dim" style={{ width: `${Math.min(100, raw.memory.percent)}%` }} />
                 </div>
               </div>
 
@@ -120,7 +120,7 @@ export default function ResourceLoadModal({ systemInfo, onClose }: ResourceLoadM
                     <span className="text-xs font-mono text-on-surface-variant pb-1">{(raw.disk.used || 0).toFixed(1)}GB / {(raw.disk.total || 0).toFixed(1)}GB</span>
                   </div>
                   <div className="h-2 bg-surface-container-highest rounded w-full mb-4">
-                    <div className="h-2 rounded transition-all duration-500 bg-secondary" style={{ width: `${Math.min(100, raw.disk.percent)}%` }} />
+                    <div className="h-2 rounded transition-[width] duration-500 bg-secondary" style={{ width: `${Math.min(100, raw.disk.percent)}%` }} />
                   </div>
                 </div>
               )}

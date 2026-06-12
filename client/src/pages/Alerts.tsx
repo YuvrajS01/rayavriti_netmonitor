@@ -99,7 +99,7 @@ export default function Alerts() {
             <button
               key={tab.key}
               onClick={() => setCurrentTab(tab.key)}
-              className={`px-4 py-2 text-xs rounded-lg border font-bold uppercase tracking-widest transition-all ${
+              className={`px-4 py-2 text-xs rounded-lg border font-bold uppercase tracking-widest transition-[border-color,color,background-color] ${
                 currentTab === tab.key
                   ? 'border-primary/40 text-primary bg-primary/5'
                   : 'border-outline-variant/20 text-on-surface-variant hover:text-primary'
@@ -185,7 +185,7 @@ function AlertItem({ alert, onAck, onResolve }: { alert: Alert; onAck: (id: numb
   const deviceName = alert.deviceName || `Device ${alert.deviceId}`;
 
   return (
-    <div className={`group bg-surface-container-low rounded-xl border-l-[6px] ${sc.border} p-5 flex flex-col md:flex-row md:items-center justify-between gap-6 transition-all hover:bg-surface-container-high`}>
+    <div className={`group bg-surface-container-low rounded-xl border-l-[6px] ${sc.border} p-5 flex flex-col md:flex-row md:items-center justify-between gap-6 transition-[background-color,border-color] hover:bg-surface-container-high`}>
       <div className="flex items-start gap-4">
         <div className={`${sc.bg} p-3 rounded-lg`}>
           <span className={`material-symbols-outlined ${sc.text}`} style={{ fontVariationSettings: "'FILL' 1" }}>
@@ -207,12 +207,12 @@ function AlertItem({ alert, onAck, onResolve }: { alert: Alert; onAck: (id: numb
       </div>
       <div className="flex items-center gap-4">
         {alert.status === 'active' && (
-          <button onClick={() => onAck(alert.id)} className={`px-6 py-2 border-2 ${sc.border} ${sc.text} font-headline font-bold text-xs uppercase hover:bg-surface-container-highest transition-all active:scale-95`}>
+          <button onClick={() => onAck(alert.id)} className={`px-6 py-2 border-2 ${sc.border} ${sc.text} font-headline font-bold text-xs uppercase hover:bg-surface-container-highest transition-[background-color,color,transform] active:scale-95`}>
             ACKNOWLEDGE
           </button>
         )}
         {alert.status === 'acknowledged' && (
-          <button onClick={() => onResolve(alert.id)} className="px-6 py-2 border-2 border-primary text-primary font-headline font-bold text-xs uppercase hover:bg-primary hover:text-on-primary transition-all active:scale-95">
+          <button onClick={() => onResolve(alert.id)} className="px-6 py-2 border-2 border-primary text-primary font-headline font-bold text-xs uppercase hover:bg-primary hover:text-on-primary transition-[background-color,color,transform] active:scale-95">
             RESOLVE
           </button>
         )}

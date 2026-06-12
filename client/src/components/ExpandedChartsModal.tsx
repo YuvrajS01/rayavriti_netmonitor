@@ -66,7 +66,7 @@ export default function ExpandedChartsModal({ metrics, onClose }: ExpandedCharts
   }, [onClose]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80" onClick={onClose}>
       <div
         ref={dialogRef}
         role="dialog"
@@ -84,7 +84,7 @@ export default function ExpandedChartsModal({ metrics, onClose }: ExpandedCharts
               <p className="text-on-surface-variant text-xs font-mono uppercase tracking-widest">Individual node performance telemetry</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-surface-container-highest rounded-full transition-colors" aria-label="Close dialog">
+          <button onClick={onClose} className="p-2 hover:bg-surface-container-highest rounded-full transition-[background-color]" aria-label="Close dialog">
             <span className="material-symbols-outlined text-outline hover:text-on-surface">close</span>
           </button>
         </div>

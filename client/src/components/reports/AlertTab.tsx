@@ -59,7 +59,7 @@ export default function AlertTab({ alerts }: { alerts: ReportAlert[] }) {
                 const color = SEV_COLORS[a.severity] || '#6b7280';
                 const bg = a.severity === 'critical' ? 'bg-error/10 border-error/25' : a.severity === 'warning' ? 'bg-amber-400/10 border-amber-400/25' : 'bg-sky-400/10 border-sky-400/25';
                 return (
-                  <div key={a.id} className={`flex items-start gap-3 p-3 rounded-lg border ${bg} transition-all hover:brightness-110`}>
+                  <div key={a.id} className={`flex items-start gap-3 p-3 rounded-lg border ${bg} transition-[filter] hover:brightness-110`}>
                     <span className="material-symbols-outlined mt-0.5 text-sm" style={{ color }}>{SEV_ICONS[a.severity] || 'info'}</span>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2 mb-0.5">
