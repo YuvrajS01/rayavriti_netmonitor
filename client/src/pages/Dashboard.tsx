@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip, Legend,
   PieChart, Pie, Cell,
@@ -35,11 +35,11 @@ function ResourceBar({ label, value, color }: { label: string; value: number; co
 const DEVICE_COLORS = ['#d9fd3a', '#ff7351', '#6ee7f7', '#c084fc', '#4ade80', '#fb923c'];
 
 const TOOLTIP_STYLE = {
-  background: '#1a1a13',
-  border: '1px solid #494840',
+  background: 'var(--color-surface-container)',
+  border: '1px solid var(--color-outline-variant)',
   borderRadius: '8px',
   fontSize: '12px',
-  color: '#f4f1e6',
+  color: 'var(--color-on-surface)',
 };
 
 interface MultiLinePoint {
@@ -135,6 +135,10 @@ export default function Dashboard() {
   const [insights, setInsights] = useState<InsightsResponse | null>(null);
   const [showExpandedCharts, setShowExpandedCharts] = useState(false);
   const [showResourceModal, setShowResourceModal] = useState(false);
+
+  const lastStatsFetch = useRef(0);
+  const lastAlertFetch = useRef(0);
+  const THROTTLE_MS = 30_000;
 
   const loadData = useCallback(async () => {
     try {
@@ -239,28 +243,36 @@ export default function Dashboard() {
         return updated;
       });
       setLastUpdated(`Updated ${new Date().toLocaleTimeString()}`);
-      getStats().then((r) => setStats((prev) => ({ ...prev, ...r.data }))).catch(() => {});
-      getInsights().then((r) => setInsights(r.data)).catch(() => {});
+      const now = Date.now();
+      if (now - lastStatsFetch.current > THROTTLE_MS) {
+        lastStatsFetch.current = now;
+        getStats().then((r) => setStats((prev) => ({ ...prev, ...r.data }))).catch(() => {});
+        getInsights().then((r) => setInsights(r.data)).catch(() => {});
+      }
     },
     onAlertTriggered: () => {
-      Promise.all([getAlerts('active'), getStats()]).then(([a, s]) => {
-        setAlerts(a.data || []);
-        setStats(s.data);
-      }).catch(() => {});
+      const now = Date.now();
+      if (now - lastAlertFetch.current > THROTTLE_MS) {
+        lastAlertFetch.current = now;
+        Promise.all([getAlerts('active'), getStats()]).then(([a, s]) => {
+          setAlerts(a.data || []);
+          setStats(s.data);
+        }).catch(() => {});
+      }
     },
   });
 
-  const { data: multiLineData, devices: trackedDevices } = buildMultiLineData(historyMetrics);
-  const donutData = buildDonutData(metrics);
-  const donutTotal = donutData.reduce((s, d) => s + d.value, 0);
+  const { data: multiLineData, devices: trackedDevices } = useMemo(() => buildMultiLineData(historyMetrics), [historyMetrics]);
+  const donutData = useMemo(() => buildDonutData(metrics), [metrics]);
+  const donutTotal = useMemo(() => donutData.reduce((s, d) => s + d.value, 0), [donutData]);
 
-  const healthArray = insights?.health || [];
-  const networkHealth = healthArray.length
+  const healthArray = useMemo(() => insights?.health || [], [insights]);
+  const networkHealth = useMemo(() => healthArray.length
     ? Math.round(healthArray.reduce((sum, item) => sum + item.score, 0) / healthArray.length)
-    : stats.uptimePercent ?? 100;
-  const weakestDevice = healthArray.length
+    : stats.uptimePercent ?? 100, [healthArray, stats.uptimePercent]);
+  const weakestDevice = useMemo(() => healthArray.length
     ? [...healthArray].sort((a, b) => a.score - b.score)[0]
-    : undefined;
+    : undefined, [healthArray]);
 
   return (
     <div>

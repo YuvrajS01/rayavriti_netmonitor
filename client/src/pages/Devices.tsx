@@ -1,8 +1,9 @@
-import { useState, useEffect, useCallback, type FormEvent } from 'react';
+import { useState, useEffect, useCallback, useMemo, type FormEvent } from 'react';
 import { getDevices, getLatestMetrics, addDevice, deleteDevice } from '../api/client';
 import { useSocket } from '../hooks/useSocket';
 import type { Device, Metric } from '../api/types';
 import DeviceModal from '../components/DeviceModal';
+import ConfirmDialog from '../components/ConfirmDialog';
 
 function statusOf(device: Device, metricsMap: Map<number, Metric>): string {
   return metricsMap.get(device.id)?.status || device.status || 'unknown';
@@ -35,6 +36,7 @@ export default function Devices() {
   const [formPort, setFormPort] = useState(443);
   const [snmpCommunity, setSnmpCommunity] = useState('public');
   const [snmpVersion, setSnmpVersion] = useState('2c');
+  const [deleteTarget, setDeleteTarget] = useState<Device | null>(null);
 
   const load = useCallback(async () => {
     const [dRes, mRes] = await Promise.all([getDevices(), getLatestMetrics()]);
@@ -61,7 +63,7 @@ export default function Devices() {
     },
   });
 
-  const filtered = devices.filter((d) => {
+  const filtered = useMemo(() => devices.filter((d) => {
     const status = statusOf(d, metricsMap);
     const text = `${d.name} ${d.ipAddress} ${d.protocol}`.toLowerCase();
     const matchSearch = !search || text.includes(search.toLowerCase());
@@ -71,7 +73,7 @@ export default function Devices() {
     else if (statusFilter === 'down') matchStatus = status === 'down';
     else if (statusFilter === 'unknown') matchStatus = status === 'unknown';
     return matchSearch && matchStatus;
-  });
+  }), [devices, metricsMap, search, statusFilter]);
 
   const handleAdd = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -100,18 +102,23 @@ export default function Devices() {
     load().catch(() => {});
   };
 
-  const handleDelete = async (id: number) => {
-    if (!confirm('Delete this device?')) return;
-    await deleteDevice(id);
-    setDevices((prev) => prev.filter((d) => d.id !== id));
+  const handleDelete = (device: Device) => {
+    setDeleteTarget(device);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    await deleteDevice(deleteTarget.id);
+    setDevices((prev) => prev.filter((d) => d.id !== deleteTarget.id));
+    setDeleteTarget(null);
     load().catch(() => {});
   };
 
   // Stats
   const total = devices.length;
-  const up = devices.filter((d) => { const s = statusOf(d, metricsMap); return s === 'up' || s === 'ok'; }).length;
-  const down = devices.filter((d) => statusOf(d, metricsMap) === 'down').length;
-  const warn = devices.filter((d) => { const s = statusOf(d, metricsMap); return s === 'warning' || s === 'degraded'; }).length;
+  const up = useMemo(() => devices.filter((d) => { const s = statusOf(d, metricsMap); return s === 'up' || s === 'ok'; }).length, [devices, metricsMap]);
+  const down = useMemo(() => devices.filter((d) => statusOf(d, metricsMap) === 'down').length, [devices, metricsMap]);
+  const warn = useMemo(() => devices.filter((d) => { const s = statusOf(d, metricsMap); return s === 'warning' || s === 'degraded'; }).length, [devices, metricsMap]);
 
   return (
     <div>
@@ -261,7 +268,7 @@ export default function Devices() {
               <div className="mt-auto bg-surface-container-high p-4 flex justify-between items-center">
                 <span className="text-[10px] text-on-surface-variant uppercase">{metric ? new Date(metric.timestamp || metric.createdAt).toLocaleTimeString() : 'No data'}</span>
                 <button 
-                  onClick={(e) => { e.stopPropagation(); handleDelete(device.id); }} 
+                  onClick={(e) => { e.stopPropagation(); handleDelete(device); }} 
                   className="text-error text-[10px] font-bold uppercase tracking-widest hover:bg-error/10 px-2 py-1 rounded transition-colors"
                 >
                   Delete
@@ -290,6 +297,15 @@ export default function Devices() {
           }}
         />
       )}
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title="Delete Device"
+        message={`Are you sure you want to delete "${deleteTarget?.name}"? This action cannot be undone.`}
+        confirmLabel="Delete"
+        danger
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </div>
   );
 }

@@ -24,6 +24,10 @@ export default class ErrorBoundary extends Component<Props, State> {
     console.error('[ErrorBoundary] Component stack:', info.componentStack);
   }
 
+  private handleRetry = (): void => {
+    this.setState({ hasError: false, error: null });
+  };
+
   private handleReload = (): void => {
     window.location.reload();
   };
@@ -34,122 +38,41 @@ export default class ErrorBoundary extends Component<Props, State> {
     }
 
     return (
-      <div
-        style={{
-          minHeight: '100vh',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          background: '#0a0a0f',
-          fontFamily: "'Space Grotesk', sans-serif",
-          padding: '2rem',
-        }}
-      >
-        <div
-          style={{
-            maxWidth: '480px',
-            width: '100%',
-            textAlign: 'center',
-            border: '1px solid rgba(139, 92, 246, 0.3)',
-            borderRadius: '16px',
-            padding: '3rem 2rem',
-            background: 'rgba(15, 15, 25, 0.95)',
-            boxShadow: '0 0 60px rgba(139, 92, 246, 0.08)',
-          }}
-        >
-          {/* Icon */}
-          <div
-            style={{
-              width: '64px',
-              height: '64px',
-              borderRadius: '50%',
-              background: 'rgba(239, 68, 68, 0.1)',
-              border: '2px solid rgba(239, 68, 68, 0.4)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              margin: '0 auto 1.5rem',
-              fontSize: '28px',
-            }}
-          >
-            ⚠
+      <div className="min-h-screen flex items-center justify-center bg-background font-body p-8">
+        <div className="w-full max-w-md text-center border border-outline-variant/30 rounded-xl p-12 bg-surface-container-high/80 backdrop-blur-sm">
+          <div className="w-16 h-16 rounded-full bg-error/10 border-2 border-error/40 flex items-center justify-center mx-auto mb-6">
+            <span className="material-symbols-outlined text-error text-3xl">warning</span>
           </div>
 
-          <h1
-            style={{
-              fontFamily: "'League Spartan', sans-serif",
-              fontSize: '1.75rem',
-              fontWeight: 900,
-              color: '#f1f5f9',
-              margin: '0 0 0.75rem',
-              letterSpacing: '-0.02em',
-            }}
-          >
+          <h1 className="font-headline text-2xl font-black text-on-surface tracking-tight mb-3">
             Something went wrong
           </h1>
 
-          <p
-            style={{
-              color: '#94a3b8',
-              fontSize: '0.95rem',
-              lineHeight: 1.6,
-              margin: '0 0 1.5rem',
-            }}
-          >
+          <p className="text-on-surface-variant text-sm leading-relaxed mb-6">
             The application encountered an unexpected error. You can try reloading
             the page to recover.
           </p>
 
-          {/* Error details */}
           {this.state.error && (
-            <pre
-              style={{
-                background: 'rgba(239, 68, 68, 0.06)',
-                border: '1px solid rgba(239, 68, 68, 0.15)',
-                borderRadius: '8px',
-                padding: '1rem',
-                color: '#f87171',
-                fontSize: '0.8rem',
-                textAlign: 'left',
-                overflow: 'auto',
-                maxHeight: '120px',
-                margin: '0 0 2rem',
-                whiteSpace: 'pre-wrap',
-                wordBreak: 'break-word',
-              }}
-            >
+            <pre className="bg-error/5 border border-error/15 rounded-lg p-4 text-error text-xs text-left overflow-auto max-h-32 mb-8 whitespace-pre-wrap break-word">
               {this.state.error.message}
             </pre>
           )}
 
-          <button
-            onClick={this.handleReload}
-            style={{
-              background: 'linear-gradient(135deg, #8b5cf6, #6d28d9)',
-              color: '#fff',
-              border: 'none',
-              borderRadius: '10px',
-              padding: '0.75rem 2rem',
-              fontSize: '0.95rem',
-              fontWeight: 600,
-              fontFamily: "'Space Grotesk', sans-serif",
-              cursor: 'pointer',
-              transition: 'transform 0.15s, box-shadow 0.15s',
-              boxShadow: '0 0 20px rgba(139, 92, 246, 0.3)',
-            }}
-            onMouseOver={(e) => {
-              (e.target as HTMLButtonElement).style.transform = 'translateY(-1px)';
-              (e.target as HTMLButtonElement).style.boxShadow =
-                '0 0 30px rgba(139, 92, 246, 0.5)';
-            }}
-            onMouseOut={(e) => {
-              (e.target as HTMLButtonElement).style.transform = 'translateY(0)';
-              (e.target as HTMLButtonElement).style.boxShadow =
-                '0 0 20px rgba(139, 92, 246, 0.3)';
-            }}
-          >
-            Reload Page
-          </button>
+          <div className="flex gap-3 justify-center">
+            <button
+              onClick={this.handleRetry}
+              className="bg-primary text-on-primary font-headline font-bold py-3 px-6 rounded-lg text-xs tracking-widest uppercase hover:brightness-110 active:scale-95 transition-all"
+            >
+              Try Again
+            </button>
+            <button
+              onClick={this.handleReload}
+              className="bg-surface-container-highest text-on-surface border border-outline-variant/30 font-headline font-bold py-3 px-6 rounded-lg text-xs tracking-widest uppercase hover:bg-surface-container-highest/80 active:scale-95 transition-all"
+            >
+              Reload Page
+            </button>
+          </div>
         </div>
       </div>
     );

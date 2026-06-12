@@ -43,11 +43,11 @@ function trendColor(trend: string) {
 }
 
 const TOOLTIP_STYLE = {
-  background: '#1a1a13',
-  border: '1px solid #494840',
+  background: 'var(--color-surface-container)',
+  border: '1px solid var(--color-outline-variant)',
   borderRadius: '8px',
   fontSize: '12px',
-  color: '#f4f1e6',
+  color: 'var(--color-on-surface)',
 };
 
 const FACTOR_LABELS: Record<keyof HealthFactors, string> = {
@@ -286,8 +286,7 @@ function DeviceScoreCard({ device, deviceInsights }: { device: DeviceHealth; dev
               expand_more
             </span>
           </button>
-          {expanded && (
-            <div className="px-5 pb-4 animate-slide-down">
+          <div className="px-5 pb-4 animate-slide-down" data-open={expanded}>
               <div className="space-y-2">
                 {device.issues.map((issue, index) => (
                   <div key={`${issue.type}-${index}`} className={`rounded-lg border px-3 py-2 flex items-start gap-2 ${severityStyle(issue.severity)}`}>
@@ -296,8 +295,7 @@ function DeviceScoreCard({ device, deviceInsights }: { device: DeviceHealth; dev
                   </div>
                 ))}
               </div>
-            </div>
-          )}
+          </div>
         </div>
       )}
     </div>

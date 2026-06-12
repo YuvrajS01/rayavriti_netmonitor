@@ -5,8 +5,8 @@ import { setCredentials } from '../store/authSlice';
 import { login } from '../api/client';
 
 export default function Login() {
-  const [username, setUsername] = useState('admin');
-  const [password, setPassword] = useState('admin123');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
@@ -77,7 +77,7 @@ export default function Login() {
             <div className="space-y-2">
               <label className="font-label text-[10px] tracking-widest text-on-surface-variant uppercase ml-1">Password</label>
               <div className="relative flex items-center bg-surface-container-highest rounded-lg px-4 py-3 border border-transparent transition-all duration-300 geometric-input">
-                <span className="material-symbols-outlined text-outline text-lg mr-3">lock_open</span>
+                <span className="material-symbols-outlined text-outline text-lg mr-3">lock</span>
                 <input
                   className="bg-transparent border-none p-0 w-full text-on-surface placeholder:text-outline focus:ring-0 text-sm tracking-tight font-body outline-none"
                   placeholder="••••••••••••"
@@ -110,7 +110,7 @@ export default function Login() {
             </div>
             <div className="flex items-center space-x-2">
               <span className="material-symbols-outlined text-[14px] text-outline">verified_user</span>
-              <span className="font-label text-[10px] text-on-surface-variant tracking-widest uppercase">AES-256 Encrypted</span>
+              <span className="font-label text-[10px] text-on-surface-variant tracking-widest uppercase">TLS Encrypted</span>
             </div>
           </div>
           <p className="font-label text-[9px] text-outline uppercase tracking-[0.2em] leading-relaxed">

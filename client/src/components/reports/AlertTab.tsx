@@ -1,7 +1,7 @@
 import type { ReportAlert } from '../../api/types';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 
-const TT = { background: '#1a1a13', border: '1px solid #494840', borderRadius: '8px', fontSize: '12px', color: '#f4f1e6' };
+const TT = { background: 'var(--color-surface-container)', border: '1px solid var(--color-outline-variant)', borderRadius: '8px', fontSize: '12px', color: 'var(--color-on-surface)' };
 const SEV_COLORS: Record<string, string> = { critical: '#ff4444', warning: '#f59e0b', info: '#6ee7f7' };
 const SEV_ICONS: Record<string, string> = { critical: 'error', warning: 'warning', info: 'info' };
 

@@ -1,7 +1,7 @@
 import type { ReportSummary, ReportTimeseriesPoint as TimeseriesPoint } from '../../api/types';
 import { AreaChart, Area, XAxis, YAxis, ResponsiveContainer, Tooltip, ReferenceLine, CartesianGrid } from 'recharts';
 
-const TT = { background: '#1a1a13', border: '1px solid #494840', borderRadius: '8px', fontSize: '12px', color: '#f4f1e6' };
+const TT = { background: 'var(--color-surface-container)', border: '1px solid var(--color-outline-variant)', borderRadius: '8px', fontSize: '12px', color: 'var(--color-on-surface)' };
 const SLA_TARGET = 99.9;
 
 function SlaGauge({ value }: { value: number }) {
