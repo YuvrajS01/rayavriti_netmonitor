@@ -63,6 +63,7 @@ type Hub struct {
 	upgrader  websocket.Upgrader
 	jwtSecret string
 	bootstrap BootstrapFunc
+	publisher func(ctx context.Context, msg Message)
 }
 
 // BootstrapFunc generates the initial bootstrap payload for a newly connected client.
@@ -130,11 +131,31 @@ func (h *Hub) Run() {
 }
 
 func (h *Hub) Broadcast(msg Message) {
+	if h.publisher != nil {
+		h.publisher(context.Background(), msg)
+		return
+	}
 	select {
 	case h.broadcast <- msg:
 	default:
 		slog.Warn("WebSocket broadcast channel full, dropping message", "event", string(msg.Type))
 	}
+}
+
+// BroadcastLocal sends a message to locally connected clients only (no Redis publish).
+// Used by the Pub/Sub subscriber to deliver messages from other instances.
+func (h *Hub) BroadcastLocal(msg Message) {
+	select {
+	case h.broadcast <- msg:
+	default:
+		slog.Warn("WebSocket broadcast channel full, dropping message", "event", string(msg.Type))
+	}
+}
+
+// SetPublisher sets an optional function that intercepts Broadcast calls
+// and publishes them via Redis Pub/Sub instead of local delivery.
+func (h *Hub) SetPublisher(fn func(ctx context.Context, msg Message)) {
+	h.publisher = fn
 }
 
 func (h *Hub) Stop() {

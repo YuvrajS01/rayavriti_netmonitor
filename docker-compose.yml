@@ -10,6 +10,21 @@
 # All ports (3000, 2055/udp) are exposed directly on the host.
 
 services:
+  redis:
+    image: redis:7-alpine
+    container_name: rayavriti-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
   timescaledb:
     image: timescale/timescaledb:latest-pg16
     container_name: rayavriti-timescaledb
@@ -43,6 +58,8 @@ services:
       DATABASE_URL: postgres://${POSTGRES_USER:-netmonitor}:${POSTGRES_PASSWORD:-netmonitor}@localhost:5433/${POSTGRES_DB:-netmonitor}?sslmode=disable
     depends_on:
       timescaledb:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     restart: unless-stopped
     cap_add:
@@ -78,4 +95,6 @@ services:
 
 volumes:
   postgres_data:
+    driver: local
+  redis_data:
     driver: local

@@ -4,11 +4,14 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"fmt"
 	"net"
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
 
+	"github.com/rayavriti/netmonitor-backend/internal/cache"
 	"golang.org/x/time/rate"
 )
 
@@ -60,7 +63,33 @@ type rateLimitClient struct {
 
 // RateLimiter creates a per-IP rate limiter middleware with automatic cleanup
 // of stale entries to prevent memory leaks.
-func RateLimiter(ctx context.Context, rps float64, burst int) func(http.Handler) http.Handler {
+// If rdb is provided, uses Redis-backed sliding window rate limiting.
+func RateLimiter(ctx context.Context, rps float64, burst int, rdb *cache.Redis) func(http.Handler) http.Handler {
+	if rdb != nil {
+		return redisRateLimiter(rdb, burst)
+	}
+	return inMemoryRateLimiter(ctx, rps, burst)
+}
+
+func redisRateLimiter(rdb *cache.Redis, burst int) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ip, _, _ := net.SplitHostPort(r.RemoteAddr)
+			key := fmt.Sprintf("nm:rl:ip:%s", ip)
+			allowed, remaining, resetAt, _ := rdb.RateLimit(r.Context(), key, burst, time.Second)
+			w.Header().Set("X-RateLimit-Limit", strconv.Itoa(burst))
+			w.Header().Set("X-RateLimit-Remaining", strconv.Itoa(remaining))
+			w.Header().Set("X-RateLimit-Reset", strconv.FormatInt(resetAt.Unix(), 10))
+			if !allowed {
+				SendError(w, http.StatusTooManyRequests, "rate limit exceeded")
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+func inMemoryRateLimiter(ctx context.Context, rps float64, burst int) func(http.Handler) http.Handler {
 	var mu sync.Mutex
 	clients := map[string]*rateLimitClient{}
 

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/rayavriti/netmonitor-backend/internal/auth"
+	"github.com/rayavriti/netmonitor-backend/internal/cache"
 	"github.com/rayavriti/netmonitor-backend/internal/collectors"
 	"github.com/rayavriti/netmonitor-backend/internal/config"
 	"github.com/rayavriti/netmonitor-backend/internal/database"
@@ -53,6 +54,30 @@ func run() error {
 	defer db.Close()
 	logger.Info("Database connected")
 
+	// 3.5 Connect to Redis (optional)
+	var rdb *cache.Redis
+	if cfg.Redis.Enabled {
+		rdb, err = cache.NewRedis(cache.RedisConfig{
+			URL:          cfg.Redis.URL,
+			PoolSize:     cfg.Redis.PoolSize,
+			MinIdleConns: cfg.Redis.MinIdleConns,
+		})
+		if err != nil {
+			logger.Warn("Redis connection failed, running without cache", "error", err)
+		} else {
+			defer rdb.Close()
+			logger.Info("Redis connected")
+			auth.SetDefaultStore(auth.NewRedisSessionStore(rdb))
+		}
+	}
+
+	// 3.6 Wrap DB with cache layer if Redis is available
+	var appDB database.Database = db
+	if rdb != nil {
+		appDB = cache.NewCachedDatabase(db, rdb)
+		logger.Info("Database cache layer enabled")
+	}
+
 	// 4. Run migrations
 	if err := db.RunMigrations(context.Background()); err != nil {
 		return fmt.Errorf("run migrations: %w", err)
@@ -79,15 +104,15 @@ func run() error {
 
 	// 6. Initialize WebSocket hub with bootstrap function
 	bootstrapFn := func(ctx context.Context, userID int64, username, role string) (map[string]any, error) {
-		stats, err := db.GetDashboardStats(ctx)
+		stats, err := appDB.GetDashboardStats(ctx)
 		if err != nil {
 			stats = map[string]any{}
 		}
-		latestMetrics, err := db.GetLatestMetrics(ctx)
+		latestMetrics, err := appDB.GetLatestMetrics(ctx)
 		if err != nil {
 			latestMetrics = nil
 		}
-		alerts, _, err := db.GetAlerts(ctx, "active", 50, 0)
+		alerts, _, err := appDB.GetAlerts(ctx, "active", 50, 0)
 		if err != nil {
 			alerts = nil
 		}
@@ -118,10 +143,47 @@ func run() error {
 
 	// 8. Initialize alert engine (used by scheduler for rule evaluation)
 	notifier := engine.NewNotifier()
-	alertEng := engine.NewAlertEngine(db, hub, notifier)
+	alertOpts := []engine.AlertEngineOption{}
+	if rdb != nil {
+		alertOpts = append(alertOpts, engine.WithAlertStateCache(cache.NewAlertStateCache(rdb, db)))
+	}
+	alertEng := engine.NewAlertEngine(appDB, hub, notifier, alertOpts...)
+
+	// 8.5 Initialize metric buffer and Pub/Sub bridge (if Redis available)
+	var metricBuf *cache.MetricBuffer
+	var pubSubBridge *cache.PubSubBridge
+	if rdb != nil {
+		metricBuf = cache.NewMetricBuffer(rdb, db, 100, 2*time.Second)
+		metricBuf.Start(context.Background())
+		logger.Info("Metric buffer started")
+
+		pubSubBridge = cache.NewPubSubBridge(rdb, func(msg cache.WSMessage) {
+			hub.BroadcastLocal(websocket.Message{
+				Type:      websocket.EventType(msg.Type),
+				RequestID: msg.RequestID,
+				Data:      msg.Data,
+			})
+		})
+		go pubSubBridge.Subscribe(context.Background())
+		hub.SetPublisher(func(ctx context.Context, msg websocket.Message) {
+			_ = pubSubBridge.Publish(ctx, cache.WSMessage{
+				Type:      string(msg.Type),
+				RequestID: msg.RequestID,
+				Data:      msg.Data,
+			})
+		})
+		logger.Info("Redis Pub/Sub bridge initialized")
+	}
 
 	// 9. Initialize scheduler
-	sched := scheduler.New(db, registry, hub, alertEng, cfg.Collector.CollectorIntervalSec)
+	schedOpts := []scheduler.SchedulerOption{}
+	if metricBuf != nil {
+		schedOpts = append(schedOpts, scheduler.WithMetricBuffer(metricBuf))
+	}
+	if rdb != nil {
+		schedOpts = append(schedOpts, scheduler.WithRedis(rdb))
+	}
+	sched := scheduler.New(appDB, registry, hub, alertEng, cfg.Collector.CollectorIntervalSec, schedOpts...)
 	sched.Start(context.Background())
 	logger.Info("Scheduler started")
 
@@ -139,7 +201,7 @@ func run() error {
 	logger.Info("Retention scheduler started")
 
 	// 12. Initialize HTTP server
-	srv := server.New(cfg, db, hub, logger)
+	srv := server.New(cfg, appDB, hub, logger, server.WithRedis(rdb))
 
 	// 13. Start server in goroutine
 	errChan := make(chan error, 1)
@@ -163,6 +225,9 @@ func run() error {
 	// 15. Graceful shutdown
 	logger.Info("Shutting down...")
 	sched.Stop()
+	if metricBuf != nil {
+		metricBuf.Stop()
+	}
 	anomalyEng.Stop()
 	retSched.Stop()
 	hub.Stop()

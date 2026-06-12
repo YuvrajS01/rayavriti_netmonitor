@@ -98,6 +98,6 @@ func TestSessionStore_MemoryCleanup(t *testing.T) {
 	}
 
 	store.mu.Lock()
-	assert.Equal(t, 0, len(store.entries))
+	assert.Equal(t, 0, len(store.memory))
 	store.mu.Unlock()
 }

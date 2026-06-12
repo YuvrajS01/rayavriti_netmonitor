@@ -9,6 +9,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/rs/cors"
 	"github.com/rayavriti/netmonitor-backend/internal/auth"
+	"github.com/rayavriti/netmonitor-backend/internal/cache"
 	"github.com/rayavriti/netmonitor-backend/internal/config"
 	"github.com/rayavriti/netmonitor-backend/internal/database"
 	"github.com/rayavriti/netmonitor-backend/internal/handlers"
@@ -20,13 +21,24 @@ type Server struct {
 	cfg        *config.Config
 	db         database.Database
 	hub        *websocket.Hub
+	rdb        *cache.Redis
 	logger     *logging.Logger
 	httpServer *http.Server
 	cancel     context.CancelFunc
 }
 
-func New(cfg *config.Config, db database.Database, hub *websocket.Hub, logger *logging.Logger) *Server {
-	return &Server{cfg: cfg, db: db, hub: hub, logger: logger}
+func New(cfg *config.Config, db database.Database, hub *websocket.Hub, logger *logging.Logger, opts ...ServerOption) *Server {
+	s := &Server{cfg: cfg, db: db, hub: hub, logger: logger}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s
+}
+
+type ServerOption func(*Server)
+
+func WithRedis(rdb *cache.Redis) ServerOption {
+	return func(s *Server) { s.rdb = rdb }
 }
 
 func (s *Server) Start() error {
@@ -67,7 +79,7 @@ func (s *Server) Start() error {
 	r.Use(logging.RequestLogger(s.logger, s.cfg.Logging.SlowRequestMs))
 	r.Use(RequestSize(1 << 20)) // 1MB
 	if s.cfg.App.AppEnv == "production" {
-		r.Use(RateLimiter(ctx, 100, 200))
+		r.Use(RateLimiter(ctx, 100, 200, s.rdb))
 	}
 
 	// Auth helper
@@ -120,7 +132,7 @@ func (s *Server) Start() error {
 	// Protected routes
 	r.Group(func(r chi.Router) {
 		r.Use(requireAuth)
-		r.Use(auth.UserRateLimiter(ctx))
+		r.Use(auth.UserRateLimiter(ctx, s.rdb))
 		r.Get("/api/auth/me", authH.Me)
 		r.Get("/api/stats", health.Stats)
 

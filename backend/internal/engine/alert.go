@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/rayavriti/netmonitor-backend/internal/cache"
 	"github.com/rayavriti/netmonitor-backend/internal/database"
 	"github.com/rayavriti/netmonitor-backend/internal/models"
 	"github.com/rayavriti/netmonitor-backend/internal/websocket"
@@ -15,18 +16,29 @@ import (
 // database, evaluates them against incoming metrics, manages alert lifecycle
 // (pending → firing → notified → resolved), and dispatches notifications.
 type AlertEngine struct {
-	db       database.Database
-	hub      *websocket.Hub
-	notifier *Notifier
+	db         database.Database
+	hub        *websocket.Hub
+	notifier   *Notifier
+	stateCache *cache.AlertStateCache
 }
 
 // NewAlertEngine creates a rule-based alert engine.
-func NewAlertEngine(db database.Database, hub *websocket.Hub, notifier *Notifier) *AlertEngine {
-	return &AlertEngine{
+func NewAlertEngine(db database.Database, hub *websocket.Hub, notifier *Notifier, opts ...AlertEngineOption) *AlertEngine {
+	e := &AlertEngine{
 		db:       db,
 		hub:      hub,
 		notifier: notifier,
 	}
+	for _, opt := range opts {
+		opt(e)
+	}
+	return e
+}
+
+type AlertEngineOption func(*AlertEngine)
+
+func WithAlertStateCache(sc *cache.AlertStateCache) AlertEngineOption {
+	return func(e *AlertEngine) { e.stateCache = sc }
 }
 
 // ProcessMetric is called by the scheduler after each collector run. It evaluates
@@ -110,7 +122,13 @@ func (e *AlertEngine) evaluateRule(ctx context.Context, rule *models.AlertRule, 
 	}
 
 	// 3. Get or initialise persisted rule state for this (rule, device) pair.
-	state, err := e.db.GetAlertRuleState(ctx, rule.ID, device.ID)
+	var state *models.AlertRuleState
+	var err error
+	if e.stateCache != nil {
+		state, err = e.stateCache.GetAlertRuleState(ctx, rule.ID, device.ID)
+	} else {
+		state, err = e.db.GetAlertRuleState(ctx, rule.ID, device.ID)
+	}
 	if err != nil {
 		// Row does not exist yet — treat as idle.
 		state = &models.AlertRuleState{
@@ -412,7 +430,13 @@ func (e *AlertEngine) recordHistory(ctx context.Context, alertID, ruleID int64, 
 }
 
 func (e *AlertEngine) upsertState(ctx context.Context, s *models.AlertRuleState) {
-	if err := e.db.UpsertAlertRuleState(ctx, s); err != nil {
+	var err error
+	if e.stateCache != nil {
+		err = e.stateCache.UpsertAlertRuleState(ctx, s)
+	} else {
+		err = e.db.UpsertAlertRuleState(ctx, s)
+	}
+	if err != nil {
 		slog.Warn("Failed to persist alert rule state",
 			"rule_id", s.RuleID, "device_id", s.DeviceID,
 			"state", s.State, "error", err)

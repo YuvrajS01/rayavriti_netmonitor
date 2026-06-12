@@ -21,7 +21,7 @@ func reqWithClaims(claims *Claims) *http.Request {
 
 func TestUserRateLimiter_AllowsBurst(t *testing.T) {
 	t.Parallel()
-	limiter := UserRateLimiter(context.Background())
+	limiter := UserRateLimiter(context.Background(), nil)
 
 	nextCalled := 0
 	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -41,7 +41,7 @@ func TestUserRateLimiter_AllowsBurst(t *testing.T) {
 
 func TestUserRateLimiter_BlocksExcess(t *testing.T) {
 	t.Parallel()
-	limiter := UserRateLimiter(context.Background())
+	limiter := UserRateLimiter(context.Background(), nil)
 
 	nextCalled := 0
 	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -66,7 +66,7 @@ func TestUserRateLimiter_BlocksExcess(t *testing.T) {
 
 func TestUserRateLimiter_DifferentUsersIndependent(t *testing.T) {
 	t.Parallel()
-	limiter := UserRateLimiter(context.Background())
+	limiter := UserRateLimiter(context.Background(), nil)
 
 	counts := map[int64]int{}
 	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -96,7 +96,7 @@ func TestUserRateLimiter_DifferentUsersIndependent(t *testing.T) {
 
 func TestUserRateLimiter_NoClaims(t *testing.T) {
 	t.Parallel()
-	limiter := UserRateLimiter(context.Background())
+	limiter := UserRateLimiter(context.Background(), nil)
 
 	nextCalled := false
 	handler := limiter(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -114,7 +114,7 @@ func TestUserRateLimiter_NoClaims(t *testing.T) {
 
 func TestUserRateLimiter_APIKeyHigherLimit(t *testing.T) {
 	t.Parallel()
-	limiter := UserRateLimiter(context.Background())
+	limiter := UserRateLimiter(context.Background(), nil)
 
 	nextCalled := 0
 	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

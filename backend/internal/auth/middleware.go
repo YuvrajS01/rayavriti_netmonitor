@@ -3,11 +3,14 @@ package auth
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/rayavriti/netmonitor-backend/internal/cache"
 	"golang.org/x/time/rate"
 )
 
@@ -98,7 +101,54 @@ type rateLimitClient struct {
 
 // UserRateLimiter creates a per-user/API-key rate limiter middleware.
 // JWT users: 5000 req/hr, API keys: 10000 req/hr.
-func UserRateLimiter(ctx context.Context) func(http.Handler) http.Handler {
+// If rdb is provided, uses Redis-backed sliding window rate limiting.
+func UserRateLimiter(ctx context.Context, rdb *cache.Redis) func(http.Handler) http.Handler {
+	if rdb != nil {
+		return redisUserRateLimiter(rdb)
+	}
+	return inMemoryUserRateLimiter(ctx)
+}
+
+func redisUserRateLimiter(rdb *cache.Redis) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			claims := GetClaims(r.Context())
+			if claims == nil {
+				next.ServeHTTP(w, r)
+				return
+			}
+
+			isAPIKey := r.Header.Get("X-Api-Key") != ""
+			var key string
+			var limit int
+			if isAPIKey {
+				key = fmt.Sprintf("nm:rl:apikey:%d", claims.UserID)
+				limit = 10000
+			} else {
+				key = fmt.Sprintf("nm:rl:user:%d", claims.UserID)
+				limit = 5000
+			}
+
+			allowed, remaining, resetAt, _ := rdb.RateLimit(r.Context(), key, limit, time.Hour)
+			w.Header().Set("X-RateLimit-Limit", strconv.Itoa(limit))
+			w.Header().Set("X-RateLimit-Remaining", strconv.Itoa(remaining))
+			w.Header().Set("X-RateLimit-Reset", strconv.FormatInt(resetAt.Unix(), 10))
+
+			if !allowed {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusTooManyRequests)
+				_ = json.NewEncoder(w).Encode(map[string]any{
+					"success": false,
+					"error":   "rate limit exceeded",
+				})
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+func inMemoryUserRateLimiter(ctx context.Context) func(http.Handler) http.Handler {
 	var mu sync.Mutex
 	clients := map[rateLimitKey]*rateLimitClient{}
 

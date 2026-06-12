@@ -11,10 +11,18 @@ import (
 type Config struct {
 	App      AppConfig
 	Database DatabaseConfig
+	Redis    RedisConfig
 	Auth     AuthConfig
 	Collector CollectorConfig
 	Logging  LoggingConfig
 	Phase2   Phase2Config
+}
+
+type RedisConfig struct {
+	URL          string
+	Enabled      bool
+	PoolSize     int
+	MinIdleConns int
 }
 
 type AppConfig struct {
@@ -106,6 +114,12 @@ func Load() (*Config, error) {
 			MinConns:           envInt("DB_MIN_CONNS", 2),
 			MaxConnLifetime:    envDuration("DB_MAX_CONN_LIFETIME", 1*time.Hour),
 			HealthCheckPeriod:  envDuration("DB_HEALTH_CHECK_PERIOD", 30*time.Second),
+		},
+		Redis: RedisConfig{
+			URL:          envStr("REDIS_URL", "redis://localhost:6379/0"),
+			Enabled:      envBool("REDIS_ENABLED", false),
+			PoolSize:     envInt("REDIS_POOL_SIZE", 20),
+			MinIdleConns: envInt("REDIS_MIN_IDLE_CONNS", 5),
 		},
 		Auth: AuthConfig{
 			JWTSecret:          jwtSecret,

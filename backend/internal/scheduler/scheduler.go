@@ -2,11 +2,13 @@ package scheduler
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/rayavriti/netmonitor-backend/internal/cache"
 	"github.com/rayavriti/netmonitor-backend/internal/collectors"
 	"github.com/rayavriti/netmonitor-backend/internal/database"
 	"github.com/rayavriti/netmonitor-backend/internal/engine"
@@ -19,6 +21,8 @@ type Scheduler struct {
 	registry  *collectors.Registry
 	hub       *websocket.Hub
 	alertEng  *engine.AlertEngine
+	buffer    *cache.MetricBuffer
+	rdb       *cache.Redis
 	jobs      map[int64]context.CancelFunc
 	mu        sync.Mutex
 	cancel    context.CancelFunc
@@ -26,14 +30,28 @@ type Scheduler struct {
 	jobCount  atomic.Int64
 }
 
-func New(db database.Database, reg *collectors.Registry, hub *websocket.Hub, alertEng *engine.AlertEngine, intervalSec int) *Scheduler {
-	return &Scheduler{
+func New(db database.Database, reg *collectors.Registry, hub *websocket.Hub, alertEng *engine.AlertEngine, intervalSec int, opts ...SchedulerOption) *Scheduler {
+	s := &Scheduler{
 		db:       db,
 		registry: reg,
 		hub:      hub,
 		alertEng: alertEng,
 		jobs:     make(map[int64]context.CancelFunc),
 	}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s
+}
+
+type SchedulerOption func(*Scheduler)
+
+func WithMetricBuffer(buffer *cache.MetricBuffer) SchedulerOption {
+	return func(s *Scheduler) { s.buffer = buffer }
+}
+
+func WithRedis(rdb *cache.Redis) SchedulerOption {
+	return func(s *Scheduler) { s.rdb = rdb }
 }
 
 func (s *Scheduler) Start(ctx context.Context) {
@@ -164,6 +182,20 @@ func (s *Scheduler) reconcile(ctx context.Context) {
 }
 
 func (s *Scheduler) collectOnce(ctx context.Context, device models.Device) {
+	// Distributed lock: ensure only one instance collects this device
+	if s.rdb != nil {
+		lockName := fmt.Sprintf("collect:%d", device.ID)
+		release, err := s.rdb.AcquireLock(ctx, lockName, 30*time.Second)
+		if err != nil {
+			slog.Debug("Failed to acquire collection lock", "device_id", device.ID, "error", err)
+			return
+		}
+		if release == nil {
+			return // another instance is collecting this device
+		}
+		defer release()
+	}
+
 	collector, ok := s.registry.Get(device.Protocol)
 	if !ok {
 		slog.Warn("No collector for protocol", "protocol", device.Protocol, "device_id", device.ID)
@@ -212,11 +244,17 @@ func (s *Scheduler) collectOnce(ctx context.Context, device models.Device) {
 		Details:      result.Details,
 	}
 
-	if err := s.db.RecordMetric(ctx, metric); err != nil {
-		slog.Error("Failed to record metric",
-			"device_id", device.ID,
-			"error", err,
-		)
+	if s.buffer != nil {
+		if err := s.buffer.Push(ctx, metric); err != nil {
+			slog.Warn("Failed to push metric to buffer, recording directly", "device_id", device.ID, "error", err)
+			if err := s.db.RecordMetric(ctx, metric); err != nil {
+				slog.Error("Failed to record metric", "device_id", device.ID, "error", err)
+			}
+		}
+	} else {
+		if err := s.db.RecordMetric(ctx, metric); err != nil {
+			slog.Error("Failed to record metric", "device_id", device.ID, "error", err)
+		}
 	}
 
 	// Update device status

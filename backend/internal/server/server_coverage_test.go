@@ -747,7 +747,7 @@ func TestRateLimiter_MultipleIPsExceedLimit(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	handler := RateLimiter(context.Background(), 1, 1)(inner)
+	handler := RateLimiter(context.Background(), 1, 1, nil)(inner)
 
 	// IP 1: first request OK, second rate limited
 	req1 := httptest.NewRequest(http.MethodGet, "/", nil)
