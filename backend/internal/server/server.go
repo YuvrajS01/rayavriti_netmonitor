@@ -161,11 +161,11 @@ func (s *Server) Start() error {
 		// Alerts
 		r.Get("/api/alerts", alert.List)
 		r.Post("/api/alerts", alert.Create)
+		r.Get("/api/alerts/counts", alert.Counts)
 		r.Get("/api/alerts/{id}", alert.Get)
 		r.Post("/api/alerts/{id}/acknowledge", alert.Acknowledge)
 		r.Post("/api/alerts/{id}/resolve", alert.Resolve)
 		r.Delete("/api/alerts/{id}", alert.Delete)
-		r.Get("/api/alerts/counts", alert.Counts)
 
 		// V1 Alerts
 		r.Get("/api/v1/alerts", alert.List)
