@@ -191,13 +191,8 @@ func (s *Scheduler) collectOnce(ctx context.Context, device models.Device) {
 
 	// Determine previous status
 	var previousStatus string
-	if latest, err := s.db.GetLatestMetrics(ctx); err == nil {
-		for _, m := range latest {
-			if m.DeviceID == device.ID {
-				previousStatus = m.Status
-				break
-			}
-		}
+	if latest, err := s.db.GetLatestMetricForDevice(ctx, device.ID); err == nil && latest != nil {
+		previousStatus = latest.Status
 	}
 
 	statusChanged := previousStatus != "" && previousStatus != result.Status

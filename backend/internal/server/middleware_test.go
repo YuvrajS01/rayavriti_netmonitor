@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -134,7 +135,7 @@ func TestRateLimiter_AllowsBurst(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	handler := RateLimiter(10, 5)(inner)
+	handler := RateLimiter(context.Background(),10, 5)(inner)
 
 	for i := 0; i < 5; i++ {
 		req := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -152,7 +153,7 @@ func TestRateLimiter_UsesDifferentIPs(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	handler := RateLimiter(1, 1)(inner)
+	handler := RateLimiter(context.Background(),1, 1)(inner)
 
 	req1 := httptest.NewRequest(http.MethodGet, "/", nil)
 	req1.RemoteAddr = "192.168.1.1:12345"
@@ -258,7 +259,7 @@ func TestRateLimiter_Recovery(t *testing.T) {
 	})
 
 	// Combine Recovery + RateLimiter
-	handler := Recovery(RateLimiter(100, 10)(inner))
+	handler := Recovery(RateLimiter(context.Background(),100, 10)(inner))
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.RemoteAddr = "10.0.0.1:8080"
@@ -291,7 +292,7 @@ func TestRateLimiter_CleanupEntries(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	handler := RateLimiter(100, 10)(inner)
+	handler := RateLimiter(context.Background(),100, 10)(inner)
 
 	// Multiple different IPs
 	for i := 0; i < 10; i++ {
@@ -397,7 +398,7 @@ func TestRateLimiter_Concurrent(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	handler := RateLimiter(100, 100)(inner)
+	handler := RateLimiter(context.Background(),100, 100)(inner)
 
 	done := make(chan struct{})
 	for i := 0; i < 10; i++ {

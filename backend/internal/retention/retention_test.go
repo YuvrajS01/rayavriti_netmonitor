@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/rayavriti/netmonitor-backend/internal/database"
 	"github.com/rayavriti/netmonitor-backend/internal/models"
 	"github.com/stretchr/testify/require"
 )
@@ -20,6 +21,9 @@ func (m *mockRetDB) Close() error                                          { ret
 func (m *mockRetDB) Ping(ctx context.Context) error                        { return nil }
 func (m *mockRetDB) RunMigrations(ctx context.Context) error               { return nil }
 func (m *mockRetDB) GetDevices(ctx context.Context) ([]models.Device, error) { return nil, nil }
+func (m *mockRetDB) GetDevicesFiltered(ctx context.Context, f database.DeviceFilter) ([]models.Device, int, error) {
+	return nil, 0, nil
+}
 func (m *mockRetDB) GetDevice(ctx context.Context, id int64) (*models.Device, error) { return nil, nil }
 func (m *mockRetDB) CreateDevice(ctx context.Context, d *models.Device) (*models.Device, error) { return nil, nil }
 func (m *mockRetDB) UpdateDevice(ctx context.Context, id int64, d *models.Device) (*models.Device, error) { return nil, nil }
@@ -50,6 +54,8 @@ func (m *mockRetDB) UpdateAlertStatus(ctx context.Context, id int64, status, by 
 func (m *mockRetDB) DeleteAlert(ctx context.Context, id int64) error { return nil }
 func (m *mockRetDB) GetAlertCounts(ctx context.Context) (models.AlertCounts, error) { return models.AlertCounts{}, nil }
 func (m *mockRetDB) FindActiveAlert(ctx context.Context, deviceID int64, message string) (*models.Alert, error) { return nil, nil }
+func (m *mockRetDB) FindActiveAlertByRuleAndDevice(ctx context.Context, ruleID, deviceID int64) (*models.Alert, error) { return nil, nil }
+func (m *mockRetDB) GetLatestMetricForDevice(ctx context.Context, deviceID int64) (*models.Metric, error) { return nil, nil }
 func (m *mockRetDB) GetAlertsForReport(ctx context.Context, from, to time.Time, deviceID *int64) ([]models.Alert, error) { return nil, nil }
 func (m *mockRetDB) GetAlertRules(ctx context.Context) ([]models.AlertRule, error) { return nil, nil }
 func (m *mockRetDB) GetAlertRule(ctx context.Context, id int64) (*models.AlertRule, error) { return nil, nil }
@@ -72,6 +78,7 @@ func (m *mockRetDB) CreateUser(ctx context.Context, u *models.User) (*models.Use
 func (m *mockRetDB) UpdateUser(ctx context.Context, id int64, u *models.User) (*models.User, error) { return nil, nil }
 func (m *mockRetDB) DeleteUser(ctx context.Context, id int64) error { return nil }
 func (m *mockRetDB) GetAPIKey(ctx context.Context, keyHash string) (*models.APIKey, error) { return nil, nil }
+func (m *mockRetDB) GetAPIKeyByID(ctx context.Context, id int64) (*models.APIKey, error) { return nil, nil }
 func (m *mockRetDB) CreateAPIKey(ctx context.Context, k *models.APIKey) (*models.APIKey, error) { return nil, nil }
 func (m *mockRetDB) GetAPIKeysByUser(ctx context.Context, userID int64) ([]models.APIKey, error) { return nil, nil }
 func (m *mockRetDB) DeleteAPIKey(ctx context.Context, id int64) error { return nil }
@@ -112,6 +119,13 @@ func (m *mockRetDB) PruneAlerts(ctx context.Context, olderThan time.Time) (int64
 	return 0, nil
 }
 func (m *mockRetDB) GetDashboardStats(ctx context.Context) (map[string]any, error) { return nil, nil }
+func (m *mockRetDB) CreateRefreshToken(ctx context.Context, tokenHash string, userID int64, expiresAt time.Time) error {
+	return nil
+}
+func (m *mockRetDB) GetRefreshToken(ctx context.Context, tokenHash string) (*database.RefreshToken, error) { return nil, nil }
+func (m *mockRetDB) DeleteRefreshToken(ctx context.Context, tokenHash string) error                       { return nil }
+func (m *mockRetDB) DeleteRefreshTokensByUser(ctx context.Context, userID int64) error                    { return nil }
+func (m *mockRetDB) CleanupExpiredRefreshTokens(ctx context.Context) (int64, error)                       { return 0, nil }
 
 func TestNew(t *testing.T) {
 	t.Parallel()

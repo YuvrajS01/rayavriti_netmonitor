@@ -604,15 +604,15 @@ func TestFindActiveAlertForRule_DBError(t *testing.T) {
 
 func TestFindActiveAlertForRule_Found(t *testing.T) {
 	t.Parallel()
-	ruleID := int64(42)
 	db := &mockDB{
-		getAlertsFn: func(ctx context.Context, status string, limit, offset int) ([]models.Alert, int, error) {
-			return []models.Alert{{
+		findActiveAlertByRuleAndDeviceFn: func(ctx context.Context, ruleID, deviceID int64) (*models.Alert, error) {
+			id := int64(42)
+			return &models.Alert{
 				ID:       100,
-				RuleID:   &ruleID,
+				RuleID:   &id,
 				DeviceID: 5,
 				Status:   "active",
-			}}, 1, nil
+			}, nil
 		},
 	}
 	engine := NewAlertEngine(db, nil, nil)

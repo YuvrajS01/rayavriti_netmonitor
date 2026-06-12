@@ -1,14 +1,15 @@
 package handlers
 
 import (
+	"errors"
 	"log/slog"
 	"net/http"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5"
 	"github.com/rayavriti/netmonitor-backend/internal/database"
 	"github.com/rayavriti/netmonitor-backend/internal/models"
 	"github.com/rayavriti/netmonitor-backend/internal/httputil"
@@ -31,93 +32,21 @@ func normalizeHost(raw string) string {
 func NewDeviceHandler(db database.Database) *DeviceHandler { return &DeviceHandler{db: db} }
 
 func (h *DeviceHandler) List(w http.ResponseWriter, r *http.Request) {
-	devices, err := h.db.GetDevices(r.Context())
-	if err != nil {
-		httputil.SendError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-
 	q := r.URL.Query()
 
-	// Filter by status
-	if status := q.Get("status"); status != "" {
-		filtered := make([]models.Device, 0)
-		for _, d := range devices {
-			if d.Status == status {
-				filtered = append(filtered, d)
-			}
-		}
-		devices = filtered
+	f := database.DeviceFilter{
+		Status:   q.Get("status"),
+		Protocol: q.Get("protocol"),
+		Search:   q.Get("search"),
+		SortBy:   q.Get("sort"),
+		SortDir:  q.Get("dir"),
 	}
 
-	// Filter by protocol
-	if protocol := q.Get("protocol"); protocol != "" {
-		filtered := make([]models.Device, 0)
-		for _, d := range devices {
-			if d.Protocol == protocol {
-				filtered = append(filtered, d)
-			}
-		}
-		devices = filtered
-	}
-
-	// Filter by enabled
 	if enabledStr := q.Get("enabled"); enabledStr != "" {
 		enabled := enabledStr == "true"
-		filtered := make([]models.Device, 0)
-		for _, d := range devices {
-			if d.Enabled == enabled {
-				filtered = append(filtered, d)
-			}
-		}
-		devices = filtered
+		f.Enabled = &enabled
 	}
 
-	// Search by name or IP
-	if search := q.Get("search"); search != "" {
-		search = strings.ToLower(search)
-		filtered := make([]models.Device, 0)
-		for _, d := range devices {
-			if strings.Contains(strings.ToLower(d.Name), search) ||
-				strings.Contains(strings.ToLower(d.IPAddress), search) {
-				filtered = append(filtered, d)
-			}
-		}
-		devices = filtered
-	}
-
-	total := len(devices)
-
-	// Sort
-	sortBy := q.Get("sort")
-	sortDir := q.Get("dir")
-	if sortBy == "" {
-		sortBy = "id"
-	}
-	if sortDir == "" {
-		sortDir = "asc"
-	}
-	sort.Slice(devices, func(i, j int) bool {
-		var less bool
-		switch sortBy {
-		case "name":
-			less = devices[i].Name < devices[j].Name
-		case "status":
-			less = devices[i].Status < devices[j].Status
-		case "protocol":
-			less = devices[i].Protocol < devices[j].Protocol
-		case "ipAddress":
-			less = devices[i].IPAddress < devices[j].IPAddress
-		default:
-			less = devices[i].ID < devices[j].ID
-		}
-		if sortDir == "desc" {
-			return !less
-		}
-		return less
-	})
-
-	// Pagination
 	page, _ := strconv.Atoi(q.Get("page"))
 	pageSize, _ := strconv.Atoi(q.Get("pageSize"))
 	if page < 1 {
@@ -129,20 +58,16 @@ func (h *DeviceHandler) List(w http.ResponseWriter, r *http.Request) {
 	if pageSize > 200 {
 		pageSize = 200
 	}
-	start := (page - 1) * pageSize
-	if start > len(devices) {
-		start = len(devices)
-	}
-	end := start + pageSize
-	if end > len(devices) {
-		end = len(devices)
-	}
-	paged := devices[start:end]
-	if paged == nil {
-		paged = []models.Device{}
+	f.Limit = pageSize
+	f.Offset = (page - 1) * pageSize
+
+	devices, total, err := h.db.GetDevicesFiltered(r.Context(), f)
+	if err != nil {
+		httputil.SendError(w, http.StatusInternalServerError, err.Error())
+		return
 	}
 
-	httputil.SendOKWithMeta(w, paged, &httputil.ResponseMeta{
+	httputil.SendOKWithMeta(w, devices, &httputil.ResponseMeta{
 		Page:     page,
 		PageSize: pageSize,
 		Total:    total,
@@ -247,6 +172,10 @@ func (h *DeviceHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.db.DeleteDevice(r.Context(), id); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			httputil.SendError(w, http.StatusNotFound, "device not found")
+			return
+		}
 		httputil.SendError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -288,9 +217,15 @@ func (h *DeviceHandler) ScanPorts(w http.ResponseWriter, r *http.Request) {
 	if body.TimeoutMs > 0 {
 		timeout = time.Duration(body.TimeoutMs) * time.Millisecond
 	}
+	if timeout > 10*time.Second {
+		timeout = 10 * time.Second
+	}
 	concurrency := 100
 	if body.Concurrency > 0 {
 		concurrency = body.Concurrency
+	}
+	if concurrency > 500 {
+		concurrency = 500
 	}
 
 	results := scanner.ScanPorts(r.Context(), device.IPAddress, portsToScan, scanner.ScanOptions{

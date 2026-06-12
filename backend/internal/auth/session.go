@@ -1,6 +1,8 @@
 package auth
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"sync"
 	"time"
 )
@@ -56,3 +58,9 @@ func (s *SessionStore) Delete(token string) {
 func SetSession(token string, sess *Session)        { defaultStore.Set(token, sess) }
 func GetSession(token string) (*Session, bool)      { return defaultStore.Get(token) }
 func DeleteSession(token string)                    { defaultStore.Delete(token) }
+
+// HashToken returns a SHA-256 hex digest of a token string for DB storage.
+func HashToken(token string) string {
+	h := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(h[:])
+}

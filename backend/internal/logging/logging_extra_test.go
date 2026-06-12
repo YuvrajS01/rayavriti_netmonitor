@@ -258,7 +258,7 @@ func TestCollectorLogger_LogResult_NoSensor(t *testing.T) {
 func TestLogger_TraceCtx(t *testing.T) {
 	t.Parallel()
 	cfg := &config.Config{
-		App:     config.AppConfig{Version: "1.0.0", NodeEnv: "development"},
+		App:     config.AppConfig{Version: "1.0.0", AppEnv: "development"},
 		Logging: config.LoggingConfig{Level: "trace", Format: "text"},
 	}
 	logger := New(cfg)

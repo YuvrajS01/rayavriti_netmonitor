@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"os/exec"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -19,6 +20,9 @@ import (
 	"github.com/rayavriti/netmonitor-backend/internal/models"
 	"github.com/rayavriti/netmonitor-backend/internal/websocket"
 )
+
+// bpfFilterRegex allows only valid BPF filter characters.
+var bpfFilterRegex = regexp.MustCompile(`^[a-zA-Z0-9\s\.\-\+\*\/\<\>\=&\|!()]+$`)
 
 type CaptureHandler struct {
 	running int32
@@ -51,6 +55,18 @@ func (h *CaptureHandler) Start(w http.ResponseWriter, r *http.Request) {
 	}
 	if body.Interface == "" {
 		httputil.SendError(w, 400, "interface is required")
+		return
+	}
+
+	// Validate interface exists on the system
+	if !isValidInterface(body.Interface) {
+		httputil.SendError(w, 400, "invalid network interface")
+		return
+	}
+
+	// Validate BPF filter to prevent command injection
+	if body.Filter != "" && !isValidBPFFilter(body.Filter) {
+		httputil.SendError(w, 400, "invalid capture filter")
 		return
 	}
 
@@ -237,7 +253,7 @@ func (h *CaptureHandler) ListSessions(w http.ResponseWriter, r *http.Request) {
 		httputil.SendError(w, 500, err.Error())
 		return
 	}
-	if len(sessions) > limit {
+	if limit < len(sessions) {
 		sessions = sessions[:limit]
 	}
 	httputil.SendOK(w, sessions)
@@ -670,7 +686,8 @@ func isValidIPv4(s string) bool {
 		return false
 	}
 	for _, p := range parts {
-		if _, err := strconv.Atoi(p); err != nil {
+		n, err := strconv.Atoi(p)
+		if err != nil || n < 0 || n > 255 {
 			return false
 		}
 	}
@@ -689,4 +706,26 @@ func isValidIPv6(s string) bool {
 		}
 	}
 	return true
+}
+
+// isValidInterface checks if the given interface name exists on the system.
+func isValidInterface(name string) bool {
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return false
+	}
+	for _, iface := range ifaces {
+		if iface.Name == name {
+			return true
+		}
+	}
+	return false
+}
+
+// isValidBPFFilter validates that a BPF filter contains only safe characters.
+func isValidBPFFilter(filter string) bool {
+	if len(filter) > 512 {
+		return false
+	}
+	return bpfFilterRegex.MatchString(filter)
 }

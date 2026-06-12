@@ -46,7 +46,7 @@ func TestLoad_DefaultValues(t *testing.T) {
 	cfg, err := Load()
 	require.NoError(t, err)
 	assert.Equal(t, 3000, cfg.App.Port)
-	assert.Equal(t, "development", cfg.App.NodeEnv)
+	assert.Equal(t, "development", cfg.App.AppEnv)
 	assert.Equal(t, "1.1.0", cfg.App.Version)
 	assert.Equal(t, 20, cfg.Database.MaxConns)
 	assert.Equal(t, 2, cfg.Database.MinConns)
@@ -82,7 +82,7 @@ func TestLoad_OverrideValues(t *testing.T) {
 	cfg, err := Load()
 	require.NoError(t, err)
 	assert.Equal(t, 8080, cfg.App.Port)
-	assert.Equal(t, "production", cfg.App.NodeEnv)
+	assert.Equal(t, "production", cfg.App.AppEnv)
 	assert.Equal(t, "debug", cfg.Logging.Level)
 }
 

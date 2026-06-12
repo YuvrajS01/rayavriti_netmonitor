@@ -98,20 +98,26 @@ type rateLimitClient struct {
 
 // UserRateLimiter creates a per-user/API-key rate limiter middleware.
 // JWT users: 5000 req/hr, API keys: 10000 req/hr.
-func UserRateLimiter() func(http.Handler) http.Handler {
+func UserRateLimiter(ctx context.Context) func(http.Handler) http.Handler {
 	var mu sync.Mutex
 	clients := map[rateLimitKey]*rateLimitClient{}
 
 	go func() {
+		ticker := time.NewTicker(3 * time.Minute)
+		defer ticker.Stop()
 		for {
-			time.Sleep(3 * time.Minute)
-			mu.Lock()
-			for k, c := range clients {
-				if time.Since(c.lastSeen) > 5*time.Minute {
-					delete(clients, k)
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				mu.Lock()
+				for k, c := range clients {
+					if time.Since(c.lastSeen) > 5*time.Minute {
+						delete(clients, k)
+					}
 				}
+				mu.Unlock()
 			}
-			mu.Unlock()
 		}
 	}()
 

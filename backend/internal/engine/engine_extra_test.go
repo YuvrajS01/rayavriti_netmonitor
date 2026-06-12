@@ -860,5 +860,5 @@ func TestSendNotifications_DisabledChannel(t *testing.T) {
 }
 
 func newTestHub() *websocket.Hub {
-	return websocket.NewHub("test-secret", nil)
+	return websocket.NewHub("test-secret", nil, nil)
 }

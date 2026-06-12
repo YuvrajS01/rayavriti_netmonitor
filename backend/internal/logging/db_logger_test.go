@@ -11,7 +11,7 @@ import (
 
 func testLogger() *Logger {
 	cfg := &config.Config{
-		App: config.AppConfig{Version: "1.1.0", NodeEnv: "development"},
+		App: config.AppConfig{Version: "1.1.0", AppEnv: "development"},
 		Logging: config.LoggingConfig{Level: "debug", Format: "pretty", FileEnabled: false},
 	}
 	return New(cfg)

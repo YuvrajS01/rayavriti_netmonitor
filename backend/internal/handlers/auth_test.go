@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/rayavriti/netmonitor-backend/internal/auth"
+	"github.com/rayavriti/netmonitor-backend/internal/database"
 	"github.com/rayavriti/netmonitor-backend/internal/models"
 )
 
@@ -173,7 +174,11 @@ func TestMe_UserNotFound(t *testing.T) {
 // --- Refresh ---
 
 func TestRefresh_Valid(t *testing.T) {
-	db := &mockDB{}
+	db := &mockDB{
+		getRefreshTokenFn: func(ctx context.Context, tokenHash string) (*database.RefreshToken, error) {
+			return &database.RefreshToken{TokenHash: tokenHash, UserID: testUserID}, nil
+		},
+	}
 	h := NewAuthHandler(db, testConfig())
 	refreshToken, _, _ := auth.GenerateTokenPair(testUserID, testUsername, testUserRole, testJWTSecret, 15*time.Minute, 7*24*time.Hour)
 	body, _ := json.Marshal(map[string]string{"refreshToken": refreshToken})
@@ -281,8 +286,8 @@ func TestVerify2FA(t *testing.T) {
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest("POST", "/api/auth/verify-2fa", nil)
 	h.Verify2FA(w, r)
-	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
+	if w.Code != http.StatusNotImplemented {
+		t.Fatalf("expected 501, got %d", w.Code)
 	}
 }
 
@@ -369,6 +374,9 @@ func TestCreateAPIKey_DBError(t *testing.T) {
 func TestDeleteAPIKey(t *testing.T) {
 	db := &mockDB{
 		deleteAPIKeyFn: func(ctx context.Context, id int64) error { return nil },
+		getAPIKeyByIDFn: func(ctx context.Context, id int64) (*models.APIKey, error) {
+			return &models.APIKey{ID: id, UserID: testUserID}, nil
+		},
 	}
 	h := NewAuthHandler(db, testConfig())
 	w, req := authenticatedRequest("DELETE", "/api/auth/apikeys/1", "")

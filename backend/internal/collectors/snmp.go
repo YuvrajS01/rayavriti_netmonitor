@@ -3,7 +3,9 @@ package collectors
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"math"
+	"sort"
 	"time"
 
 	"github.com/gosnmp/gosnmp"
@@ -37,6 +39,9 @@ func (SNMPCollector) Collect(ctx context.Context, device *models.Device) (*Resul
 	if device.SNMPCommunity != "" {
 		community = device.SNMPCommunity
 	}
+	if community == "public" {
+		slog.Warn("SNMP using default 'public' community string", "device", device.IPAddress)
+	}
 	port := uint16(161)
 	if device.SNMPPort > 0 {
 		port = uint16(device.SNMPPort)
@@ -57,7 +62,7 @@ func (SNMPCollector) Collect(ctx context.Context, device *models.Device) (*Resul
 	}
 
 	start := time.Now()
-	if err := g.ConnectIPv4(); err != nil {
+	if err := g.Connect(); err != nil {
 		return &Result{Status: "down", Details: map[string]any{"error": err.Error()}}, nil
 	}
 	defer g.Conn.Close()
@@ -77,48 +82,29 @@ func (SNMPCollector) Collect(ctx context.Context, device *models.Device) (*Resul
 		err  error
 	}
 
-	// Fire off parallel SNMP requests
-	uptimeCh := make(chan varbindResult, 1)
-	cpuCh := make(chan varbindResult, 1)
-	storageCh := make(chan tableResult, 1)
-	ifCh := make(chan tableResult, 1)
-	ifXCh := make(chan tableResult, 1)
+	// Collect SNMP data sequentially (gosnmp is not goroutine-safe)
+	uptimeRes := varbindResult{}
+	if r, err := g.Get([]string{oidSysUpTime}); err != nil {
+		uptimeRes.err = err
+	} else {
+		uptimeRes.pdus = r.Variables
+	}
 
-	go func() {
-		r, err := g.Get([]string{oidSysUpTime})
-		if err != nil {
-			uptimeCh <- varbindResult{err: err}
-			return
-		}
-		uptimeCh <- varbindResult{pdus: r.Variables}
-	}()
+	cpuRes := varbindResult{}
+	pdus, err := collectSubtree(g, oidHRProcessorLoad, 20)
+	cpuRes = varbindResult{pdus: pdus, err: err}
 
-	go func() {
-		pdus, err := collectSubtree(g, oidHRProcessorLoad, 20)
-		cpuCh <- varbindResult{pdus: pdus, err: err}
-	}()
+	storageRes := tableResult{}
+	t, err := collectTable(g, oidHRStorageTable, []int{2, 3, 4, 5, 6}, 20)
+	storageRes = tableResult{table: t, err: err}
 
-	go func() {
-		t, err := collectTable(g, oidHRStorageTable, []int{2, 3, 4, 5, 6}, 20)
-		storageCh <- tableResult{table: t, err: err}
-	}()
+	ifRes := tableResult{}
+	t, err = collectTable(g, oidIfTable, []int{2, 5, 8, 10, 16}, 20)
+	ifRes = tableResult{table: t, err: err}
 
-	go func() {
-		t, err := collectTable(g, oidIfTable, []int{2, 5, 8, 10, 16}, 20)
-		ifCh <- tableResult{table: t, err: err}
-	}()
-
-	go func() {
-		t, err := collectTable(g, oidIfXTable, []int{1, 6, 10, 15}, 20)
-		ifXCh <- tableResult{table: t, err: err}
-	}()
-
-	// Collect results
-	uptimeRes := <-uptimeCh
-	cpuRes := <-cpuCh
-	storageRes := <-storageCh
-	ifRes := <-ifCh
-	ifXRes := <-ifXCh
+	ifXRes := tableResult{}
+	t, err = collectTable(g, oidIfXTable, []int{1, 6, 10, 15}, 20)
+	ifXRes = tableResult{table: t, err: err}
 
 	elapsed := float64(time.Since(start).Milliseconds())
 
@@ -133,13 +119,6 @@ func (SNMPCollector) Collect(ctx context.Context, device *models.Device) (*Resul
 	var cpuAvg float64
 	var cpuCores int
 	if cpuRes.err == nil {
-		for _, pdu := range cpuRes.pdus {
-			val := pduToFloat64(pdu)
-			if !math.IsNaN(val) && !math.IsInf(val, 0) {
-				cpuLoads := append([]float64{}, val)
-				_ = cpuLoads
-			}
-		}
 		var totalLoad float64
 		var count int
 		for _, pdu := range cpuRes.pdus {
@@ -385,15 +364,11 @@ func collectInterfaces(baseTable, xTable map[string]map[string]gosnmp.SnmpPDU) [
 	}
 
 	// Sort by total traffic (descending), take top 12
-	for i := 0; i < len(interfaces); i++ {
-		for j := i + 1; j < len(interfaces); j++ {
-			totalI := interfaces[i].inOctets + interfaces[i].outOctets
-			totalJ := interfaces[j].inOctets + interfaces[j].outOctets
-			if totalJ > totalI {
-				interfaces[i], interfaces[j] = interfaces[j], interfaces[i]
-			}
-		}
-	}
+	sort.Slice(interfaces, func(i, j int) bool {
+		totalI := interfaces[i].inOctets + interfaces[i].outOctets
+		totalJ := interfaces[j].inOctets + interfaces[j].outOctets
+		return totalI > totalJ
+	})
 	if len(interfaces) > 12 {
 		interfaces = interfaces[:12]
 	}

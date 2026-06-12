@@ -7,6 +7,25 @@ import (
 	"github.com/rayavriti/netmonitor-backend/internal/models"
 )
 
+type DeviceFilter struct {
+	Status   string
+	Protocol string
+	Enabled  *bool
+	Search   string
+	SortBy   string
+	SortDir  string
+	Limit    int
+	Offset   int
+}
+
+type RefreshToken struct {
+	ID        int64
+	TokenHash string
+	UserID    int64
+	ExpiresAt time.Time
+	CreatedAt time.Time
+}
+
 type Database interface {
 	// Lifecycle
 	Connect(ctx context.Context) error
@@ -17,6 +36,7 @@ type Database interface {
 	// Devices
 	GetDevices(ctx context.Context) ([]models.Device, error)
 	GetDevice(ctx context.Context, id int64) (*models.Device, error)
+	GetDevicesFiltered(ctx context.Context, f DeviceFilter) ([]models.Device, int, error)
 	CreateDevice(ctx context.Context, d *models.Device) (*models.Device, error)
 	UpdateDevice(ctx context.Context, id int64, d *models.Device) (*models.Device, error)
 	DeleteDevice(ctx context.Context, id int64) error
@@ -35,6 +55,7 @@ type Database interface {
 	// Metrics
 	RecordMetric(ctx context.Context, m *models.Metric) error
 	GetLatestMetrics(ctx context.Context) ([]models.Metric, error)
+	GetLatestMetricForDevice(ctx context.Context, deviceID int64) (*models.Metric, error)
 	GetDeviceMetrics(ctx context.Context, deviceID int64, from, to time.Time, limit int) ([]models.Metric, error)
 	GetMetricsSummary(ctx context.Context, from, to time.Time, deviceID *int64) (map[string]any, error)
 	GetMetricsForReport(ctx context.Context, from, to time.Time, deviceID *int64, interval string) ([]models.ReportMetricRow, error)
@@ -52,6 +73,7 @@ type Database interface {
 	DeleteAlert(ctx context.Context, id int64) error
 	GetAlertCounts(ctx context.Context) (models.AlertCounts, error)
 	FindActiveAlert(ctx context.Context, deviceID int64, message string) (*models.Alert, error)
+	FindActiveAlertByRuleAndDevice(ctx context.Context, ruleID, deviceID int64) (*models.Alert, error)
 	GetAlertsForReport(ctx context.Context, from, to time.Time, deviceID *int64) ([]models.Alert, error)
 
 	// Alert Rules
@@ -84,9 +106,17 @@ type Database interface {
 	UpdateUser(ctx context.Context, id int64, u *models.User) (*models.User, error)
 	DeleteUser(ctx context.Context, id int64) error
 	GetAPIKey(ctx context.Context, keyHash string) (*models.APIKey, error)
+	GetAPIKeyByID(ctx context.Context, id int64) (*models.APIKey, error)
 	CreateAPIKey(ctx context.Context, k *models.APIKey) (*models.APIKey, error)
 	GetAPIKeysByUser(ctx context.Context, userID int64) ([]models.APIKey, error)
 	DeleteAPIKey(ctx context.Context, id int64) error
+
+	// Refresh Tokens
+	CreateRefreshToken(ctx context.Context, tokenHash string, userID int64, expiresAt time.Time) error
+	GetRefreshToken(ctx context.Context, tokenHash string) (*RefreshToken, error)
+	DeleteRefreshToken(ctx context.Context, tokenHash string) error
+	DeleteRefreshTokensByUser(ctx context.Context, userID int64) error
+	CleanupExpiredRefreshTokens(ctx context.Context) (int64, error)
 
 	// Flows
 	RecordFlows(ctx context.Context, flows []models.Flow) error

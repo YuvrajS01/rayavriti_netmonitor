@@ -23,14 +23,14 @@ func makeToken(t *testing.T) string {
 
 func TestNewHub(t *testing.T) {
 	t.Parallel()
-	hub := NewHub(wsTestSecret, nil)
+	hub := NewHub(wsTestSecret, nil, nil)
 	require.NotNil(t, hub)
 	assert.Equal(t, 0, hub.ConnectionCount())
 }
 
 func TestHub_Broadcast_NoClients(t *testing.T) {
 	t.Parallel()
-	hub := NewHub(wsTestSecret, nil)
+	hub := NewHub(wsTestSecret, nil, nil)
 	go hub.Run()
 	hub.Broadcast(Message{Type: EventMetricUpdate, Data: "test"})
 	hub.Stop()
@@ -38,13 +38,13 @@ func TestHub_Broadcast_NoClients(t *testing.T) {
 
 func TestHub_ConnectionCount(t *testing.T) {
 	t.Parallel()
-	hub := NewHub(wsTestSecret, nil)
+	hub := NewHub(wsTestSecret, nil, nil)
 	assert.Equal(t, 0, hub.ConnectionCount())
 }
 
 func TestHub_Stop(t *testing.T) {
 	t.Parallel()
-	hub := NewHub(wsTestSecret, nil)
+	hub := NewHub(wsTestSecret, nil, nil)
 	go hub.Run()
 	hub.Stop()
 	// Broadcasting after Stop should not panic — Broadcast uses select with default
@@ -54,7 +54,7 @@ func TestHub_Stop(t *testing.T) {
 
 func TestHub_ServeWS_NoToken(t *testing.T) {
 	t.Parallel()
-	hub := NewHub(wsTestSecret, nil)
+	hub := NewHub(wsTestSecret, nil, nil)
 	go hub.Run()
 	defer hub.Stop()
 
@@ -66,7 +66,7 @@ func TestHub_ServeWS_NoToken(t *testing.T) {
 
 func TestHub_ServeWS_InvalidToken(t *testing.T) {
 	t.Parallel()
-	hub := NewHub(wsTestSecret, nil)
+	hub := NewHub(wsTestSecret, nil, nil)
 	go hub.Run()
 	defer hub.Stop()
 
@@ -78,7 +78,7 @@ func TestHub_ServeWS_InvalidToken(t *testing.T) {
 
 func TestHub_ServeWS_QueryParam(t *testing.T) {
 	t.Parallel()
-	hub := NewHub(wsTestSecret, nil)
+	hub := NewHub(wsTestSecret, nil, nil)
 	go hub.Run()
 	defer hub.Stop()
 
@@ -98,7 +98,7 @@ func TestHub_ServeWS_QueryParam(t *testing.T) {
 
 func TestHub_ExtractToken_AuthorizationHeader(t *testing.T) {
 	t.Parallel()
-	hub := NewHub(wsTestSecret, nil)
+	hub := NewHub(wsTestSecret, nil, nil)
 	token := makeToken(t)
 	req := httptest.NewRequest("GET", "/ws", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
@@ -108,7 +108,7 @@ func TestHub_ExtractToken_AuthorizationHeader(t *testing.T) {
 
 func TestHub_ExtractToken_SecWebSocketProtocol(t *testing.T) {
 	t.Parallel()
-	hub := NewHub(wsTestSecret, nil)
+	hub := NewHub(wsTestSecret, nil, nil)
 	req := httptest.NewRequest("GET", "/ws", nil)
 	req.Header.Set("Sec-WebSocket-Protocol", "mytoken123")
 	extracted := hub.extractToken(req)
@@ -117,7 +117,7 @@ func TestHub_ExtractToken_SecWebSocketProtocol(t *testing.T) {
 
 func TestHub_ExtractToken_QueryParam(t *testing.T) {
 	t.Parallel()
-	hub := NewHub(wsTestSecret, nil)
+	hub := NewHub(wsTestSecret, nil, nil)
 	req := httptest.NewRequest("GET", "/ws?token=mytoken123", nil)
 	extracted := hub.extractToken(req)
 	assert.Equal(t, "mytoken123", extracted)
@@ -125,7 +125,7 @@ func TestHub_ExtractToken_QueryParam(t *testing.T) {
 
 func TestHub_ExtractToken_Empty(t *testing.T) {
 	t.Parallel()
-	hub := NewHub(wsTestSecret, nil)
+	hub := NewHub(wsTestSecret, nil, nil)
 	req := httptest.NewRequest("GET", "/ws", nil)
 	extracted := hub.extractToken(req)
 	assert.Equal(t, "", extracted)
@@ -133,7 +133,7 @@ func TestHub_ExtractToken_Empty(t *testing.T) {
 
 func TestHub_Broadcast_ChannelFull(t *testing.T) {
 	t.Parallel()
-	hub := NewHub(wsTestSecret, nil)
+	hub := NewHub(wsTestSecret, nil, nil)
 	for i := 0; i < 256; i++ {
 		hub.broadcast <- Message{Type: EventMetricUpdate, Data: "test"}
 	}
@@ -142,7 +142,7 @@ func TestHub_Broadcast_ChannelFull(t *testing.T) {
 
 func TestHub_SendToClient_NoClients(t *testing.T) {
 	t.Parallel()
-	hub := NewHub(wsTestSecret, nil)
+	hub := NewHub(wsTestSecret, nil, nil)
 	go hub.Run()
 	defer hub.Stop()
 	hub.SendToClient(1, Message{Type: EventMetricUpdate, Data: "test"})

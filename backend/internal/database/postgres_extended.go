@@ -46,6 +46,82 @@ func (p *Postgres) GetDevicesByStatus(ctx context.Context, status string) ([]mod
 	return devices, nil
 }
 
+func (p *Postgres) GetDevicesFiltered(ctx context.Context, f DeviceFilter) ([]models.Device, int, error) {
+	where := []string{}
+	args := []any{}
+	argN := 1
+
+	if f.Status != "" {
+		where = append(where, fmt.Sprintf("status=$%d", argN))
+		args = append(args, f.Status)
+		argN++
+	}
+	if f.Protocol != "" {
+		where = append(where, fmt.Sprintf("protocol=$%d", argN))
+		args = append(args, f.Protocol)
+		argN++
+	}
+	if f.Enabled != nil {
+		where = append(where, fmt.Sprintf("enabled=$%d", argN))
+		args = append(args, *f.Enabled)
+		argN++
+	}
+	if f.Search != "" {
+		where = append(where, fmt.Sprintf("(LOWER(name) LIKE $%d OR LOWER(ip_address) LIKE $%d)", argN, argN))
+		args = append(args, "%"+strings.ToLower(f.Search)+"%")
+		argN++
+	}
+
+	whereClause := ""
+	if len(where) > 0 {
+		whereClause = " WHERE " + strings.Join(where, " AND ")
+	}
+
+	var total int
+	countQuery := "SELECT COUNT(*) FROM devices" + whereClause
+	if err := p.pool.QueryRow(ctx, countQuery, args...).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+
+	sortCol := "id"
+	switch f.SortBy {
+	case "name":
+		sortCol = "name"
+	case "status":
+		sortCol = "status"
+	case "protocol":
+		sortCol = "protocol"
+	case "ipAddress":
+		sortCol = "ip_address"
+	}
+	sortDir := "ASC"
+	if strings.EqualFold(f.SortDir, "desc") {
+		sortDir = "DESC"
+	}
+
+	query := deviceSelectCols + whereClause + fmt.Sprintf(" ORDER BY %s %s", sortCol, sortDir)
+	if f.Limit > 0 {
+		query += fmt.Sprintf(" LIMIT %d", f.Limit)
+	}
+	if f.Offset > 0 {
+		query += fmt.Sprintf(" OFFSET %d", f.Offset)
+	}
+
+	rows, err := p.pool.Query(ctx, query, args...)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+	devices, err := scanDevices(rows)
+	if err != nil {
+		return nil, 0, err
+	}
+	if devices == nil {
+		devices = []models.Device{}
+	}
+	return devices, total, nil
+}
+
 // ── Alert extended ───────────────────────────────────────────────────────────
 
 // GetAlertCounts returns counts of alerts grouped by status.
@@ -538,4 +614,42 @@ func parseIntervalSeconds(interval string) (int64, error) {
 	default:
 		return 0, fmt.Errorf("unsupported interval suffix: %c (use s, m, h, or d)", suffix)
 	}
+}
+
+// ── Refresh Tokens ────────────────────────────────────────────────────────────
+
+func (p *Postgres) CreateRefreshToken(ctx context.Context, tokenHash string, userID int64, expiresAt time.Time) error {
+	_, err := p.pool.Exec(ctx,
+		`INSERT INTO refresh_tokens(token_hash, user_id, expires_at) VALUES($1, $2, $3)`,
+		tokenHash, userID, expiresAt)
+	return err
+}
+
+func (p *Postgres) GetRefreshToken(ctx context.Context, tokenHash string) (*RefreshToken, error) {
+	var rt RefreshToken
+	err := p.pool.QueryRow(ctx,
+		`SELECT id, token_hash, user_id, expires_at, created_at FROM refresh_tokens WHERE token_hash=$1`,
+		tokenHash).Scan(&rt.ID, &rt.TokenHash, &rt.UserID, &rt.ExpiresAt, &rt.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return &rt, nil
+}
+
+func (p *Postgres) DeleteRefreshToken(ctx context.Context, tokenHash string) error {
+	_, err := p.pool.Exec(ctx, `DELETE FROM refresh_tokens WHERE token_hash=$1`, tokenHash)
+	return err
+}
+
+func (p *Postgres) DeleteRefreshTokensByUser(ctx context.Context, userID int64) error {
+	_, err := p.pool.Exec(ctx, `DELETE FROM refresh_tokens WHERE user_id=$1`, userID)
+	return err
+}
+
+func (p *Postgres) CleanupExpiredRefreshTokens(ctx context.Context) (int64, error) {
+	ct, err := p.pool.Exec(ctx, `DELETE FROM refresh_tokens WHERE expires_at < NOW()`)
+	if err != nil {
+		return 0, err
+	}
+	return ct.RowsAffected(), nil
 }

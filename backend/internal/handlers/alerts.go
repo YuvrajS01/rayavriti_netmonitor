@@ -104,7 +104,7 @@ func (h *AlertHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 	updated, err := h.db.GetAlert(r.Context(), id)
 	if err != nil {
-		httputil.SendError(w, 500, err.Error())
+		httputil.SendError(w, 404, "alert not found")
 		return
 	}
 	httputil.SendOK(w, updated)

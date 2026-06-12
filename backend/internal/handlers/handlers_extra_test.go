@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/rayavriti/netmonitor-backend/internal/auth"
+	"github.com/rayavriti/netmonitor-backend/internal/database"
 	"github.com/rayavriti/netmonitor-backend/internal/models"
 	"github.com/rayavriti/netmonitor-backend/internal/websocket"
 )
@@ -114,8 +115,8 @@ func TestAlertUpdate_GetAlertAfterUpdateFails(t *testing.T) {
 	body, _ := json.Marshal(map[string]any{"status": status})
 	w, req := makeRequestWithParams("PUT", "/api/v1/alerts/1", string(body), "id", "1")
 	h.Update(w, req)
-	if w.Code != http.StatusInternalServerError {
-		t.Fatalf("expected 500, got %d", w.Code)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d", w.Code)
 	}
 }
 
@@ -216,11 +217,11 @@ func TestCaptureStart_ValidInterface(t *testing.T) {
 			return cs, nil
 		},
 	}
-	hub := websocket.NewHub("test-secret", nil)
+	hub := websocket.NewHub("test-secret", nil, nil)
 	go hub.Run()
 	h := NewCaptureHandler(db, hub)
 
-	w, req := authenticatedRequest("POST", "/api/v1/capture/start", `{"interface":"eth0","filter":"port 80"}`)
+	w, req := authenticatedRequest("POST", "/api/v1/capture/start", `{"interface":"lo","filter":"port 80"}`)
 	h.Start(w, req)
 	if w.Code != http.StatusCreated {
 		t.Fatalf("expected 201, got %d: %s", w.Code, w.Body.String())
@@ -247,11 +248,11 @@ func TestCaptureStart_DBError(t *testing.T) {
 			return nil, errors.New("db error")
 		},
 	}
-	hub := websocket.NewHub("test-secret", nil)
+	hub := websocket.NewHub("test-secret", nil, nil)
 	go hub.Run()
 	h := NewCaptureHandler(db, hub)
 
-	w, req := authenticatedRequest("POST", "/api/v1/capture/start", `{"interface":"eth0"}`)
+	w, req := authenticatedRequest("POST", "/api/v1/capture/start", `{"interface":"lo"}`)
 	h.Start(w, req)
 	if w.Code != http.StatusInternalServerError {
 		t.Fatalf("expected 500, got %d", w.Code)
@@ -269,7 +270,7 @@ func TestCaptureStart_NoFilter(t *testing.T) {
 			return cs, nil
 		},
 	}
-	hub := websocket.NewHub("test-secret", nil)
+	hub := websocket.NewHub("test-secret", nil, nil)
 	go hub.Run()
 	h := NewCaptureHandler(db, hub)
 
@@ -301,7 +302,7 @@ func TestCaptureStop_WithActiveSession(t *testing.T) {
 			return nil
 		},
 	}
-	hub := websocket.NewHub("test-secret", nil)
+	hub := websocket.NewHub("test-secret", nil, nil)
 	go hub.Run()
 	h := NewCaptureHandler(db, hub)
 
@@ -326,7 +327,7 @@ func TestCaptureStop_DBError(t *testing.T) {
 			return errors.New("db error")
 		},
 	}
-	hub := websocket.NewHub("test-secret", nil)
+	hub := websocket.NewHub("test-secret", nil, nil)
 	go hub.Run()
 	h := NewCaptureHandler(db, hub)
 
@@ -643,7 +644,9 @@ func TestDeviceList_FilterByEnabledFalse(t *testing.T) {
 		{ID: 1, Name: "R1", Enabled: true},
 		{ID: 2, Name: "R2", Enabled: false},
 	}
-	db := &mockDB{getDevicesFn: func(ctx context.Context) ([]models.Device, error) { return devices, nil }}
+	db := &mockDB{getDevicesFilteredFn: func(ctx context.Context, f database.DeviceFilter) ([]models.Device, int, error) {
+		return []models.Device{devices[1]}, 1, nil
+	}}
 	h := NewDeviceHandler(db)
 	w, req := authenticatedRequest("GET", "/api/v1/devices?enabled=false", "")
 	h.List(w, req)
@@ -660,7 +663,9 @@ func TestDeviceList_SearchByIP(t *testing.T) {
 		{ID: 1, Name: "Router", IPAddress: "10.0.0.1"},
 		{ID: 2, Name: "Switch", IPAddress: "192.168.1.1"},
 	}
-	db := &mockDB{getDevicesFn: func(ctx context.Context) ([]models.Device, error) { return devices, nil }}
+	db := &mockDB{getDevicesFilteredFn: func(ctx context.Context, f database.DeviceFilter) ([]models.Device, int, error) {
+		return []models.Device{devices[1]}, 1, nil
+	}}
 	h := NewDeviceHandler(db)
 	w, req := authenticatedRequest("GET", "/api/v1/devices?search=192.168", "")
 	h.List(w, req)
@@ -678,7 +683,9 @@ func TestDeviceList_SortByStatus(t *testing.T) {
 		{ID: 2, Name: "B", Status: "up"},
 		{ID: 3, Name: "C", Status: "up"},
 	}
-	db := &mockDB{getDevicesFn: func(ctx context.Context) ([]models.Device, error) { return devices, nil }}
+	db := &mockDB{getDevicesFilteredFn: func(ctx context.Context, f database.DeviceFilter) ([]models.Device, int, error) {
+		return devices, len(devices), nil
+	}}
 	h := NewDeviceHandler(db)
 	w, req := authenticatedRequest("GET", "/api/v1/devices?sort=status&dir=asc", "")
 	h.List(w, req)
@@ -696,7 +703,13 @@ func TestDeviceList_SortByIPAddress(t *testing.T) {
 		{ID: 1, Name: "A", IPAddress: "192.168.1.1"},
 		{ID: 2, Name: "B", IPAddress: "10.0.0.1"},
 	}
-	db := &mockDB{getDevicesFn: func(ctx context.Context) ([]models.Device, error) { return devices, nil }}
+	db := &mockDB{getDevicesFilteredFn: func(ctx context.Context, f database.DeviceFilter) ([]models.Device, int, error) {
+		sorted := []models.Device{
+			{ID: 2, Name: "B", IPAddress: "10.0.0.1"},
+			{ID: 1, Name: "A", IPAddress: "192.168.1.1"},
+		}
+		return sorted, len(devices), nil
+	}}
 	h := NewDeviceHandler(db)
 	w, req := authenticatedRequest("GET", "/api/v1/devices?sort=ipAddress&dir=asc", "")
 	h.List(w, req)
@@ -714,7 +727,9 @@ func TestDeviceList_PaginationEdge(t *testing.T) {
 	for i := range devices {
 		devices[i] = models.Device{ID: int64(i + 1), Name: "Device"}
 	}
-	db := &mockDB{getDevicesFn: func(ctx context.Context) ([]models.Device, error) { return devices, nil }}
+	db := &mockDB{getDevicesFilteredFn: func(ctx context.Context, f database.DeviceFilter) ([]models.Device, int, error) {
+		return []models.Device{}, len(devices), nil
+	}}
 	h := NewDeviceHandler(db)
 	w, req := authenticatedRequest("GET", "/api/v1/devices?page=10&pageSize=5", "")
 	h.List(w, req)
@@ -729,7 +744,9 @@ func TestDeviceList_PaginationEdge(t *testing.T) {
 func TestDeviceList_PageSizeOver200(t *testing.T) {
 	devices := make([]models.Device, 1)
 	devices[0] = models.Device{ID: 1, Name: "D"}
-	db := &mockDB{getDevicesFn: func(ctx context.Context) ([]models.Device, error) { return devices, nil }}
+	db := &mockDB{getDevicesFilteredFn: func(ctx context.Context, f database.DeviceFilter) ([]models.Device, int, error) {
+		return devices, len(devices), nil
+	}}
 	h := NewDeviceHandler(db)
 	w, req := authenticatedRequest("GET", "/api/v1/devices?page=1&pageSize=300", "")
 	h.List(w, req)
@@ -744,7 +761,14 @@ func TestDeviceList_SortByProtocol(t *testing.T) {
 		{ID: 2, Name: "B", Protocol: "http"},
 		{ID: 3, Name: "C", Protocol: "ping"},
 	}
-	db := &mockDB{getDevicesFn: func(ctx context.Context) ([]models.Device, error) { return devices, nil }}
+	db := &mockDB{getDevicesFilteredFn: func(ctx context.Context, f database.DeviceFilter) ([]models.Device, int, error) {
+		sorted := []models.Device{
+			{ID: 2, Name: "B", Protocol: "http"},
+			{ID: 3, Name: "C", Protocol: "ping"},
+			{ID: 1, Name: "A", Protocol: "snmp"},
+		}
+		return sorted, len(devices), nil
+	}}
 	h := NewDeviceHandler(db)
 	w, req := authenticatedRequest("GET", "/api/v1/devices?sort=protocol&dir=asc", "")
 	h.List(w, req)
@@ -763,7 +787,14 @@ func TestDeviceList_SortDesc(t *testing.T) {
 		{ID: 2, Name: "Alpha"},
 		{ID: 3, Name: "Bravo"},
 	}
-	db := &mockDB{getDevicesFn: func(ctx context.Context) ([]models.Device, error) { return devices, nil }}
+	db := &mockDB{getDevicesFilteredFn: func(ctx context.Context, f database.DeviceFilter) ([]models.Device, int, error) {
+		sorted := []models.Device{
+			{ID: 1, Name: "Charlie"},
+			{ID: 3, Name: "Bravo"},
+			{ID: 2, Name: "Alpha"},
+		}
+		return sorted, len(devices), nil
+	}}
 	h := NewDeviceHandler(db)
 	w, req := authenticatedRequest("GET", "/api/v1/devices?sort=name&dir=desc", "")
 	h.List(w, req)
@@ -817,13 +848,16 @@ func TestDeleteAPIKey_DifferentUser(t *testing.T) {
 		deleteAPIKeyFn: func(ctx context.Context, id int64) error {
 			return nil
 		},
+		getAPIKeyByIDFn: func(ctx context.Context, id int64) (*models.APIKey, error) {
+			return &models.APIKey{ID: id, UserID: 999}, nil
+		},
 	}
 	h := NewAuthHandler(db, testConfig())
 	w, req := authenticatedRequest("DELETE", "/api/auth/apikeys/99", "")
 	req = withChiParams(req, "id", "99")
 	callWithAuth(h.DeleteAPIKey, w, req)
-	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d", w.Code)
 	}
 }
 

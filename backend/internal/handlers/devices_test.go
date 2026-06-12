@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/rayavriti/netmonitor-backend/internal/database"
 	"github.com/rayavriti/netmonitor-backend/internal/models"
 )
 
@@ -16,7 +17,9 @@ func TestDeviceList_All(t *testing.T) {
 		{ID: 2, Name: "Switch1", IPAddress: "10.0.0.2", Protocol: "snmp", Status: "down"},
 		{ID: 3, Name: "Server1", IPAddress: "10.0.0.3", Protocol: "http", Status: "up"},
 	}
-	db := &mockDB{getDevicesFn: func(ctx context.Context) ([]models.Device, error) { return devices, nil }}
+	db := &mockDB{getDevicesFilteredFn: func(ctx context.Context, f database.DeviceFilter) ([]models.Device, int, error) {
+		return devices, len(devices), nil
+	}}
 	h := NewDeviceHandler(db)
 	w, req := authenticatedRequest("GET", "/api/v1/devices", "")
 	h.List(w, req)
@@ -32,12 +35,12 @@ func TestDeviceList_All(t *testing.T) {
 }
 
 func TestDeviceList_FilterByStatus(t *testing.T) {
-	devices := []models.Device{
-		{ID: 1, Name: "R1", Status: "up"},
-		{ID: 2, Name: "R2", Status: "down"},
-		{ID: 3, Name: "R3", Status: "up"},
-	}
-	db := &mockDB{getDevicesFn: func(ctx context.Context) ([]models.Device, error) { return devices, nil }}
+	db := &mockDB{getDevicesFilteredFn: func(ctx context.Context, f database.DeviceFilter) ([]models.Device, int, error) {
+		if f.Status != "up" {
+			t.Fatalf("expected status filter up, got %s", f.Status)
+		}
+		return []models.Device{{ID: 1, Status: "up"}, {ID: 3, Status: "up"}}, 2, nil
+	}}
 	h := NewDeviceHandler(db)
 	w, req := authenticatedRequest("GET", "/api/v1/devices?status=up", "")
 	h.List(w, req)
@@ -53,12 +56,12 @@ func TestDeviceList_FilterByStatus(t *testing.T) {
 }
 
 func TestDeviceList_FilterByProtocol(t *testing.T) {
-	devices := []models.Device{
-		{ID: 1, Protocol: "ping"},
-		{ID: 2, Protocol: "snmp"},
-		{ID: 3, Protocol: "ping"},
-	}
-	db := &mockDB{getDevicesFn: func(ctx context.Context) ([]models.Device, error) { return devices, nil }}
+	db := &mockDB{getDevicesFilteredFn: func(ctx context.Context, f database.DeviceFilter) ([]models.Device, int, error) {
+		if f.Protocol != "ping" {
+			t.Fatalf("expected protocol filter ping, got %s", f.Protocol)
+		}
+		return []models.Device{{ID: 1, Protocol: "ping"}, {ID: 3, Protocol: "ping"}}, 2, nil
+	}}
 	h := NewDeviceHandler(db)
 	w, req := authenticatedRequest("GET", "/api/v1/devices?protocol=ping", "")
 	h.List(w, req)
@@ -71,11 +74,12 @@ func TestDeviceList_FilterByProtocol(t *testing.T) {
 }
 
 func TestDeviceList_FilterByEnabled(t *testing.T) {
-	devices := []models.Device{
-		{ID: 1, Enabled: true},
-		{ID: 2, Enabled: false},
-	}
-	db := &mockDB{getDevicesFn: func(ctx context.Context) ([]models.Device, error) { return devices, nil }}
+	db := &mockDB{getDevicesFilteredFn: func(ctx context.Context, f database.DeviceFilter) ([]models.Device, int, error) {
+		if f.Enabled == nil || !*f.Enabled {
+			t.Fatalf("expected enabled=true filter")
+		}
+		return []models.Device{{ID: 1, Enabled: true}}, 1, nil
+	}}
 	h := NewDeviceHandler(db)
 	w, req := authenticatedRequest("GET", "/api/v1/devices?enabled=true", "")
 	h.List(w, req)
@@ -88,11 +92,12 @@ func TestDeviceList_FilterByEnabled(t *testing.T) {
 }
 
 func TestDeviceList_Search(t *testing.T) {
-	devices := []models.Device{
-		{ID: 1, Name: "Router", IPAddress: "10.0.0.1"},
-		{ID: 2, Name: "Switch", IPAddress: "192.168.1.1"},
-	}
-	db := &mockDB{getDevicesFn: func(ctx context.Context) ([]models.Device, error) { return devices, nil }}
+	db := &mockDB{getDevicesFilteredFn: func(ctx context.Context, f database.DeviceFilter) ([]models.Device, int, error) {
+		if f.Search != "router" {
+			t.Fatalf("expected search 'router', got %s", f.Search)
+		}
+		return []models.Device{{ID: 1, Name: "Router"}}, 1, nil
+	}}
 	h := NewDeviceHandler(db)
 	w, req := authenticatedRequest("GET", "/api/v1/devices?search=router", "")
 	h.List(w, req)
@@ -105,12 +110,13 @@ func TestDeviceList_Search(t *testing.T) {
 }
 
 func TestDeviceList_SortByName(t *testing.T) {
-	devices := []models.Device{
-		{ID: 3, Name: "Charlie"},
-		{ID: 1, Name: "Alpha"},
-		{ID: 2, Name: "Bravo"},
-	}
-	db := &mockDB{getDevicesFn: func(ctx context.Context) ([]models.Device, error) { return devices, nil }}
+	sorted := []models.Device{{ID: 1, Name: "Alpha"}, {ID: 2, Name: "Bravo"}, {ID: 3, Name: "Charlie"}}
+	db := &mockDB{getDevicesFilteredFn: func(ctx context.Context, f database.DeviceFilter) ([]models.Device, int, error) {
+		if f.SortBy != "name" {
+			t.Fatalf("expected sort by name, got %s", f.SortBy)
+		}
+		return sorted, len(sorted), nil
+	}}
 	h := NewDeviceHandler(db)
 	w, req := authenticatedRequest("GET", "/api/v1/devices?sort=name&dir=asc", "")
 	h.List(w, req)
@@ -124,11 +130,13 @@ func TestDeviceList_SortByName(t *testing.T) {
 }
 
 func TestDeviceList_Pagination(t *testing.T) {
-	devices := make([]models.Device, 10)
-	for i := range devices {
-		devices[i] = models.Device{ID: int64(i + 1), Name: "Device"}
-	}
-	db := &mockDB{getDevicesFn: func(ctx context.Context) ([]models.Device, error) { return devices, nil }}
+	page := []models.Device{{ID: 4, Name: "Device"}, {ID: 5, Name: "Device"}, {ID: 6, Name: "Device"}}
+	db := &mockDB{getDevicesFilteredFn: func(ctx context.Context, f database.DeviceFilter) ([]models.Device, int, error) {
+		if f.Offset != 3 || f.Limit != 3 {
+			t.Fatalf("expected offset=3 limit=3, got offset=%d limit=%d", f.Offset, f.Limit)
+		}
+		return page, 10, nil
+	}}
 	h := NewDeviceHandler(db)
 	w, req := authenticatedRequest("GET", "/api/v1/devices?page=2&pageSize=3", "")
 	h.List(w, req)
@@ -145,8 +153,8 @@ func TestDeviceList_Pagination(t *testing.T) {
 }
 
 func TestDeviceList_DBError(t *testing.T) {
-	db := &mockDB{getDevicesFn: func(ctx context.Context) ([]models.Device, error) {
-		return nil, errors.New("db error")
+	db := &mockDB{getDevicesFilteredFn: func(ctx context.Context, f database.DeviceFilter) ([]models.Device, int, error) {
+		return nil, 0, errors.New("db error")
 	}}
 	h := NewDeviceHandler(db)
 	w, req := authenticatedRequest("GET", "/api/v1/devices", "")

@@ -40,7 +40,7 @@ func wsExtraConnect(t *testing.T, url string, headers http.Header) *websocket.Co
 
 func wsExtraHubWithServer(t *testing.T) (*Hub, string) {
 	t.Helper()
-	hub := NewHub(wsExtraSecret, nil)
+	hub := NewHub(wsExtraSecret, nil, nil)
 	go hub.Run()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		hub.ServeWS(w, r)
@@ -190,7 +190,7 @@ func TestHub_Extra_MultipleClientsConnectDisconnect(t *testing.T) {
 
 func TestHub_Extra_ExtractTokenEmptyAuthHeader(t *testing.T) {
 	t.Parallel()
-	hub := NewHub(wsExtraSecret, nil)
+	hub := NewHub(wsExtraSecret, nil, nil)
 	req := httptest.NewRequest("GET", "/ws", nil)
 	req.Header.Set("Authorization", "")
 	token := hub.extractToken(req)
@@ -201,7 +201,7 @@ func TestHub_Extra_ExtractTokenEmptyAuthHeader(t *testing.T) {
 
 func TestHub_Extra_ExtractTokenOnlyQueryParam(t *testing.T) {
 	t.Parallel()
-	hub := NewHub(wsExtraSecret, nil)
+	hub := NewHub(wsExtraSecret, nil, nil)
 	req := httptest.NewRequest("GET", "/ws?token=only-qs", nil)
 	token := hub.extractToken(req)
 	assert.Equal(t, "only-qs", token)
@@ -211,7 +211,7 @@ func TestHub_Extra_ExtractTokenOnlyQueryParam(t *testing.T) {
 
 func TestHub_Extra_ExtractTokenBearerNoSpace(t *testing.T) {
 	t.Parallel()
-	hub := NewHub(wsExtraSecret, nil)
+	hub := NewHub(wsExtraSecret, nil, nil)
 	req := httptest.NewRequest("GET", "/ws", nil)
 	req.Header.Set("Authorization", "BearerToken123")
 	token := hub.extractToken(req)
@@ -222,7 +222,7 @@ func TestHub_Extra_ExtractTokenBearerNoSpace(t *testing.T) {
 
 func TestHub_Extra_ServeWSInvalidBearerToken(t *testing.T) {
 	t.Parallel()
-	hub := NewHub(wsExtraSecret, nil)
+	hub := NewHub(wsExtraSecret, nil, nil)
 	go hub.Run()
 	defer hub.Stop()
 
@@ -237,7 +237,7 @@ func TestHub_Extra_ServeWSInvalidBearerToken(t *testing.T) {
 
 func TestHub_Extra_ServeWSNoTokenAtAll(t *testing.T) {
 	t.Parallel()
-	hub := NewHub(wsExtraSecret, nil)
+	hub := NewHub(wsExtraSecret, nil, nil)
 	go hub.Run()
 	defer hub.Stop()
 
@@ -256,7 +256,7 @@ func TestHub_Extra_WithBootstrap(t *testing.T) {
 	hub := NewHub(wsExtraSecret, func(ctx context.Context, userID int64, username, role string) (map[string]any, error) {
 		bootstrapCalled = true
 		return map[string]any{"devices": []string{"server1", "server2"}}, nil
-	})
+	}, nil)
 	go hub.Run()
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -48,7 +48,7 @@ func New(cfg *config.Config) *Logger {
 	opts := &slog.HandlerOptions{Level: level}
 
 	var handler slog.Handler
-	if cfg.Logging.Format == "json" || cfg.App.NodeEnv == "production" {
+	if cfg.Logging.Format == "json" || cfg.App.AppEnv == "production" {
 		handler = slog.NewJSONHandler(buildWriter(cfg), opts)
 	} else {
 		handler = slog.NewTextHandler(buildWriter(cfg), opts)

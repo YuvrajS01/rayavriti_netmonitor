@@ -68,14 +68,29 @@ type Hub struct {
 // BootstrapFunc generates the initial bootstrap payload for a newly connected client.
 type BootstrapFunc func(ctx context.Context, userID int64, username, role string) (map[string]any, error)
 
-func NewHub(jwtSecret string, bootstrap BootstrapFunc) *Hub {
+func NewHub(jwtSecret string, bootstrap BootstrapFunc, allowedOrigins []string) *Hub {
+	allowAll := len(allowedOrigins) == 0
 	return &Hub{
 		clients:   make(map[*client]struct{}),
 		broadcast: make(chan Message, 256),
 		jwtSecret: jwtSecret,
 		bootstrap: bootstrap,
 		upgrader: websocket.Upgrader{
-			CheckOrigin: func(r *http.Request) bool { return true },
+			CheckOrigin: func(r *http.Request) bool {
+				if allowAll {
+					return true
+				}
+				origin := r.Header.Get("Origin")
+				if origin == "" {
+					return true // non-browser clients
+				}
+				for _, o := range allowedOrigins {
+					if o == origin {
+						return true
+					}
+				}
+				return false
+			},
 		},
 	}
 }

@@ -33,7 +33,7 @@ func wsCoverageConnect(t *testing.T, url string, headers http.Header) *websocket
 
 func wsCoverageHubWithServer(t *testing.T) (*Hub, *httptest.Server, string) {
 	t.Helper()
-	hub := NewHub(wsCoverageSecret, nil)
+	hub := NewHub(wsCoverageSecret, nil, nil)
 	go hub.Run()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		hub.ServeWS(w, r)
@@ -139,7 +139,7 @@ func TestHub_Coverage_SendToClientNoMatch(t *testing.T) {
 
 func TestHub_Coverage_StopClosesConnections(t *testing.T) {
 	t.Parallel()
-	hub := NewHub(wsCoverageSecret, nil)
+	hub := NewHub(wsCoverageSecret, nil, nil)
 	go hub.Run()
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -167,7 +167,7 @@ func TestHub_Coverage_StopClosesConnections(t *testing.T) {
 
 func TestHub_Coverage_ExtractTokenPriorityOrder(t *testing.T) {
 	t.Parallel()
-	hub := NewHub(wsCoverageSecret, nil)
+	hub := NewHub(wsCoverageSecret, nil, nil)
 	req := httptest.NewRequest("GET", "/ws?token=qs", nil)
 	req.Header.Set("Authorization", "Bearer hdr")
 	req.Header.Set("Sec-WebSocket-Protocol", "proto")
@@ -177,7 +177,7 @@ func TestHub_Coverage_ExtractTokenPriorityOrder(t *testing.T) {
 
 func TestHub_Coverage_ExtractTokenMultipleProtocols(t *testing.T) {
 	t.Parallel()
-	hub := NewHub(wsCoverageSecret, nil)
+	hub := NewHub(wsCoverageSecret, nil, nil)
 	req := httptest.NewRequest("GET", "/ws", nil)
 	req.Header.Set("Sec-WebSocket-Protocol", "first-protocol, second-protocol")
 	token := hub.extractToken(req)
@@ -186,7 +186,7 @@ func TestHub_Coverage_ExtractTokenMultipleProtocols(t *testing.T) {
 
 func TestHub_Coverage_ExtractTokenAuthNoBearer(t *testing.T) {
 	t.Parallel()
-	hub := NewHub(wsCoverageSecret, nil)
+	hub := NewHub(wsCoverageSecret, nil, nil)
 	req := httptest.NewRequest("GET", "/ws", nil)
 	req.Header.Set("Authorization", "Basic something")
 	token := hub.extractToken(req)
@@ -195,7 +195,7 @@ func TestHub_Coverage_ExtractTokenAuthNoBearer(t *testing.T) {
 
 func TestHub_Coverage_ExtractTokenEmptyProtocol(t *testing.T) {
 	t.Parallel()
-	hub := NewHub(wsCoverageSecret, nil)
+	hub := NewHub(wsCoverageSecret, nil, nil)
 	req := httptest.NewRequest("GET", "/ws", nil)
 	req.Header.Set("Sec-WebSocket-Protocol", "")
 	token := hub.extractToken(req)
@@ -204,7 +204,7 @@ func TestHub_Coverage_ExtractTokenEmptyProtocol(t *testing.T) {
 
 func TestHub_Coverage_ExtractTokenProtocolFallsToQueryParam(t *testing.T) {
 	t.Parallel()
-	hub := NewHub(wsCoverageSecret, nil)
+	hub := NewHub(wsCoverageSecret, nil, nil)
 	req := httptest.NewRequest("GET", "/ws?token=qs-token", nil)
 	req.Header.Set("Sec-WebSocket-Protocol", "")
 	token := hub.extractToken(req)

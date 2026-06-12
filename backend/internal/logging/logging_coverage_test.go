@@ -23,7 +23,7 @@ import (
 func TestNew_JsonFormat(t *testing.T) {
 	t.Parallel()
 	cfg := &config.Config{
-		App:     config.AppConfig{Version: "1.0.0", NodeEnv: "production"},
+		App:     config.AppConfig{Version: "1.0.0", AppEnv: "production"},
 		Logging: config.LoggingConfig{Level: "info", Format: "json"},
 	}
 	logger := New(cfg)
@@ -34,7 +34,7 @@ func TestNew_JsonFormat(t *testing.T) {
 func TestNew_TextFormat(t *testing.T) {
 	t.Parallel()
 	cfg := &config.Config{
-		App:     config.AppConfig{Version: "2.0.0", NodeEnv: "development"},
+		App:     config.AppConfig{Version: "2.0.0", AppEnv: "development"},
 		Logging: config.LoggingConfig{Level: "debug", Format: "text"},
 	}
 	logger := New(cfg)

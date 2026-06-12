@@ -14,7 +14,7 @@ import (
 )
 
 func newTestHubSched() *websocket.Hub {
-	return websocket.NewHub("test-secret", nil)
+	return websocket.NewHub("test-secret", nil, nil)
 }
 
 type mockCollector struct {
@@ -378,10 +378,11 @@ func TestCollectOnce_UnknownProtocol(t *testing.T) {
 func TestCollectOnce_WithStatusChange(t *testing.T) {
 	t.Parallel()
 	db := &mockDB{
-		getLatestMetricsFn: func(ctx context.Context) ([]models.Metric, error) {
-			return []models.Metric{
-				{DeviceID: 1, Status: "up"},
-			}, nil
+		getLatestMetricForDeviceFn: func(ctx context.Context, deviceID int64) (*models.Metric, error) {
+			if deviceID == 1 {
+				return &models.Metric{DeviceID: 1, Status: "up"}, nil
+			}
+			return nil, nil
 		},
 	}
 	reg := collectors.NewRegistry()

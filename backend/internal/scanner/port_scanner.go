@@ -2,8 +2,8 @@ package scanner
 
 import (
 	"context"
-	"fmt"
 	"net"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -54,7 +54,7 @@ func ScanPorts(ctx context.Context, host string, ports []int, opts ScanOptions) 
 			default:
 			}
 
-			addr := fmt.Sprintf("%s:%d", host, p)
+			addr := net.JoinHostPort(host, strconv.Itoa(p))
 			conn, err := net.DialTimeout("tcp", addr, opts.Timeout)
 			if err != nil {
 				results[idx] = PortResult{Port: p, Open: false}

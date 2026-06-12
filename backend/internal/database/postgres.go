@@ -17,10 +17,26 @@ import (
 type Postgres struct {
 	pool *pgxpool.Pool
 	dsn  string
+	cfg  DatabaseConfig
 }
 
-func NewPostgres(dsn string) *Postgres {
-	return &Postgres{dsn: dsn}
+type DatabaseConfig struct {
+	MaxConns         int32
+	MinConns         int32
+	MaxConnLifetime  time.Duration
+	HealthCheckPeriod time.Duration
+}
+
+func NewPostgres(dsn string, cfg *DatabaseConfig) *Postgres {
+	if cfg == nil {
+		cfg = &DatabaseConfig{
+			MaxConns:         20,
+			MinConns:         2,
+			MaxConnLifetime:  time.Hour,
+			HealthCheckPeriod: 30 * time.Second,
+		}
+	}
+	return &Postgres{dsn: dsn, cfg: *cfg}
 }
 
 func (p *Postgres) Connect(ctx context.Context) error {
@@ -28,6 +44,10 @@ func (p *Postgres) Connect(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("parse dsn: %w", err)
 	}
+	cfg.MaxConns = p.cfg.MaxConns
+	cfg.MinConns = p.cfg.MinConns
+	cfg.MaxConnLifetime = p.cfg.MaxConnLifetime
+	cfg.HealthCheckPeriod = p.cfg.HealthCheckPeriod
 	pool, err := pgxpool.NewWithConfig(ctx, cfg)
 	if err != nil {
 		return fmt.Errorf("create pool: %w", err)
@@ -82,15 +102,41 @@ func (p *Postgres) RunMigrations(ctx context.Context) error {
 }
 
 func splitStatements(sql string) []string {
-	parts := strings.Split(sql, ";")
-	var out []string
-	for _, p := range parts {
-		s := strings.TrimSpace(p)
-		if s != "" {
-			out = append(out, s)
+	var stmts []string
+	var current strings.Builder
+	inSingleQuote := false
+	inDoubleQuote := false
+
+	for i := 0; i < len(sql); i++ {
+		c := sql[i]
+		switch {
+		case c == '\'' && !inDoubleQuote:
+			if i+1 < len(sql) && sql[i+1] == '\'' {
+				current.WriteByte(c)
+				current.WriteByte(c)
+				i++ // skip escaped quote
+			} else {
+				inSingleQuote = !inSingleQuote
+				current.WriteByte(c)
+			}
+		case c == '"' && !inSingleQuote:
+			inDoubleQuote = !inDoubleQuote
+			current.WriteByte(c)
+		case c == ';' && !inSingleQuote && !inDoubleQuote:
+			s := strings.TrimSpace(current.String())
+			if s != "" {
+				stmts = append(stmts, s)
+			}
+			current.Reset()
+		default:
+			current.WriteByte(c)
 		}
 	}
-	return out
+	s := strings.TrimSpace(current.String())
+	if s != "" {
+		stmts = append(stmts, s)
+	}
+	return stmts
 }
 
 // ── Devices ──────────────────────────────────────────────────────────────────
@@ -236,6 +282,29 @@ func (p *Postgres) GetLatestMetrics(ctx context.Context) ([]models.Metric, error
 	}
 	defer rows.Close()
 	return scanMetricsWithDevice(rows)
+}
+
+func (p *Postgres) GetLatestMetricForDevice(ctx context.Context, deviceID int64) (*models.Metric, error) {
+	rows, err := p.pool.Query(ctx, `
+		SELECT m.id, m.device_id, m.timestamp, m.status, m.response_time, m.packet_loss,
+		       m.cpu_usage, m.memory_usage, m.bandwidth, m.custom_value, m.details,
+		       d.protocol, d.name
+		FROM metrics m
+		INNER JOIN devices d ON d.id = m.device_id
+		WHERE m.device_id=$1
+		ORDER BY m.timestamp DESC LIMIT 1`, deviceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	metrics, err := scanMetricsWithDevice(rows)
+	if err != nil {
+		return nil, err
+	}
+	if len(metrics) == 0 {
+		return nil, pgx.ErrNoRows
+	}
+	return &metrics[0], nil
 }
 
 func (p *Postgres) GetDeviceMetrics(ctx context.Context, deviceID int64, from, to time.Time, limit int) ([]models.Metric, error) {
@@ -428,6 +497,26 @@ func (p *Postgres) DeleteAlert(ctx context.Context, id int64) error {
 	return err
 }
 
+func (p *Postgres) FindActiveAlertByRuleAndDevice(ctx context.Context, ruleID, deviceID int64) (*models.Alert, error) {
+	rows, err := p.pool.Query(ctx, `
+		SELECT id,COALESCE(device_id,0),COALESCE(device_name,''),severity,message,status,rule_id,
+		       created_at,acknowledged_at,resolved_at,acknowledged_by,resolved_by
+		FROM alerts WHERE status='active' AND rule_id=$1 AND device_id=$2
+		LIMIT 1`, ruleID, deviceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	alerts, err := scanAlerts(rows)
+	if err != nil {
+		return nil, err
+	}
+	if len(alerts) == 0 {
+		return nil, pgx.ErrNoRows
+	}
+	return &alerts[0], nil
+}
+
 func scanAlerts(rows pgx.Rows) ([]models.Alert, error) {
 	var out []models.Alert
 	for rows.Next() {
@@ -507,6 +596,18 @@ func (p *Postgres) GetAPIKey(ctx context.Context, keyHash string) (*models.APIKe
 	err := p.pool.QueryRow(ctx, `
 		SELECT id,user_id,key_hash,description,created_at,last_used_at
 		FROM api_keys WHERE key_hash=$1`, keyHash).Scan(
+		&k.ID, &k.UserID, &k.KeyHash, &k.Description, &k.CreatedAt, &k.LastUsedAt)
+	if err != nil {
+		return nil, err
+	}
+	return &k, nil
+}
+
+func (p *Postgres) GetAPIKeyByID(ctx context.Context, id int64) (*models.APIKey, error) {
+	var k models.APIKey
+	err := p.pool.QueryRow(ctx, `
+		SELECT id,user_id,key_hash,description,created_at,last_used_at
+		FROM api_keys WHERE id=$1`, id).Scan(
 		&k.ID, &k.UserID, &k.KeyHash, &k.Description, &k.CreatedAt, &k.LastUsedAt)
 	if err != nil {
 		return nil, err
@@ -711,12 +812,31 @@ func scanDashboards(rows pgx.Rows) ([]models.Dashboard, error) {
 // ── Retention ─────────────────────────────────────────────────────────────────
 
 func (p *Postgres) PruneMetrics(ctx context.Context, olderThan time.Time) (int64, error) {
-	t, err := p.pool.Exec(ctx, `DELETE FROM metrics WHERE timestamp < $1`, olderThan)
+	dur := time.Since(olderThan)
+	if dur < 0 {
+		return 0, nil
+	}
+	t, err := p.pool.Exec(ctx,
+		`SELECT drop_chunks('metrics', 'timestamp', older_than => $1::interval)`,
+		dur.String())
+	if err != nil {
+		// Fallback to DELETE if drop_chunks is unavailable (non-TimescaleDB)
+		t, err = p.pool.Exec(ctx, `DELETE FROM metrics WHERE timestamp < $1`, olderThan)
+	}
 	return t.RowsAffected(), err
 }
 
 func (p *Postgres) PruneFlows(ctx context.Context, olderThan time.Time) (int64, error) {
-	t, err := p.pool.Exec(ctx, `DELETE FROM flows WHERE created_at < $1`, olderThan)
+	dur := time.Since(olderThan)
+	if dur < 0 {
+		return 0, nil
+	}
+	t, err := p.pool.Exec(ctx,
+		`SELECT drop_chunks('flows', 'created_at', older_than => $1::interval)`,
+		dur.String())
+	if err != nil {
+		t, err = p.pool.Exec(ctx, `DELETE FROM flows WHERE created_at < $1`, olderThan)
+	}
 	return t.RowsAffected(), err
 }
 
@@ -728,29 +848,21 @@ func (p *Postgres) PruneAlerts(ctx context.Context, olderThan time.Time) (int64,
 // ── Stats ─────────────────────────────────────────────────────────────────────
 
 func (p *Postgres) GetDashboardStats(ctx context.Context) (map[string]any, error) {
-	var totalDevices, onlineDevices, offlineDevices, activeAlerts int64
-	var totalMetrics24h int64
+	since := time.Now().Add(-24 * time.Hour)
+	var totalDevices, onlineDevices, offlineDevices, activeAlerts, totalMetrics24h int64
 	var avgRT *float64
 
-	since := time.Now().Add(-24 * time.Hour)
-
-	if err := p.pool.QueryRow(ctx, `SELECT COUNT(*) FROM devices`).Scan(&totalDevices); err != nil {
-		slog.Error("dashboard_stats: count devices", "error", err)
-	}
-	if err := p.pool.QueryRow(ctx, `SELECT COUNT(*) FROM devices WHERE status='up'`).Scan(&onlineDevices); err != nil {
-		slog.Error("dashboard_stats: count online devices", "error", err)
-	}
-	if err := p.pool.QueryRow(ctx, `SELECT COUNT(*) FROM devices WHERE status='down'`).Scan(&offlineDevices); err != nil {
-		slog.Error("dashboard_stats: count offline devices", "error", err)
-	}
-	if err := p.pool.QueryRow(ctx, `SELECT COUNT(*) FROM alerts WHERE status='active'`).Scan(&activeAlerts); err != nil {
-		slog.Error("dashboard_stats: count active alerts", "error", err)
-	}
-	if err := p.pool.QueryRow(ctx, `SELECT COUNT(*) FROM metrics WHERE timestamp > $1`, since).Scan(&totalMetrics24h); err != nil {
-		slog.Error("dashboard_stats: count metrics 24h", "error", err)
-	}
-	if err := p.pool.QueryRow(ctx, `SELECT AVG(response_time) FROM metrics WHERE timestamp > $1`, since).Scan(&avgRT); err != nil {
-		slog.Error("dashboard_stats: avg response time", "error", err)
+	err := p.pool.QueryRow(ctx, `
+		SELECT
+			(SELECT COUNT(*) FROM devices),
+			(SELECT COUNT(*) FROM devices WHERE status='up'),
+			(SELECT COUNT(*) FROM devices WHERE status='down'),
+			(SELECT COUNT(*) FROM alerts WHERE status='active'),
+			(SELECT COUNT(*) FROM metrics WHERE timestamp > $1),
+			(SELECT AVG(response_time) FROM metrics WHERE timestamp > $1)
+	`, since).Scan(&totalDevices, &onlineDevices, &offlineDevices, &activeAlerts, &totalMetrics24h, &avgRT)
+	if err != nil {
+		slog.Error("dashboard_stats query failed", "error", err)
 	}
 
 	return map[string]any{

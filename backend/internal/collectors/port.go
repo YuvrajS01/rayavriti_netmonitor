@@ -2,8 +2,8 @@ package collectors
 
 import (
 	"context"
-	"fmt"
 	"net"
+	"strconv"
 	"time"
 
 	"github.com/rayavriti/netmonitor-backend/internal/models"
@@ -18,7 +18,7 @@ func (PortCollector) Collect(ctx context.Context, device *models.Device) (*Resul
 	if port == 0 {
 		port = 80
 	}
-	addr := fmt.Sprintf("%s:%d", device.IPAddress, port)
+	addr := net.JoinHostPort(device.IPAddress, strconv.Itoa(port))
 	start := time.Now()
 	conn, err := net.DialTimeout("tcp", addr, 5*time.Second)
 	dur := time.Since(start)

@@ -13,7 +13,7 @@ import (
 )
 
 func newTestCaptureHandler(db *mockDB) *CaptureHandler {
-	hub := websocket.NewHub("test-secret", nil)
+	hub := websocket.NewHub("test-secret", nil, nil)
 	go hub.Run()
 	return NewCaptureHandler(db, hub)
 }
@@ -338,7 +338,8 @@ func TestIsValidIPv4(t *testing.T) {
 		{"192.168.1.1", true},
 		{"10.0.0.1", true},
 		{"255.255.255.255", true},
-		{"256.1.1.1", true}, // our implementation doesn't check range
+		{"256.1.1.1", false},
+		{"1.1.1.256", false},
 		{"abc.def.ghi.jkl", false},
 		{"1.2.3", false},
 		{"1.2.3.4.5", false},
@@ -428,7 +429,7 @@ func TestCaptureStart_AlreadyRunning(t *testing.T) {
 
 	// Start once to set running=1
 	h.running = 1
-	w, req := authenticatedRequest("POST", "/api/v1/capture/start", `{"interface":"eth0"}`)
+	w, req := authenticatedRequest("POST", "/api/v1/capture/start", `{"interface":"lo"}`)
 	h.Start(w, req)
 	if w.Code != http.StatusConflict {
 		t.Fatalf("expected 409, got %d", w.Code)

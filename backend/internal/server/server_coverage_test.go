@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/rayavriti/netmonitor-backend/internal/config"
+	"github.com/rayavriti/netmonitor-backend/internal/database"
 	"github.com/rayavriti/netmonitor-backend/internal/logging"
 	"github.com/rayavriti/netmonitor-backend/internal/models"
 	"github.com/rayavriti/netmonitor-backend/internal/websocket"
@@ -26,6 +27,9 @@ func (m *serverMockDB) Ping(ctx context.Context) error                        { 
 func (m *serverMockDB) RunMigrations(ctx context.Context) error               { return nil }
 func (m *serverMockDB) GetDevices(ctx context.Context) ([]models.Device, error) {
 	return nil, nil
+}
+func (m *serverMockDB) GetDevicesFiltered(ctx context.Context, f database.DeviceFilter) ([]models.Device, int, error) {
+	return nil, 0, nil
 }
 func (m *serverMockDB) GetDevice(ctx context.Context, id int64) (*models.Device, error) {
 	return nil, nil
@@ -101,6 +105,12 @@ func (m *serverMockDB) GetAlertCounts(ctx context.Context) (models.AlertCounts, 
 func (m *serverMockDB) FindActiveAlert(ctx context.Context, deviceID int64, message string) (*models.Alert, error) {
 	return nil, nil
 }
+func (m *serverMockDB) FindActiveAlertByRuleAndDevice(ctx context.Context, ruleID, deviceID int64) (*models.Alert, error) {
+	return nil, nil
+}
+func (m *serverMockDB) GetLatestMetricForDevice(ctx context.Context, deviceID int64) (*models.Metric, error) {
+	return nil, nil
+}
 func (m *serverMockDB) GetAlertsForReport(ctx context.Context, from, to time.Time, deviceID *int64) ([]models.Alert, error) {
 	return nil, nil
 }
@@ -149,6 +159,7 @@ func (m *serverMockDB) UpdateUser(ctx context.Context, id int64, u *models.User)
 }
 func (m *serverMockDB) DeleteUser(ctx context.Context, id int64) error          { return nil }
 func (m *serverMockDB) GetAPIKey(ctx context.Context, keyHash string) (*models.APIKey, error) { return nil, nil }
+func (m *serverMockDB) GetAPIKeyByID(ctx context.Context, id int64) (*models.APIKey, error)  { return nil, nil }
 func (m *serverMockDB) CreateAPIKey(ctx context.Context, k *models.APIKey) (*models.APIKey, error) {
 	return nil, nil
 }
@@ -210,6 +221,13 @@ func (m *serverMockDB) PruneMetrics(ctx context.Context, olderThan time.Time) (i
 func (m *serverMockDB) PruneFlows(ctx context.Context, olderThan time.Time) (int64, error) { return 0, nil }
 func (m *serverMockDB) PruneAlerts(ctx context.Context, olderThan time.Time) (int64, error) { return 0, nil }
 func (m *serverMockDB) GetDashboardStats(ctx context.Context) (map[string]any, error) { return nil, nil }
+func (m *serverMockDB) CreateRefreshToken(ctx context.Context, tokenHash string, userID int64, expiresAt time.Time) error {
+	return nil
+}
+func (m *serverMockDB) GetRefreshToken(ctx context.Context, tokenHash string) (*database.RefreshToken, error) { return nil, nil }
+func (m *serverMockDB) DeleteRefreshToken(ctx context.Context, tokenHash string) error                       { return nil }
+func (m *serverMockDB) DeleteRefreshTokensByUser(ctx context.Context, userID int64) error                    { return nil }
+func (m *serverMockDB) CleanupExpiredRefreshTokens(ctx context.Context) (int64, error)                       { return 0, nil }
 
 func freePort(t *testing.T) int {
 	t.Helper()
@@ -224,7 +242,7 @@ func testConfig(port int) *config.Config {
 	return &config.Config{
 		App: config.AppConfig{
 			Port:    port,
-			NodeEnv: "development",
+			AppEnv: "development",
 			Version: "test",
 		},
 		Auth: config.AuthConfig{
@@ -240,7 +258,7 @@ func testConfig(port int) *config.Config {
 func TestNew(t *testing.T) {
 	t.Parallel()
 	db := &serverMockDB{}
-	hub := websocket.NewHub("test-secret", nil)
+	hub := websocket.NewHub("test-secret", nil, nil)
 	cfg := testConfig(0)
 	logger := logging.New(cfg)
 
@@ -268,7 +286,7 @@ func TestStart_HealthEndpoint(t *testing.T) {
 	port := freePort(t)
 	cfg := testConfig(port)
 	db := &serverMockDB{}
-	hub := websocket.NewHub("test-secret", nil)
+	hub := websocket.NewHub("test-secret", nil, nil)
 	logger := logging.New(cfg)
 
 	srv := New(cfg, db, hub, logger)
@@ -295,7 +313,7 @@ func TestStart_V1AuthLogin(t *testing.T) {
 	port := freePort(t)
 	cfg := testConfig(port)
 	db := &serverMockDB{}
-	hub := websocket.NewHub("test-secret", nil)
+	hub := websocket.NewHub("test-secret", nil, nil)
 	logger := logging.New(cfg)
 
 	srv := New(cfg, db, hub, logger)
@@ -318,7 +336,7 @@ func TestStart_V1AuthLogout(t *testing.T) {
 	port := freePort(t)
 	cfg := testConfig(port)
 	db := &serverMockDB{}
-	hub := websocket.NewHub("test-secret", nil)
+	hub := websocket.NewHub("test-secret", nil, nil)
 	logger := logging.New(cfg)
 
 	srv := New(cfg, db, hub, logger)
@@ -340,7 +358,7 @@ func TestStart_V1AuthRefresh(t *testing.T) {
 	port := freePort(t)
 	cfg := testConfig(port)
 	db := &serverMockDB{}
-	hub := websocket.NewHub("test-secret", nil)
+	hub := websocket.NewHub("test-secret", nil, nil)
 	logger := logging.New(cfg)
 
 	srv := New(cfg, db, hub, logger)
@@ -362,7 +380,7 @@ func TestStart_ProtectedRoute_NoAuth(t *testing.T) {
 	port := freePort(t)
 	cfg := testConfig(port)
 	db := &serverMockDB{}
-	hub := websocket.NewHub("test-secret", nil)
+	hub := websocket.NewHub("test-secret", nil, nil)
 	logger := logging.New(cfg)
 
 	srv := New(cfg, db, hub, logger)
@@ -395,7 +413,7 @@ func TestStart_ProtectedRoute_WithAuth(t *testing.T) {
 	port := freePort(t)
 	cfg := testConfig(port)
 	db := &serverMockDB{}
-	hub := websocket.NewHub("test-secret", nil)
+	hub := websocket.NewHub("test-secret", nil, nil)
 	logger := logging.New(cfg)
 
 	srv := New(cfg, db, hub, logger)
@@ -421,7 +439,7 @@ func TestStart_V1MetricsQuery(t *testing.T) {
 	port := freePort(t)
 	cfg := testConfig(port)
 	db := &serverMockDB{}
-	hub := websocket.NewHub("test-secret", nil)
+	hub := websocket.NewHub("test-secret", nil, nil)
 	logger := logging.New(cfg)
 
 	srv := New(cfg, db, hub, logger)
@@ -443,7 +461,7 @@ func TestStart_V1CaptureInterfaces(t *testing.T) {
 	port := freePort(t)
 	cfg := testConfig(port)
 	db := &serverMockDB{}
-	hub := websocket.NewHub("test-secret", nil)
+	hub := websocket.NewHub("test-secret", nil, nil)
 	logger := logging.New(cfg)
 
 	srv := New(cfg, db, hub, logger)
@@ -465,7 +483,7 @@ func TestStart_V1Sensors(t *testing.T) {
 	port := freePort(t)
 	cfg := testConfig(port)
 	db := &serverMockDB{}
-	hub := websocket.NewHub("test-secret", nil)
+	hub := websocket.NewHub("test-secret", nil, nil)
 	logger := logging.New(cfg)
 
 	srv := New(cfg, db, hub, logger)
@@ -487,7 +505,7 @@ func TestStart_V1AlertRules(t *testing.T) {
 	port := freePort(t)
 	cfg := testConfig(port)
 	db := &serverMockDB{}
-	hub := websocket.NewHub("test-secret", nil)
+	hub := websocket.NewHub("test-secret", nil, nil)
 	logger := logging.New(cfg)
 
 	srv := New(cfg, db, hub, logger)
@@ -509,7 +527,7 @@ func TestStart_V1NotificationChannels(t *testing.T) {
 	port := freePort(t)
 	cfg := testConfig(port)
 	db := &serverMockDB{}
-	hub := websocket.NewHub("test-secret", nil)
+	hub := websocket.NewHub("test-secret", nil, nil)
 	logger := logging.New(cfg)
 
 	srv := New(cfg, db, hub, logger)
@@ -531,7 +549,7 @@ func TestStart_V1SystemInfo(t *testing.T) {
 	port := freePort(t)
 	cfg := testConfig(port)
 	db := &serverMockDB{}
-	hub := websocket.NewHub("test-secret", nil)
+	hub := websocket.NewHub("test-secret", nil, nil)
 	logger := logging.New(cfg)
 
 	srv := New(cfg, db, hub, logger)
@@ -553,7 +571,7 @@ func TestStart_NotFound(t *testing.T) {
 	port := freePort(t)
 	cfg := testConfig(port)
 	db := &serverMockDB{}
-	hub := websocket.NewHub("test-secret", nil)
+	hub := websocket.NewHub("test-secret", nil, nil)
 	logger := logging.New(cfg)
 
 	srv := New(cfg, db, hub, logger)
@@ -575,7 +593,7 @@ func TestStart_V12FAVerify(t *testing.T) {
 	port := freePort(t)
 	cfg := testConfig(port)
 	db := &serverMockDB{}
-	hub := websocket.NewHub("test-secret", nil)
+	hub := websocket.NewHub("test-secret", nil, nil)
 	logger := logging.New(cfg)
 
 	srv := New(cfg, db, hub, logger)
@@ -597,7 +615,7 @@ func TestStart_V1AuthMe_Unauthorized(t *testing.T) {
 	port := freePort(t)
 	cfg := testConfig(port)
 	db := &serverMockDB{}
-	hub := websocket.NewHub("test-secret", nil)
+	hub := websocket.NewHub("test-secret", nil, nil)
 	logger := logging.New(cfg)
 
 	srv := New(cfg, db, hub, logger)
@@ -619,7 +637,7 @@ func TestStart_LegacyAuthRoutes(t *testing.T) {
 	port := freePort(t)
 	cfg := testConfig(port)
 	db := &serverMockDB{}
-	hub := websocket.NewHub("test-secret", nil)
+	hub := websocket.NewHub("test-secret", nil, nil)
 	logger := logging.New(cfg)
 
 	srv := New(cfg, db, hub, logger)
@@ -660,7 +678,7 @@ func TestStart_LegacyDeviceRoutes_Unauthorized(t *testing.T) {
 	port := freePort(t)
 	cfg := testConfig(port)
 	db := &serverMockDB{}
-	hub := websocket.NewHub("test-secret", nil)
+	hub := websocket.NewHub("test-secret", nil, nil)
 	logger := logging.New(cfg)
 
 	srv := New(cfg, db, hub, logger)
@@ -681,9 +699,9 @@ func TestStart_StartProduction(t *testing.T) {
 	t.Parallel()
 	port := freePort(t)
 	cfg := testConfig(port)
-	cfg.App.NodeEnv = "production"
+	cfg.App.AppEnv = "production"
 	db := &serverMockDB{}
-	hub := websocket.NewHub("test-secret", nil)
+	hub := websocket.NewHub("test-secret", nil, nil)
 	logger := logging.New(cfg)
 
 	srv := New(cfg, db, hub, logger)
@@ -706,7 +724,7 @@ func TestStart_CORSOrigins(t *testing.T) {
 	cfg := testConfig(port)
 	cfg.App.CORSOrigins = []string{"http://example.com"}
 	db := &serverMockDB{}
-	hub := websocket.NewHub("test-secret", nil)
+	hub := websocket.NewHub("test-secret", nil, nil)
 	logger := logging.New(cfg)
 
 	srv := New(cfg, db, hub, logger)
@@ -729,7 +747,7 @@ func TestRateLimiter_MultipleIPsExceedLimit(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	handler := RateLimiter(1, 1)(inner)
+	handler := RateLimiter(context.Background(), 1, 1)(inner)
 
 	// IP 1: first request OK, second rate limited
 	req1 := httptest.NewRequest(http.MethodGet, "/", nil)

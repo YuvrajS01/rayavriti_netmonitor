@@ -40,7 +40,13 @@ func run() error {
 	logger.Info("Rayavriti NetMonitor starting", "version", cfg.App.Version)
 
 	// 3. Connect to database
-	db := database.NewPostgres(cfg.Database.DSN)
+	dbCfg := &database.DatabaseConfig{
+		MaxConns:          int32(cfg.Database.MaxConns),
+		MinConns:          int32(cfg.Database.MinConns),
+		MaxConnLifetime:   cfg.Database.MaxConnLifetime,
+		HealthCheckPeriod: cfg.Database.HealthCheckPeriod,
+	}
+	db := database.NewPostgres(cfg.Database.DSN, dbCfg)
 	if err := db.Connect(context.Background()); err != nil {
 		return fmt.Errorf("database connect: %w", err)
 	}
@@ -56,6 +62,9 @@ func run() error {
 	// 5. Seed defaults
 	adminPass := cfg.Auth.AdminPassword
 	if adminPass == "" {
+		if cfg.App.AppEnv == "production" {
+			return fmt.Errorf("ADMIN_PASSWORD is required in production mode")
+		}
 		adminPass = "admin123"
 		logger.Warn("Using default admin password - set ADMIN_PASSWORD env var")
 	}
@@ -93,7 +102,7 @@ func run() error {
 			},
 		}, nil
 	}
-	hub := websocket.NewHub(cfg.Auth.JWTSecret, bootstrapFn)
+	hub := websocket.NewHub(cfg.Auth.JWTSecret, bootstrapFn, cfg.App.CORSOrigins)
 	go hub.Run()
 	logger.Info("WebSocket hub started")
 

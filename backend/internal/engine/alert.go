@@ -390,17 +390,11 @@ func (e *AlertEngine) sendNotifications(ctx context.Context, rule *models.AlertR
 // ── helpers ──────────────────────────────────────────────────────────────────
 
 func (e *AlertEngine) findActiveAlertForRule(ctx context.Context, ruleID, deviceID int64) *models.Alert {
-	alerts, _, err := e.db.GetAlerts(ctx, "active", 200, 0)
+	alert, err := e.db.FindActiveAlertByRuleAndDevice(ctx, ruleID, deviceID)
 	if err != nil {
 		return nil
 	}
-	for i := range alerts {
-		a := &alerts[i]
-		if a.RuleID != nil && *a.RuleID == ruleID && a.DeviceID == deviceID {
-			return a
-		}
-	}
-	return nil
+	return alert
 }
 
 func (e *AlertEngine) recordHistory(ctx context.Context, alertID, ruleID int64, action, actor string, details map[string]any) {

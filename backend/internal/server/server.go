@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/rs/cors"
@@ -21,6 +22,7 @@ type Server struct {
 	hub        *websocket.Hub
 	logger     *logging.Logger
 	httpServer *http.Server
+	cancel     context.CancelFunc
 }
 
 func New(cfg *config.Config, db database.Database, hub *websocket.Hub, logger *logging.Logger) *Server {
@@ -28,10 +30,18 @@ func New(cfg *config.Config, db database.Database, hub *websocket.Hub, logger *l
 }
 
 func (s *Server) Start() error {
+	ctx, cancel := context.WithCancel(context.Background())
+	s.cancel = cancel
 	r := chi.NewRouter()
 
 	// CORS (before logging to avoid logging preflight OPTIONS requests)
-	allowAll := s.cfg.App.NodeEnv != "production" || len(s.cfg.App.CORSOrigins) == 0
+	allowAll := s.cfg.App.AppEnv != "production"
+	if allowAll && len(s.cfg.App.CORSOrigins) > 0 {
+		allowAll = false
+	}
+	if s.cfg.App.AppEnv == "production" && len(s.cfg.App.CORSOrigins) == 0 {
+		s.logger.Warn("CORS_ORIGINS is empty in production — all origins will be blocked")
+	}
 	corsHandler := cors.New(cors.Options{
 		AllowOriginFunc: func(origin string) bool {
 			if allowAll {
@@ -51,12 +61,13 @@ func (s *Server) Start() error {
 	r.Use(corsHandler.Handler)
 
 	// Middleware
+	r.Use(RequestID)
 	r.Use(Recovery)
 	r.Use(SecurityHeaders)
 	r.Use(logging.RequestLogger(s.logger, s.cfg.Logging.SlowRequestMs))
 	r.Use(RequestSize(1 << 20)) // 1MB
-	if s.cfg.App.NodeEnv == "production" {
-		r.Use(RateLimiter(100, 200))
+	if s.cfg.App.AppEnv == "production" {
+		r.Use(RateLimiter(ctx, 100, 200))
 	}
 
 	// Auth helper
@@ -109,7 +120,7 @@ func (s *Server) Start() error {
 	// Protected routes
 	r.Group(func(r chi.Router) {
 		r.Use(requireAuth)
-		r.Use(auth.UserRateLimiter())
+		r.Use(auth.UserRateLimiter(ctx))
 		r.Get("/api/auth/me", authH.Me)
 		r.Get("/api/stats", health.Stats)
 
@@ -226,10 +237,13 @@ func (s *Server) Start() error {
 		// System Info
 		r.Get("/api/v1/system/info", system.Info)
 
-		// Simulator
-		r.Post("/api/simulator/metrics", simulator.Metrics)
-		r.Post("/api/simulator/flows", simulator.Flows)
-		r.Post("/api/simulator/alert", simulator.Alert)
+		// Simulator (admin only)
+		r.Group(func(r chi.Router) {
+			r.Use(auth.RequireRole("admin"))
+			r.Post("/api/simulator/metrics", simulator.Metrics)
+			r.Post("/api/simulator/flows", simulator.Flows)
+			r.Post("/api/simulator/alert", simulator.Alert)
+		})
 	})
 
 	// 404
@@ -238,8 +252,11 @@ func (s *Server) Start() error {
 	})
 
 	s.httpServer = &http.Server{
-		Addr:    fmt.Sprintf(":%d", s.cfg.App.Port),
-		Handler: r,
+		Addr:         fmt.Sprintf(":%d", s.cfg.App.Port),
+		Handler:      r,
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 30 * time.Second,
+		IdleTimeout:  60 * time.Second,
 	}
 
 	s.logger.Info("HTTP server starting", "port", s.cfg.App.Port)
@@ -247,6 +264,9 @@ func (s *Server) Start() error {
 }
 
 func (s *Server) Shutdown(ctx context.Context) error {
+	if s.cancel != nil {
+		s.cancel()
+	}
 	if s.httpServer != nil {
 		return s.httpServer.Shutdown(ctx)
 	}

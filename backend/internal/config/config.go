@@ -19,7 +19,7 @@ type Config struct {
 
 type AppConfig struct {
 	Port       int
-	NodeEnv    string
+	AppEnv     string
 	Version    string
 	CORSOrigins []string
 }
@@ -96,7 +96,7 @@ func Load() (*Config, error) {
 	cfg := &Config{
 		App: AppConfig{
 			Port:       envInt("PORT", 3000),
-			NodeEnv:    envStr("NODE_ENV", "development"),
+			AppEnv:     envStr("APP_ENV", envStr("NODE_ENV", "development")),
 			Version:    envStr("VERSION", "1.1.0"),
 			CORSOrigins: envSlice("CORS_ORIGINS"),
 		},
