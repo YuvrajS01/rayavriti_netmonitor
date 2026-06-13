@@ -1,5 +1,5 @@
 # ── Stage 1: Build React client ─────────────────────────────────
-FROM node:22-alpine AS client-builder
+FROM node:24-alpine AS client-builder
 
 WORKDIR /app
 
@@ -75,7 +75,7 @@ CMD ["air", "-c", ".air.toml"]
 
 # ── Stage 5: Client development (Vite dev server) ──────────────
 # Only built when targeting: docker build --target client-development .
-FROM node:22-alpine AS client-development
+FROM node:24-alpine AS client-development
 
 WORKDIR /app
 
