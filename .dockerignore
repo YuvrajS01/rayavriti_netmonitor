@@ -3,7 +3,6 @@ node_modules/
 client/node_modules/
 
 # Build output (built inside container)
-server/dist/
 client/dist/
 dist/
 dist-ssr/

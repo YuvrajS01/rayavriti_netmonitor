@@ -5,8 +5,8 @@ import { setCredentials } from '../store/authSlice';
 import { login } from '../api/client';
 
 export default function Login() {
-  const [username, setUsername] = useState('admin');
-  const [password, setPassword] = useState('admin123');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
@@ -53,7 +53,7 @@ export default function Login() {
         </div>
 
         {/* Login Card */}
-        <div className="bg-surface-container-high/80 backdrop-blur-xl rounded-xl p-8 neon-glow border border-primary/10">
+        <div className="bg-surface-container-high/80 glass-panel-light rounded-xl p-8 neon-glow border border-primary/10">
           <div className="mb-8">
             <h2 className="font-headline text-lg text-on-surface tracking-wide">Account Login</h2>
             <div className="h-0.5 w-12 bg-primary mt-2" />
@@ -62,7 +62,7 @@ export default function Login() {
           <form className="space-y-6" onSubmit={handleSubmit}>
             <div className="space-y-2">
               <label className="font-label text-[10px] tracking-widest text-on-surface-variant uppercase ml-1">Username</label>
-              <div className="relative flex items-center bg-surface-container-highest rounded-lg px-4 py-3 border border-transparent transition-all duration-300 geometric-input">
+              <div className="relative flex items-center bg-surface-container-highest rounded-lg px-4 py-3 border border-transparent transition-[border-color] duration-300 geometric-input">
                 <span className="material-symbols-outlined text-outline text-lg mr-3">person</span>
                 <input
                   className="bg-transparent border-none p-0 w-full text-on-surface placeholder:text-outline focus:ring-0 text-sm tracking-tight font-body outline-none"
@@ -76,8 +76,8 @@ export default function Login() {
 
             <div className="space-y-2">
               <label className="font-label text-[10px] tracking-widest text-on-surface-variant uppercase ml-1">Password</label>
-              <div className="relative flex items-center bg-surface-container-highest rounded-lg px-4 py-3 border border-transparent transition-all duration-300 geometric-input">
-                <span className="material-symbols-outlined text-outline text-lg mr-3">lock_open</span>
+              <div className="relative flex items-center bg-surface-container-highest rounded-lg px-4 py-3 border border-transparent transition-[border-color] duration-300 geometric-input">
+                <span className="material-symbols-outlined text-outline text-lg mr-3">lock</span>
                 <input
                   className="bg-transparent border-none p-0 w-full text-on-surface placeholder:text-outline focus:ring-0 text-sm tracking-tight font-body outline-none"
                   placeholder="••••••••••••"
@@ -91,7 +91,7 @@ export default function Login() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-primary hover:bg-primary-container text-on-primary font-headline font-bold py-4 rounded-lg transition-all duration-300 flex items-center justify-center space-x-2 group active:scale-95 shadow-[0_4px_20px_rgba(217,253,58,0.2)] disabled:opacity-50"
+              className="w-full bg-primary hover:bg-primary-container text-on-primary font-headline font-bold py-4 rounded-lg transition-[background-color,transform] duration-300 flex items-center justify-center space-x-2 group active:scale-95 shadow-[0_4px_20px_rgba(217,253,58,0.2)] disabled:opacity-50"
             >
               <span className="tracking-widest">{loading ? 'Signing In...' : 'Sign In'}</span>
               <span className="material-symbols-outlined transition-transform duration-300 group-hover:translate-x-1">arrow_forward</span>
@@ -110,7 +110,7 @@ export default function Login() {
             </div>
             <div className="flex items-center space-x-2">
               <span className="material-symbols-outlined text-[14px] text-outline">verified_user</span>
-              <span className="font-label text-[10px] text-on-surface-variant tracking-widest uppercase">AES-256 Encrypted</span>
+              <span className="font-label text-[10px] text-on-surface-variant tracking-widest uppercase">TLS Encrypted</span>
             </div>
           </div>
           <p className="font-label text-[9px] text-outline uppercase tracking-[0.2em] leading-relaxed">
