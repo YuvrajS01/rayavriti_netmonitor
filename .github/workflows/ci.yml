@@ -41,11 +41,12 @@ jobs:
         run: go vet ./...
         working-directory: backend
 
+      - name: Install golangci-lint
+        run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v6
-        with:
-          version: latest
-          working-directory: backend
+        run: golangci-lint run ./...
+        working-directory: backend
 
       - name: Frontend lint
         run: npm run lint -w client
