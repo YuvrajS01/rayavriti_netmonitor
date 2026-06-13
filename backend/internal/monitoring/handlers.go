@@ -2,6 +2,7 @@ package monitoring
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -104,10 +105,97 @@ func (h *MonitoringHandler) SystemLogs(w http.ResponseWriter, r *http.Request) {
 // SystemLogsStats returns log volume statistics.
 // GET /api/v1/system/logs/stats
 func (h *MonitoringHandler) SystemLogsStats(w http.ResponseWriter, r *http.Request) {
-	// TODO: Implement log volume stats (counts by level, component, hour)
-	// This requires aggregation queries not yet in the DB interface.
+	httpReqs, err := h.db.GetRecentHTTPRequests(r.Context(), 1000)
+	if err != nil {
+		httputil.SendError(w, http.StatusInternalServerError, "failed to query HTTP logs for stats")
+		return
+	}
+	dbQueries, err := h.db.GetRecentDBQueries(r.Context(), 1000)
+	if err != nil {
+		httputil.SendError(w, http.StatusInternalServerError, "failed to query DB logs for stats")
+		return
+	}
+	collectorRuns, err := h.db.GetRecentCollectorRuns(r.Context(), 1000)
+	if err != nil {
+		httputil.SendError(w, http.StatusInternalServerError, "failed to query collector logs for stats")
+		return
+	}
+	auditLog, err := h.db.GetRecentAuditLog(r.Context(), 1000)
+	if err != nil {
+		httputil.SendError(w, http.StatusInternalServerError, "failed to query audit logs for stats")
+		return
+	}
+
+	type componentStats struct {
+		Count     int            `json:"count"`
+		ByStatus  map[string]int `json:"byStatus,omitempty"`
+		ByHour    map[string]int `json:"byHour,omitempty"`
+		AvgDurMs  float64        `json:"avgDurationMs,omitempty"`
+		SlowCount int            `json:"slowCount,omitempty"`
+	}
+
+	httpStats := componentStats{
+		Count:    len(httpReqs),
+		ByStatus: make(map[string]int),
+		ByHour:   make(map[string]int),
+	}
+	var totalDur float64
+	for _, req := range httpReqs {
+		httpStats.ByStatus[fmt.Sprintf("%d", req.StatusCode)]++
+		httpStats.ByHour[req.Timestamp.Format("15:00")]++
+		totalDur += req.DurationMs
+	}
+	if len(httpReqs) > 0 {
+		httpStats.AvgDurMs = totalDur / float64(len(httpReqs))
+	}
+
+	dbStats := componentStats{
+		Count:    len(dbQueries),
+		ByStatus: make(map[string]int),
+		ByHour:   make(map[string]int),
+	}
+	var totalDbDur float64
+	for _, q := range dbQueries {
+		if q.IsError {
+			dbStats.ByStatus["error"]++
+		} else {
+			dbStats.ByStatus["ok"]++
+		}
+		dbStats.ByHour[q.Timestamp.Format("15:00")]++
+		totalDbDur += q.DurationMs
+		if q.IsSlow {
+			dbStats.SlowCount++
+		}
+	}
+	if len(dbQueries) > 0 {
+		dbStats.AvgDurMs = totalDbDur / float64(len(dbQueries))
+	}
+
+	collectorStats := componentStats{
+		Count:    len(collectorRuns),
+		ByStatus: make(map[string]int),
+		ByHour:   make(map[string]int),
+	}
+	for _, run := range collectorRuns {
+		collectorStats.ByStatus[run.Status]++
+		collectorStats.ByHour[run.Timestamp.Format("15:00")]++
+	}
+
+	auditStats := componentStats{
+		Count:    len(auditLog),
+		ByStatus: make(map[string]int),
+		ByHour:   make(map[string]int),
+	}
+	for _, entry := range auditLog {
+		auditStats.ByStatus[entry.EventType]++
+		auditStats.ByHour[entry.Timestamp.Format("15:00")]++
+	}
+
 	httputil.SendOK(w, map[string]any{
-		"message": "log stats endpoint — full implementation pending DB aggregation queries",
+		"http_requests":  httpStats,
+		"db_queries":     dbStats,
+		"collector_runs": collectorStats,
+		"audit_log":      auditStats,
 	})
 }
 

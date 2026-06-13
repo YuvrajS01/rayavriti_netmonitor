@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -188,7 +189,7 @@ func run() error {
 	logger.Info("Scheduler started")
 
 	// 10. Initialize anomaly engine
-	anomalyEng := engine.NewAnomalyEngine(db)
+	anomalyEng := engine.NewAnomalyEngine(db, slog.Default())
 	anomalyEng.Start(context.Background())
 	logger.Info("Anomaly engine started")
 

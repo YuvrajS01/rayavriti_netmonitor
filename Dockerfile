@@ -42,7 +42,7 @@ EXPOSE 2055/udp
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD wget -qO- http://localhost:3000/health || exit 1
 
-ENV NODE_ENV=production
+ENV APP_ENV=production
 ENV PORT=3000
 
 ENTRYPOINT ["netmonitor"]
@@ -62,7 +62,7 @@ RUN cd backend && go mod download
 
 COPY backend/ ./backend/
 
-ENV NODE_ENV=development
+ENV APP_ENV=development
 ENV PORT=3000
 ENV DATABASE_URL=postgres://netmonitor:netmonitor@localhost:5433/netmonitor?sslmode=disable
 ENV CAPTURE_ENABLED=false

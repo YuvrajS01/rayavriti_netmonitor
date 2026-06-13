@@ -158,7 +158,10 @@ func TestSystemLogsStats(t *testing.T) {
 	handler.SystemLogsStats(rec, req)
 	assert.Equal(t, http.StatusOK, rec.Code)
 	result := decodeResponse(t, rec)
-	assert.NotNil(t, result["message"])
+	assert.NotNil(t, result["http_requests"])
+	assert.NotNil(t, result["db_queries"])
+	assert.NotNil(t, result["collector_runs"])
+	assert.NotNil(t, result["audit_log"])
 }
 
 func TestSystemMonitoring_NoMetrics(t *testing.T) {

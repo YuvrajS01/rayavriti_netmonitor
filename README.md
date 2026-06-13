@@ -2,8 +2,8 @@
   <h1>🌐 Rayavriti NetMonitor</h1>
   <p><strong>Production-grade, real-time network monitoring and traffic visibility platform.</strong></p>
 
-  ![Version](https://img.shields.io/badge/Version-1.0.0-brightgreen?style=flat-square)
-  ![Node.js](https://img.shields.io/badge/Node.js-v22+-green?style=flat-square&logo=node.js)
+  ![Version](https://img.shields.io/badge/Version-2.0.0-brightgreen?style=flat-square)
+  ![Go](https://img.shields.io/badge/Go-1.26-00ADD8?style=flat-square&logo=go)
   ![React](https://img.shields.io/badge/React-v19-blue?style=flat-square&logo=react)
   ![TypeScript](https://img.shields.io/badge/TypeScript-Strict-blue?style=flat-square&logo=typescript)
   ![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?style=flat-square&logo=docker)
@@ -33,7 +33,7 @@ Rayavriti NetMonitor is a full-stack network monitoring platform built for local
 ```text
 ┌─────────────────────────────────────────────────────────┐
 │                    React 19 SPA                         │
-│  Redux Toolkit • Recharts • Socket.IO Client • Vite    │
+│  Redux Toolkit • Recharts • WebSocket • Vite + Tailwind │
 └────────────────────────┬────────────────────────────────┘
                          │ WebSocket + REST API
 ┌────────────────────────▼────────────────────────────────┐
@@ -125,7 +125,7 @@ The development compose file starts two services:
 
 | Service | Purpose | URL |
 |---|---|---|
-| `server` | Express API, Socket.IO, collectors, hot reload | `http://localhost:3000` |
+| `server` | Go API, WebSocket, collectors, hot reload (air) | `http://localhost:3000` |
 | `client` | Vite React dev server | `http://localhost:5173` |
 
 ### Option 3: Bare Metal
@@ -152,7 +152,7 @@ cp .env.example .env
 
 > **Note:** Packet capture and SNMP require root or `NET_RAW` capability:
 > ```bash
-> sudo setcap cap_net_raw+ep $(which node)
+> sudo setcap cap_net_raw+ep ./backend/bin/netmonitor
 > # or run with sudo
 > ```
 
@@ -189,15 +189,15 @@ All configuration is via environment variables. See [`.env.example`](.env.exampl
 
 | Variable | Default | Description |
 |---|---|---|
-| `NODE_ENV` | `development` | Set to `production` for production mode |
+| `APP_ENV` | `development` | Set to `production` for production mode |
 | `PORT` | `3000` | HTTP server port |
 | `ADMIN_USERNAME` | `admin` | Admin username |
-| `DB_PATH` | `./data/netmonitor.db` | SQLite database file path |
+| `DATABASE_URL` | — | PostgreSQL connection string |
+| `REDIS_URL` | — | Redis connection string (optional) |
 | `NETFLOW_PORT` | `2055` | UDP port for NetFlow/sFlow collector |
 | `METRICS_RETENTION_DAYS` | `30` | Auto-delete metrics older than N days |
 | `FLOW_RETENTION_DAYS` | `7` | Auto-delete flow records older than N days |
 | `ALERTS_RETENTION_DAYS` | `90` | Auto-delete resolved alerts older than N days |
-| `PORT_DISCOVERY_ENABLED` | `true` | Enable automatic port scanning |
 | `CAPTURE_ENABLED` | `true` | Enable packet capture feature |
 
 ---
@@ -211,6 +211,10 @@ All configuration is via environment variables. See [`.env.example`](.env.exampl
 | `npm run build` | Build Go backend and React client for production |
 | `npm run build:client` | Build client React bundle only |
 | `npm run start` | Start production server |
+| `cd backend && make test` | Run Go tests |
+| `cd backend && make lint` | Run golangci-lint |
+| `npm run lint -w client` | Run ESLint on client |
+| `npm run typecheck -w client` | Run TypeScript type checking |
 
 ---
 
@@ -353,8 +357,9 @@ Automated pruning runs every 6 hours via the Go retention scheduler:
 
 1. **Design:** UI additions must follow the **neon-minimalist** design language
 2. **Architecture:** Backend services should integrate with the WebSocket event-driven architecture
-3. **Code Quality:** TypeScript strict mode is enabled — maintain type safety
+3. **Code Quality:** TypeScript strict mode is enabled for client; Go code must pass golangci-lint
 4. **Branching:** Create feature branches, never commit directly to `main`
+5. **Testing:** Run `make test` in backend and `npm run lint -w client` before submitting PRs
 
 ---
 
