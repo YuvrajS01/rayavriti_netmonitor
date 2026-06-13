@@ -75,7 +75,10 @@ export default function PacketCapture() {
   const [autoScroll, setAutoScroll] = useState(false);
   const tableEndRef = useRef<HTMLDivElement>(null);
   const activeSessionRef = useRef(activeSession);
-  activeSessionRef.current = activeSession;
+
+  useEffect(() => {
+    activeSessionRef.current = activeSession;
+  }, [activeSession]);
 
   const loadInterfaces = useCallback(async () => {
     try {
@@ -94,6 +97,7 @@ export default function PacketCapture() {
     } catch { /* handled */ }
   }, []);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { loadInterfaces(); loadSessions(); }, [loadInterfaces, loadSessions]);
 
   useEffect(() => {

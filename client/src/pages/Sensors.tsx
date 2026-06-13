@@ -101,6 +101,7 @@ export default function Sensors() {
     }
   }, []);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { load(); }, [load]);
 
   const total = metrics.length;

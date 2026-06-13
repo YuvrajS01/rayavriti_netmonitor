@@ -328,9 +328,10 @@ export default function AIHealth() {
     }
   }, []);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { load(); }, [load]);
 
-  const devices = data?.health || [];
+  const devices = useMemo(() => data?.health || [], [data]);
 
   const filtered = useMemo(() => {
     let list = devices.filter((device) => {

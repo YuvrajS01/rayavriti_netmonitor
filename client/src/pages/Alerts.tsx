@@ -37,6 +37,7 @@ export default function Alerts() {
     }
   }, [currentTab]);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { load(currentTab); }, [currentTab, load]);
 
   const handleAck = async (id: number) => {

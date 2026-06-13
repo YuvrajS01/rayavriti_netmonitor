@@ -37,10 +37,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const [checking, setChecking] = useState(true);
 
   useEffect(() => {
-    if (!isAuth) {
-      setChecking(false);
-      return;
-    }
+    if (!isAuth) return;
     api.get('/auth/me')
       .catch(() => {
         dispatch(clearCredentials());

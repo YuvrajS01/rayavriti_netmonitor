@@ -141,6 +141,22 @@ export default function Dashboard() {
   const lastAlertFetch = useRef(0);
   const THROTTLE_MS = 30_000;
 
+  const computeSystemInfo = (m: Metric[]) => {
+    const latest = m.slice(0, 40);
+    const total = latest.length || 1;
+    const down = latest.filter((x) => x.status === 'down').length;
+    const warn = latest.filter((x) => x.status === 'warning' || x.status === 'degraded').length;
+    const avgResp = latest.reduce((s, x) => s + (x.responseTime || 0), 0) / total;
+    const cpu = Math.min(95, Math.round(avgResp / 6 + warn * 4));
+    const memory = Math.min(95, Math.round(avgResp / 7 + down * 8 + 28));
+    setSystemInfo((prev) => ({
+      ...prev,
+      cpu,
+      memory,
+      errorRate: Math.min(100, Math.round((down / total) * 100)),
+    }));
+  };
+
   const loadData = useCallback(async () => {
     try {
       const [statsRes, metricsRes, alertsRes, insightsRes] = await Promise.all([
@@ -171,22 +187,7 @@ export default function Dashboard() {
     finally { setLoading(false); }
   }, []);
 
-  const computeSystemInfo = (m: Metric[]) => {
-    const latest = m.slice(0, 40);
-    const total = latest.length || 1;
-    const down = latest.filter((x) => x.status === 'down').length;
-    const warn = latest.filter((x) => x.status === 'warning' || x.status === 'degraded').length;
-    const avgResp = latest.reduce((s, x) => s + (x.responseTime || 0), 0) / total;
-    let cpu = Math.min(95, Math.round(avgResp / 6 + warn * 4));
-    let memory = Math.min(95, Math.round(avgResp / 7 + down * 8 + 28));
-    setSystemInfo((prev) => ({
-      ...prev,
-      cpu,
-      memory,
-      errorRate: Math.min(100, Math.round((down / total) * 100)),
-    }));
-  };
-
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { loadData(); }, [loadData]);
 
   useSocket({

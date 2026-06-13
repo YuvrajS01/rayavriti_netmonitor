@@ -26,7 +26,10 @@ const EVENT_MAP: Record<keyof SocketHandlers, string> = {
 export function useSocketEvents(handlers: SocketHandlers) {
   const { subscribe, emit } = useSocketContext();
   const handlersRef = useRef(handlers);
-  handlersRef.current = handlers;
+
+  useEffect(() => {
+    handlersRef.current = handlers;
+  }, [handlers]);
 
   useEffect(() => {
     const cleanups: (() => void)[] = [];

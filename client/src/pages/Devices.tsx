@@ -44,6 +44,7 @@ export default function Devices() {
     setMetricsMap(new Map((mRes.data || []).map((m) => [m.deviceId, m])));
   }, []);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { load(); }, [load]);
 
   useSocket({

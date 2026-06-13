@@ -27,6 +27,8 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const connectRef = useRef<() => void>(() => {});
+
   const connect = useCallback(() => {
     const token = getToken();
     if (!token) return;
@@ -85,7 +87,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       reconnectAttempts.current++;
 
       reconnectTimer.current = setTimeout(() => {
-        connect();
+        connectRef.current();
       }, delay);
     };
 
@@ -93,6 +95,10 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       ws.close();
     };
   }, [clearTimers]);
+
+  useEffect(() => {
+    connectRef.current = connect;
+  }, [connect]);
 
   useEffect(() => {
     connect();

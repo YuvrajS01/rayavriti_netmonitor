@@ -83,10 +83,12 @@ export default function Reports() {
 
   useEffect(() => {
     getDevices().then(r => setAllDevices(r.data || [])).catch(() => {});
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setRange(24);
   }, [setRange]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (from && to) refresh();
   }, [from, to, selectedDevice, refresh]);
 
