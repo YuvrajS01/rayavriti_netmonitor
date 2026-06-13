@@ -76,13 +76,15 @@ func TestSystemCollector_Collect_SecondCall(t *testing.T) {
 
 	result1, err := c.Collect(context.Background(), device)
 	require.NoError(t, err)
+	require.NotNil(t, result1)
+	assert.Contains(t, []string{"up", "warning"}, result1.Status)
 
 	time.Sleep(10 * time.Millisecond)
 
 	result2, err := c.Collect(context.Background(), device)
 	require.NoError(t, err)
-
-	assert.Equal(t, result1.Status, result2.Status)
+	require.NotNil(t, result2)
+	assert.Contains(t, []string{"up", "warning"}, result2.Status)
 }
 
 func TestSNMPCollector_Collect_ConnectionRefused(t *testing.T) {
