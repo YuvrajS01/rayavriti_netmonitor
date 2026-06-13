@@ -1,0 +1,48 @@
+linters:
+  enable:
+    - errcheck
+    - gosimple
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - bodyclose
+    - copyloopvar
+    - durationcheck
+    - errname
+    - errorlint
+    - gofmt
+    - gosec
+    - misspell
+    - nilerr
+    - unconvert
+    - whitespace
+
+linters-settings:
+  govet:
+    shadow: true
+  gosec:
+    excludes:
+      - G104   # unhandled errors — we use errcheck for this
+      - G115   # integer overflow conversion — requires careful per-case review
+      - G402   # TLS InsecureSkipVerify — intentional for self-signed certs
+      - G602   # slice bounds — false positive when bounds checked by loop condition
+    excludes-generated: strict
+  errorlint:
+    errorf: true
+    asserts: true
+    comparison: true
+
+issues:
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - gosec
+        - errcheck
+        - bodyclose
+        - unused
+    - path: /testcontainers/
+      linters:
+        - errcheck
+  max-issues-per-linter: 50
+  max-same-issues: 5

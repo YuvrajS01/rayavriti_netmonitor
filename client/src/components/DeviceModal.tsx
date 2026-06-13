@@ -1,8 +1,9 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import { getDeviceMetrics, deleteDevice, getDevicePorts, scanDevicePorts } from '../api/client';
 import { useSocket } from '../hooks/useSocket';
 import type { Device, Metric, MetricMessagePayload, PortScanResult, TrafficInterfaceSample } from '../api/types';
+import ConfirmDialog from './ConfirmDialog';
 
 interface TrafficPoint {
   time: string;
@@ -11,11 +12,10 @@ interface TrafficPoint {
   totalMbps: number;
 }
 
-function parseMetricMessage(message?: string | null): MetricMessagePayload | null {
-  if (!message) return null;
+function parseMetricMessage(details?: Record<string, unknown> | null): MetricMessagePayload | null {
+  if (!details) return null;
   try {
-    const parsed = JSON.parse(message) as MetricMessagePayload;
-    return parsed && typeof parsed === 'object' ? parsed : null;
+    return details as unknown as MetricMessagePayload;
   } catch {
     return null;
   }
@@ -37,11 +37,11 @@ function buildTrafficData(metrics: Metric[]): TrafficPoint[] {
   for (let i = 1; i < metrics.length; i += 1) {
     const prev = metrics[i - 1];
     const curr = metrics[i];
-    const prevPayload = parseMetricMessage(prev.message);
-    const currPayload = parseMetricMessage(curr.message);
+    const prevPayload = parseMetricMessage(prev.details as Record<string, unknown> | null);
+    const currPayload = parseMetricMessage(curr.details as Record<string, unknown> | null);
     if (!prevPayload?.interfaces?.length || !currPayload?.interfaces?.length) continue;
 
-    const seconds = (new Date(curr.timestamp || curr.created_at).getTime() - new Date(prev.timestamp || prev.created_at).getTime()) / 1000;
+    const seconds = (new Date(curr.timestamp || curr.createdAt).getTime() - new Date(prev.timestamp || prev.createdAt).getTime()) / 1000;
     if (!Number.isFinite(seconds) || seconds <= 0) continue;
 
     const inDelta = totalOctets(currPayload.interfaces, 'inOctets') - totalOctets(prevPayload.interfaces, 'inOctets');
@@ -51,7 +51,7 @@ function buildTrafficData(metrics: Metric[]): TrafficPoint[] {
     const inMbps = (inDelta * 8) / seconds / 1_000_000;
     const outMbps = (outDelta * 8) / seconds / 1_000_000;
     points.push({
-      time: new Date(curr.timestamp || curr.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+      time: new Date(curr.timestamp || curr.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
       inMbps: Math.round(inMbps * 100) / 100,
       outMbps: Math.round(outMbps * 100) / 100,
       totalMbps: Math.round((inMbps + outMbps) * 100) / 100
@@ -61,10 +61,45 @@ function buildTrafficData(metrics: Metric[]): TrafficPoint[] {
 }
 
 export default function DeviceModal({ device, onClose, onDeleted }: { device: Device; onClose: () => void; onDeleted: () => void }) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const previousFocus = useRef<HTMLElement | null>(null);
   const [metrics, setMetrics] = useState<Metric[]>([]);
   const [ports, setPorts] = useState<PortScanResult[]>([]);
   const [loading, setLoading] = useState(true);
   const [scanning, setScanning] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  useEffect(() => {
+    previousFocus.current = document.activeElement as HTMLElement;
+    dialogRef.current?.focus();
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+        return;
+      }
+      if (e.key !== 'Tab' || !dialogRef.current) return;
+      const focusable = dialogRef.current.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      );
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      previousFocus.current?.focus();
+    };
+  }, [onClose]);
 
   const loadData = useCallback(async () => {
     try {
@@ -88,7 +123,7 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
   useSocket({
     onMetricUpdate: (metric: Record<string, unknown>) => {
       const m = metric as unknown as Metric;
-      if (m.device_id === device.id) {
+      if (m.deviceId === device.id) {
         setMetrics((prev) => {
           const updated = [...prev, m as Metric];
           if (updated.length > 50) updated.shift();
@@ -99,8 +134,12 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
   });
 
   const handleDelete = async () => {
-    if (!confirm('Delete this device?')) return;
+    setShowDeleteConfirm(true);
+  };
+
+  const confirmDelete = async () => {
     await deleteDevice(device.id);
+    setShowDeleteConfirm(false);
     onDeleted();
   };
 
@@ -110,9 +149,7 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
       const res = await scanDevicePorts(device.id);
       setPorts(res.data.results.map((result) => ({
         ...result,
-        device_id: device.id,
-        service_guess: result.serviceGuess,
-        response_time: result.responseTime
+        deviceId: device.id,
       })));
     } finally {
       setScanning(false);
@@ -120,32 +157,37 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
   };
 
   const chartData = metrics.map((m) => ({
-    time: new Date(m.timestamp || m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-    response: m.response_time ?? 0,
+    time: new Date(m.timestamp || m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+    response: m.responseTime ?? 0,
     status: m.status
   }));
 
   const latestMetric = metrics[metrics.length - 1];
-  const latestPayload = parseMetricMessage(latestMetric?.message);
+  const latestPayload = parseMetricMessage(latestMetric?.details as Record<string, unknown> | null);
   const trafficData = buildTrafficData(metrics);
   const latestTraffic = trafficData[trafficData.length - 1];
   const supportsTraffic = device.protocol === 'snmp';
   const activeInterfaces = latestPayload?.interfaces || [];
-  const openPorts = ports.filter((port) => port.status === 'open');
+  const openPorts = ports.filter((port) => port.state === 'open');
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={onClose}>
-      <div 
-        className="bg-surface-container-low border border-outline-variant/30 rounded-xl w-full max-w-3xl overflow-hidden shadow-2xl flex flex-col"
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60" onClick={onClose}>
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Device details for ${device.name}`}
+        tabIndex={-1}
+        className="bg-surface-container-low border border-outline-variant/30 rounded-xl w-full max-w-3xl overflow-hidden shadow-2xl flex flex-col outline-none"
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
         <div className="p-6 border-b border-outline-variant/20 flex justify-between items-start">
           <div>
             <h2 className="font-headline text-3xl font-black text-on-surface uppercase tracking-tight">{device.name}</h2>
-            <p className="text-on-surface-variant text-sm font-mono">{device.host}:{device.port} ({device.protocol.toUpperCase()})</p>
+            <p className="text-on-surface-variant text-sm font-mono">{device.protocol === 'http' || device.protocol === 'https' ? `${device.protocol}://${device.ipAddress}` : device.ipAddress}{device.port > 0 && !['http','https'].includes(device.protocol) ? `:${device.port}` : ''} ({device.protocol.toUpperCase()})</p>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-surface-container-highest rounded-full transition-colors">
+          <button onClick={onClose} className="p-2 hover:bg-surface-container-highest rounded-full transition-colors" aria-label="Close dialog">
             <span className="material-symbols-outlined text-outline hover:text-on-surface">close</span>
           </button>
         </div>
@@ -160,11 +202,11 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
              </div>
              <div className="bg-surface-container-high p-4 rounded-lg">
                <p className="text-[10px] text-on-surface-variant uppercase tracking-widest mb-1">Response</p>
-               <p className="font-bold text-on-surface">{latestMetric?.response_time ?? '-'} ms</p>
+                <p className="font-bold text-on-surface">{latestMetric?.responseTime ?? '-'} ms</p>
              </div>
              <div className="bg-surface-container-high p-4 rounded-lg">
                <p className="text-[10px] text-on-surface-variant uppercase tracking-widest mb-1">Interval</p>
-               <p className="font-bold text-on-surface">{device.interval_seconds}s</p>
+                <p className="font-bold text-on-surface">{device.interval}s</p>
              </div>
              <div className="bg-surface-container-high p-4 rounded-lg">
                <p className="text-[10px] text-on-surface-variant uppercase tracking-widest mb-1">Protocol</p>
@@ -181,7 +223,7 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
                <button
                  onClick={handleScanPorts}
                  disabled={scanning}
-                 className="bg-primary text-on-primary disabled:opacity-60 font-bold py-2.5 px-4 rounded-lg tracking-widest uppercase hover:brightness-110 active:scale-95 transition-all text-xs flex items-center justify-center gap-2"
+                  className="bg-primary text-on-primary disabled:opacity-60 font-bold py-2.5 px-4 rounded-lg tracking-widest uppercase hover:brightness-110 active:scale-95 transition-[filter,transform] text-xs flex items-center justify-center gap-2"
                >
                  <span className="material-symbols-outlined text-base">{scanning ? 'hourglass_top' : 'radar'}</span>
                  {scanning ? 'Scanning' : 'Scan Ports'}
@@ -192,9 +234,9 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
              ) : (
                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                  {ports.slice(0, 16).map((port) => {
-                   const service = port.service_guess || port.serviceGuess || 'Unknown';
-                   const response = port.response_time ?? port.responseTime;
-                   const isOpen = port.status === 'open';
+                    const service = port.service || 'Unknown';
+                    const response = port.responseTime;
+                   const isOpen = port.state === 'open';
                    return (
                      <div key={port.port} className={`flex items-center justify-between rounded-lg px-3 py-2 border ${isOpen ? 'border-primary/25 bg-primary/10' : 'border-outline-variant/15 bg-surface-container-low'}`}>
                        <div className="flex items-center gap-2 min-w-0">
@@ -205,7 +247,7 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
                          </div>
                        </div>
                        <div className="text-right">
-                         <p className={`text-[10px] font-bold uppercase tracking-widest ${isOpen ? 'text-primary' : 'text-outline'}`}>{port.status}</p>
+                         <p className={`text-[10px] font-bold uppercase tracking-widest ${isOpen ? 'text-primary' : 'text-outline'}`}>{port.state}</p>
                          {typeof response === 'number' && <p className="text-[10px] text-on-surface-variant">{response}ms</p>}
                        </div>
                      </div>
@@ -227,10 +269,10 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
                  <LineChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                    <XAxis dataKey="time" tick={{ fill: '#8a8a78', fontSize: 10 }} tickLine={false} axisLine={false} />
                    <YAxis tick={{ fill: '#8a8a78', fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={(v) => `${v}ms`} />
-                   <Tooltip
-                     contentStyle={{ background: '#1a1a13', border: '1px solid #494840', borderRadius: '8px', fontSize: '12px', color: '#f4f1e6' }}
-                   />
-                   <Line type="monotone" dataKey="response" stroke="#d9fd3a" strokeWidth={2} dot={false} activeDot={{ r: 4 }} connectNulls />
+                    <Tooltip
+                      contentStyle={{ background: 'var(--color-surface-container)', border: '1px solid var(--color-outline-variant)', borderRadius: '8px', fontSize: '12px', color: 'var(--color-on-surface)' }}
+                    />
+                    <Line type="monotone" dataKey="response" stroke="var(--color-primary)" strokeWidth={2} dot={false} activeDot={{ r: 4 }} connectNulls />
                  </LineChart>
                </ResponsiveContainer>
              )}
@@ -271,10 +313,10 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
                    <LineChart data={trafficData} margin={{ top: 10, right: 10, left: -16, bottom: 0 }}>
                      <XAxis dataKey="time" tick={{ fill: '#8a8a78', fontSize: 10 }} tickLine={false} axisLine={false} />
                      <YAxis tick={{ fill: '#8a8a78', fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={(v) => `${v}M`} />
-                     <Tooltip
-                       formatter={(value) => formatMbps(Number(value))}
-                       contentStyle={{ background: '#1a1a13', border: '1px solid #494840', borderRadius: '8px', fontSize: '12px', color: '#f4f1e6' }}
-                     />
+                      <Tooltip
+                        formatter={(value) => formatMbps(Number(value))}
+                        contentStyle={{ background: 'var(--color-surface-container)', border: '1px solid var(--color-outline-variant)', borderRadius: '8px', fontSize: '12px', color: 'var(--color-on-surface)' }}
+                      />
                      <Legend wrapperStyle={{ fontSize: 11, color: '#c9c6b8' }} />
                      <Line name="Inbound" type="monotone" dataKey="inMbps" stroke="#d9fd3a" strokeWidth={2} dot={false} activeDot={{ r: 4 }} connectNulls />
                      <Line name="Outbound" type="monotone" dataKey="outMbps" stroke="#7dd3fc" strokeWidth={2} dot={false} activeDot={{ r: 4 }} connectNulls />
@@ -301,12 +343,21 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
 
            {/* Actions */}
            <div className="flex gap-4">
-             <button onClick={handleDelete} className="bg-error/10 text-error border border-error/30 font-bold py-3 px-6 rounded-lg tracking-widest uppercase hover:bg-error/20 active:scale-95 transition-all w-full">
+              <button onClick={handleDelete} className="bg-error/10 text-error border border-error/30 font-bold py-3 px-6 rounded-lg tracking-widest uppercase hover:bg-error/20 active:scale-95 transition-[background-color,transform] w-full">
                Delete Device
              </button>
            </div>
         </div>
       </div>
+      <ConfirmDialog
+        open={showDeleteConfirm}
+        title="Delete Device"
+        message={`Are you sure you want to delete "${device.name}"? This action cannot be undone.`}
+        confirmLabel="Delete"
+        danger
+        onConfirm={confirmDelete}
+        onCancel={() => setShowDeleteConfirm(false)}
+      />
     </div>
   );
 }

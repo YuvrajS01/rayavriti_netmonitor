@@ -6,9 +6,9 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   cacheDir: '../node_modules/.vite/client',
   build: {
-    outDir: '../server/dist/public',
+    outDir: 'dist',
     emptyOutDir: true,
-    sourcemap: true,
+    sourcemap: process.env.NODE_ENV !== 'production',
     rollupOptions: {
       output: {
         manualChunks: (id: string) => {
@@ -25,9 +25,6 @@ export default defineConfig({
       '/api': {
         target: 'http://localhost:3000',
         changeOrigin: true,
-      },
-      '/socket.io': {
-        target: 'http://localhost:3000',
         ws: true,
       },
     },

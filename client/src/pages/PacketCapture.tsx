@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   getInterfaces, startCaptureSession, stopCaptureSession,
   getCapturePackets, getCaptureSessions
@@ -7,10 +7,10 @@ import { useSocket } from '../hooks/useSocket';
 import type { CapturedPacket, CaptureSession, NetworkInterface } from '../api/types';
 
 const PROTO_COLORS: Record<string, { text: string; bg: string; border: string }> = {
-  TCP: { text: '#6ee7f7', bg: 'rgba(110,231,247,0.08)', border: 'rgba(110,231,247,0.2)' },
-  UDP: { text: '#d9fd3a', bg: 'rgba(217,253,58,0.08)', border: 'rgba(217,253,58,0.2)' },
-  ICMP: { text: '#f59e0b', bg: 'rgba(245,158,11,0.08)', border: 'rgba(245,158,11,0.2)' },
-  UNKNOWN: { text: '#8a8a78', bg: 'rgba(138,138,120,0.06)', border: 'rgba(138,138,120,0.15)' },
+  TCP: { text: 'var(--color-secondary)', bg: 'color-mix(in srgb, var(--color-secondary) 8%, transparent)', border: 'color-mix(in srgb, var(--color-secondary) 20%, transparent)' },
+  UDP: { text: 'var(--color-primary)', bg: 'color-mix(in srgb, var(--color-primary) 8%, transparent)', border: 'color-mix(in srgb, var(--color-primary) 20%, transparent)' },
+  ICMP: { text: 'var(--color-tertiary)', bg: 'color-mix(in srgb, var(--color-tertiary) 8%, transparent)', border: 'color-mix(in srgb, var(--color-tertiary) 20%, transparent)' },
+  UNKNOWN: { text: 'var(--color-outline)', bg: 'color-mix(in srgb, var(--color-outline) 6%, transparent)', border: 'color-mix(in srgb, var(--color-outline) 15%, transparent)' },
 };
 
 function getProtoStyle(proto: string) {
@@ -25,14 +25,18 @@ function formatBytes(bytes: number): string {
   return `${val.toFixed(i > 0 ? 1 : 0)} ${units[i]}`;
 }
 
-function HexDump({ hex }: { hex: string }) {
-  if (!hex) return <p className="text-xs text-on-surface-variant opacity-50">No payload data</p>;
+const HexDump = ({ hex }: { hex: string }) => {
+  const rows = useMemo(() => {
+    if (!hex) return [];
+    const bytes = hex.split(' ');
+    const result: string[][] = [];
+    for (let i = 0; i < bytes.length; i += 16) {
+      result.push(bytes.slice(i, i + 16));
+    }
+    return result;
+  }, [hex]);
 
-  const bytes = hex.split(' ');
-  const rows: string[][] = [];
-  for (let i = 0; i < bytes.length; i += 16) {
-    rows.push(bytes.slice(i, i + 16));
-  }
+  if (rows.length === 0) return <p className="text-xs text-on-surface-variant opacity-50">No payload data</p>;
 
   return (
     <div className="font-mono text-[11px] leading-relaxed overflow-x-auto">
@@ -47,14 +51,16 @@ function HexDump({ hex }: { hex: string }) {
         return (
           <div key={ri} className="flex gap-4 hover:bg-surface-container-highest/30 px-2 py-0.5 rounded">
             <span className="text-primary/60 select-none">{offset}</span>
-            <span className="text-[#6ee7f7]">{hexPart}</span>
+            <span className="text-secondary">{hexPart}</span>
             <span className="text-on-surface-variant border-l border-outline-variant/20 pl-4">{asciiPart}</span>
           </div>
         );
       })}
     </div>
   );
-}
+};
+
+const VISIBLE_PACKETS = 200;
 
 export default function PacketCapture() {
   const [interfaces, setInterfaces] = useState<NetworkInterface[]>([]);
@@ -66,18 +72,23 @@ export default function PacketCapture() {
   const [sessions, setSessions] = useState<CaptureSession[]>([]);
   const [isStarting, setIsStarting] = useState(false);
   const [error, setError] = useState('');
-  const [autoScroll, setAutoScroll] = useState(true);
+  const [autoScroll, setAutoScroll] = useState(false);
   const tableEndRef = useRef<HTMLDivElement>(null);
+  const activeSessionRef = useRef(activeSession);
+
+  useEffect(() => {
+    activeSessionRef.current = activeSession;
+  }, [activeSession]);
 
   const loadInterfaces = useCallback(async () => {
     try {
       const res = await getInterfaces();
       setInterfaces(res.data || []);
-      if (res.data?.length > 0 && !selectedIface) {
-        setSelectedIface(res.data[0].name);
+      if (res.data?.length > 0) {
+        setSelectedIface((prev) => prev || res.data![0].name);
       }
     } catch { /* handled by interceptor */ }
-  }, [selectedIface]);
+  }, []);
 
   const loadSessions = useCallback(async () => {
     try {
@@ -86,11 +97,14 @@ export default function PacketCapture() {
     } catch { /* handled */ }
   }, []);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { loadInterfaces(); loadSessions(); }, [loadInterfaces, loadSessions]);
 
   useEffect(() => {
     if (autoScroll && tableEndRef.current) {
-      tableEndRef.current.scrollIntoView({ behavior: 'smooth' });
+      requestAnimationFrame(() => {
+        tableEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      });
     }
   }, [packets.length, autoScroll]);
 
@@ -106,8 +120,9 @@ export default function PacketCapture() {
       setActiveSession(res.data);
       setPackets([]);
       setSelectedPacket(null);
-    } catch (err: any) {
-      setError(err.response?.data?.error?.message || err.message || 'Failed to start capture');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to start capture';
+      setError(msg);
     } finally {
       setIsStarting(false);
     }
@@ -119,8 +134,9 @@ export default function PacketCapture() {
       await stopCaptureSession(activeSession.id);
       setActiveSession(null);
       loadSessions();
-    } catch (err: any) {
-      setError(err.response?.data?.error?.message || 'Failed to stop capture');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to stop capture';
+      setError(msg);
     }
   };
 
@@ -133,11 +149,12 @@ export default function PacketCapture() {
 
   useSocket({
     onPacketCaptured: (data) => {
-      const pkt = data as unknown as CapturedPacket;
-      if (activeSession && pkt.session_id === activeSession.id) {
+      const batch = data as { sessionId: number; packets: CapturedPacket[] };
+      const session = activeSessionRef.current;
+      if (session && batch.sessionId === session.id && batch.packets) {
         setPackets((prev) => {
-          const next = [...prev, pkt];
-          if (next.length > 1000) next.shift();
+          const next = [...prev, ...batch.packets];
+          if (next.length > 1000) next.splice(0, next.length - 1000);
           return next;
         });
       }
@@ -145,7 +162,8 @@ export default function PacketCapture() {
     onCaptureStatus: (data) => {
       const d = data as { sessionId: number; status: string; packetCount?: number; bytesCaptured?: number };
       if (d.status === 'stopped' || d.status === 'error') {
-        if (activeSession && d.sessionId === activeSession.id) {
+        const session = activeSessionRef.current;
+        if (session && d.sessionId === session.id) {
           setActiveSession(null);
           loadSessions();
         }
@@ -153,16 +171,16 @@ export default function PacketCapture() {
     },
   });
 
-  // Protocol distribution from captured packets
-  const protoCounts = packets.reduce<Record<string, number>>((acc, p) => {
+  const protoCounts = useMemo(() => packets.reduce<Record<string, number>>((acc, p) => {
     acc[p.protocol] = (acc[p.protocol] || 0) + 1;
     return acc;
-  }, {});
-  const protoEntries = Object.entries(protoCounts).sort((a, b) => b[1] - a[1]);
+  }, {}), [packets]);
+  const protoEntries = useMemo(() => Object.entries(protoCounts).sort((a, b) => b[1] - a[1]), [protoCounts]);
+
+  const visiblePackets = useMemo(() => packets.slice(-VISIBLE_PACKETS), [packets]);
 
   return (
     <div>
-      {/* Header */}
       <header className="mb-8">
         <h1 className="font-headline text-5xl font-black text-on-surface uppercase tracking-tight mb-2">
           Packet Capture
@@ -172,45 +190,41 @@ export default function PacketCapture() {
         </p>
       </header>
 
-      {/* Capture Controls */}
       <div className="bg-surface-container-high rounded-xl p-5 border border-outline-variant/20 mb-6">
         <div className="flex flex-col md:flex-row items-start md:items-center gap-4">
-          {/* Interface Select */}
           <div className="flex-shrink-0">
             <label className="text-[10px] uppercase tracking-widest text-on-surface-variant block mb-1">Interface</label>
             <select
               value={selectedIface}
               onChange={(e) => setSelectedIface(e.target.value)}
-              disabled={!!activeSession}
+              disabled={activeSession?.status === 'running'}
               className="bg-surface-container-highest border border-outline-variant/30 rounded-lg px-4 py-2.5 text-sm text-on-surface font-mono focus:outline-none focus:border-primary/50 disabled:opacity-50 min-w-[140px]"
             >
               {interfaces.map((iface) => (
                 <option key={iface.name} value={iface.name}>
-                  {iface.name} {iface.flags.includes('up') ? '●' : '○'}
+                  {iface.name} {iface.flags?.includes('up') ? '●' : '○'}
                 </option>
               ))}
             </select>
           </div>
 
-          {/* BPF Filter */}
           <div className="flex-1 min-w-0">
             <label className="text-[10px] uppercase tracking-widest text-on-surface-variant block mb-1">BPF Filter</label>
             <input
               type="text"
               value={bpfFilter}
               onChange={(e) => setBpfFilter(e.target.value)}
-              disabled={!!activeSession}
+              disabled={activeSession?.status === 'running'}
               placeholder="e.g. tcp port 80, icmp, host 192.168.1.1"
               className="w-full bg-surface-container-highest border border-outline-variant/30 rounded-lg px-4 py-2.5 text-sm text-on-surface font-mono placeholder:text-on-surface-variant/40 focus:outline-none focus:border-primary/50 disabled:opacity-50"
             />
           </div>
 
-          {/* Start/Stop Button */}
           <div className="flex-shrink-0 self-end">
-            {activeSession ? (
+            {activeSession?.status === 'running' ? (
               <button
                 onClick={handleStop}
-                className="flex items-center gap-2 bg-error/20 text-error border border-error/30 px-6 py-2.5 rounded-lg font-headline font-bold text-xs uppercase tracking-widest hover:bg-error hover:text-on-error transition-all"
+                className="flex items-center gap-2 bg-error/20 text-error border border-error/30 px-6 py-2.5 rounded-lg font-headline font-bold text-xs uppercase tracking-widest hover:bg-error hover:text-on-error transition-[background-color,color]"
               >
                 <span className="material-symbols-outlined text-lg">stop_circle</span>
                 Stop Capture
@@ -219,7 +233,7 @@ export default function PacketCapture() {
               <button
                 onClick={handleStart}
                 disabled={isStarting || !selectedIface}
-                className="flex items-center gap-2 bg-primary/20 text-primary border border-primary/30 px-6 py-2.5 rounded-lg font-headline font-bold text-xs uppercase tracking-widest hover:bg-primary hover:text-[#0e0e09] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex items-center gap-2 bg-primary/20 text-primary border border-primary/30 px-6 py-2.5 rounded-lg font-headline font-bold text-xs uppercase tracking-widest hover:bg-primary hover:text-on-primary transition-[background-color,color] disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <span className="material-symbols-outlined text-lg">play_circle</span>
                 {isStarting ? 'Starting...' : 'Start Capture'}
@@ -227,8 +241,7 @@ export default function PacketCapture() {
             )}
           </div>
 
-          {/* Live Stats */}
-          {activeSession && (
+          {activeSession?.status === 'running' && (
             <div className="flex items-center gap-4 ml-auto">
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full bg-error animate-pulse" />
@@ -250,9 +263,7 @@ export default function PacketCapture() {
         )}
       </div>
 
-      {/* Main Content: Packet Table + Detail Panel */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-6">
-        {/* Packet Table */}
         <div className="xl:col-span-2 bg-surface-container-high rounded-xl border border-outline-variant/20 flex flex-col" style={{ maxHeight: '600px' }}>
           <div className="flex items-center justify-between p-4 border-b border-outline-variant/20">
             <h3 className="text-sm font-headline font-bold uppercase tracking-widest flex items-center gap-2">
@@ -294,29 +305,31 @@ export default function PacketCapture() {
                     </div>
                   </td></tr>
                 ) : (
-                  packets.map((pkt) => {
+                  visiblePackets.map((pkt, idx) => {
                     const style = getProtoStyle(pkt.protocol);
-                    const isSelected = selectedPacket?.no === pkt.no;
+                    const globalIdx = packets.length - VISIBLE_PACKETS + idx;
+                    const pktId = pkt.id ?? globalIdx;
+                    const isSelected = selectedPacket && (selectedPacket.id ?? packets.indexOf(selectedPacket)) === pktId;
                     return (
                       <tr
-                        key={pkt.no}
+                        key={pktId}
                         onClick={() => setSelectedPacket(isSelected ? null : pkt)}
-                        className={`border-b cursor-pointer transition-colors ${
+                        className={`border-b cursor-pointer transition-[background-color] ${
                           isSelected
                             ? 'bg-primary/10 border-primary/20'
                             : 'border-outline-variant/5 hover:bg-surface-container-highest/50'
                         }`}
                         style={{ borderLeftWidth: 2, borderLeftColor: style.text }}
                       >
-                        <td className="py-1.5 px-3 text-on-surface-variant">{pkt.no}</td>
+                        <td className="py-1.5 px-3 text-on-surface-variant">{pkt.id ?? globalIdx}</td>
                         <td className="py-1.5 px-2 text-on-surface-variant">
-                          {new Date(pkt.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3 } as any)}
+                          {new Date(pkt.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                         </td>
                         <td className="py-1.5 px-2 text-on-surface">
-                          {pkt.src_ip}{pkt.src_port ? `:${pkt.src_port}` : ''}
+                          {pkt.srcIp}{pkt.srcPort ? `:${pkt.srcPort}` : ''}
                         </td>
                         <td className="py-1.5 px-2 text-on-surface">
-                          {pkt.dst_ip}{pkt.dst_port ? `:${pkt.dst_port}` : ''}
+                          {pkt.dstIp}{pkt.dstPort ? `:${pkt.dstPort}` : ''}
                         </td>
                         <td className="py-1.5 px-2">
                           <span className="inline-block px-1.5 py-0.5 rounded text-[9px] font-bold"
@@ -325,7 +338,7 @@ export default function PacketCapture() {
                           </span>
                         </td>
                         <td className="py-1.5 px-2 text-right text-on-surface-variant">{pkt.length}</td>
-                        <td className="py-1.5 px-2 text-on-surface-variant truncate max-w-[200px]" title={pkt.info}>{pkt.info}</td>
+                        <td className="py-1.5 px-2 text-on-surface-variant truncate max-w-[200px]" title={pkt.flags || ''}>{pkt.flags || ''}</td>
                       </tr>
                     );
                   })
@@ -336,20 +349,17 @@ export default function PacketCapture() {
           </div>
         </div>
 
-        {/* Packet Detail Panel + Protocol Stats */}
         <div className="flex flex-col gap-6">
-          {/* Packet Detail */}
           <div className="bg-surface-container-high rounded-xl border border-outline-variant/20 flex flex-col" style={{ maxHeight: '380px' }}>
             <div className="p-4 border-b border-outline-variant/20">
               <h3 className="text-sm font-headline font-bold uppercase tracking-widest flex items-center gap-2">
-                <span className="material-symbols-outlined text-[#6ee7f7] text-lg">search</span>
+                <span className="material-symbols-outlined text-secondary text-lg">search</span>
                 Packet Detail
               </h3>
             </div>
             <div className="p-4 overflow-auto flex-1">
               {selectedPacket ? (
                 <div className="space-y-4">
-                  {/* Header info */}
                   <div className="space-y-2">
                     <div className="flex items-center gap-2 text-xs">
                       <span className="text-on-surface-variant w-14">Proto:</span>
@@ -357,11 +367,11 @@ export default function PacketCapture() {
                     </div>
                     <div className="flex items-center gap-2 text-xs">
                       <span className="text-on-surface-variant w-14">Source:</span>
-                      <span className="font-mono text-on-surface">{selectedPacket.src_ip}:{selectedPacket.src_port}</span>
+                      <span className="font-mono text-on-surface">{selectedPacket.srcIp}:{selectedPacket.srcPort}</span>
                     </div>
                     <div className="flex items-center gap-2 text-xs">
                       <span className="text-on-surface-variant w-14">Dest:</span>
-                      <span className="font-mono text-on-surface">{selectedPacket.dst_ip}:{selectedPacket.dst_port}</span>
+                      <span className="font-mono text-on-surface">{selectedPacket.dstIp}:{selectedPacket.dstPort}</span>
                     </div>
                     <div className="flex items-center gap-2 text-xs">
                       <span className="text-on-surface-variant w-14">Length:</span>
@@ -369,15 +379,14 @@ export default function PacketCapture() {
                     </div>
                     <div className="flex items-center gap-2 text-xs">
                       <span className="text-on-surface-variant w-14">Info:</span>
-                      <span className="text-on-surface text-[11px]">{selectedPacket.info}</span>
+                      <span className="text-on-surface text-[11px]">{selectedPacket.flags || '-'}</span>
                     </div>
                   </div>
 
-                  {/* Hex dump */}
                   <div>
                     <p className="text-[10px] uppercase tracking-widest text-on-surface-variant mb-2">Hex Dump</p>
-                    <div className="bg-[#0e0e09] rounded-lg p-3 border border-outline-variant/10 overflow-x-auto">
-                      <HexDump hex={selectedPacket.payload_hex} />
+                    <div className="bg-surface rounded-lg p-3 border border-outline-variant/10 overflow-x-auto">
+                      <HexDump hex={selectedPacket.payload} />
                     </div>
                   </div>
                 </div>
@@ -390,10 +399,9 @@ export default function PacketCapture() {
             </div>
           </div>
 
-          {/* Protocol Quick Stats */}
           <div className="bg-surface-container-high rounded-xl p-4 border border-outline-variant/20">
             <h3 className="text-sm font-headline font-bold uppercase tracking-widest mb-3 flex items-center gap-2">
-              <span className="material-symbols-outlined text-[#c084fc] text-lg">donut_small</span>
+              <span className="material-symbols-outlined text-on-secondary-container text-lg">donut_small</span>
               Protocol Stats
             </h3>
             {protoEntries.length === 0 ? (
@@ -410,7 +418,7 @@ export default function PacketCapture() {
                         <span className="text-on-surface-variant">{count} ({pct}%)</span>
                       </div>
                       <div className="h-1.5 bg-surface-container-highest rounded">
-                        <div className="h-1.5 rounded transition-all duration-500" style={{ width: `${pct}%`, background: style.text }} />
+                        <div className="h-1.5 rounded transition-[width] duration-500" style={{ width: `${pct}%`, background: style.text }} />
                       </div>
                     </div>
                   );
@@ -421,7 +429,6 @@ export default function PacketCapture() {
         </div>
       </div>
 
-      {/* Past Capture Sessions */}
       <div className="bg-surface-container-high rounded-xl p-5 border border-outline-variant/20">
         <h3 className="text-sm font-headline font-bold uppercase tracking-widest mb-4 flex items-center gap-2">
           <span className="material-symbols-outlined text-on-surface-variant text-lg">history</span>
@@ -449,9 +456,9 @@ export default function PacketCapture() {
                   const isRunning = s.status === 'running';
                   const isError = s.status === 'error';
                   return (
-                    <tr key={s.id} className="border-b border-outline-variant/10 hover:bg-surface-container-highest/50 transition-colors">
+                    <tr key={s.id} className="border-b border-outline-variant/10 hover:bg-surface-container-highest/50 transition-[background-color]">
                       <td className="py-2.5 font-mono text-on-surface-variant">#{s.id}</td>
-                      <td className="py-2.5 font-mono text-on-surface">{s.interface_name}</td>
+                      <td className="py-2.5 font-mono text-on-surface">{s.interfaceName}</td>
                       <td className="py-2.5 text-on-surface-variant font-mono">{s.filter || '—'}</td>
                       <td className="py-2.5">
                         <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
@@ -463,13 +470,13 @@ export default function PacketCapture() {
                           {s.status}
                         </span>
                       </td>
-                      <td className="py-2.5 text-right font-mono text-on-surface">{s.packet_count}</td>
-                      <td className="py-2.5 text-right font-mono text-on-surface-variant">{formatBytes(s.bytes_captured)}</td>
+                      <td className="py-2.5 text-right font-mono text-on-surface">{s.totalPackets}</td>
+                      <td className="py-2.5 text-right font-mono text-on-surface-variant">{formatBytes(s.totalBytes)}</td>
                       <td className="py-2.5 text-on-surface-variant font-mono">
-                        {new Date(s.started_at).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                        {new Date(s.startedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                       </td>
                       <td className="py-2.5">
-                        {!isRunning && s.packet_count > 0 && (
+                        {!isRunning && s.totalPackets > 0 && (
                           <button
                             onClick={() => { setActiveSession(s); loadSessionPackets(s.id); }}
                             className="text-primary hover:text-primary/80 text-[10px] uppercase tracking-wider font-bold"

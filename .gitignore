@@ -3,10 +3,11 @@ node_modules/
 client/node_modules/
 
 # Build output
-server/dist/
 client/dist/
 dist/
 dist-ssr/
+tmp/
+backend/bin/
 
 # Logs
 logs/
@@ -41,8 +42,7 @@ lerna-debug.log*
 *.sln
 *.sw?
 
-# Misplaced/generated server runtime data
-server/data/
+# Runtime data
 data/
 *.db
 
@@ -50,4 +50,3 @@ data/
 .gemini/
 .agents/
 .codex/
-implementation_plan.md

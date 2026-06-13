@@ -4,6 +4,8 @@ import { clearCredentials } from '../store/authSlice';
 import { logout } from '../api/client';
 import type { RootState } from '../store';
 
+const APP_VERSION = import.meta.env.VITE_APP_VERSION || '1.0.0';
+
 export default function Settings() {
   const user = useSelector((s: RootState) => s.auth.user);
   const dispatch = useDispatch();
@@ -42,7 +44,7 @@ export default function Settings() {
             </div>
             <div className="space-y-2">
               <label className="font-label text-[10px] text-primary uppercase tracking-[0.2em]">System Role</label>
-              <div className="w-full bg-surface-container-highest border-b border-outline-variant/30 text-on-surface font-body p-3 flex justify-between items-center opacity-70">
+              <div className="w-full bg-surface-container-highest border-b border-outline-variant/30 text-on-surface-variant font-body p-3 flex justify-between items-center">
                 <span>{user?.role || 'admin'}</span>
                 <span className="material-symbols-outlined text-sm">lock</span>
               </div>
@@ -58,7 +60,7 @@ export default function Settings() {
               Quick Actions
             </h2>
             <div className="space-y-4">
-              <button onClick={handleLogout} className="w-full py-3 border border-error text-error hover:bg-error hover:text-on-error font-bold rounded-lg transition-all text-xs uppercase tracking-widest">
+              <button onClick={handleLogout} className="w-full py-3 border border-error text-error hover:bg-error hover:text-on-error font-bold rounded-lg transition-[background-color,color] text-xs uppercase tracking-widest">
                 SIGN OUT
               </button>
             </div>
@@ -74,11 +76,11 @@ export default function Settings() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm">
             <div>
               <p className="text-[10px] text-primary uppercase tracking-[0.2em] mb-1">Version</p>
-              <p className="font-bold">NetMonitor+ v1.0.0</p>
+              <p className="font-bold">NetMonitor+ v{APP_VERSION}</p>
             </div>
             <div>
               <p className="text-[10px] text-primary uppercase tracking-[0.2em] mb-1">Backend</p>
-              <p className="font-bold">Node.js + Express + SQLite</p>
+              <p className="font-bold">Go + PostgreSQL + TimescaleDB</p>
             </div>
             <div>
               <p className="text-[10px] text-primary uppercase tracking-[0.2em] mb-1">Frontend</p>
@@ -89,8 +91,8 @@ export default function Settings() {
       </div>
 
       {/* Footer */}
-      <footer className="mt-20 py-8 border-t border-outline-variant/10 flex flex-col md:flex-row justify-between items-center gap-4 opacity-40 hover:opacity-100 transition-all">
-        <p className="font-label text-[10px] tracking-widest text-on-surface-variant">SYSTEM VERSION 1.0.0-STABLE</p>
+      <footer className="mt-20 py-8 border-t border-outline-variant/10 flex flex-col md:flex-row justify-between items-center gap-4 text-on-surface-variant/50 hover:text-on-surface-variant transition-colors">
+        <p className="font-label text-[10px] tracking-widest">SYSTEM VERSION {APP_VERSION}-STABLE</p>
       </footer>
     </div>
   );

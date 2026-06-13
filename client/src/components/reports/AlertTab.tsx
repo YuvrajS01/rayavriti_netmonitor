@@ -1,7 +1,7 @@
 import type { ReportAlert } from '../../api/types';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 
-const TT = { background: '#1a1a13', border: '1px solid #494840', borderRadius: '8px', fontSize: '12px', color: '#f4f1e6' };
+const TT = { background: 'var(--color-surface-container)', border: '1px solid var(--color-outline-variant)', borderRadius: '8px', fontSize: '12px', color: 'var(--color-on-surface)' };
 const SEV_COLORS: Record<string, string> = { critical: '#ff4444', warning: '#f59e0b', info: '#6ee7f7' };
 const SEV_ICONS: Record<string, string> = { critical: 'error', warning: 'warning', info: 'info' };
 
@@ -59,12 +59,12 @@ export default function AlertTab({ alerts }: { alerts: ReportAlert[] }) {
                 const color = SEV_COLORS[a.severity] || '#6b7280';
                 const bg = a.severity === 'critical' ? 'bg-error/10 border-error/25' : a.severity === 'warning' ? 'bg-amber-400/10 border-amber-400/25' : 'bg-sky-400/10 border-sky-400/25';
                 return (
-                  <div key={a.id} className={`flex items-start gap-3 p-3 rounded-lg border ${bg} transition-all hover:brightness-110`}>
+                  <div key={a.id} className={`flex items-start gap-3 p-3 rounded-lg border ${bg} transition-[filter] hover:brightness-110`}>
                     <span className="material-symbols-outlined mt-0.5 text-sm" style={{ color }}>{SEV_ICONS[a.severity] || 'info'}</span>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2 mb-0.5">
-                        <span className="font-headline font-bold text-xs text-on-surface truncate">{a.device_name || `Device ${a.device_id}`}</span>
-                        <span className="text-[10px] font-mono text-on-surface-variant shrink-0">{new Date(a.created_at).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                        <span className="font-headline font-bold text-xs text-on-surface truncate">{a.deviceName || `Device ${a.deviceId}`}</span>
+                        <span className="text-[10px] font-mono text-on-surface-variant shrink-0">{new Date(a.createdAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
                       </div>
                       <p className="text-xs text-on-surface-variant truncate">{a.message}</p>
                     </div>

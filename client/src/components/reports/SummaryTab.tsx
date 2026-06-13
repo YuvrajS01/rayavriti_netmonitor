@@ -1,14 +1,14 @@
-import type { ReportSummary, TimeseriesPoint } from '../../api/types';
+import type { ReportSummary, ReportTimeseriesPoint as TimeseriesPoint } from '../../api/types';
 import {
   ComposedChart, Area, Line, XAxis, YAxis, ResponsiveContainer, Tooltip,
   CartesianGrid, Bar, BarChart, Legend,
 } from 'recharts';
 
-const TT = { background: '#1a1a13', border: '1px solid #494840', borderRadius: '8px', fontSize: '12px', color: '#f4f1e6' };
+const TT = { background: 'var(--color-surface-container)', border: '1px solid var(--color-outline-variant)', borderRadius: '8px', fontSize: '12px', color: 'var(--color-on-surface)' };
 
 function KpiCard({ icon, label, value, sub, color = 'text-primary' }: { icon: string; label: string; value: string | number; sub?: string; color?: string }) {
   return (
-    <div className="bg-surface-container-high rounded-xl p-5 border border-outline-variant/20 flex flex-col gap-2 hover:border-primary/30 transition-all">
+    <div className="bg-surface-container-high rounded-xl p-5 border border-outline-variant/20 flex flex-col gap-2 hover:border-primary/30 transition-[border-color]">
       <div className="flex items-center gap-2">
         <span className="material-symbols-outlined text-lg opacity-60">{icon}</span>
         <span className="text-[10px] text-on-surface-variant uppercase tracking-[0.15em] font-bold">{label}</span>
@@ -26,9 +26,9 @@ function formatLabel(ts: string, idx: number): string {
 
 export default function SummaryTab({ summary, series }: { summary: ReportSummary | null; series: TimeseriesPoint[] }) {
   const chartSeries = series.map((p, i) => ({
-    label: formatLabel(p.timestamp ?? (p as any).bucket ?? String(i), i),
+    label: formatLabel(p.bucketTime ?? String(i), i),
     availability: Number(p.availabilityPercent ?? 0),
-    response: Number(p.avgResponseMs ?? 0),
+    response: Number(p.avgResponse ?? 0),
     samples: Number(p.sampleCount ?? 0),
     down: Number(p.downCount ?? 0),
   }));

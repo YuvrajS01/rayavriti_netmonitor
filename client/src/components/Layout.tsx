@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, memo } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { clearCredentials } from '../store/authSlice';
@@ -17,17 +17,17 @@ const navItems = [
   { to: '/settings', label: 'Settings', icon: 'settings' },
 ];
 
-function SidebarLink({ to, label, icon, onClick }: { to: string; label: string; icon: string; onClick?: () => void }) {
+const SidebarLink = memo(function SidebarLink({ to, label, icon, onClick }: { to: string; label: string; icon: string; onClick?: () => void }) {
   return (
     <NavLink
       to={to}
       end={to === '/'}
       onClick={onClick}
       className={({ isActive }) =>
-        `group flex items-center gap-4 py-4 px-6 font-label font-medium text-xs uppercase tracking-[0.2em] transition-all duration-200 ${
+        `group flex items-center gap-4 py-4 px-6 font-label font-medium text-xs uppercase tracking-[0.2em] transition-[color,background-color,border-color,box-shadow] duration-200 ${
           isActive
             ? 'bg-gradient-to-r from-primary/10 to-transparent text-primary border-l-4 border-primary shadow-[inset_10px_0_15px_-10px_rgba(217,253,58,0.3)]'
-            : 'text-gray-500 hover:text-gray-200 hover:bg-[#202018] border-l-4 border-transparent'
+            : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high border-l-4 border-transparent'
         }`
       }
     >
@@ -35,7 +35,7 @@ function SidebarLink({ to, label, icon, onClick }: { to: string; label: string; 
       <span>{label}</span>
     </NavLink>
   );
-}
+});
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
@@ -52,9 +52,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-background text-on-surface font-body">
       {/* Top Nav */}
-      <header className="bg-[#0e0e09] text-primary font-body text-sm tracking-tight w-full h-16 border-b border-[#202018]/30 shadow-[0_0_15px_rgba(217,253,58,0.05)] flex justify-between items-center px-6 fixed top-0 z-50">
+      <header className="bg-background text-primary font-body text-sm tracking-tight w-full h-16 border-b border-surface-container-high/30 shadow-[0_0_15px_rgba(217,253,58,0.05)] flex justify-between items-center px-6 fixed top-0 z-50">
         <div className="flex items-center gap-8">
-          <button onClick={() => setSidebarOpen(!sidebarOpen)} className="material-symbols-outlined text-gray-400 hover:text-primary transition-colors">
+          <button onClick={() => setSidebarOpen(!sidebarOpen)} className="material-symbols-outlined text-on-surface-variant hover:text-primary transition-colors" aria-label="Toggle sidebar">
             menu
           </button>
           <NavLink to="/" className="font-headline font-black tracking-widest text-primary text-xl uppercase">
@@ -68,7 +68,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 end={item.to === '/'}
                 className={({ isActive }) =>
                   `cursor-pointer transition-colors duration-300 ${
-                    isActive ? 'text-primary border-b-2 border-primary' : 'text-gray-400 hover:text-primary'
+                    isActive ? 'text-primary border-b-2 border-primary' : 'text-on-surface-variant hover:text-primary'
                   }`
                 }
               >
@@ -78,10 +78,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           </div>
         </div>
         <div className="flex items-center gap-4">
-          <NavLink to="/alerts" className="material-symbols-outlined cursor-pointer hover:text-primary p-2 text-gray-400">
+          <NavLink to="/alerts" className="material-symbols-outlined cursor-pointer hover:text-primary p-2 text-on-surface-variant" aria-label="Alerts">
             notifications
           </NavLink>
-          <NavLink to="/settings" className="material-symbols-outlined cursor-pointer hover:text-primary p-2 text-gray-400">
+          <NavLink to="/settings" className="material-symbols-outlined cursor-pointer hover:text-primary p-2 text-on-surface-variant" aria-label="Settings">
             settings
           </NavLink>
           <div className="w-8 h-8 rounded-full bg-surface-container-highest border border-primary/20 flex items-center justify-center text-xs font-bold text-primary">
@@ -93,7 +93,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       <div className="flex pt-16">
         {/* Sidebar */}
         <aside
-          className={`bg-[#14140d] h-[calc(100vh-64px)] w-64 border-r border-[#202018]/30 fixed left-0 top-16 flex flex-col z-40 transition-transform duration-300 ${
+          className={`bg-surface-container-low h-[calc(100vh-64px)] w-64 border-r border-surface-container-high/30 fixed left-0 top-16 flex flex-col z-40 transition-transform duration-300 ${
             sidebarOpen ? 'translate-x-0' : '-translate-x-full'
           }`}
         >
@@ -104,7 +104,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 {user?.username || 'Admin'} Node
               </span>
             </div>
-            <p className="font-label font-medium text-[10px] uppercase tracking-[0.2em] text-gray-500">
+            <p className="font-label font-medium text-[10px] uppercase tracking-[0.2em] text-on-surface-variant">
               Network Ops Center
             </p>
           </div>
@@ -118,7 +118,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           <div className="p-6">
             <button
               onClick={handleLogout}
-              className="w-full bg-surface-container-highest text-error border border-error/20 py-3 font-headline font-bold text-xs tracking-widest rounded-none hover:bg-error hover:text-on-error transition-all uppercase"
+              className="w-full bg-surface-container-highest text-error border border-error/20 py-3 font-headline font-bold text-xs tracking-widest rounded-none hover:bg-error hover:text-on-error transition-[background-color,color] uppercase"
             >
               Sign Out
             </button>
@@ -126,20 +126,20 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </aside>
 
         {/* Main Content */}
-        <main className={`flex-1 p-8 bg-surface min-h-[calc(100vh-64px)] transition-all duration-300 ${sidebarOpen ? 'ml-64' : 'ml-0'}`}>
+        <main className={`flex-1 p-8 bg-surface min-h-[calc(100vh-64px)] transition-[margin-left] duration-300 ${sidebarOpen ? 'ml-64' : 'ml-0'}`}>
           {children}
         </main>
       </div>
 
       {/* Mobile Bottom Nav — only on small screens */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-[#0e0e09] border-t border-[#202018]/30 flex justify-around items-center px-4 z-50 shadow-[0_-10px_20px_rgba(0,0,0,0.5)]">
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-background border-t border-surface-container-high/30 flex justify-around items-center px-4 z-50 shadow-[0_-10px_20px_rgba(0,0,0,0.5)]">
         {[navItems[0], navItems[1], navItems[5], navItems[6]].map((item) => (
           <NavLink
             key={item.to}
             to={item.to}
             end={item.to === '/'}
             className={({ isActive }) =>
-              `flex flex-col items-center gap-1 ${isActive ? 'text-primary' : 'text-gray-400'}`
+              `flex flex-col items-center gap-1 ${isActive ? 'text-primary' : 'text-on-surface-variant'}`
             }
           >
             <span className="material-symbols-outlined">{item.icon}</span>

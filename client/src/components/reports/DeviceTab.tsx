@@ -1,7 +1,7 @@
 import type { DeviceBreakdown } from '../../api/types';
 import { useState } from 'react';
 
-type SortKey = 'deviceName' | 'availabilityPercent' | 'avgResponseMs' | 'sampleCount' | 'downCount';
+type SortKey = 'deviceName' | 'availabilityPercent' | 'avgResponse' | 'sampleCount' | 'downCount';
 
 function badge(avail: number) {
   if (avail >= 99) return 'bg-primary/15 text-primary border-primary/30';
@@ -47,7 +47,7 @@ export default function DeviceTab({ devices, onSelectDevice }: { devices: Device
                 <tr className="text-[10px] uppercase tracking-widest text-on-surface-variant border-b border-outline-variant/20">
                   {hdr('Device', 'deviceName')}
                   {hdr('Availability', 'availabilityPercent', 'text-center')}
-                  {hdr('Avg Response', 'avgResponseMs', 'text-right')}
+                  {hdr('Avg Response', 'avgResponse', 'text-right')}
                   {hdr('Samples', 'sampleCount', 'text-right')}
                   {hdr('Down', 'downCount', 'text-right')}
                 </tr>
@@ -65,11 +65,11 @@ export default function DeviceTab({ devices, onSelectDevice }: { devices: Device
                       </div>
                     </td>
                     <td className="py-3 text-center">
-                      <span className={`inline-flex px-2.5 py-1 rounded-full border text-[11px] font-bold ${badge(d.availabilityPercent)}`}>
-                        {d.availabilityPercent}%
+                      <span className={`inline-flex px-2.5 py-1 rounded-full border text-[11px] font-bold ${badge(d.availabilityPercent ?? 100 - (d.sampleCount > 0 ? (d.downCount / d.sampleCount) * 100 : 0))}`}>
+                        {d.availabilityPercent ?? (d.sampleCount > 0 ? (100 - (d.downCount / d.sampleCount) * 100).toFixed(1) : '100')}%
                       </span>
                     </td>
-                    <td className="py-3 text-right font-mono">{d.avgResponseMs}ms</td>
+                    <td className="py-3 text-right font-mono">{d.avgResponse}ms</td>
                     <td className="py-3 text-right font-mono text-on-surface-variant">{d.sampleCount}</td>
                     <td className="py-3 text-right font-mono text-error">{d.downCount || '—'}</td>
                   </tr>

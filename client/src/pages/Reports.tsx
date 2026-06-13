@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getReportSummary, getReportTimeseries, getReportDeviceBreakdown, getReportAlerts, downloadMetricsCsv, getDevices } from '../api/client';
-import type { ReportSummary, TimeseriesPoint, DeviceBreakdown, ReportAlert, Device } from '../api/types';
+import type { ReportSummary, ReportTimeseriesPoint as TimeseriesPoint, DeviceBreakdown, ReportAlert, Device } from '../api/types';
 import SummaryTab from '../components/reports/SummaryTab';
 import DeviceTab from '../components/reports/DeviceTab';
 import SlaTab from '../components/reports/SlaTab';
@@ -48,6 +48,7 @@ export default function Reports() {
   const [activeTab, setActiveTab] = useState<TabId>('summary');
   const [selectedDevice, setSelectedDevice] = useState<number | undefined>(undefined);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const setRange = useCallback((hours: number) => {
     const now = new Date();
@@ -58,26 +59,38 @@ export default function Reports() {
   }, []);
 
   const refresh = useCallback(async () => {
+    if (!from || !to) return;
     setLoading(true);
+    setError(null);
     const query = toQuery(from, to, selectedDevice);
     try {
       const [sumRes, tsRes, devRes, alertRes] = await Promise.all([
         getReportSummary(query),
         getReportTimeseries(query),
-        getReportDeviceBreakdown(toQuery(from, to)),
+        getReportDeviceBreakdown(query),
         getReportAlerts(query),
       ]);
       setSummary(sumRes.data);
       setSeries(tsRes.data || []);
       setDeviceBreakdown(devRes.data || []);
       setReportAlerts(alertRes.data || []);
-    } catch { /* interceptor handles 401 */ }
-    setLoading(false);
+    } catch {
+      setError('Failed to load report data. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   }, [from, to, selectedDevice]);
 
-  useEffect(() => { getDevices().then(r => setAllDevices(r.data || [])).catch(() => {}); }, []);
-  useEffect(() => { setRange(24); }, [setRange]);
-  useEffect(() => { if (from && to) refresh(); }, [from, to, selectedDevice, refresh]);
+  useEffect(() => {
+    getDevices().then(r => setAllDevices(r.data || [])).catch(() => {});
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setRange(24);
+  }, [setRange]);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (from && to) refresh();
+  }, [from, to, selectedDevice, refresh]);
 
   const handleSelectDevice = (id: number) => {
     setSelectedDevice(prev => prev === id ? undefined : id);
@@ -91,7 +104,6 @@ export default function Reports() {
 
   return (
     <div>
-      {/* Header */}
       <header className="mb-8 print-header">
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-2">
           <div>
@@ -109,18 +121,15 @@ export default function Reports() {
         </div>
       </header>
 
-      {/* Controls */}
       <div className="bg-surface-container-low rounded-xl border border-outline-variant/20 p-5 mb-6 no-print">
         <div className="flex flex-col xl:flex-row gap-4 xl:items-end xl:justify-between">
           <div className="flex flex-wrap items-center gap-2">
-            {/* Time range presets */}
             {RANGES.map(r => (
               <button key={r.hours} onClick={() => setRange(r.hours)}
-                className={`px-3 py-2 rounded-lg text-xs border font-bold transition-all ${activeRange === r.hours ? 'border-primary/40 text-primary bg-primary/5' : 'border-outline-variant/20 text-on-surface-variant hover:text-primary'}`}>
+                className={`px-3 py-2 rounded-lg text-xs border font-bold transition-[border-color,color,background-color] ${activeRange === r.hours ? 'border-primary/40 text-primary bg-primary/5' : 'border-outline-variant/20 text-on-surface-variant hover:text-primary'}`}>
                 {r.label}
               </button>
             ))}
-            {/* Device filter */}
             <div className="h-5 w-px bg-outline-variant/30 mx-1" />
             <select value={selectedDevice ?? ''} onChange={e => setSelectedDevice(e.target.value ? Number(e.target.value) : undefined)}
               className="bg-surface-container-highest border border-outline-variant/20 rounded-lg px-3 py-2 text-xs text-on-surface outline-none cursor-pointer min-w-[140px]">
@@ -131,7 +140,7 @@ export default function Reports() {
           <div className="flex flex-wrap gap-2">
             <input type="datetime-local" value={from} onChange={e => setFrom(e.target.value)} className="bg-surface-container-highest border border-outline-variant/20 rounded-lg px-3 py-2 text-xs text-on-surface outline-none" />
             <input type="datetime-local" value={to} onChange={e => setTo(e.target.value)} className="bg-surface-container-highest border border-outline-variant/20 rounded-lg px-3 py-2 text-xs text-on-surface outline-none" />
-            <button onClick={refresh} className="px-4 py-2 rounded-lg text-xs bg-primary text-on-primary font-bold uppercase hover:brightness-110 transition-all flex items-center gap-1.5">
+            <button onClick={refresh} disabled={loading} className="px-4 py-2 rounded-lg text-xs bg-primary text-on-primary font-bold uppercase hover:brightness-110 transition-[filter] flex items-center gap-1.5 disabled:opacity-50">
               {loading ? <span className="material-symbols-outlined text-sm animate-spin">refresh</span> : <span className="material-symbols-outlined text-sm">play_arrow</span>}
               Run
             </button>
@@ -139,7 +148,6 @@ export default function Reports() {
         </div>
       </div>
 
-      {/* Active device filter badge */}
       {selectedDevice && (
         <div className="flex items-center gap-2 mb-4 no-print">
           <span className="text-[10px] text-on-surface-variant uppercase tracking-widest">Filtered:</span>
@@ -152,26 +160,42 @@ export default function Reports() {
         </div>
       )}
 
-      {/* Tab Navigation */}
       <div className="flex gap-1 mb-6 overflow-x-auto no-print border-b border-outline-variant/20 pb-px">
         {TABS.map(tab => (
           <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-2 px-4 py-3 text-xs font-bold uppercase tracking-widest transition-all rounded-t-lg whitespace-nowrap ${activeTab === tab.id ? 'text-primary border-b-2 border-primary bg-primary/5' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest/50'}`}>
+            className={`flex items-center gap-2 px-4 py-3 text-xs font-bold uppercase tracking-widest transition-[color,border-color,background-color] rounded-t-lg whitespace-nowrap ${activeTab === tab.id ? 'text-primary border-b-2 border-primary bg-primary/5' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest/50'}`}>
             <span className="material-symbols-outlined text-sm">{tab.icon}</span>
             {tab.label}
           </button>
         ))}
       </div>
 
-      {/* Tab Content */}
-      <div className="report-tab-content">
-        {activeTab === 'summary' && <SummaryTab summary={summary} series={series} />}
-        {activeTab === 'devices' && <DeviceTab devices={deviceBreakdown} onSelectDevice={handleSelectDevice} />}
-        {activeTab === 'sla' && <SlaTab summary={summary} series={series} />}
-        {activeTab === 'alerts' && <AlertTab alerts={reportAlerts} />}
-      </div>
+      {loading && (
+        <div className="flex flex-col items-center justify-center py-16">
+          <span className="material-symbols-outlined text-4xl text-primary animate-pulse mb-3">hourglass_top</span>
+          <p className="text-sm text-on-surface-variant uppercase tracking-widest">Loading report data...</p>
+        </div>
+      )}
 
-      {/* Print footer */}
+      {error && !loading && (
+        <div className="bg-error/10 border border-error/30 rounded-xl p-6 text-center">
+          <span className="material-symbols-outlined text-error text-3xl mb-2">error</span>
+          <p className="text-sm text-error font-bold">{error}</p>
+          <button onClick={refresh} className="mt-3 text-xs text-on-surface-variant hover:text-primary transition-colors underline">
+            Retry
+          </button>
+        </div>
+      )}
+
+      {!loading && !error && (
+        <div className="report-tab-content">
+          {activeTab === 'summary' && <SummaryTab summary={summary} series={series} />}
+          {activeTab === 'devices' && <DeviceTab devices={deviceBreakdown} onSelectDevice={handleSelectDevice} />}
+          {activeTab === 'sla' && <SlaTab summary={summary} series={series} />}
+          {activeTab === 'alerts' && <AlertTab alerts={reportAlerts} />}
+        </div>
+      )}
+
       <div className="print-footer hidden">
         <p>Rayavriti NetMonitor — Report generated {new Date().toLocaleString()}</p>
         <p>Period: {from ? new Date(from).toLocaleString() : '—'} to {to ? new Date(to).toLocaleString() : '—'}</p>

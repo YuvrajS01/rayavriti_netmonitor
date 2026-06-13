@@ -1,105 +1,90 @@
-# ── Stage 1: Development ────────────────────────────────────────
-FROM node:22-slim AS development
-
-# Install native dependencies used by monitoring collectors.
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-      python3 make g++ libpcap-dev iputils-ping wget && \
-    rm -rf /var/lib/apt/lists/*
+# ── Stage 1: Build React client ─────────────────────────────────
+FROM node:24-alpine AS client-builder
 
 WORKDIR /app
 
-# Copy workspace manifests first (for layer caching)
 COPY package.json package-lock.json ./
-COPY server/package.json server/
-COPY client/package.json client/
+COPY client/package.json ./client/
+RUN npm ci --workspace client
 
-RUN npm ci
+COPY client/ ./client/
+RUN npm run build -w client
 
-# Keep simulator sources in the development image so the optional Docker
-# Compose simulator service can run without bind-mounting the repository.
-COPY simulator/ simulator/
+# ── Stage 2: Build Go backend (production builder) ──────────────
+FROM golang:1.26-alpine AS go-builder
 
-ENV NODE_ENV=development
+RUN apk add --no-cache gcc musl-dev libpcap-dev
+
+WORKDIR /app
+
+COPY backend/go.mod backend/go.sum ./backend/
+RUN cd backend && go mod download
+
+COPY backend/ ./backend/
+
+RUN cd backend && CGO_ENABLED=1 go build -tags pcap -ldflags="-s -w" -o /netmonitor ./cmd/server
+
+# ── Stage 3: Production image (default target) ──────────────────
+FROM alpine:3.21 AS production
+
+RUN apk add --no-cache ca-certificates libpcap tzdata wget tcpdump
+
+COPY --from=go-builder /netmonitor /usr/local/bin/netmonitor
+COPY --from=client-builder /app/client/dist /app/public
+
+WORKDIR /app
+
+RUN mkdir -p /app/data/logs
+
+EXPOSE 3000
+EXPOSE 2055/udp
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD wget -qO- http://localhost:3000/health || exit 1
+
+ENV APP_ENV=production
 ENV PORT=3000
-ENV DB_PATH=/app/data/netmonitor-dev.db
+
+ENTRYPOINT ["netmonitor"]
+
+# ── Stage 4: Go backend development (hot reload) ───────────────
+# Only built when targeting: docker build --target development .
+FROM golang:1.26-alpine AS development
+
+RUN apk add --no-cache gcc musl-dev libpcap-dev make git bash tcpdump
+
+WORKDIR /app
+
+RUN go install github.com/air-verse/air@latest
+
+COPY backend/go.mod backend/go.sum ./backend/
+RUN cd backend && go mod download
+
+COPY backend/ ./backend/
+
+ENV APP_ENV=development
+ENV PORT=3000
+ENV DATABASE_URL=postgres://netmonitor:netmonitor@localhost:5433/netmonitor?sslmode=disable
 ENV CAPTURE_ENABLED=false
 
 EXPOSE 3000
 EXPOSE 5173
 EXPOSE 2055/udp
 
-CMD ["npm", "run", "dev:server"]
+CMD ["air", "-c", ".air.toml"]
 
-# ── Stage 2: Build ──────────────────────────────────────────────
-FROM node:22-slim AS builder
-
-# Install build tools for native modules (better-sqlite3, cap)
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-      python3 make g++ libpcap-dev && \
-    rm -rf /var/lib/apt/lists/*
+# ── Stage 5: Client development (Vite dev server) ──────────────
+# Only built when targeting: docker build --target client-development .
+FROM node:24-alpine AS client-development
 
 WORKDIR /app
 
-# Copy workspace manifests first (for layer caching)
 COPY package.json package-lock.json ./
-COPY server/package.json server/
-COPY client/package.json client/
+COPY client/package.json ./client/
+RUN npm ci --workspace client
 
-# Install all dependencies (including dev for building)
-RUN npm ci
+COPY client/ ./client/
 
-# Copy source files
-COPY server/ server/
-COPY client/ client/
+EXPOSE 5173
 
-# Build server (TypeScript → JavaScript)
-RUN npm run build:server
-
-# Build client (React → static files) into server/dist/public
-RUN npm run build:client
-
-# ── Stage 3: Production ────────────────────────────────────────
-FROM node:22-slim AS production
-
-# Install runtime dependencies and build tools for native modules
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-      libpcap-dev wget python3 make g++ iputils-ping && \
-    rm -rf /var/lib/apt/lists/*
-
-WORKDIR /app
-
-# Copy workspace manifests
-COPY package.json package-lock.json ./
-COPY server/package.json server/
-
-# Install production dependencies only (needs build tools for native addons)
-RUN npm ci --omit=dev -w server && \
-    npm cache clean --force && \
-    apt-get purge -y python3 make g++ && \
-    apt-get autoremove -y && \
-    rm -rf /var/lib/apt/lists/*
-
-# Copy compiled server code (includes client build in dist/public/)
-COPY --from=builder /app/server/dist server/dist/
-
-# Create data directory for SQLite
-RUN mkdir -p /app/data
-
-# Expose ports
-EXPOSE 3000
-EXPOSE 2055/udp
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD wget -qO- http://localhost:3000/health || exit 1
-
-# Environment defaults
-ENV NODE_ENV=production
-ENV PORT=3000
-ENV DB_PATH=/app/data/netmonitor.db
-
-# Start the server
-CMD ["node", "server/dist/index.js"]
+CMD ["npm", "--workspace", "client", "run", "dev", "--", "--host", "0.0.0.0"]
