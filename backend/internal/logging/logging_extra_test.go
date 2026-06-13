@@ -77,10 +77,10 @@ func TestAuditLogger_LogRetentionPurge(t *testing.T) {
 	logger := testLogger()
 	audit := NewAuditLogger(logger)
 	audit.LogRetentionPurge(context.Background(), map[string]any{
-		"metrics_purged":  1000,
-		"flows_purged":    500,
-		"alerts_purged":   50,
-		"retention_days":  30,
+		"metrics_purged": 1000,
+		"flows_purged":   500,
+		"alerts_purged":  50,
+		"retention_days": 30,
 	})
 }
 

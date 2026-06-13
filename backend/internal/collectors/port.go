@@ -23,7 +23,7 @@ func (PortCollector) Collect(ctx context.Context, device *models.Device) (*Resul
 	conn, err := net.DialTimeout("tcp", addr, 5*time.Second)
 	dur := time.Since(start)
 	if err != nil {
-		return &Result{Status: "down"}, nil
+		return &Result{Status: "down"}, nil //nolint:nilerr // intentional: return down status, not error
 	}
 	conn.Close()
 	rt := float64(dur.Milliseconds())

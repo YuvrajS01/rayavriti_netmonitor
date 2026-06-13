@@ -69,7 +69,6 @@ func (p *Postgres) GetDevicesFiltered(ctx context.Context, f DeviceFilter) ([]mo
 	if f.Search != "" {
 		where = append(where, fmt.Sprintf("(LOWER(name) LIKE $%d OR LOWER(ip_address) LIKE $%d)", argN, argN))
 		args = append(args, "%"+strings.ToLower(f.Search)+"%")
-		argN++
 	}
 
 	whereClause := ""
@@ -189,7 +188,6 @@ func (p *Postgres) GetAlertsForReport(ctx context.Context, from, to time.Time, d
 	if deviceID != nil {
 		query += fmt.Sprintf(` AND device_id=$%d`, paramIdx)
 		args = append(args, *deviceID)
-		paramIdx++
 	}
 	query += ` ORDER BY created_at DESC LIMIT 5000`
 
@@ -218,7 +216,6 @@ func (p *Postgres) GetMetricsForReport(ctx context.Context, from, to time.Time, 
 	if deviceID != nil {
 		query += fmt.Sprintf(` AND m.device_id=$%d`, paramIdx)
 		args = append(args, *deviceID)
-		paramIdx++
 	}
 	query += ` ORDER BY m.timestamp DESC LIMIT 5000`
 

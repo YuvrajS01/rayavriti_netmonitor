@@ -44,7 +44,7 @@ func (SNMPCollector) Collect(ctx context.Context, device *models.Device) (*Resul
 	}
 	port := uint16(161)
 	if device.SNMPPort > 0 {
-		port = uint16(device.SNMPPort)
+		port = uint16(device.SNMPPort) //nolint:gosec // SNMP port is always valid
 	}
 
 	version := gosnmp.Version2c
@@ -67,16 +67,6 @@ func (SNMPCollector) Collect(ctx context.Context, device *models.Device) (*Resul
 	}
 	defer g.Conn.Close()
 
-	// Gather sysUpTime, CPU loads, storage table, and interface tables in parallel
-	type snmpResult struct {
-		uptime       any
-		cpuLoads     []float64
-		storageTable map[string]map[string]gosnmp.SnmpPDU
-		ifTable      map[string]map[string]gosnmp.SnmpPDU
-		ifXTable     map[string]map[string]gosnmp.SnmpPDU
-		err          error
-	}
-
 	type varbindResult struct {
 		pdus []gosnmp.SnmpPDU
 		err  error
@@ -90,21 +80,17 @@ func (SNMPCollector) Collect(ctx context.Context, device *models.Device) (*Resul
 		uptimeRes.pdus = r.Variables
 	}
 
-	cpuRes := varbindResult{}
 	pdus, err := collectSubtree(g, oidHRProcessorLoad, 20)
-	cpuRes = varbindResult{pdus: pdus, err: err}
+	cpuRes := varbindResult{pdus: pdus, err: err}
 
-	storageRes := tableResult{}
 	t, err := collectTable(g, oidHRStorageTable, []int{2, 3, 4, 5, 6}, 20)
-	storageRes = tableResult{table: t, err: err}
+	storageRes := tableResult{table: t, err: err}
 
-	ifRes := tableResult{}
 	t, err = collectTable(g, oidIfTable, []int{2, 5, 8, 10, 16}, 20)
-	ifRes = tableResult{table: t, err: err}
+	ifRes := tableResult{table: t, err: err}
 
-	ifXRes := tableResult{}
 	t, err = collectTable(g, oidIfXTable, []int{1, 6, 10, 15}, 20)
-	ifXRes = tableResult{table: t, err: err}
+	ifXRes := tableResult{table: t, err: err}
 
 	elapsed := float64(time.Since(start).Milliseconds())
 
@@ -311,11 +297,11 @@ func sumStorageByType(table map[string]map[string]gosnmp.SnmpPDU, typeOid string
 
 func collectInterfaces(baseTable, xTable map[string]map[string]gosnmp.SnmpPDU) []map[string]any {
 	type iface struct {
-		index     int
-		name      string
-		inOctets  int64
-		outOctets int64
-		speed     int64
+		index      int
+		name       string
+		inOctets   int64
+		outOctets  int64
+		speed      int64
 		operStatus int
 	}
 
@@ -323,7 +309,7 @@ func collectInterfaces(baseTable, xTable map[string]map[string]gosnmp.SnmpPDU) [
 
 	for idx, baseRow := range baseTable {
 		var i iface
-		fmt.Sscanf(idx, "%d", &i.index)
+		fmt.Sscanf(idx, "%d", &i.index) //nolint:errcheck
 
 		// ifTable column 2 = ifDescr, column 5 = ifSpeed, column 8 = ifOperStatus, column 10 = ifInOctets, column 16 = ifOutOctets
 		if pdu, ok := baseRow["2"]; ok {
@@ -376,11 +362,11 @@ func collectInterfaces(baseTable, xTable map[string]map[string]gosnmp.SnmpPDU) [
 	var result []map[string]any
 	for _, i := range interfaces {
 		result = append(result, map[string]any{
-			"index":     i.index,
-			"name":      i.name,
-			"inOctets":  i.inOctets,
-			"outOctets": i.outOctets,
-			"speed":     i.speed,
+			"index":      i.index,
+			"name":       i.name,
+			"inOctets":   i.inOctets,
+			"outOctets":  i.outOctets,
+			"speed":      i.speed,
 			"operStatus": i.operStatus,
 		})
 	}

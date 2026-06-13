@@ -84,16 +84,16 @@ type ReportTimeseriesPoint struct {
 }
 
 type DeviceBreakdown struct {
-	DeviceID             int64   `json:"deviceId"`
-	DeviceName           string  `json:"deviceName"`
-	Protocol             string  `json:"protocol"`
-	SampleCount          int     `json:"sampleCount"`
-	DownCount            int     `json:"downCount"`
-	WarnCount            int     `json:"warnCount"`
-	AvgResponse          float64 `json:"avgResponse"`
-	MinResponse          float64 `json:"minResponse"`
-	MaxResponse          float64 `json:"maxResponse"`
-	AvailabilityPercent  float64 `json:"availabilityPercent,omitempty"`
+	DeviceID            int64   `json:"deviceId"`
+	DeviceName          string  `json:"deviceName"`
+	Protocol            string  `json:"protocol"`
+	SampleCount         int     `json:"sampleCount"`
+	DownCount           int     `json:"downCount"`
+	WarnCount           int     `json:"warnCount"`
+	AvgResponse         float64 `json:"avgResponse"`
+	MinResponse         float64 `json:"minResponse"`
+	MaxResponse         float64 `json:"maxResponse"`
+	AvailabilityPercent float64 `json:"availabilityPercent,omitempty"`
 }
 
 type Alert struct {
@@ -174,22 +174,22 @@ type IPCount struct {
 }
 
 type CaptureSession struct {
-	ID            int64      `json:"id"`
-	InterfaceName string     `json:"interfaceName"`
-	Filter        string     `json:"filter"`
-	Status        string     `json:"status"` // running, stopped, error
-	StartedBy     string     `json:"startedBy,omitempty"`
-	TotalPackets  int64      `json:"totalPackets"`
-	TotalBytes    int64      `json:"totalBytes"`
+	ID            int64            `json:"id"`
+	InterfaceName string           `json:"interfaceName"`
+	Filter        string           `json:"filter"`
+	Status        string           `json:"status"` // running, stopped, error
+	StartedBy     string           `json:"startedBy,omitempty"`
+	TotalPackets  int64            `json:"totalPackets"`
+	TotalBytes    int64            `json:"totalBytes"`
 	Protocols     map[string]int64 `json:"protocols,omitempty"`
-	StartedAt     time.Time  `json:"startedAt"`
-	StoppedAt     *time.Time `json:"stoppedAt,omitempty"`
-	ErrorMessage  string     `json:"errorMessage,omitempty"`
+	StartedAt     time.Time        `json:"startedAt"`
+	StoppedAt     *time.Time       `json:"stoppedAt,omitempty"`
+	ErrorMessage  string           `json:"errorMessage,omitempty"`
 }
 
 type CaptureSessionStats struct {
-	TotalPackets int64 `json:"totalPackets"`
-	TotalBytes   int64 `json:"totalBytes"`
+	TotalPackets int64  `json:"totalPackets"`
+	TotalBytes   int64  `json:"totalBytes"`
 	ErrorMessage string `json:"errorMessage,omitempty"`
 }
 
@@ -216,17 +216,17 @@ type CapturePacket struct {
 }
 
 type PortScanResult struct {
-	ID            int64      `json:"id"`
-	DeviceID      int64      `json:"deviceId"`
-	Port          int        `json:"port"`
-	Protocol      string     `json:"protocol"`
-	State         string     `json:"state"` // open, closed, filtered
-	Service       string     `json:"service,omitempty"`
-	ResponseTime  *float64   `json:"responseTime,omitempty"`
-	FirstSeen     time.Time  `json:"firstSeen"`
-	LastSeen      time.Time  `json:"lastSeen"`
-	LastChangedAt time.Time  `json:"lastChangedAt"`
-	ScannedAt     time.Time  `json:"scannedAt"`
+	ID            int64     `json:"id"`
+	DeviceID      int64     `json:"deviceId"`
+	Port          int       `json:"port"`
+	Protocol      string    `json:"protocol"`
+	State         string    `json:"state"` // open, closed, filtered
+	Service       string    `json:"service,omitempty"`
+	ResponseTime  *float64  `json:"responseTime,omitempty"`
+	FirstSeen     time.Time `json:"firstSeen"`
+	LastSeen      time.Time `json:"lastSeen"`
+	LastChangedAt time.Time `json:"lastChangedAt"`
+	ScannedAt     time.Time `json:"scannedAt"`
 }
 
 type Dashboard struct {
@@ -270,11 +270,11 @@ type AlertRule struct {
 	Name           string               `json:"name"`
 	Description    string               `json:"description"`
 	Enabled        bool                 `json:"enabled"`
-	Severity       string               `json:"severity"` // critical, warning, info
+	Severity       string               `json:"severity"`  // critical, warning, info
 	ScopeType      string               `json:"scopeType"` // global, device
 	ScopeValue     string               `json:"scopeValue,omitempty"`
 	DeviceID       *int64               `json:"deviceId,omitempty"` // nil = all devices
-	ConditionLogic string               `json:"conditionLogic"` // all, any
+	ConditionLogic string               `json:"conditionLogic"`     // all, any
 	CooldownSec    int                  `json:"cooldownSec"`
 	AutoResolve    bool                 `json:"autoResolve"`
 	CreatedBy      *int64               `json:"createdBy,omitempty"`
@@ -287,9 +287,9 @@ type AlertRule struct {
 type AlertRuleCondition struct {
 	ID              int64          `json:"id"`
 	RuleID          int64          `json:"ruleId"`
-	Type            string         `json:"type"` // threshold, status_change, absence, anomaly
+	Type            string         `json:"type"`        // threshold, status_change, absence, anomaly
 	MetricField     string         `json:"metricField"` // status, response_time, packet_loss, cpu, memory
-	Operator        string         `json:"operator"` // gt, lt, gte, lte, eq, neq
+	Operator        string         `json:"operator"`    // gt, lt, gte, lte, eq, neq
 	Value           string         `json:"value"`
 	DurationSeconds int            `json:"durationSeconds"` // sustained duration before firing
 	Config          map[string]any `json:"config,omitempty"`
@@ -308,7 +308,7 @@ type AlertHistory struct {
 	ID        int64          `json:"id"`
 	AlertID   int64          `json:"alertId"`
 	RuleID    *int64         `json:"ruleId,omitempty"`
-	Action    string         `json:"action"` // fired, notified, acknowledged, resolved, auto_resolved
+	Action    string         `json:"action"`          // fired, notified, acknowledged, resolved, auto_resolved
 	Actor     string         `json:"actor,omitempty"` // system, user:admin, rule:5
 	Details   map[string]any `json:"details,omitempty"`
 	CreatedAt time.Time      `json:"createdAt"`

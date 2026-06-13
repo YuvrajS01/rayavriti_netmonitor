@@ -59,11 +59,11 @@ func TestStatsCache_DashboardStats(t *testing.T) {
 	ctx := context.Background()
 
 	stats := map[string]any{
-		"total_devices":    10,
-		"online_devices":   8,
-		"offline_devices":  2,
-		"active_alerts":    3,
-		"total_metrics":    1500,
+		"total_devices":   10,
+		"online_devices":  8,
+		"offline_devices": 2,
+		"active_alerts":   3,
+		"total_metrics":   1500,
 	}
 
 	// Cache miss

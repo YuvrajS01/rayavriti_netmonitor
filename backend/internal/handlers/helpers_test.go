@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
-	"testing"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -14,11 +13,11 @@ import (
 )
 
 const (
-	testJWTSecret  = "test-secret-key-for-handlers"
-	testUsername   = "admin"
-	testPassword   = "password123"
-	testUserID     = int64(1)
-	testUserRole   = "admin"
+	testJWTSecret = "test-secret-key-for-handlers"
+	testUsername  = "admin"
+	testPassword  = "password123"
+	testUserID    = int64(1)
+	testUserRole  = "admin"
 )
 
 func testConfig() *config.Config {
@@ -29,15 +28,6 @@ func testConfig() *config.Config {
 			RefreshTokenExpiry: 7 * 24 * time.Hour,
 		},
 	}
-}
-
-func generateTestToken(t *testing.T) string {
-	t.Helper()
-	at, _, err := auth.GenerateTokenPair(testUserID, testUsername, testUserRole, testJWTSecret, 15*time.Minute, 7*24*time.Hour)
-	if err != nil {
-		t.Fatalf("failed to generate token: %v", err)
-	}
-	return at
 }
 
 func authenticatedRequest(method, url string, body string) (*httptest.ResponseRecorder, *http.Request) {

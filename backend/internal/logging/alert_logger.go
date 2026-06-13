@@ -19,15 +19,15 @@ func NewAlertLogger(base *Logger) *AlertLogger {
 
 // ConditionResult holds the evaluation result for a single alert condition.
 type ConditionResult struct {
-	ConditionID          int64   `json:"condition_id"`
-	Type                 string  `json:"type"`
-	Field                string  `json:"field"`
-	Operator             string  `json:"operator"`
-	Threshold            float64 `json:"threshold"`
-	ActualValue          float64 `json:"actual_value"`
-	Result               bool    `json:"result"`
-	SustainedSeconds     int     `json:"sustained_seconds"`
-	RequiredDurationSec  int     `json:"required_duration_seconds"`
+	ConditionID         int64   `json:"condition_id"`
+	Type                string  `json:"type"`
+	Field               string  `json:"field"`
+	Operator            string  `json:"operator"`
+	Threshold           float64 `json:"threshold"`
+	ActualValue         float64 `json:"actual_value"`
+	Result              bool    `json:"result"`
+	SustainedSeconds    int     `json:"sustained_seconds"`
+	RequiredDurationSec int     `json:"required_duration_seconds"`
 }
 
 // LogEvaluation logs a rule evaluation with full condition results.

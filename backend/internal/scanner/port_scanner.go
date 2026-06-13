@@ -10,9 +10,9 @@ import (
 
 // PortResult holds the result for a single port scan.
 type PortResult struct {
-	Port    int
-	Open    bool
-	Banner  string
+	Port   int
+	Open   bool
+	Banner string
 }
 
 // ScanOptions controls scanner behaviour.

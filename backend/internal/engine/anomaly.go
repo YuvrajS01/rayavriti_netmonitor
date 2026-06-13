@@ -52,10 +52,10 @@ func (e *AnomalyEngine) Stop() {
 }
 
 type DeviceHealthScore struct {
-	DeviceID   int64   `json:"deviceId"`
-	DeviceName string  `json:"deviceName"`
-	Score      float64 `json:"score"`
-	Status     string  `json:"status"`
+	DeviceID   int64    `json:"deviceId"`
+	DeviceName string   `json:"deviceName"`
+	Score      float64  `json:"score"`
+	Status     string   `json:"status"`
 	Factors    []string `json:"factors,omitempty"`
 }
 

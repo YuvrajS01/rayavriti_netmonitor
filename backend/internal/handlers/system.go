@@ -76,11 +76,11 @@ func (h *SystemHandler) Info(w http.ResponseWriter, r *http.Request) {
 			"total":   diskTotalGB,
 			"percent": diskPercent,
 		},
-		"uptime":     uptimeSec,
-		"loadAvg":    []float64{load1, load5, load15},
-		"hostname":   hostname,
-		"goVersion":  runtime.Version(),
-		"numCPU":     runtime.NumCPU(),
+		"uptime":       uptimeSec,
+		"loadAvg":      []float64{load1, load5, load15},
+		"hostname":     hostname,
+		"goVersion":    runtime.Version(),
+		"numCPU":       runtime.NumCPU(),
 		"numGoroutine": runtime.NumGoroutine(),
 	})
 }

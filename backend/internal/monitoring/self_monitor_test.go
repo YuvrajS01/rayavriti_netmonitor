@@ -10,11 +10,11 @@ import (
 )
 
 type mockMonitoringDB struct {
-	recordHTTPFn        func(ctx context.Context, r *HTTPRequest) error
-	recordDBQueryFn     func(ctx context.Context, q *DBQuery) error
-	recordCollectorFn   func(ctx context.Context, c *CollectorRun) error
-	recordSystemFn      func(ctx context.Context, m *SystemMetrics) error
-	recordAuditFn       func(ctx context.Context, e *AuditLogEntry) error
+	recordHTTPFn          func(ctx context.Context, r *HTTPRequest) error
+	recordDBQueryFn       func(ctx context.Context, q *DBQuery) error
+	recordCollectorFn     func(ctx context.Context, c *CollectorRun) error
+	recordSystemFn        func(ctx context.Context, m *SystemMetrics) error
+	recordAuditFn         func(ctx context.Context, e *AuditLogEntry) error
 	recordAlertActivityFn func(ctx context.Context, a *AlertActivity) error
 }
 

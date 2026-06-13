@@ -11,8 +11,8 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
 	"github.com/rayavriti/netmonitor-backend/internal/database"
-	"github.com/rayavriti/netmonitor-backend/internal/models"
 	"github.com/rayavriti/netmonitor-backend/internal/httputil"
+	"github.com/rayavriti/netmonitor-backend/internal/models"
 	"github.com/rayavriti/netmonitor-backend/internal/scanner"
 )
 
@@ -258,13 +258,13 @@ func (h *DeviceHandler) ScanPorts(w http.ResponseWriter, r *http.Request) {
 	}
 
 	httputil.SendOK(w, map[string]any{
-		"deviceId":   device.ID,
-		"deviceName": device.Name,
-		"host":       device.IPAddress,
+		"deviceId":     device.ID,
+		"deviceName":   device.Name,
+		"host":         device.IPAddress,
 		"scannedPorts": len(portsToScan),
-		"openPorts":  len(openPorts),
-		"results":    modelResults,
-		"changes":    []string{},
-		"scannedAt":  time.Now().Format(time.RFC3339),
+		"openPorts":    len(openPorts),
+		"results":      modelResults,
+		"changes":      []string{},
+		"scannedAt":    time.Now().Format(time.RFC3339),
 	})
 }

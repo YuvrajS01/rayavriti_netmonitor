@@ -29,9 +29,9 @@ type CaptureHandler struct {
 	db      database.Database
 	hub     *websocket.Hub
 
-	mu      sync.Mutex
-	cancel  context.CancelFunc
-	stats   captureStats
+	mu     sync.Mutex
+	cancel context.CancelFunc
+	stats  captureStats
 }
 
 type captureStats struct {
@@ -286,7 +286,7 @@ func (h *CaptureHandler) runCapture(ctx context.Context, sessionID int64, iface,
 	go func() {
 		<-ctx.Done()
 		if cmd.Process != nil {
-			cmd.Process.Kill()
+			_ = cmd.Process.Kill()
 		}
 	}()
 
@@ -307,26 +307,25 @@ func (h *CaptureHandler) runCapture(ctx context.Context, sessionID int64, iface,
 		batch = nil
 
 		// Store in DB (best effort)
-		for _, p := range packets {
-			p := p
-			if err := h.db.InsertCapturePacket(ctx, sessionID, &p); err != nil {
+		for _, pkt := range packets {
+			if err := h.db.InsertCapturePacket(ctx, sessionID, &pkt); err != nil {
 				slog.Warn("failed to insert packet", "error", err)
 			}
 		}
 
 		// Broadcast via WebSocket
 		packetData := make([]map[string]any, 0, len(packets))
-		for _, p := range packets {
+		for _, pkt := range packets {
 			packetData = append(packetData, map[string]any{
-				"timestamp": p.Timestamp,
-				"srcIp":     p.SrcIP,
-				"dstIp":     p.DstIP,
-				"srcPort":   p.SrcPort,
-				"dstPort":   p.DstPort,
-				"protocol":  p.Protocol,
-				"length":    p.Length,
-				"flags":     p.Flags,
-				"payload":   p.Payload,
+				"timestamp": pkt.Timestamp,
+				"srcIp":     pkt.SrcIP,
+				"dstIp":     pkt.DstIP,
+				"srcPort":   pkt.SrcPort,
+				"dstPort":   pkt.DstPort,
+				"protocol":  pkt.Protocol,
+				"length":    pkt.Length,
+				"flags":     pkt.Flags,
+				"payload":   pkt.Payload,
 			})
 		}
 		h.hub.Broadcast(websocket.Message{

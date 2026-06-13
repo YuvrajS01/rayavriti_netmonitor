@@ -9,91 +9,91 @@ import (
 )
 
 type mockDB struct {
-	connectFn             func(ctx context.Context) error
-	closeFn               func() error
-	pingFn                func(ctx context.Context) error
-	runMigrationsFn       func(ctx context.Context) error
-	getDevicesFn          func(ctx context.Context) ([]models.Device, error)
-	getDevicesFilteredFn  func(ctx context.Context, f database.DeviceFilter) ([]models.Device, int, error)
-	getDeviceFn           func(ctx context.Context, id int64) (*models.Device, error)
-	createDeviceFn        func(ctx context.Context, d *models.Device) (*models.Device, error)
-	updateDeviceFn        func(ctx context.Context, id int64, d *models.Device) (*models.Device, error)
-	deleteDeviceFn        func(ctx context.Context, id int64) error
-	updateDeviceStatusFn  func(ctx context.Context, id int64, status string) error
-	getEnabledDevicesFn   func(ctx context.Context) ([]models.Device, error)
-	getDevicesByStatusFn  func(ctx context.Context, status string) ([]models.Device, error)
-	getSensorsFn          func(ctx context.Context, deviceID *int64) ([]models.Sensor, error)
-	getSensorFn           func(ctx context.Context, id int64) (*models.Sensor, error)
-	createSensorFn        func(ctx context.Context, s *models.Sensor) (*models.Sensor, error)
-	updateSensorFn        func(ctx context.Context, id int64, s *models.Sensor) (*models.Sensor, error)
-	deleteSensorFn        func(ctx context.Context, id int64) error
-	getSensorsByDeviceIDFn func(ctx context.Context, deviceID int64) ([]models.Sensor, error)
-	recordMetricFn        func(ctx context.Context, m *models.Metric) error
-	getLatestMetricsFn    func(ctx context.Context) ([]models.Metric, error)
-	getDeviceMetricsFn    func(ctx context.Context, deviceID int64, from, to time.Time, limit int) ([]models.Metric, error)
-	getMetricsSummaryFn   func(ctx context.Context, from, to time.Time, deviceID *int64) (map[string]any, error)
-	getMetricsForReportFn func(ctx context.Context, from, to time.Time, deviceID *int64, interval string) ([]models.ReportMetricRow, error)
-	getReportTimeseriesFn    func(ctx context.Context, from, to time.Time, bucketMinutes int, deviceID *int64) ([]models.ReportTimeseriesPoint, error)
-	getReportDeviceBreakdownFn func(ctx context.Context, from, to time.Time, deviceID *int64) ([]models.DeviceBreakdown, error)
-	queryMetricsFn        func(ctx context.Context, q models.MetricQuery) ([]models.Metric, error)
-	exportMetricsFn       func(ctx context.Context, from, to time.Time, deviceID *int64, limit int) ([]models.Metric, error)
-	getMetricsInWindowFn  func(ctx context.Context, deviceID int64, field string, from, to time.Time) ([]float64, error)
-	getAlertsFn           func(ctx context.Context, status string, limit, offset int) ([]models.Alert, int, error)
-	getAlertFn            func(ctx context.Context, id int64) (*models.Alert, error)
-	createAlertFn         func(ctx context.Context, a *models.Alert) (*models.Alert, error)
-	updateAlertStatusFn   func(ctx context.Context, id int64, status, by string) error
-	deleteAlertFn         func(ctx context.Context, id int64) error
-	getAlertCountsFn      func(ctx context.Context) (models.AlertCounts, error)
-	findActiveAlertFn     func(ctx context.Context, deviceID int64, message string) (*models.Alert, error)
-	getAlertsForReportFn  func(ctx context.Context, from, to time.Time, deviceID *int64) ([]models.Alert, error)
-	getAlertRulesFn       func(ctx context.Context) ([]models.AlertRule, error)
-	getAlertRuleFn        func(ctx context.Context, id int64) (*models.AlertRule, error)
-	createAlertRuleFn     func(ctx context.Context, r *models.AlertRule) (*models.AlertRule, error)
-	updateAlertRuleFn     func(ctx context.Context, id int64, r *models.AlertRule) (*models.AlertRule, error)
-	deleteAlertRuleFn     func(ctx context.Context, id int64) error
-	toggleAlertRuleFn     func(ctx context.Context, id int64, enabled bool) error
-	getNotificationChannelsFn  func(ctx context.Context) ([]models.NotificationChannel, error)
-	getNotificationChannelFn   func(ctx context.Context, id int64) (*models.NotificationChannel, error)
+	connectFn                   func(ctx context.Context) error
+	closeFn                     func() error
+	pingFn                      func(ctx context.Context) error
+	runMigrationsFn             func(ctx context.Context) error
+	getDevicesFn                func(ctx context.Context) ([]models.Device, error)
+	getDevicesFilteredFn        func(ctx context.Context, f database.DeviceFilter) ([]models.Device, int, error)
+	getDeviceFn                 func(ctx context.Context, id int64) (*models.Device, error)
+	createDeviceFn              func(ctx context.Context, d *models.Device) (*models.Device, error)
+	updateDeviceFn              func(ctx context.Context, id int64, d *models.Device) (*models.Device, error)
+	deleteDeviceFn              func(ctx context.Context, id int64) error
+	updateDeviceStatusFn        func(ctx context.Context, id int64, status string) error
+	getEnabledDevicesFn         func(ctx context.Context) ([]models.Device, error)
+	getDevicesByStatusFn        func(ctx context.Context, status string) ([]models.Device, error)
+	getSensorsFn                func(ctx context.Context, deviceID *int64) ([]models.Sensor, error)
+	getSensorFn                 func(ctx context.Context, id int64) (*models.Sensor, error)
+	createSensorFn              func(ctx context.Context, s *models.Sensor) (*models.Sensor, error)
+	updateSensorFn              func(ctx context.Context, id int64, s *models.Sensor) (*models.Sensor, error)
+	deleteSensorFn              func(ctx context.Context, id int64) error
+	getSensorsByDeviceIDFn      func(ctx context.Context, deviceID int64) ([]models.Sensor, error)
+	recordMetricFn              func(ctx context.Context, m *models.Metric) error
+	getLatestMetricsFn          func(ctx context.Context) ([]models.Metric, error)
+	getDeviceMetricsFn          func(ctx context.Context, deviceID int64, from, to time.Time, limit int) ([]models.Metric, error)
+	getMetricsSummaryFn         func(ctx context.Context, from, to time.Time, deviceID *int64) (map[string]any, error)
+	getMetricsForReportFn       func(ctx context.Context, from, to time.Time, deviceID *int64, interval string) ([]models.ReportMetricRow, error)
+	getReportTimeseriesFn       func(ctx context.Context, from, to time.Time, bucketMinutes int, deviceID *int64) ([]models.ReportTimeseriesPoint, error)
+	getReportDeviceBreakdownFn  func(ctx context.Context, from, to time.Time, deviceID *int64) ([]models.DeviceBreakdown, error)
+	queryMetricsFn              func(ctx context.Context, q models.MetricQuery) ([]models.Metric, error)
+	exportMetricsFn             func(ctx context.Context, from, to time.Time, deviceID *int64, limit int) ([]models.Metric, error)
+	getMetricsInWindowFn        func(ctx context.Context, deviceID int64, field string, from, to time.Time) ([]float64, error)
+	getAlertsFn                 func(ctx context.Context, status string, limit, offset int) ([]models.Alert, int, error)
+	getAlertFn                  func(ctx context.Context, id int64) (*models.Alert, error)
+	createAlertFn               func(ctx context.Context, a *models.Alert) (*models.Alert, error)
+	updateAlertStatusFn         func(ctx context.Context, id int64, status, by string) error
+	deleteAlertFn               func(ctx context.Context, id int64) error
+	getAlertCountsFn            func(ctx context.Context) (models.AlertCounts, error)
+	findActiveAlertFn           func(ctx context.Context, deviceID int64, message string) (*models.Alert, error)
+	getAlertsForReportFn        func(ctx context.Context, from, to time.Time, deviceID *int64) ([]models.Alert, error)
+	getAlertRulesFn             func(ctx context.Context) ([]models.AlertRule, error)
+	getAlertRuleFn              func(ctx context.Context, id int64) (*models.AlertRule, error)
+	createAlertRuleFn           func(ctx context.Context, r *models.AlertRule) (*models.AlertRule, error)
+	updateAlertRuleFn           func(ctx context.Context, id int64, r *models.AlertRule) (*models.AlertRule, error)
+	deleteAlertRuleFn           func(ctx context.Context, id int64) error
+	toggleAlertRuleFn           func(ctx context.Context, id int64, enabled bool) error
+	getNotificationChannelsFn   func(ctx context.Context) ([]models.NotificationChannel, error)
+	getNotificationChannelFn    func(ctx context.Context, id int64) (*models.NotificationChannel, error)
 	createNotificationChannelFn func(ctx context.Context, ch *models.NotificationChannel) (*models.NotificationChannel, error)
 	updateNotificationChannelFn func(ctx context.Context, id int64, ch *models.NotificationChannel) (*models.NotificationChannel, error)
 	deleteNotificationChannelFn func(ctx context.Context, id int64) error
-	recordAlertHistoryFn  func(ctx context.Context, h *models.AlertHistory) error
-	getAlertHistoryFn     func(ctx context.Context, alertID int64) ([]models.AlertHistory, error)
-	getAlertRuleStateFn   func(ctx context.Context, ruleID, deviceID int64) (*models.AlertRuleState, error)
-	upsertAlertRuleStateFn func(ctx context.Context, s *models.AlertRuleState) error
-	getUserByUsernameFn   func(ctx context.Context, username string) (*models.User, error)
-	getUserByIDFn         func(ctx context.Context, id int64) (*models.User, error)
-	createUserFn          func(ctx context.Context, u *models.User) (*models.User, error)
-	updateUserFn          func(ctx context.Context, id int64, u *models.User) (*models.User, error)
-	deleteUserFn          func(ctx context.Context, id int64) error
-	getAPIKeyFn           func(ctx context.Context, keyHash string) (*models.APIKey, error)
-	getAPIKeyByIDFn       func(ctx context.Context, id int64) (*models.APIKey, error)
-	createAPIKeyFn        func(ctx context.Context, k *models.APIKey) (*models.APIKey, error)
-	getAPIKeysByUserFn    func(ctx context.Context, userID int64) ([]models.APIKey, error)
-	deleteAPIKeyFn        func(ctx context.Context, id int64) error
-	recordFlowsFn         func(ctx context.Context, flows []models.Flow) error
-	getFlowsFn            func(ctx context.Context, from, to time.Time, limit, offset int) ([]models.Flow, int, error)
-	getTopTalkersFn       func(ctx context.Context, from, to time.Time, n int) ([]models.IPCount, error)
-	getProtocolStatsFn    func(ctx context.Context, from, to time.Time) (map[string]int64, error)
-	getFlowTimeseriesFn   func(ctx context.Context, from, to time.Time, interval string) ([]models.FlowTimeseriesPoint, error)
-	getFlowStatsFn        func(ctx context.Context, from, to time.Time) (models.FlowSummaryStats, error)
-	createCaptureSessionFn  func(ctx context.Context, cs *models.CaptureSession) (*models.CaptureSession, error)
-	getCaptureSessionFn     func(ctx context.Context, id int64) (*models.CaptureSession, error)
-	getCaptureSessionsFn    func(ctx context.Context) ([]models.CaptureSession, error)
-	stopCaptureSessionFn    func(ctx context.Context, id int64, stats models.CaptureSessionStats) error
-	insertCapturePacketFn   func(ctx context.Context, sessionID int64, p *models.CapturePacket) error
-	getCapturePacketsFn     func(ctx context.Context, sessionID int64, limit, offset int) ([]models.CapturePacket, error)
-	upsertPortScanResultsFn func(ctx context.Context, deviceID int64, results []models.PortScanResult) error
-	getPortScanResultsFn    func(ctx context.Context, deviceID int64) ([]models.PortScanResult, error)
-	getDashboardsFn       func(ctx context.Context, userID int64) ([]models.Dashboard, error)
-	getDashboardFn        func(ctx context.Context, id int64) (*models.Dashboard, error)
-	saveDashboardFn       func(ctx context.Context, d *models.Dashboard) (*models.Dashboard, error)
-	deleteDashboardFn     func(ctx context.Context, id int64) error
-	pruneMetricsFn        func(ctx context.Context, olderThan time.Time) (int64, error)
-	pruneFlowsFn          func(ctx context.Context, olderThan time.Time) (int64, error)
-	pruneAlertsFn         func(ctx context.Context, olderThan time.Time) (int64, error)
-	getDashboardStatsFn   func(ctx context.Context) (map[string]any, error)
-	getRefreshTokenFn     func(ctx context.Context, tokenHash string) (*database.RefreshToken, error)
+	recordAlertHistoryFn        func(ctx context.Context, h *models.AlertHistory) error
+	getAlertHistoryFn           func(ctx context.Context, alertID int64) ([]models.AlertHistory, error)
+	getAlertRuleStateFn         func(ctx context.Context, ruleID, deviceID int64) (*models.AlertRuleState, error)
+	upsertAlertRuleStateFn      func(ctx context.Context, s *models.AlertRuleState) error
+	getUserByUsernameFn         func(ctx context.Context, username string) (*models.User, error)
+	getUserByIDFn               func(ctx context.Context, id int64) (*models.User, error)
+	createUserFn                func(ctx context.Context, u *models.User) (*models.User, error)
+	updateUserFn                func(ctx context.Context, id int64, u *models.User) (*models.User, error)
+	deleteUserFn                func(ctx context.Context, id int64) error
+	getAPIKeyFn                 func(ctx context.Context, keyHash string) (*models.APIKey, error)
+	getAPIKeyByIDFn             func(ctx context.Context, id int64) (*models.APIKey, error)
+	createAPIKeyFn              func(ctx context.Context, k *models.APIKey) (*models.APIKey, error)
+	getAPIKeysByUserFn          func(ctx context.Context, userID int64) ([]models.APIKey, error)
+	deleteAPIKeyFn              func(ctx context.Context, id int64) error
+	recordFlowsFn               func(ctx context.Context, flows []models.Flow) error
+	getFlowsFn                  func(ctx context.Context, from, to time.Time, limit, offset int) ([]models.Flow, int, error)
+	getTopTalkersFn             func(ctx context.Context, from, to time.Time, n int) ([]models.IPCount, error)
+	getProtocolStatsFn          func(ctx context.Context, from, to time.Time) (map[string]int64, error)
+	getFlowTimeseriesFn         func(ctx context.Context, from, to time.Time, interval string) ([]models.FlowTimeseriesPoint, error)
+	getFlowStatsFn              func(ctx context.Context, from, to time.Time) (models.FlowSummaryStats, error)
+	createCaptureSessionFn      func(ctx context.Context, cs *models.CaptureSession) (*models.CaptureSession, error)
+	getCaptureSessionFn         func(ctx context.Context, id int64) (*models.CaptureSession, error)
+	getCaptureSessionsFn        func(ctx context.Context) ([]models.CaptureSession, error)
+	stopCaptureSessionFn        func(ctx context.Context, id int64, stats models.CaptureSessionStats) error
+	insertCapturePacketFn       func(ctx context.Context, sessionID int64, p *models.CapturePacket) error
+	getCapturePacketsFn         func(ctx context.Context, sessionID int64, limit, offset int) ([]models.CapturePacket, error)
+	upsertPortScanResultsFn     func(ctx context.Context, deviceID int64, results []models.PortScanResult) error
+	getPortScanResultsFn        func(ctx context.Context, deviceID int64) ([]models.PortScanResult, error)
+	getDashboardsFn             func(ctx context.Context, userID int64) ([]models.Dashboard, error)
+	getDashboardFn              func(ctx context.Context, id int64) (*models.Dashboard, error)
+	saveDashboardFn             func(ctx context.Context, d *models.Dashboard) (*models.Dashboard, error)
+	deleteDashboardFn           func(ctx context.Context, id int64) error
+	pruneMetricsFn              func(ctx context.Context, olderThan time.Time) (int64, error)
+	pruneFlowsFn                func(ctx context.Context, olderThan time.Time) (int64, error)
+	pruneAlertsFn               func(ctx context.Context, olderThan time.Time) (int64, error)
+	getDashboardStatsFn         func(ctx context.Context) (map[string]any, error)
+	getRefreshTokenFn           func(ctx context.Context, tokenHash string) (*database.RefreshToken, error)
 }
 
 func (m *mockDB) Connect(ctx context.Context) error {
@@ -692,13 +692,15 @@ func (m *mockDB) GetDashboardStats(ctx context.Context) (map[string]any, error) 
 	return nil, nil
 }
 
-func (m *mockDB) CreateRefreshToken(ctx context.Context, tokenHash string, userID int64, expiresAt time.Time) error { return nil }
+func (m *mockDB) CreateRefreshToken(ctx context.Context, tokenHash string, userID int64, expiresAt time.Time) error {
+	return nil
+}
 func (m *mockDB) GetRefreshToken(ctx context.Context, tokenHash string) (*database.RefreshToken, error) {
 	if m.getRefreshTokenFn != nil {
 		return m.getRefreshTokenFn(ctx, tokenHash)
 	}
 	return nil, nil
 }
-func (m *mockDB) DeleteRefreshToken(ctx context.Context, tokenHash string) error                                    { return nil }
-func (m *mockDB) DeleteRefreshTokensByUser(ctx context.Context, userID int64) error                                 { return nil }
-func (m *mockDB) CleanupExpiredRefreshTokens(ctx context.Context) (int64, error)                                    { return 0, nil }
+func (m *mockDB) DeleteRefreshToken(ctx context.Context, tokenHash string) error    { return nil }
+func (m *mockDB) DeleteRefreshTokensByUser(ctx context.Context, userID int64) error { return nil }
+func (m *mockDB) CleanupExpiredRefreshTokens(ctx context.Context) (int64, error)    { return 0, nil }

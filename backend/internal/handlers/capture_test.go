@@ -309,8 +309,8 @@ func TestParseTcpdumpHeader_FlagsParsing(t *testing.T) {
 
 func TestSplitIPPortV2(t *testing.T) {
 	tests := []struct {
-		input   string
-		wantIP  string
+		input    string
+		wantIP   string
 		wantPort int
 	}{
 		{"192.168.1.1.443", "192.168.1.1", 443},

@@ -99,9 +99,6 @@ func TestFlowProtocols_DBError(t *testing.T) {
 func TestFlowTimeseries(t *testing.T) {
 	db := &mockDB{
 		getFlowTimeseriesFn: func(ctx context.Context, from, to time.Time, interval string) ([]models.FlowTimeseriesPoint, error) {
-			if interval == "" {
-				interval = "5m"
-			}
 			return []models.FlowTimeseriesPoint{{BucketTime: "2026-01-01T00:00:00Z", TotalBytes: 1024}}, nil
 		},
 	}

@@ -15,8 +15,10 @@ type mockCollector struct {
 	err    error
 }
 
-func (m *mockCollector) Name() string                                    { return m.name }
-func (m *mockCollector) Collect(ctx context.Context, d *models.Device) (*Result, error) { return m.result, m.err }
+func (m *mockCollector) Name() string { return m.name }
+func (m *mockCollector) Collect(ctx context.Context, d *models.Device) (*Result, error) {
+	return m.result, m.err
+}
 
 func TestRegistry_Register_And_Get(t *testing.T) {
 	t.Parallel()

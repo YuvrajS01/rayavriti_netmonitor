@@ -39,10 +39,10 @@ func pendingStateWithNotifier(
 		getAlertRuleStateFn: func(ctx context.Context, ruleID, deviceID int64) (*models.AlertRuleState, error) {
 			old := time.Now().Add(-600 * time.Second)
 			return &models.AlertRuleState{
-				RuleID:      ruleID,
-				DeviceID:    1,
-				State:       "pending",
-				FirstMetAt:  &old,
+				RuleID:     ruleID,
+				DeviceID:   1,
+				State:      "pending",
+				FirstMetAt: &old,
 			}, nil
 		},
 		createAlertFn: func(ctx context.Context, a *models.Alert) (*models.Alert, error) {
@@ -649,10 +649,10 @@ func TestSendNotifications_MultipleChannels(t *testing.T) {
 		getAlertRuleStateFn: func(ctx context.Context, ruleID, deviceID int64) (*models.AlertRuleState, error) {
 			old := time.Now().Add(-600 * time.Second)
 			return &models.AlertRuleState{
-				RuleID:      ruleID,
-				DeviceID:    1,
-				State:       "pending",
-				FirstMetAt:  &old,
+				RuleID:     ruleID,
+				DeviceID:   1,
+				State:      "pending",
+				FirstMetAt: &old,
 			}, nil
 		},
 		createAlertFn: func(ctx context.Context, a *models.Alert) (*models.Alert, error) {

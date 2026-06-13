@@ -10,10 +10,10 @@ import (
 )
 
 const (
-	testSecret     = "test-secret-key-for-jwt"
-	testUserID     = int64(42)
-	testUsername   = "admin"
-	testRole       = "admin"
+	testSecret   = "test-secret-key-for-jwt"
+	testUserID   = int64(42)
+	testUsername = "admin"
+	testRole     = "admin"
 )
 
 func TestGenerateTokenPair_HappyPath(t *testing.T) {

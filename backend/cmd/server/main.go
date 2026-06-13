@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -207,7 +208,7 @@ func run() error {
 	// 13. Start server in goroutine
 	errChan := make(chan error, 1)
 	go func() {
-		if err := srv.Start(); err != nil && err != http.ErrServerClosed {
+		if err := srv.Start(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			errChan <- err
 		}
 	}()

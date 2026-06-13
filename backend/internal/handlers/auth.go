@@ -9,8 +9,8 @@ import (
 	"github.com/rayavriti/netmonitor-backend/internal/auth"
 	"github.com/rayavriti/netmonitor-backend/internal/config"
 	"github.com/rayavriti/netmonitor-backend/internal/database"
-	"github.com/rayavriti/netmonitor-backend/internal/models"
 	"github.com/rayavriti/netmonitor-backend/internal/httputil"
+	"github.com/rayavriti/netmonitor-backend/internal/models"
 )
 
 type AuthHandler struct {
@@ -73,11 +73,13 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
-	var body struct{ RefreshToken string `json:"refreshToken"` }
+	var body struct {
+		RefreshToken string `json:"refreshToken"`
+	}
 	_ = httputil.ParseJSON(r, &body)
 	if body.RefreshToken != "" {
 		tokenHash := auth.HashToken(body.RefreshToken)
-		h.db.DeleteRefreshToken(r.Context(), tokenHash)
+		_ = h.db.DeleteRefreshToken(r.Context(), tokenHash)
 	}
 	httputil.SendOK(w, map[string]string{"message": "logged out"})
 }
@@ -97,7 +99,9 @@ func (h *AuthHandler) Me(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
-	var body struct{ RefreshToken string `json:"refreshToken"` }
+	var body struct {
+		RefreshToken string `json:"refreshToken"`
+	}
 	if err := httputil.ParseJSON(r, &body); err != nil {
 		httputil.SendError(w, http.StatusBadRequest, "invalid body")
 		return
@@ -115,7 +119,7 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Delete old token (rotation)
-	h.db.DeleteRefreshToken(r.Context(), tokenHash)
+	_ = h.db.DeleteRefreshToken(r.Context(), tokenHash)
 	// Issue new pair
 	at, rt, err := auth.GenerateTokenPair(claims.UserID, claims.Username, claims.Role,
 		h.cfg.Auth.JWTSecret, h.cfg.Auth.AccessTokenExpiry, h.cfg.Auth.RefreshTokenExpiry)
@@ -126,7 +130,7 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 	// Store new refresh token
 	newHash := auth.HashToken(rt)
 	expiresAt := time.Now().Add(h.cfg.Auth.RefreshTokenExpiry)
-	h.db.CreateRefreshToken(r.Context(), newHash, claims.UserID, expiresAt)
+	_ = h.db.CreateRefreshToken(r.Context(), newHash, claims.UserID, expiresAt)
 	httputil.SendOK(w, map[string]string{"accessToken": at, "refreshToken": rt})
 }
 
@@ -139,11 +143,13 @@ func (h *AuthHandler) Verify2FA(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AuthHandler) V1Logout(w http.ResponseWriter, r *http.Request) {
-	var body struct{ RefreshToken string `json:"refreshToken"` }
+	var body struct {
+		RefreshToken string `json:"refreshToken"`
+	}
 	_ = httputil.ParseJSON(r, &body)
 	if body.RefreshToken != "" {
 		tokenHash := auth.HashToken(body.RefreshToken)
-		h.db.DeleteRefreshToken(r.Context(), tokenHash)
+		_ = h.db.DeleteRefreshToken(r.Context(), tokenHash)
 	}
 	httputil.SendOK(w, map[string]bool{"loggedOut": true})
 }
@@ -159,7 +165,9 @@ func (h *AuthHandler) ListAPIKeys(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AuthHandler) CreateAPIKey(w http.ResponseWriter, r *http.Request) {
-	var body struct{ Description string `json:"description"` }
+	var body struct {
+		Description string `json:"description"`
+	}
 	_ = httputil.ParseJSON(r, &body)
 	claims := auth.GetClaims(r.Context())
 	rawKey, hash, err := auth.GenerateAPIKey()

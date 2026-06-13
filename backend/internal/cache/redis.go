@@ -3,6 +3,7 @@ package cache
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -56,7 +57,7 @@ func (r *Redis) Client() *redis.Client {
 // Get fetches a key and unmarshals JSON into dst. Returns false if key missing.
 func (r *Redis) Get(ctx context.Context, key string, dst any) (bool, error) {
 	data, err := r.client.Get(ctx, key).Bytes()
-	if err == redis.Nil {
+	if errors.Is(err, redis.Nil) {
 		return false, nil
 	}
 	if err != nil {

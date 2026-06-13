@@ -47,7 +47,7 @@ func (h *ReportHandler) Timeseries(w http.ResponseWriter, r *http.Request) {
 	deviceID := parseDeviceID(r)
 	bucketMinutes := 60
 	if b := r.URL.Query().Get("bucket"); b != "" {
-		fmt.Sscanf(b, "%d", &bucketMinutes)
+		fmt.Sscanf(b, "%d", &bucketMinutes) //nolint:errcheck
 	}
 	points, err := h.db.GetReportTimeseries(r.Context(), from, to, bucketMinutes, deviceID)
 	if err != nil {

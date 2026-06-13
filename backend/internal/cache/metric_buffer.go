@@ -14,19 +14,19 @@ import (
 const metricsBufferKey = "nm:buffer:metrics"
 
 type MetricBuffer struct {
-	rdb          *Redis
-	db           database.Database
-	batchSize    int
+	rdb           *Redis
+	db            database.Database
+	batchSize     int
 	flushInterval time.Duration
-	cancel       context.CancelFunc
-	wg           sync.WaitGroup
+	cancel        context.CancelFunc
+	wg            sync.WaitGroup
 }
 
 func NewMetricBuffer(rdb *Redis, db database.Database, batchSize int, flushInterval time.Duration) *MetricBuffer {
 	return &MetricBuffer{
-		rdb:          rdb,
-		db:           db,
-		batchSize:    batchSize,
+		rdb:           rdb,
+		db:            db,
+		batchSize:     batchSize,
 		flushInterval: flushInterval,
 	}
 }

@@ -6,8 +6,8 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/rayavriti/netmonitor-backend/internal/auth"
 	"github.com/rayavriti/netmonitor-backend/internal/database"
-	"github.com/rayavriti/netmonitor-backend/internal/models"
 	"github.com/rayavriti/netmonitor-backend/internal/httputil"
+	"github.com/rayavriti/netmonitor-backend/internal/models"
 )
 
 type DashboardHandler struct{ db database.Database }

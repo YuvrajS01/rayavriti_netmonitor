@@ -157,11 +157,11 @@ func (a *AuditLogger) LogRateLimit(ctx context.Context, userID string, authType,
 // LogUnauthorized logs an unauthorized access attempt.
 func (a *AuditLogger) LogUnauthorized(ctx context.Context, ip, path, reason string) {
 	a.LogEvent(ctx, AuditEvent{
-		EventType:    "security.unauthorized",
-		Severity:     "warn",
-		ActorIP:      ip,
-		Description:  "Unauthorized access attempt",
-		Details:      map[string]any{"path": path, "reason": reason},
+		EventType:   "security.unauthorized",
+		Severity:    "warn",
+		ActorIP:     ip,
+		Description: "Unauthorized access attempt",
+		Details:     map[string]any{"path": path, "reason": reason},
 	})
 }
 

@@ -49,7 +49,7 @@ func TestNew_FileLogging(t *testing.T) {
 	logFile := filepath.Join(tmpDir, "test.log")
 
 	cfg := &config.Config{
-		App:     config.AppConfig{Version: "1.0.0"},
+		App: config.AppConfig{Version: "1.0.0"},
 		Logging: config.LoggingConfig{
 			Level:          "info",
 			Format:         "text",

@@ -90,8 +90,8 @@ func sendUnauth(w http.ResponseWriter, msg string) {
 }
 
 type rateLimitKey struct {
-	userID  int64
-	apiKey  bool
+	userID int64
+	apiKey bool
 }
 
 type rateLimitClient struct {

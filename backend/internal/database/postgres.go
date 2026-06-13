@@ -21,18 +21,18 @@ type Postgres struct {
 }
 
 type DatabaseConfig struct {
-	MaxConns         int32
-	MinConns         int32
-	MaxConnLifetime  time.Duration
+	MaxConns          int32
+	MinConns          int32
+	MaxConnLifetime   time.Duration
 	HealthCheckPeriod time.Duration
 }
 
 func NewPostgres(dsn string, cfg *DatabaseConfig) *Postgres {
 	if cfg == nil {
 		cfg = &DatabaseConfig{
-			MaxConns:         20,
-			MinConns:         2,
-			MaxConnLifetime:  time.Hour,
+			MaxConns:          20,
+			MinConns:          2,
+			MaxConnLifetime:   time.Hour,
 			HealthCheckPeriod: 30 * time.Second,
 		}
 	}
@@ -355,11 +355,11 @@ func (p *Postgres) GetMetricsSummary(ctx context.Context, from, to time.Time, de
 		averageResponseMs = *avgRT
 	}
 	return map[string]any{
-		"totalSamples":       totalSamples,
-		"downSamples":        downSamples,
-		"warningSamples":     warningSamples,
+		"totalSamples":        totalSamples,
+		"downSamples":         downSamples,
+		"warningSamples":      warningSamples,
 		"availabilityPercent": math.Round(availabilityPercent*100) / 100,
-		"averageResponseMs":  math.Round(averageResponseMs*100) / 100,
+		"averageResponseMs":   math.Round(averageResponseMs*100) / 100,
 	}, nil
 }
 

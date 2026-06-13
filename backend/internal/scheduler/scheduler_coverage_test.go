@@ -353,7 +353,7 @@ func TestCollectOnce_PanicCollector(t *testing.T) {
 	func() {
 		defer func() {
 			if r := recover(); r != nil {
-				// Expected: panic propagated
+				_ = r // Expected: panic propagated
 			}
 		}()
 		s.collectOnce(context.Background(), device)

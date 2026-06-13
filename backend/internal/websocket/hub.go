@@ -284,7 +284,7 @@ func (h *Hub) ServeWS(w http.ResponseWriter, r *http.Request) {
 			)
 		}()
 
-		conn.SetWriteDeadline(time.Now().Add(writeWait))
+		_ = conn.SetWriteDeadline(time.Now().Add(writeWait))
 		for {
 			c.mu.Lock()
 			dead := c.dead
@@ -294,16 +294,16 @@ func (h *Hub) ServeWS(w http.ResponseWriter, r *http.Request) {
 			}
 			select {
 			case msg, ok := <-c.send:
-				conn.SetWriteDeadline(time.Now().Add(writeWait))
+				_ = conn.SetWriteDeadline(time.Now().Add(writeWait))
 				if !ok {
-					conn.WriteMessage(websocket.CloseMessage, nil)
+					_ = conn.WriteMessage(websocket.CloseMessage, nil)
 					return
 				}
 				if err := conn.WriteMessage(websocket.TextMessage, msg); err != nil {
 					return
 				}
 			case <-ticker.C:
-				conn.SetWriteDeadline(time.Now().Add(writeWait))
+				_ = conn.SetWriteDeadline(time.Now().Add(writeWait))
 				if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
 					return
 				}
@@ -313,9 +313,9 @@ func (h *Hub) ServeWS(w http.ResponseWriter, r *http.Request) {
 
 	// Reader goroutine (handles pong, reads for keep-alive)
 	conn.SetReadLimit(maxMessageSize)
-	conn.SetReadDeadline(time.Now().Add(pongWait))
+	_ = conn.SetReadDeadline(time.Now().Add(pongWait))
 	conn.SetPongHandler(func(string) error {
-		conn.SetReadDeadline(time.Now().Add(pongWait))
+		_ = conn.SetReadDeadline(time.Now().Add(pongWait))
 		return nil
 	})
 	for {

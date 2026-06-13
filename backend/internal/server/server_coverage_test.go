@@ -21,10 +21,10 @@ import (
 
 type serverMockDB struct{}
 
-func (m *serverMockDB) Connect(ctx context.Context) error                     { return nil }
-func (m *serverMockDB) Close() error                                          { return nil }
-func (m *serverMockDB) Ping(ctx context.Context) error                        { return nil }
-func (m *serverMockDB) RunMigrations(ctx context.Context) error               { return nil }
+func (m *serverMockDB) Connect(ctx context.Context) error       { return nil }
+func (m *serverMockDB) Close() error                            { return nil }
+func (m *serverMockDB) Ping(ctx context.Context) error          { return nil }
+func (m *serverMockDB) RunMigrations(ctx context.Context) error { return nil }
 func (m *serverMockDB) GetDevices(ctx context.Context) ([]models.Device, error) {
 	return nil, nil
 }
@@ -40,9 +40,13 @@ func (m *serverMockDB) CreateDevice(ctx context.Context, d *models.Device) (*mod
 func (m *serverMockDB) UpdateDevice(ctx context.Context, id int64, d *models.Device) (*models.Device, error) {
 	return nil, nil
 }
-func (m *serverMockDB) DeleteDevice(ctx context.Context, id int64) error                         { return nil }
-func (m *serverMockDB) UpdateDeviceStatus(ctx context.Context, id int64, status string) error     { return nil }
-func (m *serverMockDB) GetEnabledDevices(ctx context.Context) ([]models.Device, error)             { return nil, nil }
+func (m *serverMockDB) DeleteDevice(ctx context.Context, id int64) error { return nil }
+func (m *serverMockDB) UpdateDeviceStatus(ctx context.Context, id int64, status string) error {
+	return nil
+}
+func (m *serverMockDB) GetEnabledDevices(ctx context.Context) ([]models.Device, error) {
+	return nil, nil
+}
 func (m *serverMockDB) GetDevicesByStatus(ctx context.Context, status string) ([]models.Device, error) {
 	return nil, nil
 }
@@ -62,8 +66,10 @@ func (m *serverMockDB) DeleteSensor(ctx context.Context, id int64) error { retur
 func (m *serverMockDB) GetSensorsByDeviceID(ctx context.Context, deviceID int64) ([]models.Sensor, error) {
 	return nil, nil
 }
-func (m *serverMockDB) RecordMetric(ctx context.Context, metric *models.Metric) error     { return nil }
-func (m *serverMockDB) GetLatestMetrics(ctx context.Context) ([]models.Metric, error)     { return nil, nil }
+func (m *serverMockDB) RecordMetric(ctx context.Context, metric *models.Metric) error { return nil }
+func (m *serverMockDB) GetLatestMetrics(ctx context.Context) ([]models.Metric, error) {
+	return nil, nil
+}
 func (m *serverMockDB) GetDeviceMetrics(ctx context.Context, deviceID int64, from, to time.Time, limit int) ([]models.Metric, error) {
 	return nil, nil
 }
@@ -91,7 +97,9 @@ func (m *serverMockDB) GetMetricsInWindow(ctx context.Context, deviceID int64, f
 func (m *serverMockDB) GetAlerts(ctx context.Context, status string, limit, offset int) ([]models.Alert, int, error) {
 	return nil, 0, nil
 }
-func (m *serverMockDB) GetAlert(ctx context.Context, id int64) (*models.Alert, error) { return nil, nil }
+func (m *serverMockDB) GetAlert(ctx context.Context, id int64) (*models.Alert, error) {
+	return nil, nil
+}
 func (m *serverMockDB) CreateAlert(ctx context.Context, a *models.Alert) (*models.Alert, error) {
 	return nil, nil
 }
@@ -114,7 +122,9 @@ func (m *serverMockDB) GetLatestMetricForDevice(ctx context.Context, deviceID in
 func (m *serverMockDB) GetAlertsForReport(ctx context.Context, from, to time.Time, deviceID *int64) ([]models.Alert, error) {
 	return nil, nil
 }
-func (m *serverMockDB) GetAlertRules(ctx context.Context) ([]models.AlertRule, error) { return nil, nil }
+func (m *serverMockDB) GetAlertRules(ctx context.Context) ([]models.AlertRule, error) {
+	return nil, nil
+}
 func (m *serverMockDB) GetAlertRule(ctx context.Context, id int64) (*models.AlertRule, error) {
 	return nil, nil
 }
@@ -124,7 +134,7 @@ func (m *serverMockDB) CreateAlertRule(ctx context.Context, r *models.AlertRule)
 func (m *serverMockDB) UpdateAlertRule(ctx context.Context, id int64, r *models.AlertRule) (*models.AlertRule, error) {
 	return nil, nil
 }
-func (m *serverMockDB) DeleteAlertRule(ctx context.Context, id int64) error            { return nil }
+func (m *serverMockDB) DeleteAlertRule(ctx context.Context, id int64) error               { return nil }
 func (m *serverMockDB) ToggleAlertRule(ctx context.Context, id int64, enabled bool) error { return nil }
 func (m *serverMockDB) GetNotificationChannels(ctx context.Context) ([]models.NotificationChannel, error) {
 	return nil, nil
@@ -139,34 +149,44 @@ func (m *serverMockDB) UpdateNotificationChannel(ctx context.Context, id int64, 
 	return nil, nil
 }
 func (m *serverMockDB) DeleteNotificationChannel(ctx context.Context, id int64) error { return nil }
-func (m *serverMockDB) RecordAlertHistory(ctx context.Context, h *models.AlertHistory) error { return nil }
+func (m *serverMockDB) RecordAlertHistory(ctx context.Context, h *models.AlertHistory) error {
+	return nil
+}
 func (m *serverMockDB) GetAlertHistory(ctx context.Context, alertID int64) ([]models.AlertHistory, error) {
 	return nil, nil
 }
 func (m *serverMockDB) GetAlertRuleState(ctx context.Context, ruleID, deviceID int64) (*models.AlertRuleState, error) {
 	return nil, nil
 }
-func (m *serverMockDB) UpsertAlertRuleState(ctx context.Context, s *models.AlertRuleState) error { return nil }
+func (m *serverMockDB) UpsertAlertRuleState(ctx context.Context, s *models.AlertRuleState) error {
+	return nil
+}
 func (m *serverMockDB) GetUserByUsername(ctx context.Context, username string) (*models.User, error) {
 	return nil, nil
 }
-func (m *serverMockDB) GetUserByID(ctx context.Context, id int64) (*models.User, error) { return nil, nil }
+func (m *serverMockDB) GetUserByID(ctx context.Context, id int64) (*models.User, error) {
+	return nil, nil
+}
 func (m *serverMockDB) CreateUser(ctx context.Context, u *models.User) (*models.User, error) {
 	return nil, nil
 }
 func (m *serverMockDB) UpdateUser(ctx context.Context, id int64, u *models.User) (*models.User, error) {
 	return nil, nil
 }
-func (m *serverMockDB) DeleteUser(ctx context.Context, id int64) error          { return nil }
-func (m *serverMockDB) GetAPIKey(ctx context.Context, keyHash string) (*models.APIKey, error) { return nil, nil }
-func (m *serverMockDB) GetAPIKeyByID(ctx context.Context, id int64) (*models.APIKey, error)  { return nil, nil }
+func (m *serverMockDB) DeleteUser(ctx context.Context, id int64) error { return nil }
+func (m *serverMockDB) GetAPIKey(ctx context.Context, keyHash string) (*models.APIKey, error) {
+	return nil, nil
+}
+func (m *serverMockDB) GetAPIKeyByID(ctx context.Context, id int64) (*models.APIKey, error) {
+	return nil, nil
+}
 func (m *serverMockDB) CreateAPIKey(ctx context.Context, k *models.APIKey) (*models.APIKey, error) {
 	return nil, nil
 }
 func (m *serverMockDB) GetAPIKeysByUser(ctx context.Context, userID int64) ([]models.APIKey, error) {
 	return nil, nil
 }
-func (m *serverMockDB) DeleteAPIKey(ctx context.Context, id int64) error { return nil }
+func (m *serverMockDB) DeleteAPIKey(ctx context.Context, id int64) error           { return nil }
 func (m *serverMockDB) RecordFlows(ctx context.Context, flows []models.Flow) error { return nil }
 func (m *serverMockDB) GetFlows(ctx context.Context, from, to time.Time, limit, offset int) ([]models.Flow, int, error) {
 	return nil, 0, nil
@@ -216,18 +236,28 @@ func (m *serverMockDB) GetDashboard(ctx context.Context, id int64) (*models.Dash
 func (m *serverMockDB) SaveDashboard(ctx context.Context, d *models.Dashboard) (*models.Dashboard, error) {
 	return nil, nil
 }
-func (m *serverMockDB) DeleteDashboard(ctx context.Context, id int64) error     { return nil }
-func (m *serverMockDB) PruneMetrics(ctx context.Context, olderThan time.Time) (int64, error) { return 0, nil }
-func (m *serverMockDB) PruneFlows(ctx context.Context, olderThan time.Time) (int64, error) { return 0, nil }
-func (m *serverMockDB) PruneAlerts(ctx context.Context, olderThan time.Time) (int64, error) { return 0, nil }
-func (m *serverMockDB) GetDashboardStats(ctx context.Context) (map[string]any, error) { return nil, nil }
+func (m *serverMockDB) DeleteDashboard(ctx context.Context, id int64) error { return nil }
+func (m *serverMockDB) PruneMetrics(ctx context.Context, olderThan time.Time) (int64, error) {
+	return 0, nil
+}
+func (m *serverMockDB) PruneFlows(ctx context.Context, olderThan time.Time) (int64, error) {
+	return 0, nil
+}
+func (m *serverMockDB) PruneAlerts(ctx context.Context, olderThan time.Time) (int64, error) {
+	return 0, nil
+}
+func (m *serverMockDB) GetDashboardStats(ctx context.Context) (map[string]any, error) {
+	return nil, nil
+}
 func (m *serverMockDB) CreateRefreshToken(ctx context.Context, tokenHash string, userID int64, expiresAt time.Time) error {
 	return nil
 }
-func (m *serverMockDB) GetRefreshToken(ctx context.Context, tokenHash string) (*database.RefreshToken, error) { return nil, nil }
-func (m *serverMockDB) DeleteRefreshToken(ctx context.Context, tokenHash string) error                       { return nil }
-func (m *serverMockDB) DeleteRefreshTokensByUser(ctx context.Context, userID int64) error                    { return nil }
-func (m *serverMockDB) CleanupExpiredRefreshTokens(ctx context.Context) (int64, error)                       { return 0, nil }
+func (m *serverMockDB) GetRefreshToken(ctx context.Context, tokenHash string) (*database.RefreshToken, error) {
+	return nil, nil
+}
+func (m *serverMockDB) DeleteRefreshToken(ctx context.Context, tokenHash string) error    { return nil }
+func (m *serverMockDB) DeleteRefreshTokensByUser(ctx context.Context, userID int64) error { return nil }
+func (m *serverMockDB) CleanupExpiredRefreshTokens(ctx context.Context) (int64, error)    { return 0, nil }
 
 func freePort(t *testing.T) int {
 	t.Helper()
@@ -242,7 +272,7 @@ func testConfig(port int) *config.Config {
 	return &config.Config{
 		App: config.AppConfig{
 			Port:    port,
-			AppEnv: "development",
+			AppEnv:  "development",
 			Version: "test",
 		},
 		Auth: config.AuthConfig{

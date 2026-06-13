@@ -102,9 +102,9 @@ func SetDefaultStore(store *SessionStore) {
 }
 
 // Package-level helpers using the default store.
-func SetSession(token string, sess *Session)        { defaultStore.Set(token, sess) }
-func GetSession(token string) (*Session, bool)      { return defaultStore.Get(token) }
-func DeleteSession(token string)                    { defaultStore.Delete(token) }
+func SetSession(token string, sess *Session)   { defaultStore.Set(token, sess) }
+func GetSession(token string) (*Session, bool) { return defaultStore.Get(token) }
+func DeleteSession(token string)               { defaultStore.Delete(token) }
 
 // HashToken returns a SHA-256 hex digest of a token string for DB storage.
 func HashToken(token string) string {

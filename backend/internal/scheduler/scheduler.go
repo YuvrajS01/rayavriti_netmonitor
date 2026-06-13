@@ -17,17 +17,17 @@ import (
 )
 
 type Scheduler struct {
-	db        database.Database
-	registry  *collectors.Registry
-	hub       *websocket.Hub
-	alertEng  *engine.AlertEngine
-	buffer    *cache.MetricBuffer
-	rdb       *cache.Redis
-	jobs      map[int64]context.CancelFunc
-	mu        sync.Mutex
-	cancel    context.CancelFunc
-	wg        sync.WaitGroup
-	jobCount  atomic.Int64
+	db       database.Database
+	registry *collectors.Registry
+	hub      *websocket.Hub
+	alertEng *engine.AlertEngine
+	buffer   *cache.MetricBuffer
+	rdb      *cache.Redis
+	jobs     map[int64]context.CancelFunc
+	mu       sync.Mutex
+	cancel   context.CancelFunc
+	wg       sync.WaitGroup
+	jobCount atomic.Int64
 }
 
 func New(db database.Database, reg *collectors.Registry, hub *websocket.Hub, alertEng *engine.AlertEngine, intervalSec int, opts ...SchedulerOption) *Scheduler {
@@ -312,5 +312,3 @@ func (s *Scheduler) collectOnce(ctx context.Context, device models.Device) {
 		}
 	}
 }
-
-

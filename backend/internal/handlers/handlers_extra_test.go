@@ -1121,10 +1121,10 @@ func TestAlertRuleTest_NoMatchingDevice(t *testing.T) {
 	db := &mockDB{
 		getAlertRuleFn: func(ctx context.Context, id int64) (*models.AlertRule, error) {
 			return &models.AlertRule{
-				ID:       1,
-				Name:     "Device-Specific Rule",
+				ID:        1,
+				Name:      "Device-Specific Rule",
 				ScopeType: "device",
-				DeviceID: int64Ptr(42),
+				DeviceID:  int64Ptr(42),
 				Conditions: []models.AlertRuleCondition{
 					{Type: "threshold", MetricField: "response_time", Operator: "gt", Value: "500"},
 				},

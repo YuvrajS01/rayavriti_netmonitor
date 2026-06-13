@@ -76,11 +76,11 @@ func (SystemCollector) Collect(_ context.Context, _ *models.Device) (*Result, er
 			"total":   diskTotalGB,
 			"percent": diskPercent,
 		},
-		"uptime": uptimeSec,
-		"loadAvg": []float64{load1, load5, load15},
-		"hostname": hostname,
-		"goVersion": runtime.Version(),
-		"numCPU": runtime.NumCPU(),
+		"uptime":       uptimeSec,
+		"loadAvg":      []float64{load1, load5, load15},
+		"hostname":     hostname,
+		"goVersion":    runtime.Version(),
+		"numCPU":       runtime.NumCPU(),
 		"numGoroutine": runtime.NumGoroutine(),
 	}
 
@@ -90,15 +90,15 @@ func (SystemCollector) Collect(_ context.Context, _ *models.Device) (*Result, er
 	}
 
 	details := map[string]any{
-		"cpu_usage":       cpuPercent,
-		"cpu_cores":       cpuCores,
-		"memory_percent":  memPercent,
-		"disk_percent":    diskPercent,
-		"uptime_seconds":  uptimeSec,
-		"load_avg_1m":     load1,
-		"load_avg_5m":     load5,
-		"load_avg_15m":    load15,
-		"system_info":     systemInfo,
+		"cpu_usage":      cpuPercent,
+		"cpu_cores":      cpuCores,
+		"memory_percent": memPercent,
+		"disk_percent":   diskPercent,
+		"uptime_seconds": uptimeSec,
+		"load_avg_1m":    load1,
+		"load_avg_5m":    load5,
+		"load_avg_15m":   load15,
+		"system_info":    systemInfo,
 	}
 
 	return &Result{

@@ -166,10 +166,10 @@ func (h *AlertRuleHandler) Test(w http.ResponseWriter, r *http.Request) {
 	}
 
 	type deviceResult struct {
-		DeviceID   int64                      `json:"deviceId"`
-		DeviceName string                     `json:"deviceName"`
-		Matched    bool                       `json:"matched"`
-		Conditions []engine.ConditionResult   `json:"conditions"`
+		DeviceID   int64                    `json:"deviceId"`
+		DeviceName string                   `json:"deviceName"`
+		Matched    bool                     `json:"matched"`
+		Conditions []engine.ConditionResult `json:"conditions"`
 	}
 
 	var results []deviceResult

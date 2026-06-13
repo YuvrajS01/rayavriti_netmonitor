@@ -15,7 +15,7 @@ func (PingCollector) Name() string { return "ping" }
 func (PingCollector) Collect(ctx context.Context, device *models.Device) (*Result, error) {
 	pinger, err := probing.NewPinger(device.IPAddress)
 	if err != nil {
-		return &Result{Status: "down"}, nil
+		return &Result{Status: "down"}, nil //nolint:nilerr // intentional: return down status, not error
 	}
 	pinger.Count = 3
 	pinger.Timeout = 5 * time.Second
@@ -26,13 +26,13 @@ func (PingCollector) Collect(ctx context.Context, device *models.Device) (*Resul
 		// Fallback to unprivileged mode
 		pinger2, err2 := probing.NewPinger(device.IPAddress)
 		if err2 != nil {
-			return &Result{Status: "down"}, nil
+			return &Result{Status: "down"}, nil //nolint:nilerr // intentional: return down status, not error
 		}
 		pinger2.Count = 3
 		pinger2.Timeout = 5 * time.Second
 		pinger2.SetPrivileged(false)
 		if err2 = pinger2.RunWithContext(ctx); err2 != nil {
-			return &Result{Status: "down"}, nil
+			return &Result{Status: "down"}, nil //nolint:nilerr // intentional: return down status, not error
 		}
 		stats := pinger2.Statistics()
 		if stats.PacketsRecv == 0 {

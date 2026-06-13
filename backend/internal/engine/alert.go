@@ -243,10 +243,10 @@ func (e *AlertEngine) handleConditionCleared(
 					e.hub.Broadcast(websocket.Message{
 						Type: websocket.EventAlertResolved,
 						Data: map[string]any{
-							"alert_id":     *state.ActiveAlertID,
-							"device_id":    device.ID,
-							"device_name":  device.Name,
-							"resolved_by":  "system:alert_engine",
+							"alert_id":    *state.ActiveAlertID,
+							"device_id":   device.ID,
+							"device_name": device.Name,
+							"resolved_by": "system:alert_engine",
 						},
 					})
 				}

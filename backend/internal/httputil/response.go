@@ -17,9 +17,9 @@ type ResponseMeta struct {
 }
 
 type Response struct {
-	Success bool       `json:"success"`
-	Data    any        `json:"data,omitempty"`
-	Error   *APIError  `json:"error,omitempty"`
+	Success bool          `json:"success"`
+	Data    any           `json:"data,omitempty"`
+	Error   *APIError     `json:"error,omitempty"`
 	Meta    *ResponseMeta `json:"meta,omitempty"`
 }
 

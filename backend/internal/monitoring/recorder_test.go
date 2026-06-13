@@ -165,10 +165,10 @@ func TestRecorder_RecordAlert(t *testing.T) {
 	recorder := NewRecorder(db)
 
 	activity := &AlertActivity{
-		RuleID:   1,
-		RuleName: "high-latency",
-		DeviceID: 5,
-		Action:   "fired",
+		RuleID:    1,
+		RuleName:  "high-latency",
+		DeviceID:  5,
+		Action:    "fired",
 		Timestamp: time.Now(),
 	}
 

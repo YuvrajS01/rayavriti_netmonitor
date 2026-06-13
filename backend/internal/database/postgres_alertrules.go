@@ -69,7 +69,7 @@ func (p *Postgres) CreateAlertRule(ctx context.Context, r *models.AlertRule) (*m
 	if err != nil {
 		return nil, fmt.Errorf("begin tx: %w", err)
 	}
-	defer tx.Rollback(ctx)
+	defer tx.Rollback(ctx) //nolint:errcheck
 
 	// 1) Insert the rule
 	var id int64
@@ -107,7 +107,7 @@ func (p *Postgres) UpdateAlertRule(ctx context.Context, id int64, r *models.Aler
 	if err != nil {
 		return nil, fmt.Errorf("begin tx: %w", err)
 	}
-	defer tx.Rollback(ctx)
+	defer tx.Rollback(ctx) //nolint:errcheck
 
 	// 1) Update the rule
 	_, err = tx.Exec(ctx, `

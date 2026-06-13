@@ -7,7 +7,7 @@ import (
 )
 
 type Result struct {
-	Status      string
+	Status       string
 	ResponseTime *float64
 	PacketLoss   *float64
 	CPUUsage     *float64

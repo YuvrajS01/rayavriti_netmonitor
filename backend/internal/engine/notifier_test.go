@@ -24,8 +24,8 @@ func TestNotifier_Send_WebhookSuccess(t *testing.T) {
 
 	notifier := NewNotifier()
 	ch := models.NotificationChannel{
-		ID:   1,
-		Type: "webhook",
+		ID:     1,
+		Type:   "webhook",
 		Config: map[string]any{"url": server.URL},
 	}
 	alert := &models.Alert{
@@ -54,8 +54,8 @@ func TestNotifier_Send_WebhookServerError(t *testing.T) {
 
 	notifier := NewNotifier()
 	ch := models.NotificationChannel{
-		ID:   1,
-		Type: "webhook",
+		ID:     1,
+		Type:   "webhook",
 		Config: map[string]any{"url": server.URL},
 	}
 	alert := &models.Alert{ID: 1, DeviceName: "Server-1", Severity: "critical", Message: "Down"}
@@ -102,8 +102,8 @@ func TestNotifier_Send_UnsupportedChannelType(t *testing.T) {
 	t.Parallel()
 	notifier := NewNotifier()
 	ch := models.NotificationChannel{
-		ID:   1,
-		Type: "sms",
+		ID:     1,
+		Type:   "sms",
 		Config: map[string]any{},
 	}
 	alert := &models.Alert{ID: 1}
@@ -145,8 +145,8 @@ func TestNotifier_Send_ContextCancellation(t *testing.T) {
 
 	notifier := NewNotifier()
 	ch := models.NotificationChannel{
-		ID:   1,
-		Type: "webhook",
+		ID:     1,
+		Type:   "webhook",
 		Config: map[string]any{"url": server.URL},
 	}
 	alert := &models.Alert{ID: 1}

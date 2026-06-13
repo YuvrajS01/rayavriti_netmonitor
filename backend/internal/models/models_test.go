@@ -110,15 +110,15 @@ func TestAPIKey_KeyHash_NotSerialized(t *testing.T) {
 func TestFlow_JSONSerialization(t *testing.T) {
 	t.Parallel()
 	flow := Flow{
-		ID:        1,
-		SrcIP:     "10.0.0.1",
-		DstIP:     "192.168.1.1",
-		SrcPort:   12345,
-		DstPort:   80,
-		Protocol:  "TCP",
-		Bytes:     1024,
-		Packets:   10,
-		Duration:  1.5,
+		ID:       1,
+		SrcIP:    "10.0.0.1",
+		DstIP:    "192.168.1.1",
+		SrcPort:  12345,
+		DstPort:  80,
+		Protocol: "TCP",
+		Bytes:    1024,
+		Packets:  10,
+		Duration: 1.5,
 	}
 	b, err := json.Marshal(flow)
 	require.NoError(t, err)

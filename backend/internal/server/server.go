@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/rs/cors"
 	"github.com/rayavriti/netmonitor-backend/internal/auth"
 	"github.com/rayavriti/netmonitor-backend/internal/cache"
 	"github.com/rayavriti/netmonitor-backend/internal/config"
@@ -17,6 +16,7 @@ import (
 	"github.com/rayavriti/netmonitor-backend/internal/handlers"
 	"github.com/rayavriti/netmonitor-backend/internal/logging"
 	"github.com/rayavriti/netmonitor-backend/internal/websocket"
+	"github.com/rs/cors"
 )
 
 type Server struct {

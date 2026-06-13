@@ -5,8 +5,8 @@ import (
 	"time"
 
 	"github.com/rayavriti/netmonitor-backend/internal/database"
-	"github.com/rayavriti/netmonitor-backend/internal/models"
 	"github.com/rayavriti/netmonitor-backend/internal/httputil"
+	"github.com/rayavriti/netmonitor-backend/internal/models"
 )
 
 type SimulatorHandler struct{ db database.Database }

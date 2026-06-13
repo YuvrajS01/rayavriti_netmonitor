@@ -19,7 +19,7 @@ type WSMessage struct {
 type BroadcastFunc func(msg WSMessage)
 
 type PubSubBridge struct {
-	rdb        *Redis
+	rdb         *Redis
 	broadcastFn BroadcastFunc
 }
 

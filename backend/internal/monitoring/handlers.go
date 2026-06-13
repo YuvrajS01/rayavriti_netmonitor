@@ -359,12 +359,12 @@ func (h *MonitoringHandler) SystemCollectorsStats(w http.ResponseWriter, r *http
 
 	// Aggregate stats by device
 	type deviceStats struct {
-		DeviceID   int64  `json:"device_id"`
-		DeviceName string `json:"device_name"`
-		Protocol   string `json:"protocol"`
-		Total      int    `json:"total"`
-		Success    int    `json:"success"`
-		Failure    int    `json:"failure"`
+		DeviceID   int64   `json:"device_id"`
+		DeviceName string  `json:"device_name"`
+		Protocol   string  `json:"protocol"`
+		Total      int     `json:"total"`
+		Success    int     `json:"success"`
+		Failure    int     `json:"failure"`
 		AvgDurMs   float64 `json:"avg_duration_ms"`
 	}
 

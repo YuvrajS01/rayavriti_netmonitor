@@ -234,7 +234,7 @@ func seedDefaultAlertRules(ctx context.Context, pg *Postgres) error {
 	if err != nil {
 		return fmt.Errorf("begin tx: %w", err)
 	}
-	defer tx.Rollback(ctx)
+	defer tx.Rollback(ctx) //nolint:errcheck
 
 	for _, r := range rules {
 		var ruleID int64

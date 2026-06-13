@@ -11,8 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func strPtr(s string) *string { return &s }
-
 // ── ProcessMetric: enabled rule that matches ──────────────────────────────────
 
 func TestProcessMetric_EnabledRule_Matches(t *testing.T) {
@@ -66,7 +64,7 @@ func TestProcessMetric_EnabledRule_Matches(t *testing.T) {
 
 func TestProcessMetric_DeviceScopeFilter(t *testing.T) {
 	t.Parallel()
-otherDeviceID := int64(99)
+	otherDeviceID := int64(99)
 	db := &mockDB{
 		getAlertRulesFn: func(ctx context.Context) ([]models.AlertRule, error) {
 			return []models.AlertRule{{
@@ -158,7 +156,7 @@ func TestProcessMetric_MultipleRules(t *testing.T) {
 				{
 					ID: 3, Name: "Matches", Enabled: true, Severity: "info",
 					ConditionLogic: "all",
-					Conditions: []models.AlertRuleCondition{{ID: 3, Type: "threshold", MetricField: "cpu_usage", Operator: "gt", Value: "80"}},
+					Conditions:     []models.AlertRuleCondition{{ID: 3, Type: "threshold", MetricField: "cpu_usage", Operator: "gt", Value: "80"}},
 				},
 			}, nil
 		},
@@ -262,10 +260,10 @@ func TestProcessMetric_StateTransition_PendingToFiring(t *testing.T) {
 		},
 		getAlertRuleStateFn: func(ctx context.Context, ruleID, deviceID int64) (*models.AlertRuleState, error) {
 			return &models.AlertRuleState{
-				RuleID:      ruleID,
-				DeviceID:    1,
-				State:       "pending",
-				FirstMetAt:  &firstMet,
+				RuleID:     ruleID,
+				DeviceID:   1,
+				State:      "pending",
+				FirstMetAt: &firstMet,
 			}, nil
 		},
 		createAlertFn: func(ctx context.Context, a *models.Alert) (*models.Alert, error) {
@@ -558,10 +556,10 @@ func TestProcessMetric_ExistingActiveAlert(t *testing.T) {
 		},
 		getAlertRuleStateFn: func(ctx context.Context, ruleID, deviceID int64) (*models.AlertRuleState, error) {
 			return &models.AlertRuleState{
-				RuleID:      ruleID,
-				DeviceID:    1,
-				State:       "pending",
-				FirstMetAt:  &firstMet,
+				RuleID:     ruleID,
+				DeviceID:   1,
+				State:      "pending",
+				FirstMetAt: &firstMet,
 			}, nil
 		},
 		getAlertsFn: func(ctx context.Context, status string, limit, offset int) ([]models.Alert, int, error) {

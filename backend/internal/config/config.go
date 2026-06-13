@@ -9,13 +9,13 @@ import (
 )
 
 type Config struct {
-	App      AppConfig
-	Database DatabaseConfig
-	Redis    RedisConfig
-	Auth     AuthConfig
+	App       AppConfig
+	Database  DatabaseConfig
+	Redis     RedisConfig
+	Auth      AuthConfig
 	Collector CollectorConfig
-	Logging  LoggingConfig
-	Phase2   Phase2Config
+	Logging   LoggingConfig
+	Phase2    Phase2Config
 }
 
 type RedisConfig struct {
@@ -34,29 +34,29 @@ type AppConfig struct {
 }
 
 type DatabaseConfig struct {
-	DSN             string
-	MaxConns        int
-	MinConns        int
-	MaxConnLifetime time.Duration
+	DSN               string
+	MaxConns          int
+	MinConns          int
+	MaxConnLifetime   time.Duration
 	HealthCheckPeriod time.Duration
 }
 
 type AuthConfig struct {
-	JWTSecret           string
-	AdminUsername       string
-	AdminPassword       string
-	AccessTokenExpiry   time.Duration
-	RefreshTokenExpiry  time.Duration
+	JWTSecret          string
+	AdminUsername      string
+	AdminPassword      string
+	AccessTokenExpiry  time.Duration
+	RefreshTokenExpiry time.Duration
 }
 
 type CollectorConfig struct {
-	NetflowPort           int
-	MetricsRetentionDays  int
-	FlowRetentionDays     int
-	AlertsRetentionDays   int
-	PortDiscoveryEnabled  bool
-	CaptureEnabled        bool
-	CollectorIntervalSec  int
+	NetflowPort          int
+	MetricsRetentionDays int
+	FlowRetentionDays    int
+	AlertsRetentionDays  int
+	PortDiscoveryEnabled bool
+	CaptureEnabled       bool
+	CollectorIntervalSec int
 }
 
 type LoggingConfig struct {
@@ -112,10 +112,10 @@ func Load() (*Config, error) {
 		},
 		Database: DatabaseConfig{
 			DSN:               envStr("DATABASE_URL", envStr("DATABASE_DSN", "postgres://postgres:postgres@localhost:5432/netmonitor?sslmode=disable")),
-			MaxConns:           envInt("DB_MAX_CONNS", 20),
-			MinConns:           envInt("DB_MIN_CONNS", 2),
-			MaxConnLifetime:    envDuration("DB_MAX_CONN_LIFETIME", 1*time.Hour),
-			HealthCheckPeriod:  envDuration("DB_HEALTH_CHECK_PERIOD", 30*time.Second),
+			MaxConns:          envInt("DB_MAX_CONNS", 20),
+			MinConns:          envInt("DB_MIN_CONNS", 2),
+			MaxConnLifetime:   envDuration("DB_MAX_CONN_LIFETIME", 1*time.Hour),
+			HealthCheckPeriod: envDuration("DB_HEALTH_CHECK_PERIOD", 30*time.Second),
 		},
 		Redis: RedisConfig{
 			URL:          envStr("REDIS_URL", "redis://localhost:6379/0"),

@@ -13,10 +13,10 @@ import (
 
 // PacketStats holds basic stats about a live capture session.
 type PacketStats struct {
-	PacketsTotal   int64
-	BytesTotal     int64
-	PacketsPerSec  float64
-	TopProtocols   map[string]int64
+	PacketsTotal  int64
+	BytesTotal    int64
+	PacketsPerSec float64
+	TopProtocols  map[string]int64
 }
 
 // CaptureCollector is a stub for libpcap-based packet capture.
