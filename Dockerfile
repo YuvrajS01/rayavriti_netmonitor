@@ -25,7 +25,7 @@ COPY backend/ ./backend/
 RUN cd backend && CGO_ENABLED=1 go build -tags pcap -ldflags="-s -w" -o /netmonitor ./cmd/server
 
 # ── Stage 3: Production image (default target) ──────────────────
-FROM alpine:3.21
+FROM alpine:3.21 AS production
 
 RUN apk add --no-cache ca-certificates libpcap tzdata wget tcpdump
 
