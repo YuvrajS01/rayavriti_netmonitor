@@ -178,13 +178,18 @@ export default function Dashboard() {
       setInsights(insightsRes.data);
       computeSystemInfo(metricsData);
       setLastUpdated(`Loaded ${new Date().toLocaleTimeString()}`);
-      getSystemInfo().then((res) => {
+    } catch { /* handled by interceptor */ }
+    finally {
+      // Always fetch system info regardless of whether stats/metrics/alerts failed.
+      // getSystemInfo() has its own error handling and returns a fallback on failure.
+      try {
+        const res = await getSystemInfo();
         if (res.data) {
           setSystemInfo((prev) => ({ ...prev, raw: res.data }));
         }
-      }).catch(() => {});
-    } catch { /* handled by interceptor */ }
-    finally { setLoading(false); }
+      } catch { /* swallowed – getSystemInfo already returns fallback */ }
+      setLoading(false);
+    }
   }, []);
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
