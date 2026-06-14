@@ -492,8 +492,8 @@ export default function Dashboard() {
             <span className="material-symbols-outlined text-on-surface-variant group-hover:text-primary text-sm transition-colors">open_in_full</span>
           </div>
           <div className="space-y-4 mt-6">
-            <ResourceBar label="CPU" value={systemInfo.cpu} color="#d9fd3a" />
-            <ResourceBar label="Memory" value={systemInfo.memory} color="#cbee29" />
+            <ResourceBar label="CPU" value={systemInfo.raw?.cpu.usage ?? systemInfo.cpu} color="#d9fd3a" />
+            <ResourceBar label="Memory" value={systemInfo.raw?.memory.percent ?? systemInfo.memory} color="#cbee29" />
             <ResourceBar label="Error Rate" value={systemInfo.errorRate} color="#ff7351" />
           </div>
         </div>
