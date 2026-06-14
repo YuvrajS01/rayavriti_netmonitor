@@ -149,6 +149,17 @@ type Database interface {
 	PruneFlows(ctx context.Context, olderThan time.Time) (int64, error)
 	PruneAlerts(ctx context.Context, olderThan time.Time) (int64, error)
 
+	// Health Scores
+	UpsertHealthScore(ctx context.Context, score *models.DeviceHealthScoreRow) error
+	GetHealthScores(ctx context.Context) ([]models.DeviceHealthScoreRow, error)
+	GetHealthScoreHistory(ctx context.Context, deviceID int64, hours int) ([]models.HealthHistoryPoint, error)
+	GetNetworkHealthHistory(ctx context.Context, hours int) ([]models.HealthHistoryPoint, error)
+	InsertHealthScoreHistory(ctx context.Context, entries []models.HealthHistoryEntry) error
+	GetMetricsSince(ctx context.Context, deviceID int64, since time.Time) ([]models.Metric, error)
+	GetStatusFlaps(ctx context.Context, deviceID int64, since time.Time) (int, error)
+	GetPortChanges(ctx context.Context, deviceID int64, since time.Time) (int, error)
+	GetAlertsByRuleSince(ctx context.Context, ruleID int64, since time.Time) (int, error)
+
 	// Stats
 	GetDashboardStats(ctx context.Context) (map[string]any, error)
 }

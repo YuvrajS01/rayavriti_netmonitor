@@ -178,11 +178,8 @@ export default function Dashboard() {
       computeSystemInfo(metricsData);
       setLastUpdated(`Loaded ${new Date().toLocaleTimeString()}`);
 
-      // Fetch insights using already-fetched metrics and alerts (no redundant API calls)
-      getInsights({
-        metrics: metricsData,
-        alerts: alertsRes.data || [],
-      }).then((r) => setInsights(r.data)).catch(() => {});
+      // Fetch insights from server-side health scores
+      getInsights().then((r) => setInsights(r.data)).catch(() => {});
     } catch { /* handled by interceptor */ }
     finally {
       setLoading(false);

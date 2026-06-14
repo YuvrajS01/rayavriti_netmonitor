@@ -443,4 +443,28 @@ var migrations = []string{
 	SELECT create_hypertable('monitoring_system_metrics', 'timestamp', if_not_exists => TRUE);
 	SELECT create_hypertable('monitoring_alerts', 'timestamp', if_not_exists => TRUE);
 	SELECT create_hypertable('monitoring_alert_activity', 'created_at', if_not_exists => TRUE);`,
+
+	// V33: health_scores (latest snapshot per device), health_score_history (time series), alerts.group_id
+	`CREATE TABLE IF NOT EXISTS health_scores (
+		device_id      BIGINT PRIMARY KEY REFERENCES devices(id) ON DELETE CASCADE,
+		score          REAL NOT NULL,
+		label          TEXT NOT NULL,
+		trend          TEXT NOT NULL DEFAULT 'stable',
+		trend_delta    REAL NOT NULL DEFAULT 0,
+		factors        JSONB NOT NULL DEFAULT '{}',
+		issues         JSONB NOT NULL DEFAULT '[]',
+		computed_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+	);
+
+	CREATE TABLE IF NOT EXISTS health_score_history (
+		id          BIGSERIAL PRIMARY KEY,
+		device_id   BIGINT REFERENCES devices(id) ON DELETE CASCADE,
+		score       REAL NOT NULL,
+		label       TEXT NOT NULL,
+		factors     JSONB,
+		computed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+	);
+	CREATE INDEX IF NOT EXISTS idx_hsh_device_time ON health_score_history(device_id, computed_at DESC);
+
+	ALTER TABLE alerts ADD COLUMN IF NOT EXISTS group_id TEXT;`,
 }

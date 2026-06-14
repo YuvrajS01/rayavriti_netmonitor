@@ -263,6 +263,33 @@ func (m *mockDB) GetRefreshToken(ctx context.Context, tokenHash string) (*databa
 func (m *mockDB) DeleteRefreshToken(ctx context.Context, tokenHash string) error    { return nil }
 func (m *mockDB) DeleteRefreshTokensByUser(ctx context.Context, userID int64) error { return nil }
 func (m *mockDB) CleanupExpiredRefreshTokens(ctx context.Context) (int64, error)    { return 0, nil }
+func (m *mockDB) UpsertHealthScore(ctx context.Context, score *models.DeviceHealthScoreRow) error {
+	return nil
+}
+func (m *mockDB) GetHealthScores(ctx context.Context) ([]models.DeviceHealthScoreRow, error) {
+	return nil, nil
+}
+func (m *mockDB) GetHealthScoreHistory(ctx context.Context, deviceID int64, hours int) ([]models.HealthHistoryPoint, error) {
+	return nil, nil
+}
+func (m *mockDB) GetNetworkHealthHistory(ctx context.Context, hours int) ([]models.HealthHistoryPoint, error) {
+	return nil, nil
+}
+func (m *mockDB) InsertHealthScoreHistory(ctx context.Context, entries []models.HealthHistoryEntry) error {
+	return nil
+}
+func (m *mockDB) GetMetricsSince(ctx context.Context, deviceID int64, since time.Time) ([]models.Metric, error) {
+	return nil, nil
+}
+func (m *mockDB) GetStatusFlaps(ctx context.Context, deviceID int64, since time.Time) (int, error) {
+	return 0, nil
+}
+func (m *mockDB) GetPortChanges(ctx context.Context, deviceID int64, since time.Time) (int, error) {
+	return 0, nil
+}
+func (m *mockDB) GetAlertsByRuleSince(ctx context.Context, ruleID int64, since time.Time) (int, error) {
+	return 0, nil
+}
 
 func int64Ptr(v int64) *int64 { return &v }
 

@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"fmt"
 	"math"
 	"strconv"
 	"time"
@@ -19,20 +20,28 @@ type ConditionResult struct {
 	Result              bool    `json:"result"`
 	SustainedSeconds    int     `json:"sustained_seconds"`
 	RequiredDurationSec int     `json:"required_duration_seconds"`
+	Description         string  `json:"description,omitempty"`
+}
+
+// AnomalyBaseline provides pre-computed statistics for anomaly detection.
+type AnomalyBaseline struct {
+	Mean        float64
+	StdDev      float64
+	SampleCount int
 }
 
 // EvaluateCondition evaluates a single alert rule condition against a metric.
-func EvaluateCondition(condition models.AlertRuleCondition, metric *models.Metric, previousStatus string) ConditionResult {
+// For anomaly conditions, pass baseline (may be nil if unavailable).
+func EvaluateCondition(condition models.AlertRuleCondition, metric *models.Metric, previousStatus string, baseline *AnomalyBaseline) ConditionResult {
 	switch condition.Type {
 	case "threshold":
 		return evaluateThreshold(condition, metric)
 	case "state_change":
 		return evaluateStateChange(condition, metric, previousStatus)
 	case "absence":
-		// Absence is evaluated by the background loop, not on new metric arrival.
-		return ConditionResult{ConditionID: condition.ID, Type: "absence", Result: false}
+		return evaluateAbsence(condition, metric)
 	case "anomaly":
-		return evaluateAnomaly(condition, metric)
+		return evaluateAnomaly(condition, metric, baseline)
 	default:
 		return ConditionResult{ConditionID: condition.ID, Type: condition.Type, Result: false}
 	}
@@ -69,10 +78,12 @@ func evaluateThreshold(condition models.AlertRuleCondition, metric *models.Metri
 	}
 
 	if actual == nil {
+		result.Description = fmt.Sprintf("%s: no value available", condition.MetricField)
 		return result
 	}
 	result.ActualValue = *actual
 	result.Result = compareFloat(condition.Operator, *actual, threshold)
+	result.Description = fmt.Sprintf("%s %s %s %s (actual: %.2f)", condition.MetricField, opSymbol(condition.Operator), formatThreshold(condition), formatActual(*actual), *actual)
 	return result
 }
 
@@ -84,24 +95,73 @@ func evaluateStateChange(condition models.AlertRuleCondition, metric *models.Met
 		Operator:    condition.Operator,
 	}
 
-	if condition.MetricField != "status" {
-		return result
-	}
+	switch condition.MetricField {
+	case "status":
+		currentStatus := metric.Status
+		expectedValue := condition.Value
+		switch condition.Operator {
+		case "eq", "==":
+			result.Result = currentStatus == expectedValue
+		case "neq", "!=":
+			result.Result = currentStatus != expectedValue
+		}
+		if result.Result {
+			result.Description = fmt.Sprintf("status changed: %s → %s (expected %s)", previousStatus, currentStatus, expectedValue)
+		}
 
-	currentStatus := metric.Status
-	expectedValue := condition.Value
-
-	switch condition.Operator {
-	case "eq", "==":
-		result.Result = currentStatus == expectedValue
-	case "neq", "!=":
-		result.Result = currentStatus != expectedValue
+	case "port_state":
+		result.ActualValue = 1
+		result.Threshold = 0
+		if metric.Details != nil {
+			if changes, ok := metric.Details["port_changes"]; ok {
+				if changeCount, ok := changes.(float64); ok {
+					result.ActualValue = changeCount
+				}
+			}
+		}
+		threshold, err := strconv.ParseFloat(condition.Value, 64)
+		if err != nil {
+			threshold = 1
+		}
+		result.Threshold = threshold
+		result.Result = result.ActualValue >= threshold
+		if result.Result {
+			result.Description = fmt.Sprintf("port state change detected: %.0f changes (threshold: %.0f)", result.ActualValue, threshold)
+		}
 	}
 
 	return result
 }
 
-func evaluateAnomaly(condition models.AlertRuleCondition, metric *models.Metric) ConditionResult {
+func evaluateAbsence(condition models.AlertRuleCondition, metric *models.Metric) ConditionResult {
+	result := ConditionResult{
+		ConditionID: condition.ID,
+		Type:        "absence",
+		Field:       condition.MetricField,
+		Operator:    condition.Operator,
+	}
+
+	durationSec, err := strconv.ParseFloat(condition.Value, 64)
+	if err != nil || durationSec <= 0 {
+		durationSec = 300
+	}
+	result.Threshold = durationSec
+
+	// Absence is evaluated by the background loop using the metric's timestamp.
+	// If we have a metric, check staleness against the configured duration.
+	if metric != nil {
+		staleness := time.Since(metric.Timestamp).Seconds()
+		result.ActualValue = staleness
+		result.Result = staleness > durationSec
+		if result.Result {
+			result.Description = fmt.Sprintf("no data for %.0fs (threshold: %.0fs)", staleness, durationSec)
+		}
+	}
+
+	return result
+}
+
+func evaluateAnomaly(condition models.AlertRuleCondition, metric *models.Metric, baseline *AnomalyBaseline) ConditionResult {
 	result := ConditionResult{
 		ConditionID: condition.ID,
 		Type:        "anomaly",
@@ -115,7 +175,6 @@ func evaluateAnomaly(condition models.AlertRuleCondition, metric *models.Metric)
 	}
 	result.Threshold = sensitivity
 
-	// Get the actual metric value for the anomaly field
 	var actual *float64
 	switch condition.MetricField {
 	case "response_time":
@@ -131,16 +190,31 @@ func evaluateAnomaly(condition models.AlertRuleCondition, metric *models.Metric)
 	}
 
 	if actual == nil {
+		result.Description = fmt.Sprintf("%s: no value available for anomaly check", condition.MetricField)
 		return result
 	}
 	result.ActualValue = *actual
 
-	// Anomaly detection requires historical baseline data.
-	// For now, this is a stub that never fires. A future enhancement can compute
-	// a rolling mean/stddev from recent metrics and compare against the sensitivity.
-	_ = time.Now()
-	result.Result = false
+	if baseline == nil || baseline.SampleCount < 10 {
+		result.Description = fmt.Sprintf("%s: insufficient baseline data (%d samples)", condition.MetricField, baselineSampleCount(baseline))
+		return result
+	}
+
+	zScore := (*actual - baseline.Mean) / baseline.StdDev
+	result.Result = math.Abs(zScore) > sensitivity
+	if result.Result {
+		result.Description = fmt.Sprintf("%s anomaly: %.2f (z-score: %.2f, mean: %.2f, stddev: %.2f)", condition.MetricField, *actual, zScore, baseline.Mean, baseline.StdDev)
+	} else {
+		result.Description = fmt.Sprintf("%s normal: %.2f (z-score: %.2f)", condition.MetricField, *actual, zScore)
+	}
 	return result
+}
+
+func baselineSampleCount(b *AnomalyBaseline) int {
+	if b == nil {
+		return 0
+	}
+	return b.SampleCount
 }
 
 func compareFloat(op string, actual, threshold float64) bool {
@@ -159,4 +233,34 @@ func compareFloat(op string, actual, threshold float64) bool {
 		return math.Abs(actual-threshold) >= 1e-9
 	}
 	return false
+}
+
+func opSymbol(op string) string {
+	switch op {
+	case "gt", ">":
+		return ">"
+	case "lt", "<":
+		return "<"
+	case "gte", ">=":
+		return ">="
+	case "lte", "<=":
+		return "<="
+	case "eq", "==":
+		return "=="
+	case "neq", "!=":
+		return "!="
+	}
+	return op
+}
+
+func formatThreshold(condition models.AlertRuleCondition) string {
+	v, err := strconv.ParseFloat(condition.Value, 64)
+	if err != nil {
+		return condition.Value
+	}
+	return fmt.Sprintf("%.2f", v)
+}
+
+func formatActual(v float64) string {
+	return fmt.Sprintf("%.2f", v)
 }
