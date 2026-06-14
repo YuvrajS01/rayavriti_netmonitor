@@ -31,15 +31,21 @@ function PageLoader() {
   );
 }
 
+let sessionChecked = false;
+
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const isAuth = useSelector((s: RootState) => s.auth.isAuthenticated);
   const dispatch = useDispatch();
-  const [checking, setChecking] = useState(true);
+  const [checking, setChecking] = useState(!sessionChecked);
 
   useEffect(() => {
-    if (!isAuth) return;
+    if (!isAuth || sessionChecked) return;
     api.get('/auth/me')
+      .then(() => {
+        sessionChecked = true;
+      })
       .catch(() => {
+        sessionChecked = true;
         dispatch(clearCredentials());
       })
       .finally(() => setChecking(false));

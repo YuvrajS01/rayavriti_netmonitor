@@ -308,21 +308,27 @@ export default function AIHealth() {
   const [data, setData] = useState<InsightsResponse | null>(null);
   const [history, setHistory] = useState<HealthHistoryPoint[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState('all');
   const [query, setQuery] = useState('');
   const [sortBy, setSortBy] = useState('score-asc');
 
   const load = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const [insightsRes, historyRes] = await Promise.allSettled([
         getInsights(),
         getInsightsHistory(12),
       ]);
-      if (insightsRes.status === 'fulfilled') setData(insightsRes.value.data);
+      if (insightsRes.status === 'fulfilled') {
+        setData(insightsRes.value.data);
+      } else {
+        setError('Failed to load health data. The API may be unavailable.');
+      }
       if (historyRes.status === 'fulfilled') setHistory(historyRes.value.data?.points || []);
     } catch {
-      // API unavailable — page will show empty state
+      setError('Failed to load health data. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -514,6 +520,17 @@ export default function AIHealth() {
         </div>
       </div>
 
+      {/* Error State */}
+      {error && !loading && (
+        <div className="bg-error/10 border border-error/30 rounded-xl p-6 text-center mb-6">
+          <span className="material-symbols-outlined text-error text-3xl mb-2">error</span>
+          <p className="text-sm text-error font-bold">{error}</p>
+          <button onClick={load} className="mt-3 text-xs text-on-surface-variant hover:text-primary transition-colors underline">
+            Retry
+          </button>
+        </div>
+      )}
+
       {/* Filters + Sort */}
       <div className="bg-surface-container-high rounded-xl p-4 border border-outline-variant/20 mb-6 flex flex-col lg:flex-row gap-3">
         <input
@@ -540,7 +557,7 @@ export default function AIHealth() {
       {/* Device Cards */}
       {loading ? (
         <div className="bg-surface-container-high rounded-xl border border-outline-variant/20 py-16 text-center text-on-surface-variant animate-pulse">Calculating health scores...</div>
-      ) : filtered.length === 0 ? (
+      ) : error && !data ? null : filtered.length === 0 ? (
         <div className="bg-surface-container-high rounded-xl border border-outline-variant/20 py-16 text-center text-on-surface-variant">No devices match this view</div>
       ) : (
         <div className="space-y-4">

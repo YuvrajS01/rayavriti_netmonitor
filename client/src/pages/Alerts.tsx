@@ -22,6 +22,7 @@ export default function Alerts() {
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async (tab: string = currentTab) => {
+    setLoading(true);
     try {
       setError(null);
       const [alertsRes, countsRes] = await Promise.all([
@@ -41,13 +42,21 @@ export default function Alerts() {
   useEffect(() => { load(currentTab); }, [currentTab, load]);
 
   const handleAck = async (id: number) => {
-    await acknowledgeAlert(id);
-    load(currentTab);
+    try {
+      await acknowledgeAlert(id);
+      load(currentTab);
+    } catch {
+      setError('Failed to acknowledge alert. Please try again.');
+    }
   };
 
   const handleResolve = async (id: number) => {
-    await resolveAlert(id);
-    load(currentTab);
+    try {
+      await resolveAlert(id);
+      load(currentTab);
+    } catch {
+      setError('Failed to resolve alert. Please try again.');
+    }
   };
 
   const tabs = [

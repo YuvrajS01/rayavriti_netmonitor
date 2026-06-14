@@ -1,20 +1,27 @@
 import { api, unwrapGoResponse } from './http';
 import type { InsightsResponse, HealthHistoryResponse } from './types';
 
-export const getInsights = () =>
+export type MetricsForInsights = Array<{ deviceId: number; responseTime: number | null; status: string; timestamp: string }>;
+export type AlertsForInsights = Array<{ deviceId: number }>;
+
+export const getInsights = (prefetched?: { metrics?: MetricsForInsights; alerts?: AlertsForInsights }) =>
   Promise.all([
     api.get('/insights').then((r) => unwrapGoResponse(r.data)),
-    api.get('/metrics/latest').then((r) => {
-      const data = unwrapGoResponse(r.data);
-      return data as Array<{ deviceId: number; responseTime: number | null; status: string; timestamp: string }>;
-    }).catch(() => [] as Array<{ deviceId: number; responseTime: number | null; status: string; timestamp: string }>),
-    api.get('/alerts?status=active').then((r) => {
-      const data = unwrapGoResponse(r.data);
-      if (data && typeof data === 'object' && 'alerts' in data && 'total' in data) {
-        return (data as Record<string, unknown>).alerts as Array<{ deviceId: number }>;
-      }
-      return data as Array<{ deviceId: number }>;
-    }).catch(() => [] as Array<{ deviceId: number }>),
+    prefetched?.metrics
+      ? Promise.resolve(prefetched.metrics)
+      : api.get('/metrics/latest').then((r) => {
+          const data = unwrapGoResponse(r.data);
+          return data as MetricsForInsights;
+        }).catch(() => [] as MetricsForInsights),
+    prefetched?.alerts
+      ? Promise.resolve(prefetched.alerts)
+      : api.get('/alerts?status=active').then((r) => {
+          const data = unwrapGoResponse(r.data);
+          if (data && typeof data === 'object' && 'alerts' in data && 'total' in data) {
+            return (data as Record<string, unknown>).alerts as AlertsForInsights;
+          }
+          return data as AlertsForInsights;
+        }).catch(() => [] as AlertsForInsights),
   ]).then(([inner, metrics, alerts]) => {
     if (!Array.isArray(inner)) {
       return { data: inner, success: true } as { data: InsightsResponse; success: boolean };
