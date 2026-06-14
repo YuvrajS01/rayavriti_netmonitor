@@ -159,8 +159,8 @@ export default function Dashboard() {
 
   const loadData = useCallback(async () => {
     try {
-      const [statsRes, metricsRes, alertsRes, insightsRes] = await Promise.all([
-        getStats(), getLatestMetrics(), getAlerts('active'), getInsights(),
+      const [statsRes, metricsRes, alertsRes] = await Promise.all([
+        getStats(), getLatestMetrics(), getAlerts('active'),
       ]);
       const metricsData = metricsRes.data || [];
       const m = metricsData;
@@ -175,16 +175,26 @@ export default function Dashboard() {
       setMetrics(metricsData);
       setHistoryMetrics(metricsData);
       setAlerts(alertsRes.data || []);
-      setInsights(insightsRes.data);
       computeSystemInfo(metricsData);
       setLastUpdated(`Loaded ${new Date().toLocaleTimeString()}`);
-      getSystemInfo().then((res) => {
-        if (res.data) {
-          setSystemInfo((prev) => ({ ...prev, raw: res.data }));
-        }
-      }).catch(() => {});
+
+      // Fetch insights using already-fetched metrics and alerts (no redundant API calls)
+      getInsights({
+        metrics: metricsData,
+        alerts: alertsRes.data || [],
+      }).then((r) => setInsights(r.data)).catch(() => {});
     } catch { /* handled by interceptor */ }
-    finally { setLoading(false); }
+    finally {
+      setLoading(false);
+    }
+
+    // Fire system info in parallel — it has its own error handling and sleeps 1s on the backend,
+    // so it should never block the page render.
+    getSystemInfo().then((res) => {
+      if (res.data) {
+        setSystemInfo((prev) => ({ ...prev, raw: res.data }));
+      }
+    }).catch(() => {});
   }, []);
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
