@@ -748,7 +748,7 @@ func TestEvaluateCondition_Anomaly_NilValue_Extra(t *testing.T) {
 		Value:       "invalid",
 	}
 	metric := &models.Metric{}
-	result := EvaluateCondition(cond, metric, "up")
+	result := EvaluateCondition(cond, metric, "up", nil)
 	assert.Equal(t, "anomaly", result.Type)
 	assert.False(t, result.Result)
 }

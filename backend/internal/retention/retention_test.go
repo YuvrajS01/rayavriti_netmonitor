@@ -242,6 +242,33 @@ func (m *mockRetDB) GetRefreshToken(ctx context.Context, tokenHash string) (*dat
 func (m *mockRetDB) DeleteRefreshToken(ctx context.Context, tokenHash string) error    { return nil }
 func (m *mockRetDB) DeleteRefreshTokensByUser(ctx context.Context, userID int64) error { return nil }
 func (m *mockRetDB) CleanupExpiredRefreshTokens(ctx context.Context) (int64, error)    { return 0, nil }
+func (m *mockRetDB) UpsertHealthScore(ctx context.Context, score *models.DeviceHealthScoreRow) error {
+	return nil
+}
+func (m *mockRetDB) GetHealthScores(ctx context.Context) ([]models.DeviceHealthScoreRow, error) {
+	return nil, nil
+}
+func (m *mockRetDB) GetHealthScoreHistory(ctx context.Context, deviceID int64, hours int) ([]models.HealthHistoryPoint, error) {
+	return nil, nil
+}
+func (m *mockRetDB) GetNetworkHealthHistory(ctx context.Context, hours int) ([]models.HealthHistoryPoint, error) {
+	return nil, nil
+}
+func (m *mockRetDB) InsertHealthScoreHistory(ctx context.Context, entries []models.HealthHistoryEntry) error {
+	return nil
+}
+func (m *mockRetDB) GetMetricsSince(ctx context.Context, deviceID int64, since time.Time) ([]models.Metric, error) {
+	return nil, nil
+}
+func (m *mockRetDB) GetStatusFlaps(ctx context.Context, deviceID int64, since time.Time) (int, error) {
+	return 0, nil
+}
+func (m *mockRetDB) GetPortChanges(ctx context.Context, deviceID int64, since time.Time) (int, error) {
+	return 0, nil
+}
+func (m *mockRetDB) GetAlertsByRuleSince(ctx context.Context, ruleID int64, since time.Time) (int, error) {
+	return 0, nil
+}
 
 func TestNew(t *testing.T) {
 	t.Parallel()

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -183,6 +184,60 @@ func (h *AlertHandler) History(w http.ResponseWriter, r *http.Request) {
 		history = []models.AlertHistory{}
 	}
 	httputil.SendOK(w, history)
+}
+
+func (h *AlertHandler) Grouped(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	status := q.Get("status")
+	if status == "" {
+		status = "active"
+	}
+	limit, _ := strconv.Atoi(q.Get("limit"))
+	if limit <= 0 {
+		limit = 300
+	}
+	alerts, _, err := h.db.GetAlerts(r.Context(), status, limit, 0)
+	if err != nil {
+		httputil.SendError(w, 500, err.Error())
+		return
+	}
+
+	type AlertGroup struct {
+		GroupID string         `json:"groupId"`
+		RuleID  *int64         `json:"ruleId,omitempty"`
+		Count   int            `json:"count"`
+		Alerts  []models.Alert `json:"alerts"`
+	}
+
+	groupMap := make(map[string]*AlertGroup)
+	var groupOrder []string
+
+	for _, a := range alerts {
+		gid := ""
+		if a.GroupID != nil {
+			gid = *a.GroupID
+		}
+		if gid == "" {
+			gid = fmt.Sprintf("ungrouped-%d", a.ID)
+		}
+
+		if _, exists := groupMap[gid]; !exists {
+			groupMap[gid] = &AlertGroup{
+				GroupID: gid,
+				RuleID:  a.RuleID,
+			}
+			groupOrder = append(groupOrder, gid)
+		}
+		groupMap[gid].Alerts = append(groupMap[gid].Alerts, a)
+		groupMap[gid].Count = len(groupMap[gid].Alerts)
+	}
+
+	groups := make([]AlertGroup, 0, len(groupOrder))
+	for _, gid := range groupOrder {
+		groups = append(groups, *groupMap[gid])
+	}
+
+	httputil.SendOK(w, groups)
 }
 
 // AlertStats returns alert engine statistics: counts by status, recent activity, and rule breakdown.

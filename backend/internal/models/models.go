@@ -103,6 +103,7 @@ type Alert struct {
 	Severity       string     `json:"severity"` // critical | warning | info
 	Message        string     `json:"message"`
 	Status         string     `json:"status"` // active | acknowledged | resolved
+	GroupID        *string    `json:"groupId,omitempty"`
 	CreatedAt      time.Time  `json:"createdAt"`
 	AcknowledgedAt *time.Time `json:"acknowledgedAt,omitempty"`
 	ResolvedAt     *time.Time `json:"resolvedAt,omitempty"`
@@ -312,6 +313,31 @@ type AlertHistory struct {
 	Actor     string         `json:"actor,omitempty"` // system, user:admin, rule:5
 	Details   map[string]any `json:"details,omitempty"`
 	CreatedAt time.Time      `json:"createdAt"`
+}
+
+type DeviceHealthScoreRow struct {
+	DeviceID   int64           `json:"deviceId"`
+	Score      float64         `json:"score"`
+	Label      string          `json:"label"`
+	Trend      string          `json:"trend"`
+	TrendDelta float64         `json:"trendDelta"`
+	Factors    json.RawMessage `json:"factors"`
+	Issues     json.RawMessage `json:"issues"`
+	ComputedAt time.Time       `json:"computedAt"`
+}
+
+type HealthHistoryEntry struct {
+	DeviceID   int64   `json:"deviceId"`
+	Score      float64 `json:"score"`
+	Label      string  `json:"label"`
+	Factors    any     `json:"factors,omitempty"`
+	ComputedAt any     `json:"computedAt,omitempty"`
+}
+
+type HealthHistoryPoint struct {
+	Timestamp string   `json:"timestamp"`
+	Score     *float64 `json:"score"`
+	Label     *string  `json:"label"`
 }
 
 type AlertRuleState struct {

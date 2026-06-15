@@ -257,7 +257,34 @@ func (m *serverMockDB) GetRefreshToken(ctx context.Context, tokenHash string) (*
 }
 func (m *serverMockDB) DeleteRefreshToken(ctx context.Context, tokenHash string) error    { return nil }
 func (m *serverMockDB) DeleteRefreshTokensByUser(ctx context.Context, userID int64) error { return nil }
-func (m *serverMockDB) CleanupExpiredRefreshTokens(ctx context.Context) (int64, error)    { return 0, nil }
+func (m *serverMockDB) UpsertHealthScore(ctx context.Context, score *models.DeviceHealthScoreRow) error {
+	return nil
+}
+func (m *serverMockDB) GetHealthScores(ctx context.Context) ([]models.DeviceHealthScoreRow, error) {
+	return nil, nil
+}
+func (m *serverMockDB) GetHealthScoreHistory(ctx context.Context, deviceID int64, hours int) ([]models.HealthHistoryPoint, error) {
+	return nil, nil
+}
+func (m *serverMockDB) GetNetworkHealthHistory(ctx context.Context, hours int) ([]models.HealthHistoryPoint, error) {
+	return nil, nil
+}
+func (m *serverMockDB) InsertHealthScoreHistory(ctx context.Context, entries []models.HealthHistoryEntry) error {
+	return nil
+}
+func (m *serverMockDB) GetMetricsSince(ctx context.Context, deviceID int64, since time.Time) ([]models.Metric, error) {
+	return nil, nil
+}
+func (m *serverMockDB) GetStatusFlaps(ctx context.Context, deviceID int64, since time.Time) (int, error) {
+	return 0, nil
+}
+func (m *serverMockDB) GetPortChanges(ctx context.Context, deviceID int64, since time.Time) (int, error) {
+	return 0, nil
+}
+func (m *serverMockDB) GetAlertsByRuleSince(ctx context.Context, ruleID int64, since time.Time) (int, error) {
+	return 0, nil
+}
+func (m *serverMockDB) CleanupExpiredRefreshTokens(ctx context.Context) (int64, error) { return 0, nil }
 
 func freePort(t *testing.T) int {
 	t.Helper()

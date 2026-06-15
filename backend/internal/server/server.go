@@ -164,6 +164,7 @@ func (s *Server) Start() error {
 		r.Get("/api/alerts", alert.List)
 		r.Post("/api/alerts", alert.Create)
 		r.Get("/api/alerts/counts", alert.Counts)
+		r.Get("/api/alerts/grouped", alert.Grouped)
 		r.Get("/api/alerts/{id}", alert.Get)
 		r.Post("/api/alerts/{id}/acknowledge", alert.Acknowledge)
 		r.Post("/api/alerts/{id}/resolve", alert.Resolve)
@@ -172,6 +173,7 @@ func (s *Server) Start() error {
 		// V1 Alerts
 		r.Get("/api/v1/alerts", alert.List)
 		r.Post("/api/v1/alerts", alert.Create)
+		r.Get("/api/v1/alerts/grouped", alert.Grouped)
 		r.Get("/api/v1/alerts/{id}", alert.Get)
 		r.Put("/api/v1/alerts/{id}", alert.Update)
 		r.Delete("/api/v1/alerts/{id}", alert.Delete)
@@ -192,6 +194,7 @@ func (s *Server) Start() error {
 
 		// Insights
 		r.Get("/api/insights", insight.Current)
+		r.Get("/api/insights/current", insight.Current)
 		r.Get("/api/insights/history", insight.History)
 
 		// Flows
