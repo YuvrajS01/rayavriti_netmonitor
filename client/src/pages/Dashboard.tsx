@@ -159,8 +159,8 @@ export default function Dashboard() {
 
   const loadData = useCallback(async () => {
     try {
-      const [statsRes, metricsRes, alertsRes, insightsRes] = await Promise.all([
-        getStats(), getLatestMetrics(), getAlerts('active'), getInsights(),
+      const [statsRes, metricsRes, alertsRes] = await Promise.all([
+        getStats(), getLatestMetrics(), getAlerts('active'),
       ]);
       const metricsData = metricsRes.data || [];
       const m = metricsData;
@@ -175,16 +175,23 @@ export default function Dashboard() {
       setMetrics(metricsData);
       setHistoryMetrics(metricsData);
       setAlerts(alertsRes.data || []);
-      setInsights(insightsRes.data);
       computeSystemInfo(metricsData);
       setLastUpdated(`Loaded ${new Date().toLocaleTimeString()}`);
-      getSystemInfo().then((res) => {
-        if (res.data) {
-          setSystemInfo((prev) => ({ ...prev, raw: res.data }));
-        }
-      }).catch(() => {});
+
+      // Fetch insights from server-side health scores
+      getInsights().then((r) => setInsights(r.data)).catch(() => {});
     } catch { /* handled by interceptor */ }
-    finally { setLoading(false); }
+    finally {
+      setLoading(false);
+    }
+
+    // Fire system info in parallel — it has its own error handling and sleeps 1s on the backend,
+    // so it should never block the page render.
+    getSystemInfo().then((res) => {
+      if (res.data) {
+        setSystemInfo((prev) => ({ ...prev, raw: res.data }));
+      }
+    }).catch(() => {});
   }, []);
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -485,8 +492,8 @@ export default function Dashboard() {
             <span className="material-symbols-outlined text-on-surface-variant group-hover:text-primary text-sm transition-colors">open_in_full</span>
           </div>
           <div className="space-y-4 mt-6">
-            <ResourceBar label="CPU" value={systemInfo.cpu} color="#d9fd3a" />
-            <ResourceBar label="Memory" value={systemInfo.memory} color="#cbee29" />
+            <ResourceBar label="CPU" value={systemInfo.raw?.cpu.usage ?? systemInfo.cpu} color="#d9fd3a" />
+            <ResourceBar label="Memory" value={systemInfo.raw?.memory.percent ?? systemInfo.memory} color="#cbee29" />
             <ResourceBar label="Error Rate" value={systemInfo.errorRate} color="#ff7351" />
           </div>
         </div>

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"testing"
+	"time"
 
 	"github.com/rayavriti/netmonitor-backend/internal/models"
 	"github.com/stretchr/testify/assert"
@@ -36,7 +37,7 @@ func TestEvaluateCondition_Threshold_StatusEq(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			cond := models.AlertRuleCondition{Type: "threshold", MetricField: tt.field, Operator: tt.op, Value: tt.value}
-			result := EvaluateCondition(cond, tt.metric, "")
+			result := EvaluateCondition(cond, tt.metric, "", nil)
 			assert.Equal(t, tt.expected, result.Result)
 		})
 	}
@@ -48,14 +49,14 @@ func TestEvaluateCondition_Threshold_ResponseTime_GT(t *testing.T) {
 
 	// Above threshold
 	metric := &models.Metric{ResponseTime: fptr(1500)}
-	result := EvaluateCondition(cond, metric, "")
+	result := EvaluateCondition(cond, metric, "", nil)
 	assert.True(t, result.Result)
 	assert.Equal(t, 1500.0, result.ActualValue)
 	assert.Equal(t, 1000.0, result.Threshold)
 
 	// Below threshold
 	metric = &models.Metric{ResponseTime: fptr(500)}
-	result = EvaluateCondition(cond, metric, "")
+	result = EvaluateCondition(cond, metric, "", nil)
 	assert.False(t, result.Result)
 }
 
@@ -63,7 +64,7 @@ func TestEvaluateCondition_Threshold_ResponseTime_LT(t *testing.T) {
 	t.Parallel()
 	cond := models.AlertRuleCondition{Type: "threshold", MetricField: "response_time", Operator: "lt", Value: "100"}
 	metric := &models.Metric{ResponseTime: fptr(50)}
-	result := EvaluateCondition(cond, metric, "")
+	result := EvaluateCondition(cond, metric, "", nil)
 	assert.True(t, result.Result)
 }
 
@@ -72,11 +73,11 @@ func TestEvaluateCondition_Threshold_ResponseTime_GTE_Boundary(t *testing.T) {
 	cond := models.AlertRuleCondition{Type: "threshold", MetricField: "response_time", Operator: "gte", Value: "100"}
 
 	metric := &models.Metric{ResponseTime: fptr(100)}
-	result := EvaluateCondition(cond, metric, "")
+	result := EvaluateCondition(cond, metric, "", nil)
 	assert.True(t, result.Result)
 
 	metric = &models.Metric{ResponseTime: fptr(99.99)}
-	result = EvaluateCondition(cond, metric, "")
+	result = EvaluateCondition(cond, metric, "", nil)
 	assert.False(t, result.Result)
 }
 
@@ -84,7 +85,7 @@ func TestEvaluateCondition_Threshold_ResponseTime_LTE_Boundary(t *testing.T) {
 	t.Parallel()
 	cond := models.AlertRuleCondition{Type: "threshold", MetricField: "response_time", Operator: "lte", Value: "100"}
 	metric := &models.Metric{ResponseTime: fptr(100)}
-	result := EvaluateCondition(cond, metric, "")
+	result := EvaluateCondition(cond, metric, "", nil)
 	assert.True(t, result.Result)
 }
 
@@ -106,7 +107,7 @@ func TestEvaluateCondition_Threshold_AllNumericFields(t *testing.T) {
 			case "bandwidth":
 				metric.Bandwidth = fptr(75)
 			}
-			result := EvaluateCondition(cond, metric, "")
+			result := EvaluateCondition(cond, metric, "", nil)
 			assert.True(t, result.Result)
 		})
 	}
@@ -116,7 +117,7 @@ func TestEvaluateCondition_Threshold_NilField(t *testing.T) {
 	t.Parallel()
 	cond := models.AlertRuleCondition{Type: "threshold", MetricField: "response_time", Operator: "gt", Value: "100"}
 	metric := &models.Metric{ResponseTime: nil}
-	result := EvaluateCondition(cond, metric, "")
+	result := EvaluateCondition(cond, metric, "", nil)
 	assert.False(t, result.Result)
 }
 
@@ -124,7 +125,7 @@ func TestEvaluateCondition_Threshold_UnknownField(t *testing.T) {
 	t.Parallel()
 	cond := models.AlertRuleCondition{Type: "threshold", MetricField: "unknown_field", Operator: "gt", Value: "100"}
 	metric := &models.Metric{ResponseTime: fptr(200)}
-	result := EvaluateCondition(cond, metric, "")
+	result := EvaluateCondition(cond, metric, "", nil)
 	assert.False(t, result.Result)
 }
 
@@ -132,7 +133,7 @@ func TestEvaluateCondition_Threshold_InvalidThresholdType(t *testing.T) {
 	t.Parallel()
 	cond := models.AlertRuleCondition{Type: "threshold", MetricField: "response_time", Operator: "gt", Value: "not_a_number"}
 	metric := &models.Metric{ResponseTime: fptr(200)}
-	result := EvaluateCondition(cond, metric, "")
+	result := EvaluateCondition(cond, metric, "", nil)
 	assert.False(t, result.Result)
 }
 
@@ -154,7 +155,7 @@ func TestEvaluateCondition_Threshold_AlternateOperatorSyntax(t *testing.T) {
 			t.Parallel()
 			cond := models.AlertRuleCondition{Type: "threshold", MetricField: "response_time", Operator: tt.op, Value: "100"}
 			metric := &models.Metric{ResponseTime: fptr(150)}
-			result := EvaluateCondition(cond, metric, "")
+			result := EvaluateCondition(cond, metric, "", nil)
 			assert.Equal(t, tt.expected, result.Result)
 		})
 	}
@@ -164,11 +165,11 @@ func TestEvaluateCondition_StateChange(t *testing.T) {
 	t.Parallel()
 	cond := models.AlertRuleCondition{Type: "state_change", MetricField: "status", Operator: "eq", Value: "down"}
 	metric := &models.Metric{Status: "down"}
-	result := EvaluateCondition(cond, metric, "up")
+	result := EvaluateCondition(cond, metric, "up", nil)
 	assert.True(t, result.Result)
 
 	metric = &models.Metric{Status: "up"}
-	result = EvaluateCondition(cond, metric, "down")
+	result = EvaluateCondition(cond, metric, "down", nil)
 	assert.False(t, result.Result)
 }
 
@@ -176,7 +177,7 @@ func TestEvaluateCondition_StateChange_Neq(t *testing.T) {
 	t.Parallel()
 	cond := models.AlertRuleCondition{Type: "state_change", MetricField: "status", Operator: "neq", Value: "up"}
 	metric := &models.Metric{Status: "down"}
-	result := EvaluateCondition(cond, metric, "up")
+	result := EvaluateCondition(cond, metric, "up", nil)
 	assert.True(t, result.Result)
 }
 
@@ -184,23 +185,31 @@ func TestEvaluateCondition_StateChange_NonStatusField(t *testing.T) {
 	t.Parallel()
 	cond := models.AlertRuleCondition{Type: "state_change", MetricField: "response_time", Operator: "eq", Value: "100"}
 	metric := &models.Metric{ResponseTime: fptr(100)}
-	result := EvaluateCondition(cond, metric, "")
+	result := EvaluateCondition(cond, metric, "", nil)
 	assert.False(t, result.Result)
 }
 
-func TestEvaluateCondition_Absence(t *testing.T) {
+func TestEvaluateCondition_Absence_NotStale(t *testing.T) {
 	t.Parallel()
-	cond := models.AlertRuleCondition{Type: "absence", MetricField: "status", Operator: "eq", Value: "down"}
-	metric := &models.Metric{Status: "down"}
-	result := EvaluateCondition(cond, metric, "")
+	cond := models.AlertRuleCondition{Type: "absence", MetricField: "status", Operator: "eq", Value: "300"}
+	metric := &models.Metric{Status: "down", Timestamp: time.Now()}
+	result := EvaluateCondition(cond, metric, "", nil)
 	assert.False(t, result.Result)
+}
+
+func TestEvaluateCondition_Absence_Stale(t *testing.T) {
+	t.Parallel()
+	cond := models.AlertRuleCondition{Type: "absence", MetricField: "status", Operator: "eq", Value: "300"}
+	metric := &models.Metric{Status: "down", Timestamp: time.Now().Add(-600 * time.Second)}
+	result := EvaluateCondition(cond, metric, "", nil)
+	assert.True(t, result.Result)
 }
 
 func TestEvaluateCondition_Anomaly(t *testing.T) {
 	t.Parallel()
 	cond := models.AlertRuleCondition{Type: "anomaly", MetricField: "response_time", Operator: "gt", Value: "2.5"}
 	metric := &models.Metric{ResponseTime: fptr(500)}
-	result := EvaluateCondition(cond, metric, "")
+	result := EvaluateCondition(cond, metric, "", nil)
 	// Anomaly is a stub that always returns false
 	assert.False(t, result.Result)
 	assert.Equal(t, 500.0, result.ActualValue)
@@ -210,7 +219,7 @@ func TestEvaluateCondition_UnknownType(t *testing.T) {
 	t.Parallel()
 	cond := models.AlertRuleCondition{Type: "unknown_type", MetricField: "status", Operator: "eq", Value: "down"}
 	metric := &models.Metric{Status: "down"}
-	result := EvaluateCondition(cond, metric, "")
+	result := EvaluateCondition(cond, metric, "", nil)
 	assert.False(t, result.Result)
 }
 

@@ -69,7 +69,8 @@ const handleTokenRefresh = async (error: AxiosError) => {
 
     const { data: raw } = await axios.post(
       `${import.meta.env.VITE_API_V1_URL || '/api/v1'}/auth/refresh`,
-      { refreshToken }
+      { refreshToken },
+      { timeout: 10_000 }
     );
 
     const body = raw as Record<string, unknown>;

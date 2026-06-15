@@ -259,6 +259,33 @@ func (m *mockRetDB2) GetRefreshToken(ctx context.Context, tokenHash string) (*da
 func (m *mockRetDB2) DeleteRefreshToken(ctx context.Context, tokenHash string) error    { return nil }
 func (m *mockRetDB2) DeleteRefreshTokensByUser(ctx context.Context, userID int64) error { return nil }
 func (m *mockRetDB2) CleanupExpiredRefreshTokens(ctx context.Context) (int64, error)    { return 0, nil }
+func (m *mockRetDB2) UpsertHealthScore(ctx context.Context, score *models.DeviceHealthScoreRow) error {
+	return nil
+}
+func (m *mockRetDB2) GetHealthScores(ctx context.Context) ([]models.DeviceHealthScoreRow, error) {
+	return nil, nil
+}
+func (m *mockRetDB2) GetHealthScoreHistory(ctx context.Context, deviceID int64, hours int) ([]models.HealthHistoryPoint, error) {
+	return nil, nil
+}
+func (m *mockRetDB2) GetNetworkHealthHistory(ctx context.Context, hours int) ([]models.HealthHistoryPoint, error) {
+	return nil, nil
+}
+func (m *mockRetDB2) InsertHealthScoreHistory(ctx context.Context, entries []models.HealthHistoryEntry) error {
+	return nil
+}
+func (m *mockRetDB2) GetMetricsSince(ctx context.Context, deviceID int64, since time.Time) ([]models.Metric, error) {
+	return nil, nil
+}
+func (m *mockRetDB2) GetStatusFlaps(ctx context.Context, deviceID int64, since time.Time) (int, error) {
+	return 0, nil
+}
+func (m *mockRetDB2) GetPortChanges(ctx context.Context, deviceID int64, since time.Time) (int, error) {
+	return 0, nil
+}
+func (m *mockRetDB2) GetAlertsByRuleSince(ctx context.Context, ruleID int64, since time.Time) (int, error) {
+	return 0, nil
+}
 
 // ── prune calls all three prune functions ─────────────────────────────────────
 

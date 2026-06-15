@@ -38,6 +38,14 @@ type mockDB struct {
 	queryMetricsFn              func(ctx context.Context, q models.MetricQuery) ([]models.Metric, error)
 	exportMetricsFn             func(ctx context.Context, from, to time.Time, deviceID *int64, limit int) ([]models.Metric, error)
 	getMetricsInWindowFn        func(ctx context.Context, deviceID int64, field string, from, to time.Time) ([]float64, error)
+	getHealthScoresFn           func(ctx context.Context) ([]models.DeviceHealthScoreRow, error)
+	getHealthScoreHistoryFn     func(ctx context.Context, deviceID int64, hours int) ([]models.HealthHistoryPoint, error)
+	getNetworkHealthHistoryFn   func(ctx context.Context, hours int) ([]models.HealthHistoryPoint, error)
+	insertHealthScoreHistoryFn  func(ctx context.Context, entries []models.HealthHistoryEntry) error
+	getMetricsSinceFn           func(ctx context.Context, deviceID int64, since time.Time) ([]models.Metric, error)
+	getStatusFlapsFn            func(ctx context.Context, deviceID int64, since time.Time) (int, error)
+	getPortChangesFn            func(ctx context.Context, deviceID int64, since time.Time) (int, error)
+	getAlertsByRuleSinceFn      func(ctx context.Context, ruleID int64, since time.Time) (int, error)
 	getAlertsFn                 func(ctx context.Context, status string, limit, offset int) ([]models.Alert, int, error)
 	getAlertFn                  func(ctx context.Context, id int64) (*models.Alert, error)
 	createAlertFn               func(ctx context.Context, a *models.Alert) (*models.Alert, error)
@@ -297,6 +305,43 @@ func (m *mockDB) GetMetricsInWindow(ctx context.Context, deviceID int64, field s
 		return m.getMetricsInWindowFn(ctx, deviceID, field, from, to)
 	}
 	return nil, nil
+}
+
+func (m *mockDB) UpsertHealthScore(ctx context.Context, score *models.DeviceHealthScoreRow) error {
+	return nil
+}
+func (m *mockDB) GetHealthScores(ctx context.Context) ([]models.DeviceHealthScoreRow, error) {
+	if m.getHealthScoresFn != nil {
+		return m.getHealthScoresFn(ctx)
+	}
+	return nil, nil
+}
+func (m *mockDB) GetHealthScoreHistory(ctx context.Context, deviceID int64, hours int) ([]models.HealthHistoryPoint, error) {
+	if m.getHealthScoreHistoryFn != nil {
+		return m.getHealthScoreHistoryFn(ctx, deviceID, hours)
+	}
+	return nil, nil
+}
+func (m *mockDB) GetNetworkHealthHistory(ctx context.Context, hours int) ([]models.HealthHistoryPoint, error) {
+	if m.getNetworkHealthHistoryFn != nil {
+		return m.getNetworkHealthHistoryFn(ctx, hours)
+	}
+	return nil, nil
+}
+func (m *mockDB) InsertHealthScoreHistory(ctx context.Context, entries []models.HealthHistoryEntry) error {
+	return nil
+}
+func (m *mockDB) GetMetricsSince(ctx context.Context, deviceID int64, since time.Time) ([]models.Metric, error) {
+	return nil, nil
+}
+func (m *mockDB) GetStatusFlaps(ctx context.Context, deviceID int64, since time.Time) (int, error) {
+	return 0, nil
+}
+func (m *mockDB) GetPortChanges(ctx context.Context, deviceID int64, since time.Time) (int, error) {
+	return 0, nil
+}
+func (m *mockDB) GetAlertsByRuleSince(ctx context.Context, ruleID int64, since time.Time) (int, error) {
+	return 0, nil
 }
 
 func (m *mockDB) GetAlerts(ctx context.Context, status string, limit, offset int) ([]models.Alert, int, error) {
