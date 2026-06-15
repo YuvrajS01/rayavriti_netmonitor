@@ -10,11 +10,19 @@
     "client"
   ],
   "scripts": {
+    "setup": "./setup.sh dev",
+    "setup:prod": "./setup.sh prod",
     "dev": "cd backend && make run",
     "dev:client": "npm run dev -w client",
     "build": "cd backend && make build && npm run build -w client",
     "build:client": "npm run build -w client",
     "start": "./backend/bin/netmonitor",
-    "simulate": "npx ts-node simulator/run.ts"
+    "simulate": "npx ts-node simulator/run.ts",
+    "up": "docker compose up -d",
+    "up:dev": "docker compose -f docker-compose.dev.yml up -d --build",
+    "down": "docker compose down",
+    "down:dev": "docker compose -f docker-compose.dev.yml down",
+    "logs": "docker compose logs -f",
+    "logs:dev": "docker compose -f docker-compose.dev.yml logs -f"
   }
 }
