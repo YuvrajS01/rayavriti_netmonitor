@@ -109,12 +109,14 @@ check_cmd() {
 
 if [[ "$RUNTIME" == "docker" ]]; then
   check_cmd docker || true
-  check_cmd "docker compose" || true
-  # Try docker-compose as fallback
-  if ! docker compose version &>/dev/null 2>&1; then
+  if docker compose version &>/dev/null 2>&1; then
+    log "docker compose found: $(docker compose version --short 2>/dev/null || echo 'available')"
+  else
+    err "docker compose plugin not found"
+    missing+=("docker compose")
+    # Try docker-compose as fallback
     if command -v docker-compose &>/dev/null; then
-      warn "docker compose plugin not found, but docker-compose is available"
-      warn "You may need to update Docker or use 'docker-compose' instead"
+      warn "docker-compose (standalone) found instead"
     fi
   fi
 else
