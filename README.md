@@ -85,68 +85,59 @@ rayavriti-netmonitor/
 
 ## 🚀 Quick Start
 
-### Option 1: Docker (Recommended for Production)
+### One-Line Install (any system)
 
 ```bash
-# 1. Clone and configure
+curl -fsSL https://raw.githubusercontent.com/YuvrajS01/rayavriti_netmonitor/main/bootstrap.sh | bash
+```
+
+This will:
+1. Check prerequisites (Docker/Node/Go)
+2. Clone the repo
+3. Prompt for dev or prod mode
+4. Prompt for Docker or bare-metal
+5. Configure environment variables
+6. Build and start everything
+
+### Manual Options
+
+#### Docker Production
+
+```bash
 git clone <repository-url>
 cd rayavriti-netmonitor
 cp .env.example .env
-
-# 2. Set required environment variables
-#    Edit .env and set at minimum:
-#    - JWT_SECRET (run: openssl rand -base64 32)
-#    - ADMIN_PASSWORD (your admin login password)
-
-# 3. Build and run
+# Edit .env — set JWT_SECRET and ADMIN_PASSWORD
 docker compose up -d
-
-# 4. Check health
-curl http://localhost:3000/health
-
-# 5. Open dashboard
-open http://localhost:3000
+# Open http://localhost:3000
 ```
 
-### Option 2: Docker Development
+#### Docker Development
 
 ```bash
-# 1. Configure local development
+git clone <repository-url>
+cd rayavriti-netmonitor
 cp .env.dev.example .env.dev
-
-# 2. Start backend and frontend with hot reload
 docker compose -f docker-compose.dev.yml up --build
-
-# 3. Open dashboard
-open http://localhost:5173
+# Open http://localhost:5173
 ```
 
-The development compose file starts two services:
+Development services:
 
 | Service | Purpose | URL |
 |---|---|---|
 | `server` | Go API, WebSocket, collectors, hot reload (air) | `http://localhost:3000` |
 | `client` | Vite React dev server | `http://localhost:5173` |
 
-### Option 3: Bare Metal
+#### Bare Metal
 
 ```bash
-# 1. Clone and install
 git clone <repository-url>
 cd rayavriti-netmonitor
 npm install --workspace client
-
-# 2. Build Go backend
 cd backend && make build && cd ..
-
-# 3. Build client
-npm run build -w client
-
-# 4. Configure
 cp .env.example .env
 # Edit .env — set JWT_SECRET and ADMIN_PASSWORD
-
-# 5. Start
 ./backend/bin/netmonitor
 ```
 
@@ -206,11 +197,14 @@ All configuration is via environment variables. See [`.env.example`](.env.exampl
 
 | Command | Description |
 |---|---|
+| `npm run setup` | One-command dev setup (Docker) |
+| `npm run setup:prod` | One-command production setup (Docker) |
 | `npm run dev` | Start Go backend with hot reload (air) |
 | `npm run dev:client` | Start Vite dev server |
 | `npm run build` | Build Go backend and React client for production |
 | `npm run build:client` | Build client React bundle only |
 | `npm run start` | Start production server |
+| `npm run simulate` | Run network device simulator |
 | `cd backend && make test` | Run Go tests |
 | `cd backend && make lint` | Run golangci-lint |
 | `npm run lint -w client` | Run ESLint on client |
