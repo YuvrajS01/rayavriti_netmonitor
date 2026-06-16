@@ -18,12 +18,12 @@ export default function Alerts() {
   const load = useCallback(async (tab: string = currentTab) => {
     try {
       setError(null);
-      const [alertsRes, countsRes] = await Promise.all([
+      const [alertsRes, countsRes] = await Promise.allSettled([
         getAlerts(tab, 300),
         getAlertCounts(),
       ]);
-      setAlerts(alertsRes.data || []);
-      setCounts(countsRes.data || { active: 0, acknowledged: 0, resolved: 0 });
+      setAlerts(alertsRes.status === 'fulfilled' ? (alertsRes.value.data || []) : []);
+      setCounts(countsRes.status === 'fulfilled' ? (countsRes.value.data || { active: 0, acknowledged: 0, resolved: 0 }) : { active: 0, acknowledged: 0, resolved: 0 });
     } catch {
       setError('Failed to load alerts. Please try again.');
     } finally {

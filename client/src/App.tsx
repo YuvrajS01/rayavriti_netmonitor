@@ -39,16 +39,10 @@ const VERIFY_TTL_MS = 5 * 60 * 1000; // 5 minutes
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const isAuth = useSelector((s: RootState) => s.auth.isAuthenticated);
   const dispatch = useDispatch();
-  const [checking, setChecking] = useState(true);
+  const [checking, setChecking] = useState(() => isAuth && Date.now() - lastVerifiedAt > VERIFY_TTL_MS);
 
   useEffect(() => {
-    if (!isAuth) return;
-    const cached = Date.now() - lastVerifiedAt < VERIFY_TTL_MS;
-    if (cached) {
-      // Skip API call — use rAF to defer setChecking outside synchronous effect body
-      requestAnimationFrame(() => setChecking(false));
-      return;
-    }
+    if (!isAuth || Date.now() - lastVerifiedAt < VERIFY_TTL_MS) return;
     api.get('/auth/me')
       .then(() => { lastVerifiedAt = Date.now(); })
       .catch(() => { dispatch(clearCredentials()); })

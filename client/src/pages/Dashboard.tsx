@@ -85,32 +85,35 @@ export default function Dashboard() {
 
   const loadData = useCallback(async () => {
     try {
-      const [statsRes, metricsRes, alertsRes, insightsRes] = await Promise.all([
+      const [statsRes, metricsRes, alertsRes, insightsRes] = await Promise.allSettled([
         getStats(), getLatestMetrics(), getAlerts('active'), getInsights(),
       ]);
-      const metricsData = metricsRes.data || [];
+      const metricsData = metricsRes.status === 'fulfilled' ? (metricsRes.value.data || []) : [];
       const m = metricsData;
       const online = m.filter((x) => x.status === 'up' || x.status === 'ok').length;
       const warning = m.filter((x) => x.status === 'warning' || x.status === 'degraded').length;
       const uptimePercent = m.length > 0 ? Math.round((online / m.length) * 100) : 100;
-      setStats({
-        ...statsRes.data,
-        warningDevices: warning,
-        uptimePercent,
-      });
+      if (statsRes.status === 'fulfilled') {
+        setStats({
+          ...statsRes.value.data,
+          warningDevices: warning,
+          uptimePercent,
+        });
+      }
       setMetrics(metricsData);
       setHistoryMetrics(metricsData);
-      setAlerts(alertsRes.data || []);
-      setInsights(insightsRes.data);
+      setAlerts(alertsRes.status === 'fulfilled' ? (alertsRes.value.data || []) : []);
+      setInsights(insightsRes.status === 'fulfilled' ? insightsRes.value.data : null);
       computeSystemInfo(metricsData);
       setLastUpdated(`Loaded ${new Date().toLocaleTimeString()}`);
-      getSystemInfo().then((res) => {
-        if (res.data) {
-          setSystemInfo((prev) => ({ ...prev, raw: res.data }));
-        }
-      }).catch(() => {});
     } catch { /* handled by interceptor */ }
     finally { setLoading(false); }
+
+    getSystemInfo().then((res) => {
+      if (res.data) {
+        setSystemInfo((prev) => ({ ...prev, raw: res.data }));
+      }
+    }).catch(() => {});
   }, []);
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
