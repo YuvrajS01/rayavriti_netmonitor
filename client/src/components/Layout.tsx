@@ -3,7 +3,8 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { clearCredentials } from '../store/authSlice';
 import type { RootState } from '../store';
-import { logout } from '../api/client';
+import { logout, getAlertCounts } from '../api/client';
+import { useSocket } from '../hooks/useSocket';
 
 const navItems = [
   { to: '/', label: 'Overview', icon: 'dashboard' },
@@ -17,7 +18,7 @@ const navItems = [
   { to: '/settings', label: 'Settings', icon: 'settings' },
 ];
 
-const SidebarLink = memo(function SidebarLink({ to, label, icon, onClick }: { to: string; label: string; icon: string; onClick?: () => void }) {
+const SidebarLink = memo(function SidebarLink({ to, label, icon, badge, onClick }: { to: string; label: string; icon: string; badge?: number; onClick?: () => void }) {
   return (
     <NavLink
       to={to}
@@ -33,6 +34,11 @@ const SidebarLink = memo(function SidebarLink({ to, label, icon, onClick }: { to
     >
       <span className="material-symbols-outlined">{icon}</span>
       <span>{label}</span>
+      {badge != null && badge > 0 && (
+        <span className="ml-auto bg-error/20 text-error px-1.5 py-0.5 rounded-full text-[9px] font-bold min-w-[18px] text-center">
+          {badge > 99 ? '99+' : badge}
+        </span>
+      )}
     </NavLink>
   );
 });
@@ -42,6 +48,22 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const dispatch = useDispatch();
   const user = useSelector((s: RootState) => s.auth.user);
   const [sidebarOpen, setSidebarOpen] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 1024);
+  const [activeAlertCount, setActiveAlertCount] = useState(0);
+
+  const fetchAlertCount = () => {
+    getAlertCounts()
+      .then((res) => setActiveAlertCount(res.data?.active ?? 0))
+      .catch(() => {});
+  };
+
+  useEffect(() => {
+    fetchAlertCount();
+  }, []);
+
+  useSocket({
+    onAlertTriggered: () => fetchAlertCount(),
+    onBootstrap: () => fetchAlertCount(),
+  });
 
   useEffect(() => {
     const handleResize = () => {
@@ -90,8 +112,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           </div>
         </div>
         <div className="flex items-center gap-4">
-          <NavLink to="/alerts" className="material-symbols-outlined cursor-pointer hover:text-primary p-2 text-on-surface-variant" aria-label="Alerts">
+          <NavLink to="/alerts" className="material-symbols-outlined cursor-pointer hover:text-primary p-2 text-on-surface-variant relative" aria-label="Alerts">
             notifications
+            {activeAlertCount > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 bg-error text-on-error text-[8px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
+                {activeAlertCount > 9 ? '9+' : activeAlertCount}
+              </span>
+            )}
           </NavLink>
           <NavLink to="/settings" className="material-symbols-outlined cursor-pointer hover:text-primary p-2 text-on-surface-variant" aria-label="Settings">
             settings
@@ -123,7 +150,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
           <nav className="flex-1 space-y-1" aria-label="Sidebar navigation">
             {navItems.map((item) => (
-              <SidebarLink key={item.to} {...item} />
+              <SidebarLink key={item.to} {...item} badge={item.to === '/alerts' ? activeAlertCount : undefined} />
             ))}
           </nav>
 

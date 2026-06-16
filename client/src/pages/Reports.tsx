@@ -108,7 +108,7 @@ export default function Reports() {
       <header className="mb-8 print-header">
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-2">
           <div>
-            <h1 className="font-headline text-4xl font-black text-on-surface uppercase tracking-tight mb-1">Reports</h1>
+            <h1 className="font-headline text-5xl font-black text-on-surface uppercase tracking-tight mb-1">Reports</h1>
             <p className="text-on-surface-variant font-body max-w-xl text-sm">Historical analytics, SLA compliance, and performance reports across all monitored nodes.</p>
           </div>
           <div className="flex items-center gap-2 no-print">

@@ -20,6 +20,7 @@ const AIHealth = lazy(() => import('./pages/AIHealth'));
 const Alerts = lazy(() => import('./pages/Alerts'));
 const Reports = lazy(() => import('./pages/Reports'));
 const Settings = lazy(() => import('./pages/Settings'));
+const NotFound = lazy(() => import('./pages/NotFound'));
 
 function PageLoader() {
   return (
@@ -32,6 +33,9 @@ function PageLoader() {
   );
 }
 
+let lastVerifiedAt = 0;
+const VERIFY_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const isAuth = useSelector((s: RootState) => s.auth.isAuthenticated);
   const dispatch = useDispatch();
@@ -39,11 +43,16 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!isAuth) return;
+    const cached = Date.now() - lastVerifiedAt < VERIFY_TTL_MS;
+    if (cached) {
+      // Skip API call — use rAF to defer setChecking outside synchronous effect body
+      requestAnimationFrame(() => setChecking(false));
+      return;
+    }
     api.get('/auth/me')
-      .catch(() => {
-        dispatch(clearCredentials());
-      })
-      .finally(() => setChecking(false));
+      .then(() => { lastVerifiedAt = Date.now(); })
+      .catch(() => { dispatch(clearCredentials()); })
+      .finally(() => { setChecking(false); });
   }, [isAuth, dispatch]);
 
   if (!isAuth) return <Navigate to="/login" replace />;
@@ -78,7 +87,7 @@ function AppRoutes() {
         <Route path="/alerts" element={<ProtectedRoute><Alerts /></ProtectedRoute>} />
         <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
         <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="*" element={<ProtectedRoute><NotFound /></ProtectedRoute>} />
       </Routes>
     </Suspense>
   );
