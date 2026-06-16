@@ -1,21 +1,12 @@
 import { useEffect, useRef, useMemo } from 'react';
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip } from 'recharts';
 import type { Metric } from '../api/types';
+import { TOOLTIP_STYLE, DEVICE_COLORS } from '../utils/chartConfig';
 
 interface ExpandedChartsModalProps {
   metrics: Metric[];
   onClose: () => void;
 }
-
-const TOOLTIP_STYLE = {
-  background: 'var(--color-surface-container)',
-  border: '1px solid var(--color-outline-variant)',
-  borderRadius: '8px',
-  fontSize: '12px',
-  color: 'var(--color-on-surface)',
-};
-
-const DEVICE_COLORS = ['#d9fd3a', '#ff7351', '#6ee7f7', '#c084fc', '#4ade80', '#fb923c'];
 
 export default function ExpandedChartsModal({ metrics, onClose }: ExpandedChartsModalProps) {
   const dialogRef = useRef<HTMLDivElement>(null);

@@ -2,6 +2,9 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { getAlerts, getAlertCounts, getGroupedAlerts, acknowledgeAlert, resolveAlert } from '../api/client';
 import type { Alert, AlertCounts } from '../api/types';
 import type { AlertGroup } from '../api/alerts';
+import SectionHeader from '../components/ui/SectionHeader';
+import LoadingState from '../components/ui/LoadingState';
+import ErrorState from '../components/ui/ErrorState';
 
 function severityIcon(severity: string) {
   if (severity === 'critical') return 'dangerous';
@@ -16,6 +19,7 @@ function severityColors(severity: string) {
 }
 
 export default function Alerts() {
+
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [grouped, setGrouped] = useState<AlertGroup[]>([]);
   const [counts, setCounts] = useState<AlertCounts>({ active: 0, acknowledged: 0, resolved: 0 });
@@ -76,10 +80,10 @@ export default function Alerts() {
 
   return (
     <div>
-      <header className="mb-12">
-        <h1 className="font-headline text-4xl font-bold tracking-tight text-on-surface mb-2">SYSTEM ALERTS</h1>
-        <p className="font-body text-on-surface-variant max-w-2xl">Real-time surveillance of network anomalies and node failures. Active pulse monitoring is operational.</p>
-      </header>
+      <SectionHeader
+        title="SYSTEM ALERTS"
+        subtitle="Real-time surveillance of network anomalies and node failures. Active pulse monitoring is operational."
+      />
 
       {/* Status Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12">
@@ -150,23 +154,10 @@ export default function Alerts() {
       </div>
 
       {/* Loading State */}
-      {loading && (
-        <div className="flex flex-col items-center justify-center py-16">
-          <span className="material-symbols-outlined text-4xl text-primary animate-pulse mb-3">hourglass_top</span>
-          <p className="text-sm text-on-surface-variant uppercase tracking-widest">Loading alerts...</p>
-        </div>
-      )}
+      {loading && <LoadingState message="Loading alerts..." />}
 
       {/* Error State */}
-      {error && !loading && (
-        <div className="bg-error/10 border border-error/30 rounded-xl p-6 text-center">
-          <span className="material-symbols-outlined text-error text-3xl mb-2">error</span>
-          <p className="text-sm text-error font-bold">{error}</p>
-          <button onClick={() => load(currentTab)} className="mt-3 text-xs text-on-surface-variant hover:text-primary transition-colors underline">
-            Retry
-          </button>
-        </div>
-      )}
+      {error && !loading && <ErrorState message={error} onRetry={() => load(currentTab)} />}
 
       {/* Grouped View */}
       {!loading && !error && currentTab === 'active' && viewMode === 'grouped' && (
@@ -275,21 +266,20 @@ function AlertGroupCard({ group, onAck, onResolve }: { group: AlertGroup; onAck:
 }
 
 function AlertItem({ alert, onAck, onResolve }: { alert: Alert; onAck: (id: number) => void; onResolve: (id: number) => void }) {
-  const sc = severityColors(alert.severity);
   const deviceName = alert.deviceName || `Device ${alert.deviceId}`;
 
   return (
-    <div className={`group bg-surface-container-low rounded-xl border-l-[6px] ${sc.border} p-5 flex flex-col md:flex-row md:items-center justify-between gap-6 transition-[background-color,border-color] hover:bg-surface-container-high`}>
+    <div className={`group bg-surface-container-low rounded-xl border-l-[6px] ${severityColors(alert.severity).border} p-5 flex flex-col md:flex-row md:items-center justify-between gap-6 transition-[background-color,border-color] hover:bg-surface-container-high`}>
       <div className="flex items-start gap-4">
-        <div className={`${sc.bg} p-3 rounded-lg`}>
-          <span className={`material-symbols-outlined ${sc.text}`} style={{ fontVariationSettings: "'FILL' 1" }}>
+        <div className={`${severityColors(alert.severity).bg} p-3 rounded-lg`}>
+          <span className={`material-symbols-outlined ${severityColors(alert.severity).text}`} style={{ fontVariationSettings: "'FILL' 1" }}>
             {severityIcon(alert.severity)}
           </span>
         </div>
         <div>
           <div className="flex items-center gap-3 mb-1 flex-wrap">
             <h3 className="font-headline font-bold text-on-surface tracking-tight uppercase">{alert.message}</h3>
-            <span className={`text-[10px] ${sc.bg} ${sc.text} px-2 py-0.5 font-bold rounded`}>
+            <span className={`text-[10px] ${severityColors(alert.severity).bg} ${severityColors(alert.severity).text} px-2 py-0.5 font-bold rounded`}>
               {alert.severity.toUpperCase()}
             </span>
           </div>
@@ -301,7 +291,7 @@ function AlertItem({ alert, onAck, onResolve }: { alert: Alert; onAck: (id: numb
       </div>
       <div className="flex items-center gap-4">
         {alert.status === 'active' && (
-          <button onClick={() => onAck(alert.id)} className={`px-6 py-2 border-2 ${sc.border} ${sc.text} font-headline font-bold text-xs uppercase hover:bg-surface-container-highest transition-[background-color,color,transform] active:scale-95`}>
+          <button onClick={() => onAck(alert.id)} className={`px-6 py-2 border-2 ${severityColors(alert.severity).border} ${severityColors(alert.severity).text} font-headline font-bold text-xs uppercase hover:bg-surface-container-highest transition-[background-color,color,transform] active:scale-95`}>
             ACKNOWLEDGE
           </button>
         )}

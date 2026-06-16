@@ -5,6 +5,9 @@ import {
 } from '../api/client';
 import { useSocket } from '../hooks/useSocket';
 import type { CapturedPacket, CaptureSession, NetworkInterface } from '../api/types';
+import { formatBytes } from '../utils/formatters';
+import SectionHeader from '../components/ui/SectionHeader';
+import EmptyState from '../components/ui/EmptyState';
 
 const PROTO_COLORS: Record<string, { text: string; bg: string; border: string }> = {
   TCP: { text: 'var(--color-secondary)', bg: 'color-mix(in srgb, var(--color-secondary) 8%, transparent)', border: 'color-mix(in srgb, var(--color-secondary) 20%, transparent)' },
@@ -15,14 +18,6 @@ const PROTO_COLORS: Record<string, { text: string; bg: string; border: string }>
 
 function getProtoStyle(proto: string) {
   return PROTO_COLORS[proto] || PROTO_COLORS.UNKNOWN;
-}
-
-function formatBytes(bytes: number): string {
-  if (bytes === 0) return '0 B';
-  const units = ['B', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(1024));
-  const val = bytes / Math.pow(1024, i);
-  return `${val.toFixed(i > 0 ? 1 : 0)} ${units[i]}`;
 }
 
 const HexDump = ({ hex }: { hex: string }) => {
@@ -181,14 +176,10 @@ export default function PacketCapture() {
 
   return (
     <div>
-      <header className="mb-8">
-        <h1 className="font-headline text-5xl font-black text-on-surface uppercase tracking-tight mb-2">
-          Packet Capture
-        </h1>
-        <p className="text-on-surface-variant font-body max-w-xl">
-          Live packet sniffing and analysis. Capture, inspect, and analyze network traffic in real-time.
-        </p>
-      </header>
+      <SectionHeader
+        title="Packet Capture"
+        subtitle="Live packet sniffing and analysis. Capture, inspect, and analyze network traffic in real-time."
+      />
 
       <div className="bg-surface-container-high rounded-xl p-5 border border-outline-variant/20 mb-6">
         <div className="flex flex-col md:flex-row items-start md:items-center gap-4">
@@ -296,13 +287,11 @@ export default function PacketCapture() {
               </thead>
               <tbody className="text-[11px] font-mono">
                 {packets.length === 0 ? (
-                  <tr><td colSpan={7} className="py-16 text-center text-on-surface-variant opacity-50">
-                    <div className="flex flex-col items-center gap-2">
-                      <span className="material-symbols-outlined text-4xl">network_check</span>
-                      <span className="text-[10px] uppercase tracking-widest font-sans">
-                        {activeSession ? 'Waiting for packets...' : 'Start a capture to see packets'}
-                      </span>
-                    </div>
+                  <tr><td colSpan={7} className="py-16">
+                    <EmptyState
+                      icon="network_check"
+                      title={activeSession ? 'Waiting for packets...' : 'Start a capture to see packets'}
+                    />
                   </td></tr>
                 ) : (
                   visiblePackets.map((pkt, idx) => {

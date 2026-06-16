@@ -9,52 +9,12 @@ import {
 } from '../api/client';
 import { useSocket } from '../hooks/useSocket';
 import type { FlowRecord, TopTalker, ProtocolBreakdown, FlowStats, FlowTimeseriesPoint } from '../api/types';
-
-const PROTOCOL_COLORS: Record<string, string> = {
-  TCP: '#6ee7f7',
-  UDP: '#d9fd3a',
-  ICMP: '#f59e0b',
-  IGMP: '#c084fc',
-  GRE: '#fb923c',
-  SCTP: '#4ade80',
-  ESP: '#f472b6',
-};
-
-const CHART_COLORS = ['#6ee7f7', '#d9fd3a', '#f59e0b', '#c084fc', '#fb923c', '#4ade80', '#f472b6', '#ff7351'];
-
-const TOOLTIP_STYLE = {
-  background: 'var(--color-surface-container)',
-  border: '1px solid var(--color-outline-variant)',
-  borderRadius: '8px',
-  fontSize: '12px',
-  color: 'var(--color-on-surface)',
-};
-
-function formatBytes(bytes: number): string {
-  if (bytes === 0) return '0 B';
-  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(1024));
-  const val = bytes / Math.pow(1024, i);
-  return `${val.toFixed(i > 0 ? 1 : 0)} ${units[i]}`;
-}
-
-function formatNumber(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
-  return String(n);
-}
-
-function StatCard({ label, value, icon, color = 'text-primary' }: { label: string; value: string | number; icon: string; color?: string }) {
-  return (
-    <div className="bg-surface-container-low p-5 rounded-xl border-l-2 border-primary/30 hover:border-primary/60 transition-[border-color]">
-      <div className="flex items-center gap-2 mb-1">
-        <span className="material-symbols-outlined text-sm opacity-60">{icon}</span>
-        <p className="text-on-surface-variant text-[10px] uppercase tracking-[0.2em]">{label}</p>
-      </div>
-      <p className={`font-headline text-2xl font-bold ${color}`}>{value}</p>
-    </div>
-  );
-}
+import { PROTOCOL_COLORS, CHART_COLORS, TOOLTIP_STYLE, AXIS_TICK_STYLE, LEGEND_STYLE } from '../utils/chartConfig';
+import { formatBytes, formatNumber } from '../utils/formatters';
+import StatCard from '../components/ui/StatCard';
+import LoadingState from '../components/ui/LoadingState';
+import ErrorState from '../components/ui/ErrorState';
+import SectionHeader from '../components/ui/SectionHeader';
 
 export default function FlowAnalysis() {
   const [stats, setStats] = useState<FlowStats | null>(null);
@@ -162,39 +122,22 @@ export default function FlowAnalysis() {
 
   return (
     <div>
-      <header className="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-6">
-        <div>
-          <h1 className="font-headline text-5xl font-black text-on-surface uppercase tracking-tight mb-2">
-            Flow Analysis
-          </h1>
-          <p className="text-on-surface-variant font-body max-w-xl">
-            NetFlow / sFlow traffic analysis. Monitor bandwidth, top talkers, and protocol distribution in real-time.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-[#6ee7f7] animate-pulse" />
-          <span className="text-[#6ee7f7] font-mono text-xs">
-            {loading ? 'Connecting...' : stats ? (stats.totalFlows > 0 ? 'Flows active' : 'Awaiting flows') : 'No data'}
-          </span>
-        </div>
-      </header>
+      <SectionHeader
+        title="Flow Analysis"
+        subtitle="NetFlow / sFlow traffic analysis. Monitor bandwidth, top talkers, and protocol distribution in real-time."
+        action={
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-[#6ee7f7] animate-pulse" />
+            <span className="text-[#6ee7f7] font-mono text-xs">
+              {loading ? 'Connecting...' : stats ? (stats.totalFlows > 0 ? 'Flows active' : 'Awaiting flows') : 'No data'}
+            </span>
+          </div>
+        }
+      />
 
-      {loading && (
-        <div className="flex flex-col items-center justify-center py-16">
-          <span className="material-symbols-outlined text-4xl text-primary animate-pulse mb-3">hourglass_top</span>
-          <p className="text-sm text-on-surface-variant uppercase tracking-widest">Loading flow data...</p>
-        </div>
-      )}
+      {loading && <LoadingState message="Loading flow data..." />}
 
-      {error && !loading && (
-        <div className="bg-error/10 border border-error/30 rounded-xl p-6 text-center mb-8">
-          <span className="material-symbols-outlined text-error text-3xl mb-2">error</span>
-          <p className="text-sm text-error font-bold">{error}</p>
-          <button onClick={loadData} className="mt-3 text-xs text-on-surface-variant hover:text-primary transition-colors underline">
-            Retry
-          </button>
-        </div>
-      )}
+      {error && !loading && <ErrorState message={error} onRetry={loadData} />}
 
       {!loading && !error && (
         <>
@@ -232,14 +175,14 @@ export default function FlowAnalysis() {
                   </defs>
                   <XAxis
                     dataKey="bucketTime"
-                    tick={{ fill: '#8a8a78', fontSize: 10 }}
+                    tick={AXIS_TICK_STYLE}
                     tickLine={false}
                     axisLine={false}
                     tickFormatter={(v) => new Date(v).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     interval="preserveStartEnd"
                   />
                   <YAxis
-                    tick={{ fill: '#8a8a78', fontSize: 10 }}
+                    tick={AXIS_TICK_STYLE}
                     tickLine={false}
                     axisLine={false}
                     tickFormatter={(v) => formatBytes(v)}
@@ -254,7 +197,7 @@ export default function FlowAnalysis() {
                     labelFormatter={(l) => new Date(l).toLocaleString()}
                   />
                   <Legend
-                    wrapperStyle={{ fontSize: 11, paddingTop: 8 }}
+                    wrapperStyle={LEGEND_STYLE}
                     formatter={(value) => <span style={{ color: '#c8c5b0' }}>{value === 'totalBytes' ? 'Bytes' : 'Packets'}</span>}
                   />
                   <Area type="monotone" dataKey="totalBytes" stroke="#6ee7f7" fill="url(#gradBytes)" strokeWidth={2} />

@@ -20,7 +20,7 @@ export default function Settings() {
   return (
     <div>
       <header className="mb-12">
-        <h1 className="font-headline text-4xl font-black text-on-surface mb-2 tracking-tight">System Configuration</h1>
+        <h1 className="font-headline text-5xl font-black text-on-surface mb-2 tracking-tight">System Configuration</h1>
         <p className="text-on-surface-variant font-label text-sm tracking-wide">Control parameters for your monitoring node</p>
       </header>
 

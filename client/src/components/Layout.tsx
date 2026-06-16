@@ -1,9 +1,10 @@
-import { useState, memo } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { useState, useEffect, memo } from 'react';
+import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { clearCredentials } from '../store/authSlice';
 import type { RootState } from '../store';
-import { logout } from '../api/client';
+import { logout, getAlertCounts } from '../api/client';
+import { useSocket } from '../hooks/useSocket';
 
 const navItems = [
   { to: '/', label: 'Overview', icon: 'dashboard' },
@@ -17,7 +18,7 @@ const navItems = [
   { to: '/settings', label: 'Settings', icon: 'settings' },
 ];
 
-const SidebarLink = memo(function SidebarLink({ to, label, icon, onClick }: { to: string; label: string; icon: string; onClick?: () => void }) {
+const SidebarLink = memo(function SidebarLink({ to, label, icon, badge, onClick }: { to: string; label: string; icon: string; badge?: number; onClick?: () => void }) {
   return (
     <NavLink
       to={to}
@@ -33,15 +34,45 @@ const SidebarLink = memo(function SidebarLink({ to, label, icon, onClick }: { to
     >
       <span className="material-symbols-outlined">{icon}</span>
       <span>{label}</span>
+      {badge != null && badge > 0 && (
+        <span className="ml-auto bg-error/20 text-error px-1.5 py-0.5 rounded-full text-[9px] font-bold min-w-[18px] text-center">
+          {badge > 99 ? '99+' : badge}
+        </span>
+      )}
     </NavLink>
   );
 });
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const dispatch = useDispatch();
   const user = useSelector((s: RootState) => s.auth.user);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 1024);
+  const [activeAlertCount, setActiveAlertCount] = useState(0);
+
+  const fetchAlertCount = () => {
+    getAlertCounts()
+      .then((res) => setActiveAlertCount(res.data?.active ?? 0))
+      .catch(() => {});
+  };
+
+  useEffect(() => {
+    fetchAlertCount();
+  }, []);
+
+  useSocket({
+    onAlertTriggered: () => fetchAlertCount(),
+    onBootstrap: () => fetchAlertCount(),
+  });
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth < 1024) setSidebarOpen(false);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const handleLogout = async () => {
     try { await logout(); } catch { /* ignore */ }
@@ -51,8 +82,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen bg-background text-on-surface font-body">
+      {/* Skip to content link for keyboard users */}
+      <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:bg-primary focus:text-on-primary focus:px-4 focus:py-2 focus:rounded-lg focus:font-bold focus:text-sm">
+        Skip to content
+      </a>
       {/* Top Nav */}
-      <header className="bg-background text-primary font-body text-sm tracking-tight w-full h-16 border-b border-surface-container-high/30 shadow-[0_0_15px_rgba(217,253,58,0.05)] flex justify-between items-center px-6 fixed top-0 z-50">
+      <header className="bg-background text-on-surface font-body text-sm tracking-tight w-full h-16 border-b border-surface-container-high/30 shadow-[0_0_15px_rgba(217,253,58,0.05)] flex justify-between items-center px-6 fixed top-0 z-50">
         <div className="flex items-center gap-8">
           <button onClick={() => setSidebarOpen(!sidebarOpen)} className="material-symbols-outlined text-on-surface-variant hover:text-primary transition-colors" aria-label="Toggle sidebar">
             menu
@@ -78,8 +113,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           </div>
         </div>
         <div className="flex items-center gap-4">
-          <NavLink to="/alerts" className="material-symbols-outlined cursor-pointer hover:text-primary p-2 text-on-surface-variant" aria-label="Alerts">
+          <NavLink to="/alerts" className="material-symbols-outlined cursor-pointer hover:text-primary p-2 text-on-surface-variant relative" aria-label="Alerts">
             notifications
+            {activeAlertCount > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 bg-error text-on-error text-[8px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
+                {activeAlertCount > 9 ? '9+' : activeAlertCount}
+              </span>
+            )}
           </NavLink>
           <NavLink to="/settings" className="material-symbols-outlined cursor-pointer hover:text-primary p-2 text-on-surface-variant" aria-label="Settings">
             settings
@@ -109,9 +149,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             </p>
           </div>
 
-          <nav className="flex-1 space-y-1">
+          <nav className="flex-1 space-y-1" aria-label="Sidebar navigation">
             {navItems.map((item) => (
-              <SidebarLink key={item.to} {...item} />
+              <SidebarLink key={item.to} {...item} badge={item.to === '/alerts' ? activeAlertCount : undefined} />
             ))}
           </nav>
 
@@ -126,13 +166,15 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </aside>
 
         {/* Main Content */}
-        <main className={`flex-1 p-8 bg-surface min-h-[calc(100vh-64px)] transition-[margin-left] duration-300 ${sidebarOpen ? 'ml-64' : 'ml-0'}`}>
-          {children}
+        <main id="main-content" className={`flex-1 p-8 bg-surface min-h-[calc(100vh-64px)] transition-[margin-left] duration-300 ${sidebarOpen ? 'ml-64' : 'ml-0'}`}>
+          <div key={location.pathname} className="page-enter">
+            {children}
+          </div>
         </main>
       </div>
 
       {/* Mobile Bottom Nav — only on small screens */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-background border-t border-surface-container-high/30 flex justify-around items-center px-4 z-50 shadow-[0_-10px_20px_rgba(0,0,0,0.5)]">
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-background border-t border-surface-container-high/30 flex justify-around items-center px-4 z-50 shadow-[0_-10px_20px_rgba(0,0,0,0.5)]" aria-label="Mobile navigation">
         {[navItems[0], navItems[1], navItems[5], navItems[6]].map((item) => (
           <NavLink
             key={item.to}
