@@ -8,6 +8,7 @@ import StatCard from '../components/ui/StatCard';
 import Button from '../components/ui/Button';
 import SectionHeader from '../components/ui/SectionHeader';
 import { useToast } from '../components/ui/useToast';
+import { DevicesSkeleton } from '../components/dashboard/DevicesSkeleton';
 import { statusTextColor, statusBgColor } from '../utils/colors';
 import { iconForProtocol } from '../utils/icons';
 
@@ -33,6 +34,7 @@ export default function Devices() {
   const { addToast } = useToast();
   const [devices, setDevices] = useState<Device[]>([]);
   const [metricsMap, setMetricsMap] = useState<Map<number, Metric>>(new Map());
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [showForm, setShowForm] = useState(false);
@@ -47,6 +49,7 @@ export default function Devices() {
     const [dRes, mRes] = await Promise.all([getDevices(), getLatestMetrics()]);
     setDevices(dRes.data || []);
     setMetricsMap(new Map((mRes.data || []).map((m) => [m.deviceId, m])));
+    setLoading(false);
   }, []);
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -129,6 +132,10 @@ export default function Devices() {
 
   return (
     <div>
+      {loading ? (
+        <DevicesSkeleton />
+      ) : (
+      <>
       {/* Header */}
       <SectionHeader
         title="My Devices"
@@ -304,6 +311,8 @@ export default function Devices() {
         onConfirm={confirmDelete}
         onCancel={() => setDeleteTarget(null)}
       />
+      </>
+      )}
     </div>
   );
 }

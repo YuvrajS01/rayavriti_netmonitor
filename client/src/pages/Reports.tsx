@@ -1,10 +1,11 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { getReportSummary, getReportTimeseries, getReportDeviceBreakdown, getReportAlerts, downloadMetricsCsv, getDevices } from '../api/client';
 import type { ReportSummary, ReportTimeseriesPoint as TimeseriesPoint, DeviceBreakdown, ReportAlert, Device } from '../api/types';
-import SummaryTab from '../components/reports/SummaryTab';
-import DeviceTab from '../components/reports/DeviceTab';
-import SlaTab from '../components/reports/SlaTab';
-import AlertTab from '../components/reports/AlertTab';
+
+const SummaryTab = lazy(() => import('../components/reports/SummaryTab'));
+const DeviceTab = lazy(() => import('../components/reports/DeviceTab'));
+const SlaTab = lazy(() => import('../components/reports/SlaTab'));
+const AlertTab = lazy(() => import('../components/reports/AlertTab'));
 
 function formatLocalInput(date: Date) {
   const d = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
@@ -189,10 +190,17 @@ export default function Reports() {
 
       {!loading && !error && (
         <div className="report-tab-content">
-          {activeTab === 'summary' && <SummaryTab summary={summary} series={series} />}
-          {activeTab === 'devices' && <DeviceTab devices={deviceBreakdown} onSelectDevice={handleSelectDevice} />}
-          {activeTab === 'sla' && <SlaTab summary={summary} series={series} />}
-          {activeTab === 'alerts' && <AlertTab alerts={reportAlerts} />}
+          <Suspense fallback={
+            <div className="flex flex-col items-center justify-center py-16">
+              <span className="material-symbols-outlined text-4xl text-primary animate-pulse mb-3">hourglass_top</span>
+              <p className="text-sm text-on-surface-variant uppercase tracking-widest">Loading tab...</p>
+            </div>
+          }>
+            {activeTab === 'summary' && <SummaryTab summary={summary} series={series} />}
+            {activeTab === 'devices' && <DeviceTab devices={deviceBreakdown} onSelectDevice={handleSelectDevice} />}
+            {activeTab === 'sla' && <SlaTab summary={summary} series={series} />}
+            {activeTab === 'alerts' && <AlertTab alerts={reportAlerts} />}
+          </Suspense>
         </div>
       )}
 
