@@ -4,26 +4,29 @@ import { useSocket } from '../hooks/useSocket';
 import type { Device, Metric } from '../api/types';
 import DeviceModal from '../components/DeviceModal';
 import ConfirmDialog from '../components/ConfirmDialog';
+import Button from '../components/ui/Button';
+import StatCard from '../components/ui/StatCard';
+import SectionHeader from '../components/ui/SectionHeader';
+import { statusTextColor, statusBgColor } from '../utils/colors';
+import { iconForProtocol } from '../utils/icons';
 
 function statusOf(device: Device, metricsMap: Map<number, Metric>): string {
   return metricsMap.get(device.id)?.status || device.status || 'unknown';
 }
 
-function statusColor(status: string) {
-  if (status === 'down') return { text: 'text-error', bg: 'bg-error', border: 'border-error/10' };
-  if (status === 'warning' || status === 'degraded') return { text: 'text-amber-500', bg: 'bg-amber-500', border: 'border-amber-500/20' };
-  if (status === 'unknown') return { text: 'text-outline', bg: 'bg-outline', border: 'border-outline-variant/20' };
-  return { text: 'text-primary', bg: 'bg-primary', border: 'border-primary/20' };
-}
+const STATUS_BORDER_HOVER: Record<string, string> = {
+  down: 'hover:border-error',
+  warning: 'hover:border-amber-500',
+  degraded: 'hover:border-amber-500',
+  unknown: 'hover:border-outline-variant',
+};
 
-function iconForProtocol(protocol: string) {
-  if (protocol === 'ping' || protocol === 'icmp') return 'router';
-  if (protocol === 'http' || protocol === 'https') return 'public';
-  if (protocol === 'port' || protocol === 'tcp') return 'hub';
-  if (protocol === 'system') return 'memory';
-  if (protocol === 'snmp') return 'settings_input_antenna';
-  return 'dns';
-}
+const STATUS_GROUP_HOVER_TEXT: Record<string, string> = {
+  down: 'group-hover:text-error',
+  warning: 'group-hover:text-amber-500',
+  degraded: 'group-hover:text-amber-500',
+  unknown: 'group-hover:text-outline',
+};
 
 export default function Devices() {
   const [devices, setDevices] = useState<Device[]>([]);
@@ -124,35 +127,22 @@ export default function Devices() {
   return (
     <div>
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between mb-12 gap-6">
-        <div>
-          <h1 className="font-headline text-5xl font-black text-on-surface uppercase tracking-tight mb-2">My Devices</h1>
-          <p className="text-on-surface-variant font-body max-w-xl">Centralized node management. Monitor real-time telemetry across your infrastructure.</p>
-        </div>
-        <button onClick={() => setShowForm(!showForm)} className="bg-primary text-on-primary font-headline font-bold py-4 px-8 rounded-none flex items-center gap-3 tracking-widest hover:brightness-110 active:scale-95 transition-[filter,transform] uppercase">
-          <span className="material-symbols-outlined">add_circle</span>
-          ADD DEVICE
-        </button>
-      </div>
+      <SectionHeader
+        title="My Devices"
+        subtitle="Centralized node management. Monitor real-time telemetry across your infrastructure."
+        action={
+          <Button onClick={() => setShowForm(!showForm)} icon="add_circle">
+            ADD DEVICE
+          </Button>
+        }
+      />
 
       {/* Stats Row */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12">
-        <div className="bg-surface-container-low p-6 rounded-xl border-l-2 border-primary/30">
-          <p className="text-on-surface-variant text-[10px] uppercase tracking-[0.2em] mb-1">TOTAL NODES</p>
-          <p className="font-headline text-3xl font-bold text-primary">{total}</p>
-        </div>
-        <div className="bg-surface-container-low p-6 rounded-xl border-l-2 border-primary">
-          <p className="text-on-surface-variant text-[10px] uppercase tracking-[0.2em] mb-1">ACTIVE (UP)</p>
-          <p className="font-headline text-3xl font-bold text-primary">{up}</p>
-        </div>
-        <div className="bg-surface-container-low p-6 rounded-xl border-l-2 border-error">
-          <p className="text-on-surface-variant text-[10px] uppercase tracking-[0.2em] mb-1">CRITICAL (DOWN)</p>
-          <p className="font-headline text-3xl font-bold text-error">{down}</p>
-        </div>
-        <div className="bg-surface-container-low p-6 rounded-xl border-l-2 border-amber-500">
-          <p className="text-on-surface-variant text-[10px] uppercase tracking-[0.2em] mb-1">WARNINGS</p>
-          <p className="font-headline text-3xl font-bold text-amber-500">{warn}</p>
-        </div>
+        <StatCard label="TOTAL NODES" value={total} />
+        <StatCard label="ACTIVE (UP)" value={up} />
+        <StatCard label="CRITICAL (DOWN)" value={down} color="text-error" accentColor="#ff4444" />
+        <StatCard label="WARNINGS" value={warn} color="text-amber-500" accentColor="#f59e0b" />
       </div>
 
       {/* Filters */}
@@ -240,25 +230,26 @@ export default function Devices() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filtered.map((device) => {
           const status = statusOf(device, metricsMap);
-          const sc = statusColor(status);
           const metric = metricsMap.get(device.id);
+          const hoverBorder = STATUS_BORDER_HOVER[status] || 'hover:border-primary/20';
+          const hoverText = STATUS_GROUP_HOVER_TEXT[status] || 'group-hover:text-primary';
           return (
             <div 
               key={device.id} 
-              className={`bg-surface-container-low rounded-xl group overflow-hidden border border-transparent hover:${sc.border} transition-[border-color,box-shadow] duration-300 flex flex-col cursor-pointer`}
+              className={`bg-surface-container-low rounded-xl group overflow-hidden border border-transparent ${hoverBorder} transition-[border-color,box-shadow] duration-300 flex flex-col cursor-pointer`}
               onClick={() => setSelectedDevice(device)}
             >
               <div className="p-6">
                 <div className="flex justify-between items-start mb-6">
-                  <div className={`bg-surface-container-highest p-3 rounded-lg ${sc.text}`}>
+                  <div className={`bg-surface-container-highest p-3 rounded-lg ${statusTextColor(status)}`}>
                     <span className="material-symbols-outlined text-3xl">{iconForProtocol(device.protocol)}</span>
                   </div>
-                  <div className={`flex items-center gap-2 px-3 py-1 ${sc.bg}/10 rounded-full`}>
-                    {(status === 'up' || status === 'ok') && <span className={`w-1.5 h-1.5 ${sc.bg} rounded-full animate-pulse`} />}
-                    <span className={`text-[10px] font-bold ${sc.text} uppercase tracking-widest`}>{status.toUpperCase()}</span>
+                  <div className={`flex items-center gap-2 px-3 py-1 rounded-full ${statusBgColor(status)}/10`}>
+                    {(status === 'up' || status === 'ok') && <span className={`w-1.5 h-1.5 rounded-full animate-pulse ${statusBgColor(status)}`} />}
+                    <span className={`text-[10px] font-bold uppercase tracking-widest ${statusTextColor(status)}`}>{status.toUpperCase()}</span>
                   </div>
                 </div>
-                <h3 className={`font-headline text-xl font-bold mb-1 group-hover:${sc.text} transition-colors`}>{device.name}</h3>
+                <h3 className={`font-headline text-xl font-bold mb-1 ${hoverText} transition-colors`}>{device.name}</h3>
                 <code className="text-on-surface-variant text-xs mb-4 block">{device.protocol === 'http' || device.protocol === 'https' ? `${device.protocol}://${device.ipAddress}` : device.ipAddress}{device.port > 0 && !['http','https'].includes(device.protocol) ? `:${device.port}` : ''}</code>
                 <div className="space-y-2 text-xs">
                   <div className="flex justify-between"><span className="text-on-surface-variant uppercase tracking-widest">Protocol</span><span className="font-bold">{device.protocol.toUpperCase()}</span></div>

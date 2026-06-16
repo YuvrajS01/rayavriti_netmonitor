@@ -8,15 +8,12 @@ import { useSocket } from '../hooks/useSocket';
 import type { DashboardStats, Metric, Alert, InsightsResponse, SystemInfo } from '../api/types';
 import ExpandedChartsModal from '../components/ExpandedChartsModal';
 import ResourceLoadModal from '../components/ResourceLoadModal';
-
-const StatCard = memo(function StatCard({ label, value, color = 'text-primary' }: { label: string; value: string | number; color?: string }) {
-  return (
-    <div className="bg-surface-container-low p-6 rounded-xl border-l-2 border-primary/30 content-visibility-auto">
-      <p className="text-on-surface-variant text-[10px] uppercase tracking-[0.2em] mb-1">{label}</p>
-      <p className={`font-headline text-3xl font-bold ${color}`}>{value}</p>
-    </div>
-  );
-});
+import StatCard from '../components/ui/StatCard';
+import LoadingState from '../components/ui/LoadingState';
+import SectionHeader from '../components/ui/SectionHeader';
+import { STATUS_COLORS, STATUS_LABELS } from '../utils/colors';
+import { iconForProtocol } from '../utils/icons';
+import { TOOLTIP_STYLE, DEVICE_COLORS, AXIS_TICK_STYLE, LEGEND_STYLE, legendFormatter } from '../utils/chartConfig';
 
 const ResourceBar = memo(function ResourceBar({ label, value, color }: { label: string; value: number; color: string }) {
   return (
@@ -32,15 +29,7 @@ const ResourceBar = memo(function ResourceBar({ label, value, color }: { label: 
   );
 });
 
-const DEVICE_COLORS = ['#d9fd3a', '#ff7351', '#6ee7f7', '#c084fc', '#4ade80', '#fb923c'];
 
-const TOOLTIP_STYLE = {
-  background: 'var(--color-surface-container)',
-  border: '1px solid var(--color-outline-variant)',
-  borderRadius: '8px',
-  fontSize: '12px',
-  color: 'var(--color-on-surface)',
-};
 
 interface MultiLinePoint {
   time: string;
@@ -76,22 +65,6 @@ function buildMultiLineData(metrics: Metric[]): { data: MultiLinePoint[]; device
 
   return { data, devices };
 }
-
-const STATUS_COLORS: Record<string, string> = {
-  up: '#d9fd3a',
-  ok: '#d9fd3a',
-  warning: '#f59e0b',
-  degraded: '#f59e0b',
-  down: '#ff4444',
-  unknown: '#6b7280',
-};
-
-const STATUS_LABELS: Record<string, string> = {
-  up: 'Healthy',
-  warning: 'Warning',
-  down: 'Down',
-  unknown: 'Unknown',
-};
 
 interface DonutSlice { name: string; value: number; color: string }
 
@@ -281,25 +254,20 @@ export default function Dashboard() {
   return (
     <div>
       {loading ? (
-        <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3">
-          <span className="material-symbols-outlined text-3xl text-primary animate-pulse">hourglass_top</span>
-          <p className="text-xs text-on-surface-variant uppercase tracking-widest">Loading dashboard...</p>
-        </div>
+        <LoadingState message="Loading dashboard..." />
       ) : (
       <>
       {/* Header */}
-      <header className="mb-12 flex flex-col md:flex-row md:items-end justify-between gap-6">
-        <div>
-          <h1 className="font-headline text-5xl font-black text-on-surface uppercase tracking-tight mb-2">Network Overview</h1>
-          <p className="text-on-surface-variant font-body max-w-xl">Real-time surveillance dashboard. All systems monitored and reporting.</p>
-        </div>
-        <div className="flex items-center gap-4">
+      <SectionHeader
+        title="Network Overview"
+        subtitle="Real-time surveillance dashboard. All systems monitored and reporting."
+        action={
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
             <span className="text-primary font-mono text-xs">{lastUpdated}</span>
           </div>
-        </div>
-      </header>
+        }
+      />
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12">
@@ -397,13 +365,13 @@ export default function Dashboard() {
               <LineChart data={multiLineData} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
                 <XAxis
                   dataKey="time"
-                  tick={{ fill: '#8a8a78', fontSize: 10 }}
+                  tick={AXIS_TICK_STYLE}
                   tickLine={false}
                   axisLine={false}
                   interval="preserveStartEnd"
                 />
                 <YAxis
-                  tick={{ fill: '#8a8a78', fontSize: 10 }}
+                  tick={AXIS_TICK_STYLE}
                   tickLine={false}
                   axisLine={false}
                   tickFormatter={(v) => `${v}ms`}
@@ -414,8 +382,8 @@ export default function Dashboard() {
                   formatter={(value: unknown, name: unknown) => [`${Number(value ?? 0)}ms`, String(name)]}
                 />
                 <Legend
-                  wrapperStyle={{ fontSize: 11, paddingTop: 8 }}
-                  formatter={(value) => <span style={{ color: '#c8c5b0' }}>{value}</span>}
+                  wrapperStyle={LEGEND_STYLE}
+                  formatter={legendFormatter}
                 />
                 {trackedDevices.map((dev, i) => (
                   <Line
@@ -554,15 +522,7 @@ export default function Dashboard() {
                       <td className="py-3 text-on-surface-variant text-xs uppercase tracking-wider">
                         <div className="flex items-center gap-1.5">
                           <span className="material-symbols-outlined text-[14px] opacity-70">
-                            {m.protocol === 'ping'
-                              ? 'router'
-                              : m.protocol === 'http' || m.protocol === 'https'
-                                ? 'public'
-                                : m.protocol === 'system'
-                                  ? 'memory'
-                                  : m.protocol === 'snmp'
-                                    ? 'settings_input_antenna'
-                                    : 'hub'}
+                            {iconForProtocol(m.protocol)}
                           </span>
                           {m.protocol || '-'}
                         </div>

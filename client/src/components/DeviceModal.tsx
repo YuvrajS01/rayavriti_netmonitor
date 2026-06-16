@@ -4,6 +4,8 @@ import { getDeviceMetrics, deleteDevice, getDevicePorts, scanDevicePorts } from 
 import { useSocket } from '../hooks/useSocket';
 import type { Device, Metric, MetricMessagePayload, PortScanResult, TrafficInterfaceSample } from '../api/types';
 import ConfirmDialog from './ConfirmDialog';
+import { formatMbps } from '../utils/formatters';
+import { TOOLTIP_STYLE } from '../utils/chartConfig';
 
 interface TrafficPoint {
   time: string;
@@ -19,13 +21,6 @@ function parseMetricMessage(details?: Record<string, unknown> | null): MetricMes
   } catch {
     return null;
   }
-}
-
-function formatMbps(value?: number | null) {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return '-';
-  if (value >= 1000) return `${(value / 1000).toFixed(2)} Gbps`;
-  if (value >= 10) return `${value.toFixed(1)} Mbps`;
-  return `${value.toFixed(2)} Mbps`;
 }
 
 function totalOctets(interfaces: TrafficInterfaceSample[] | undefined, key: 'inOctets' | 'outOctets') {
@@ -270,53 +265,53 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
                    <XAxis dataKey="time" tick={{ fill: '#8a8a78', fontSize: 10 }} tickLine={false} axisLine={false} />
                    <YAxis tick={{ fill: '#8a8a78', fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={(v) => `${v}ms`} />
                     <Tooltip
-                      contentStyle={{ background: 'var(--color-surface-container)', border: '1px solid var(--color-outline-variant)', borderRadius: '8px', fontSize: '12px', color: 'var(--color-on-surface)' }}
-                    />
-                    <Line type="monotone" dataKey="response" stroke="var(--color-primary)" strokeWidth={2} dot={false} activeDot={{ r: 4 }} connectNulls />
-                 </LineChart>
-               </ResponsiveContainer>
-             )}
-           </div>
+                       contentStyle={TOOLTIP_STYLE}
+                     />
+                     <Line type="monotone" dataKey="response" stroke="var(--color-primary)" strokeWidth={2} dot={false} activeDot={{ r: 4 }} connectNulls />
+                  </LineChart>
+                </ResponsiveContainer>
+              )}
+            </div>
 
-           {supportsTraffic && (
-             <div className="bg-surface-container-high rounded-xl p-4 border border-outline-variant/20 mb-6">
-               <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4 mb-4">
-                 <div>
-                   <h3 className="text-sm font-headline font-bold uppercase tracking-widest">Live Traffic</h3>
-                   <p className="text-xs text-on-surface-variant mt-1">{activeInterfaces.length ? `${activeInterfaces.length} SNMP interfaces reporting counters` : 'Waiting for SNMP interface counters'}</p>
-                 </div>
-                 <div className="grid grid-cols-3 gap-2 min-w-full lg:min-w-[320px]">
-                   <div className="rounded-lg bg-surface-container-low px-3 py-2">
-                     <p className="text-[10px] text-on-surface-variant uppercase tracking-widest">Inbound</p>
-                     <p className="text-sm font-bold text-primary">{formatMbps(latestTraffic?.inMbps)}</p>
-                   </div>
-                   <div className="rounded-lg bg-surface-container-low px-3 py-2">
-                     <p className="text-[10px] text-on-surface-variant uppercase tracking-widest">Outbound</p>
-                     <p className="text-sm font-bold text-sky-300">{formatMbps(latestTraffic?.outMbps)}</p>
-                   </div>
-                   <div className="rounded-lg bg-surface-container-low px-3 py-2">
-                     <p className="text-[10px] text-on-surface-variant uppercase tracking-widest">Total</p>
-                     <p className="text-sm font-bold text-on-surface">{formatMbps(latestTraffic?.totalMbps)}</p>
-                   </div>
-                 </div>
-               </div>
-               {loading ? (
-                 <div className="h-64 flex items-center justify-center text-on-surface-variant text-sm animate-pulse">Loading traffic...</div>
-               ) : trafficData.length === 0 ? (
-                 <div className="h-64 flex flex-col items-center justify-center text-center text-on-surface-variant text-sm px-6">
-                   <span className="material-symbols-outlined text-3xl mb-2 text-outline">monitoring</span>
-                   <p>No traffic samples yet</p>
-                   <p className="text-xs mt-1 max-w-md">SNMP routers and switches need at least two successful polls with interface counters before rates can be calculated.</p>
-                 </div>
-               ) : (
-                 <ResponsiveContainer width="100%" height={256}>
-                   <LineChart data={trafficData} margin={{ top: 10, right: 10, left: -16, bottom: 0 }}>
-                     <XAxis dataKey="time" tick={{ fill: '#8a8a78', fontSize: 10 }} tickLine={false} axisLine={false} />
-                     <YAxis tick={{ fill: '#8a8a78', fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={(v) => `${v}M`} />
-                      <Tooltip
-                        formatter={(value) => formatMbps(Number(value))}
-                        contentStyle={{ background: 'var(--color-surface-container)', border: '1px solid var(--color-outline-variant)', borderRadius: '8px', fontSize: '12px', color: 'var(--color-on-surface)' }}
-                      />
+            {supportsTraffic && (
+              <div className="bg-surface-container-high rounded-xl p-4 border border-outline-variant/20 mb-6">
+                <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4 mb-4">
+                  <div>
+                    <h3 className="text-sm font-headline font-bold uppercase tracking-widest">Live Traffic</h3>
+                    <p className="text-xs text-on-surface-variant mt-1">{activeInterfaces.length ? `${activeInterfaces.length} SNMP interfaces reporting counters` : 'Waiting for SNMP interface counters'}</p>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 min-w-full lg:min-w-[320px]">
+                    <div className="rounded-lg bg-surface-container-low px-3 py-2">
+                      <p className="text-[10px] text-on-surface-variant uppercase tracking-widest">Inbound</p>
+                      <p className="text-sm font-bold text-primary">{formatMbps(latestTraffic?.inMbps)}</p>
+                    </div>
+                    <div className="rounded-lg bg-surface-container-low px-3 py-2">
+                      <p className="text-[10px] text-on-surface-variant uppercase tracking-widest">Outbound</p>
+                      <p className="text-sm font-bold text-sky-300">{formatMbps(latestTraffic?.outMbps)}</p>
+                    </div>
+                    <div className="rounded-lg bg-surface-container-low px-3 py-2">
+                      <p className="text-[10px] text-on-surface-variant uppercase tracking-widest">Total</p>
+                      <p className="text-sm font-bold text-on-surface">{formatMbps(latestTraffic?.totalMbps)}</p>
+                    </div>
+                  </div>
+                </div>
+                {loading ? (
+                  <div className="h-64 flex items-center justify-center text-on-surface-variant text-sm animate-pulse">Loading traffic...</div>
+                ) : trafficData.length === 0 ? (
+                  <div className="h-64 flex flex-col items-center justify-center text-center text-on-surface-variant text-sm px-6">
+                    <span className="material-symbols-outlined text-3xl mb-2 text-outline">monitoring</span>
+                    <p>No traffic samples yet</p>
+                    <p className="text-xs mt-1 max-w-md">SNMP routers and switches need at least two successful polls with interface counters before rates can be calculated.</p>
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height={256}>
+                    <LineChart data={trafficData} margin={{ top: 10, right: 10, left: -16, bottom: 0 }}>
+                      <XAxis dataKey="time" tick={{ fill: '#8a8a78', fontSize: 10 }} tickLine={false} axisLine={false} />
+                      <YAxis tick={{ fill: '#8a8a78', fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={(v) => `${v}M`} />
+                       <Tooltip
+                         formatter={(value) => formatMbps(Number(value))}
+                         contentStyle={TOOLTIP_STYLE}
+                       />
                      <Legend wrapperStyle={{ fontSize: 11, color: '#c9c6b8' }} />
                      <Line name="Inbound" type="monotone" dataKey="inMbps" stroke="#d9fd3a" strokeWidth={2} dot={false} activeDot={{ r: 4 }} connectNulls />
                      <Line name="Outbound" type="monotone" dataKey="outMbps" stroke="#7dd3fc" strokeWidth={2} dot={false} activeDot={{ r: 4 }} connectNulls />

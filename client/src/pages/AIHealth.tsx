@@ -2,6 +2,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AreaChart, Area, XAxis, YAxis, ResponsiveContainer, Tooltip } from 'recharts';
 import { getInsights, getInsightsHistory } from '../api/client';
 import type { DeviceHealth, InsightItem, InsightsResponse, HealthHistoryPoint, HealthFactors } from '../api/types';
+import { TOOLTIP_STYLE } from '../utils/chartConfig';
+import LoadingState from '../components/ui/LoadingState';
+import SectionHeader from '../components/ui/SectionHeader';
 
 // ── Color helpers ──────────────────────────────────────────────
 
@@ -41,14 +44,6 @@ function trendColor(trend: string) {
   if (trend === 'degrading') return 'text-error';
   return 'text-on-surface-variant';
 }
-
-const TOOLTIP_STYLE = {
-  background: 'var(--color-surface-container)',
-  border: '1px solid var(--color-outline-variant)',
-  borderRadius: '8px',
-  fontSize: '12px',
-  color: 'var(--color-on-surface)',
-};
 
 const FACTOR_LABELS: Record<keyof HealthFactors, string> = {
   availability: 'Availability',
@@ -390,16 +385,16 @@ export default function AIHealth() {
   return (
     <div>
       {/* Header */}
-      <header className="mb-10 flex flex-col xl:flex-row xl:items-end justify-between gap-6">
-        <div>
-          <h1 className="font-headline text-5xl font-black text-on-surface uppercase tracking-tight mb-2">AI Health Score</h1>
-          <p className="text-on-surface-variant font-body max-w-2xl">Weighted device risk scoring from availability, latency, alerts, stability, and port changes with trend analysis.</p>
-        </div>
-        <button onClick={load} className="bg-primary text-on-primary font-bold py-3 px-5 rounded-lg tracking-widest uppercase hover:brightness-110 active:scale-95 transition-[filter,transform] text-xs flex items-center justify-center gap-2">
-          <span className="material-symbols-outlined text-base">refresh</span>
-          Refresh
-        </button>
-      </header>
+      <SectionHeader
+        title="AI Health Score"
+        subtitle="Weighted device risk scoring from availability, latency, alerts, stability, and port changes with trend analysis."
+        action={
+          <button onClick={load} className="bg-primary text-on-primary font-bold py-3 px-5 rounded-lg tracking-widest uppercase hover:brightness-110 active:scale-95 transition-[filter,transform] text-xs flex items-center justify-center gap-2">
+            <span className="material-symbols-outlined text-base">refresh</span>
+            Refresh
+          </button>
+        }
+      />
 
       {/* Hero: Network Score + Distribution + Timeline */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-8">
@@ -539,7 +534,7 @@ export default function AIHealth() {
 
       {/* Device Cards */}
       {loading ? (
-        <div className="bg-surface-container-high rounded-xl border border-outline-variant/20 py-16 text-center text-on-surface-variant animate-pulse">Calculating health scores...</div>
+        <LoadingState message="Calculating health scores..." />
       ) : filtered.length === 0 ? (
         <div className="bg-surface-container-high rounded-xl border border-outline-variant/20 py-16 text-center text-on-surface-variant">No devices match this view</div>
       ) : (
