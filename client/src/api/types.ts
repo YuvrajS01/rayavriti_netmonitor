@@ -78,6 +78,7 @@ export interface Alert {
   message: string;
   status: 'active' | 'acknowledged' | 'resolved';
   deviceName?: string;
+  groupId?: string;
   acknowledgedBy?: string;
   resolvedAt?: string;
   createdAt: string;

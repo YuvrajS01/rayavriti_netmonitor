@@ -1,29 +1,42 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { getAlerts, getAlertCounts, acknowledgeAlert, resolveAlert } from '../api/client';
+import { getAlerts, getAlertCounts, getGroupedAlerts, acknowledgeAlert, resolveAlert } from '../api/client';
 import type { Alert, AlertCounts } from '../api/types';
-import { severityIcon, severityTextColor, severityBgColor, severityBorderColor } from '../utils/colors';
-import LoadingState from '../components/ui/LoadingState';
-import ErrorState from '../components/ui/ErrorState';
-import SectionHeader from '../components/ui/SectionHeader';
-import { useToast } from '../components/ui/useToast';
+import type { AlertGroup } from '../api/alerts';
+
+function severityIcon(severity: string) {
+  if (severity === 'critical') return 'dangerous';
+  if (severity === 'warning') return 'warning';
+  return 'info';
+}
+
+function severityColors(severity: string) {
+  if (severity === 'critical') return { text: 'text-error', bg: 'bg-error/10', border: 'border-error' };
+  if (severity === 'warning') return { text: 'text-amber-500', bg: 'bg-amber-500/10', border: 'border-amber-500' };
+  return { text: 'text-primary', bg: 'bg-primary/10', border: 'border-primary' };
+}
 
 export default function Alerts() {
   const { addToast } = useToast();
   const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [grouped, setGrouped] = useState<AlertGroup[]>([]);
   const [counts, setCounts] = useState<AlertCounts>({ active: 0, acknowledged: 0, resolved: 0 });
   const [currentTab, setCurrentTab] = useState<'active' | 'acknowledged' | 'resolved'>('active');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<'grouped' | 'list'>('grouped');
 
   const load = useCallback(async (tab: string = currentTab) => {
+    setLoading(true);
     try {
       setError(null);
-      const [alertsRes, countsRes] = await Promise.allSettled([
+      const [alertsRes, countsRes, groupedRes] = await Promise.all([
         getAlerts(tab, 300),
         getAlertCounts(),
+        getGroupedAlerts(tab),
       ]);
-      setAlerts(alertsRes.status === 'fulfilled' ? (alertsRes.value.data || []) : []);
-      setCounts(countsRes.status === 'fulfilled' ? (countsRes.value.data || { active: 0, acknowledged: 0, resolved: 0 }) : { active: 0, acknowledged: 0, resolved: 0 });
+      setAlerts(alertsRes.data || []);
+      setCounts(countsRes.data || { active: 0, acknowledged: 0, resolved: 0 });
+      setGrouped(groupedRes.data || []);
     } catch {
       setError('Failed to load alerts. Please try again.');
     } finally {
@@ -35,15 +48,21 @@ export default function Alerts() {
   useEffect(() => { load(currentTab); }, [currentTab, load]);
 
   const handleAck = async (id: number) => {
-    await acknowledgeAlert(id);
-    addToast('Alert acknowledged', 'success');
-    load(currentTab);
+    try {
+      await acknowledgeAlert(id);
+      load(currentTab);
+    } catch {
+      setError('Failed to acknowledge alert. Please try again.');
+    }
   };
 
   const handleResolve = async (id: number) => {
-    await resolveAlert(id);
-    addToast('Alert resolved', 'success');
-    load(currentTab);
+    try {
+      await resolveAlert(id);
+      load(currentTab);
+    } catch {
+      setError('Failed to resolve alert. Please try again.');
+    }
   };
 
   const tabs = [
@@ -89,7 +108,7 @@ export default function Alerts() {
         </div>
       </div>
 
-      {/* Tabs */}
+      {/* Tabs + View Toggle */}
       <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
         <div className="flex flex-wrap gap-2">
           {tabs.map((tab) => (
@@ -106,7 +125,29 @@ export default function Alerts() {
             </button>
           ))}
         </div>
-        <p className="text-xs text-on-surface-variant">Live alerts feed</p>
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-on-surface-variant">Live alerts feed</span>
+          {currentTab === 'active' && (
+            <div className="flex gap-1 bg-surface-container-highest rounded-lg p-0.5">
+              <button
+                onClick={() => setViewMode('grouped')}
+                className={`px-3 py-1 text-[10px] rounded-md font-bold uppercase tracking-wider transition-colors ${
+                  viewMode === 'grouped' ? 'bg-primary/10 text-primary' : 'text-on-surface-variant hover:text-on-surface'
+                }`}
+              >
+                Grouped
+              </button>
+              <button
+                onClick={() => setViewMode('list')}
+                className={`px-3 py-1 text-[10px] rounded-md font-bold uppercase tracking-wider transition-colors ${
+                  viewMode === 'list' ? 'bg-primary/10 text-primary' : 'text-on-surface-variant hover:text-on-surface'
+                }`}
+              >
+                List
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Loading State */}
@@ -115,8 +156,20 @@ export default function Alerts() {
       {/* Error State */}
       {error && !loading && <ErrorState message={error} onRetry={() => load(currentTab)} />}
 
-      {/* Alerts List */}
-      {!loading && !error && (
+      {/* Grouped View */}
+      {!loading && !error && currentTab === 'active' && viewMode === 'grouped' && (
+        <div className="space-y-4">
+          {grouped.length === 0 && (
+            <div className="text-sm text-on-surface-variant text-center py-12">No alerts in this view</div>
+          )}
+          {grouped.map((group) => (
+            <AlertGroupCard key={group.groupId} group={group} onAck={handleAck} onResolve={handleResolve} />
+          ))}
+        </div>
+      )}
+
+      {/* List View */}
+      {!loading && !error && (currentTab !== 'active' || viewMode === 'list') && (
         <div className="space-y-4">
           {currentTab === 'active' && critical.length > 0 && (
             <>
@@ -158,6 +211,51 @@ export default function Alerts() {
           {alerts.length === 0 && (
             <div className="text-sm text-on-surface-variant text-center py-12">No alerts in this view</div>
           )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AlertGroupCard({ group, onAck, onResolve }: { group: AlertGroup; onAck: (id: number) => void; onResolve: (id: number) => void }) {
+  const [expanded, setExpanded] = useState(false);
+  const firstAlert = group.alerts[0];
+  if (!firstAlert) return null;
+
+  const sc = severityColors(firstAlert.severity);
+  const severity = firstAlert.severity;
+
+  return (
+    <div className={`bg-surface-container-low rounded-xl border-l-[6px] ${sc.border} overflow-hidden transition-[background-color]`}>
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full p-5 flex items-center justify-between hover:bg-surface-container-high transition-colors"
+      >
+        <div className="flex items-center gap-4">
+          <div className={`${sc.bg} p-3 rounded-lg`}>
+            <span className={`material-symbols-outlined ${sc.text}`} style={{ fontVariationSettings: "'FILL' 1" }}>
+              {severityIcon(severity)}
+            </span>
+          </div>
+          <div className="text-left">
+            <div className="flex items-center gap-3">
+              <h3 className="font-headline font-bold text-on-surface tracking-tight uppercase">{firstAlert.message.split(':')[0]}</h3>
+              <span className={`text-[10px] ${sc.bg} ${sc.text} px-2 py-0.5 font-bold rounded`}>
+                {severity.toUpperCase()}
+              </span>
+            </div>
+            <p className="text-sm text-on-surface-variant">{group.count} device{group.count !== 1 ? 's' : ''} affected</p>
+          </div>
+        </div>
+        <span className="material-symbols-outlined text-on-surface-variant transition-transform" style={{ transform: expanded ? 'rotate(180deg)' : '' }}>
+          expand_more
+        </span>
+      </button>
+      {expanded && (
+        <div className="border-t border-outline-variant/15 px-5 pb-4 space-y-3">
+          {group.alerts.map((alert) => (
+            <AlertItem key={alert.id} alert={alert} onAck={onAck} onResolve={onResolve} />
+          ))}
         </div>
       )}
     </div>

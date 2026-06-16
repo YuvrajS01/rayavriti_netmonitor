@@ -128,7 +128,7 @@ function MiniGauge({ score, size = 72, strokeWidth = 6 }: { score: number; size?
           style={{ '--gauge-circumference': circumference, '--gauge-offset': offset, strokeDashoffset: offset } as React.CSSProperties}
         />
       </svg>
-      <span className={`absolute font-headline text-xl font-black ${scoreColor(score)}`}>{score}</span>
+      <span className={`absolute font-headline text-xl font-black ${scoreColor(score)}`}>{score.toFixed(2)}</span>
     </div>
   );
 }
@@ -145,7 +145,7 @@ function FactorBreakdown({ factors }: { factors: HealthFactors }) {
           <div key={key}>
             <div className="flex justify-between text-[10px] uppercase tracking-widest mb-1">
               <span className="text-on-surface-variant">{FACTOR_LABELS[key]}</span>
-              <span style={{ color: FACTOR_COLORS[key] }}>{factor.score}/100</span>
+              <span style={{ color: FACTOR_COLORS[key] }}>{factor.score.toFixed(2)}/100</span>
             </div>
             <div className="h-1.5 bg-surface-container-highest rounded-full overflow-hidden">
               <div
@@ -202,7 +202,8 @@ function DistributionBar({ distribution }: { distribution: { critical: number; r
 
 function DeviceScoreCard({ device, deviceInsights }: { device: DeviceHealth; deviceInsights: InsightItem[] }) {
   const [expanded, setExpanded] = useState(false);
-  const primaryIssue = device.issues.find((issue) => issue.severity !== 'info') || device.issues[0];
+  const issues = device.issues ?? [];
+  const primaryIssue = issues.find((issue) => issue.severity !== 'info') || issues[0];
 
   return (
     <div className={`bg-surface-container-high rounded-xl border border-outline-variant/20 overflow-hidden transition-[border-color,box-shadow] hover:border-outline-variant/40 ${scoreGlow(device.label)}`}>
@@ -218,7 +219,7 @@ function DeviceScoreCard({ device, deviceInsights }: { device: DeviceHealth; dev
                 {trendIcon(device.trend)}
               </span>
               <span className="text-[10px] uppercase tracking-widest font-bold">
-                {device.trend}{device.trendDelta !== 0 ? ` (${device.trendDelta > 0 ? '+' : ''}${device.trendDelta})` : ''}
+                {device.trend}{device.trendDelta !== 0 ? ` (${device.trendDelta > 0 ? '+' : ''}${device.trendDelta.toFixed(2)})` : ''}
               </span>
             </div>
           </div>
@@ -268,14 +269,14 @@ function DeviceScoreCard({ device, deviceInsights }: { device: DeviceHealth; dev
       </div>
 
       {/* Expandable Issues Accordion */}
-      {device.issues.length > 1 && (
+      {issues.length > 1 && (
         <div className="border-t border-outline-variant/15">
           <button
             onClick={() => setExpanded(!expanded)}
             className="w-full px-5 py-2.5 flex items-center justify-between text-xs text-on-surface-variant hover:text-on-surface transition-colors"
           >
             <span className="uppercase tracking-widest font-bold">
-              {expanded ? 'Hide' : 'Show'} all {device.issues.length} issues
+              {expanded ? 'Hide' : 'Show'} all {issues.length} issues
             </span>
             <span className="material-symbols-outlined text-sm transition-transform" style={{ transform: expanded ? 'rotate(180deg)' : '' }}>
               expand_more
@@ -283,7 +284,7 @@ function DeviceScoreCard({ device, deviceInsights }: { device: DeviceHealth; dev
           </button>
           <div className="px-5 pb-4 animate-slide-down" data-open={expanded}>
               <div className="space-y-2">
-                {device.issues.map((issue, index) => (
+                {issues.map((issue, index) => (
                   <div key={`${issue.type}-${index}`} className={`rounded-lg border px-3 py-2 flex items-start gap-2 ${severityStyle(issue.severity)}`}>
                     <span className="material-symbols-outlined text-base mt-0.5">{issue.severity === 'critical' ? 'error' : issue.severity === 'warning' ? 'warning' : 'info'}</span>
                     <p className="text-xs leading-relaxed">{issue.message}</p>
@@ -303,21 +304,27 @@ export default function AIHealth() {
   const [data, setData] = useState<InsightsResponse | null>(null);
   const [history, setHistory] = useState<HealthHistoryPoint[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState('all');
   const [query, setQuery] = useState('');
   const [sortBy, setSortBy] = useState('score-asc');
 
   const load = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const [insightsRes, historyRes] = await Promise.allSettled([
         getInsights(),
         getInsightsHistory(12),
       ]);
-      if (insightsRes.status === 'fulfilled') setData(insightsRes.value.data);
+      if (insightsRes.status === 'fulfilled') {
+        setData(insightsRes.value.data);
+      } else {
+        setError('Failed to load health data. The API may be unavailable.');
+      }
       if (historyRes.status === 'fulfilled') setHistory(historyRes.value.data?.points || []);
     } catch {
-      // API unavailable — page will show empty state
+      setError('Failed to load health data. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -357,7 +364,7 @@ export default function AIHealth() {
   const networkScore = data?.networkScore ?? 0;
   const distribution = data?.healthDistribution ?? { critical: 0, risk: 0, watch: 0, healthy: 0 };
   const topRisks = data?.topRisks ?? [];
-  const totalIssues = devices.reduce((sum, item) => sum + item.issues.filter((issue) => issue.type !== 'clear').length, 0);
+  const totalIssues = devices.reduce((sum, item) => sum + (item.issues ?? []).filter((issue) => issue.type !== 'clear').length, 0);
 
   // Prepare timeline data for Recharts
   const timelineData = useMemo(() => {
@@ -427,7 +434,7 @@ export default function AIHealth() {
                 {topRisks.map((risk) => (
                   <div key={risk.deviceId} className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-full bg-surface-container-low grid place-items-center">
-                      <span className={`font-headline text-sm font-black ${scoreColor(risk.score)}`}>{risk.score}</span>
+                      <span className={`font-headline text-sm font-black ${scoreColor(risk.score)}`}>{risk.score.toFixed(2)}</span>
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-bold text-on-surface truncate">{risk.deviceName}</p>
@@ -509,6 +516,17 @@ export default function AIHealth() {
         </div>
       </div>
 
+      {/* Error State */}
+      {error && !loading && (
+        <div className="bg-error/10 border border-error/30 rounded-xl p-6 text-center mb-6">
+          <span className="material-symbols-outlined text-error text-3xl mb-2">error</span>
+          <p className="text-sm text-error font-bold">{error}</p>
+          <button onClick={load} className="mt-3 text-xs text-on-surface-variant hover:text-primary transition-colors underline">
+            Retry
+          </button>
+        </div>
+      )}
+
       {/* Filters + Sort */}
       <div className="bg-surface-container-high rounded-xl p-4 border border-outline-variant/20 mb-6 flex flex-col lg:flex-row gap-3">
         <input
@@ -534,8 +552,8 @@ export default function AIHealth() {
 
       {/* Device Cards */}
       {loading ? (
-        <LoadingState message="Calculating health scores..." />
-      ) : filtered.length === 0 ? (
+        <div className="bg-surface-container-high rounded-xl border border-outline-variant/20 py-16 text-center text-on-surface-variant animate-pulse">Calculating health scores...</div>
+      ) : error && !data ? null : filtered.length === 0 ? (
         <div className="bg-surface-container-high rounded-xl border border-outline-variant/20 py-16 text-center text-on-surface-variant">No devices match this view</div>
       ) : (
         <div className="space-y-4">

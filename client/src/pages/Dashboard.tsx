@@ -85,8 +85,8 @@ export default function Dashboard() {
 
   const loadData = useCallback(async () => {
     try {
-      const [statsRes, metricsRes, alertsRes, insightsRes] = await Promise.allSettled([
-        getStats(), getLatestMetrics(), getAlerts('active'), getInsights(),
+      const [statsRes, metricsRes, alertsRes] = await Promise.all([
+        getStats(), getLatestMetrics(), getAlerts('active'),
       ]);
       const metricsData = metricsRes.status === 'fulfilled' ? (metricsRes.value.data || []) : [];
       const m = metricsData;
@@ -102,13 +102,19 @@ export default function Dashboard() {
       }
       setMetrics(metricsData);
       setHistoryMetrics(metricsData);
-      setAlerts(alertsRes.status === 'fulfilled' ? (alertsRes.value.data || []) : []);
-      setInsights(insightsRes.status === 'fulfilled' ? insightsRes.value.data : null);
+      setAlerts(alertsRes.data || []);
       computeSystemInfo(metricsData);
       setLastUpdated(`Loaded ${new Date().toLocaleTimeString()}`);
-    } catch { /* handled by interceptor */ }
-    finally { setLoading(false); }
 
+      // Fetch insights from server-side health scores
+      getInsights().then((r) => setInsights(r.data)).catch(() => {});
+    } catch { /* handled by interceptor */ }
+    finally {
+      setLoading(false);
+    }
+
+    // Fire system info in parallel — it has its own error handling and sleeps 1s on the backend,
+    // so it should never block the page render.
     getSystemInfo().then((res) => {
       if (res.data) {
         setSystemInfo((prev) => ({ ...prev, raw: res.data }));
@@ -235,8 +241,51 @@ export default function Dashboard() {
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-6 content-visibility-auto">
-        <ResourceLoadChart systemInfo={systemInfo} onExpand={() => setShowResourceModal(true)} />
-        <AvgResponseByStatus metrics={metrics} />
+        <div
+          className="bg-surface-container-high rounded-xl p-4 border border-outline-variant/20 hover:border-primary/50 hover:shadow-[0_0_15px_rgba(217,253,58,0.1)] transition-[border-color,box-shadow] cursor-pointer group"
+          onClick={() => setShowResourceModal(true)}
+        >
+          <div className="flex justify-between items-center mb-3">
+            <h3 className="text-sm font-headline font-bold uppercase tracking-widest group-hover:text-primary transition-colors">Resource Load</h3>
+            <span className="material-symbols-outlined text-on-surface-variant group-hover:text-primary text-sm transition-colors">open_in_full</span>
+          </div>
+          <div className="space-y-4 mt-6">
+            <ResourceBar label="CPU" value={systemInfo.raw?.cpu.usage ?? systemInfo.cpu} color="#d9fd3a" />
+            <ResourceBar label="Memory" value={systemInfo.raw?.memory.percent ?? systemInfo.memory} color="#cbee29" />
+            <ResourceBar label="Error Rate" value={systemInfo.errorRate} color="#ff7351" />
+          </div>
+        </div>
+
+        <div className="bg-surface-container-high rounded-xl p-4 border border-outline-variant/20">
+          <h3 className="text-sm font-headline font-bold mb-3 uppercase tracking-widest">Avg Response by Status</h3>
+          <div className="space-y-3 mt-2">
+            {(['up', 'warning', 'down'] as const).map((s) => {
+              const statusMetrics = metrics.filter((m) => {
+                if (s === 'up') return m.status === 'up' || m.status === 'ok';
+                if (s === 'warning') return m.status === 'warning' || m.status === 'degraded';
+                return m.status === 'down';
+              });
+              const avg = statusMetrics.length
+                ? Math.round(statusMetrics.reduce((acc, m) => acc + (m.responseTime || 0), 0) / statusMetrics.length)
+                : 0;
+              const label = s === 'up' ? 'Healthy' : s === 'warning' ? 'Warning' : 'Down';
+              const color = STATUS_COLORS[s];
+              const barMax = 2000;
+              const barWidth = Math.min(100, (avg / barMax) * 100);
+              return (
+                <div key={s}>
+                  <div className="flex justify-between text-xs mb-1">
+                    <span style={{ color }}>{label} ({statusMetrics.length} device{statusMetrics.length !== 1 ? 's' : ''})</span>
+                    <span className="text-on-surface-variant">{avg}ms</span>
+                  </div>
+                  <div className="h-2 bg-surface-container-highest rounded">
+                    <div className="h-2 rounded transition-[width] duration-500" style={{ width: `${barWidth}%`, background: color }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 content-visibility-auto">

@@ -33,20 +33,24 @@ function PageLoader() {
   );
 }
 
-let lastVerifiedAt = 0;
-const VERIFY_TTL_MS = 5 * 60 * 1000; // 5 minutes
+let sessionChecked = false;
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const isAuth = useSelector((s: RootState) => s.auth.isAuthenticated);
   const dispatch = useDispatch();
-  const [checking, setChecking] = useState(() => isAuth && Date.now() - lastVerifiedAt > VERIFY_TTL_MS);
+  const [checking, setChecking] = useState(!sessionChecked);
 
   useEffect(() => {
-    if (!isAuth || Date.now() - lastVerifiedAt < VERIFY_TTL_MS) return;
+    if (!isAuth || sessionChecked) return;
     api.get('/auth/me')
-      .then(() => { lastVerifiedAt = Date.now(); })
-      .catch(() => { dispatch(clearCredentials()); })
-      .finally(() => { setChecking(false); });
+      .then(() => {
+        sessionChecked = true;
+      })
+      .catch(() => {
+        sessionChecked = true;
+        dispatch(clearCredentials());
+      })
+      .finally(() => setChecking(false));
   }, [isAuth, dispatch]);
 
   if (!isAuth) return <Navigate to="/login" replace />;

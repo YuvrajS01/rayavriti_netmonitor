@@ -184,7 +184,7 @@ func (h *AlertRuleHandler) Test(w http.ResponseWriter, r *http.Request) {
 		var condResults []engine.ConditionResult
 		conditionsMet := 0
 		for _, cond := range rule.Conditions {
-			cr := engine.EvaluateCondition(cond, &metric, "")
+			cr := engine.EvaluateCondition(cond, &metric, "", nil)
 			condResults = append(condResults, cr)
 			if cr.Result {
 				conditionsMet++

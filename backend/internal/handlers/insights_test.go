@@ -5,25 +5,22 @@ import (
 	"errors"
 	"net/http"
 	"testing"
-	"time"
 
 	"github.com/rayavriti/netmonitor-backend/internal/models"
 )
 
 func TestInsightCurrent(t *testing.T) {
 	db := &mockDB{
-		getDevicesFn: func(ctx context.Context) ([]models.Device, error) {
-			return []models.Device{
-				{ID: 1, Name: "UpDevice", Status: "up"},
-				{ID: 2, Name: "DownDevice", Status: "down"},
-				{ID: 3, Name: "WarnDevice", Status: "up"},
+		getHealthScoresFn: func(ctx context.Context) ([]models.DeviceHealthScoreRow, error) {
+			return []models.DeviceHealthScoreRow{
+				{DeviceID: 1, Score: 90, Label: "healthy", Trend: "stable"},
+				{DeviceID: 2, Score: 20, Label: "critical", Trend: "degrading"},
 			}, nil
 		},
-		getLatestMetricsFn: func(ctx context.Context) ([]models.Metric, error) {
-			highRT := 2000.0
-			return []models.Metric{
-				{DeviceID: 1, ResponseTime: float64Ptr(50)},
-				{DeviceID: 3, ResponseTime: &highRT},
+		getDevicesFn: func(ctx context.Context) ([]models.Device, error) {
+			return []models.Device{
+				{ID: 1, Name: "UpDevice"},
+				{ID: 2, Name: "DownDevice"},
 			}, nil
 		},
 	}
@@ -35,16 +32,10 @@ func TestInsightCurrent(t *testing.T) {
 	}
 }
 
-func TestInsightCurrent_AllUp(t *testing.T) {
+func TestInsightCurrent_Empty(t *testing.T) {
 	db := &mockDB{
-		getDevicesFn: func(ctx context.Context) ([]models.Device, error) {
-			return []models.Device{
-				{ID: 1, Name: "D1", Status: "up"},
-				{ID: 2, Name: "D2", Status: "up"},
-			}, nil
-		},
-		getLatestMetricsFn: func(ctx context.Context) ([]models.Metric, error) {
-			return []models.Metric{}, nil
+		getHealthScoresFn: func(ctx context.Context) ([]models.DeviceHealthScoreRow, error) {
+			return []models.DeviceHealthScoreRow{}, nil
 		},
 	}
 	h := NewInsightHandler(db)
@@ -57,7 +48,7 @@ func TestInsightCurrent_AllUp(t *testing.T) {
 
 func TestInsightCurrent_DBError(t *testing.T) {
 	db := &mockDB{
-		getDevicesFn: func(ctx context.Context) ([]models.Device, error) {
+		getHealthScoresFn: func(ctx context.Context) ([]models.DeviceHealthScoreRow, error) {
 			return nil, errors.New("not found")
 		},
 	}
@@ -71,8 +62,8 @@ func TestInsightCurrent_DBError(t *testing.T) {
 
 func TestInsightHistory(t *testing.T) {
 	db := &mockDB{
-		getDeviceMetricsFn: func(ctx context.Context, deviceID int64, from, to time.Time, limit int) ([]models.Metric, error) {
-			return []models.Metric{{ID: 1, DeviceID: 1}}, nil
+		getNetworkHealthHistoryFn: func(ctx context.Context, hours int) ([]models.HealthHistoryPoint, error) {
+			return []models.HealthHistoryPoint{}, nil
 		},
 	}
 	h := NewInsightHandler(db)
@@ -85,7 +76,7 @@ func TestInsightHistory(t *testing.T) {
 
 func TestInsightHistory_DBError(t *testing.T) {
 	db := &mockDB{
-		getDeviceMetricsFn: func(ctx context.Context, deviceID int64, from, to time.Time, limit int) ([]models.Metric, error) {
+		getNetworkHealthHistoryFn: func(ctx context.Context, hours int) ([]models.HealthHistoryPoint, error) {
 			return nil, errors.New("not found")
 		},
 	}

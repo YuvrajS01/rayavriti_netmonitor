@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/rayavriti/netmonitor-backend/internal/cache"
@@ -12,22 +13,23 @@ import (
 	"github.com/rayavriti/netmonitor-backend/internal/websocket"
 )
 
-// AlertEngine is a rule-based alert evaluation engine. It loads rules from the
-// database, evaluates them against incoming metrics, manages alert lifecycle
-// (pending → firing → notified → resolved), and dispatches notifications.
 type AlertEngine struct {
 	db         database.Database
 	hub        *websocket.Hub
 	notifier   *Notifier
 	stateCache *cache.AlertStateCache
+
+	baselineCache *BaselineCache
+	cancel        context.CancelFunc
+	wg            sync.WaitGroup
 }
 
-// NewAlertEngine creates a rule-based alert engine.
 func NewAlertEngine(db database.Database, hub *websocket.Hub, notifier *Notifier, opts ...AlertEngineOption) *AlertEngine {
 	e := &AlertEngine{
-		db:       db,
-		hub:      hub,
-		notifier: notifier,
+		db:            db,
+		hub:           hub,
+		notifier:      notifier,
+		baselineCache: NewBaselineCache(15 * time.Minute),
 	}
 	for _, opt := range opts {
 		opt(e)
@@ -41,8 +43,6 @@ func WithAlertStateCache(sc *cache.AlertStateCache) AlertEngineOption {
 	return func(e *AlertEngine) { e.stateCache = sc }
 }
 
-// ProcessMetric is called by the scheduler after each collector run. It evaluates
-// every enabled rule that applies to the device against the new metric.
 func (e *AlertEngine) ProcessMetric(ctx context.Context, device *models.Device, metric *models.Metric, previousStatus string) error {
 	rules, err := e.db.GetAlertRules(ctx)
 	if err != nil {
@@ -65,25 +65,137 @@ func (e *AlertEngine) ProcessMetric(ctx context.Context, device *models.Device, 
 	return nil
 }
 
-// Start begins the alert engine. Currently a no-op; a background absence
-// checker can be added here in the future.
 func (e *AlertEngine) Start(ctx context.Context) {
+	ctx, e.cancel = context.WithCancel(ctx)
+	e.wg.Add(1)
+	go e.absenceLoop(ctx)
 	slog.Info("Alert engine started")
 }
 
-// Stop gracefully shuts down the alert engine.
 func (e *AlertEngine) Stop() {
+	if e.cancel != nil {
+		e.cancel()
+	}
+	e.wg.Wait()
 	slog.Info("Alert engine stopped")
 }
 
-// ReloadRules is a no-op since rules are loaded fresh on each evaluation.
 func (e *AlertEngine) ReloadRules(_ context.Context) error {
 	return nil
 }
 
+// ── absence background loop ──────────────────────────────────────────────────
+
+func (e *AlertEngine) absenceLoop(ctx context.Context) {
+	defer e.wg.Done()
+	ticker := time.NewTicker(60 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			e.evaluateAbsenceConditions(ctx)
+		}
+	}
+}
+
+func (e *AlertEngine) evaluateAbsenceConditions(ctx context.Context) {
+	rules, err := e.db.GetAlertRules(ctx)
+	if err != nil {
+		slog.Warn("Failed to load rules for absence check", "error", err)
+		return
+	}
+
+	devices, err := e.db.GetEnabledDevices(ctx)
+	if err != nil {
+		slog.Warn("Failed to load devices for absence check", "error", err)
+		return
+	}
+
+	for i := range rules {
+		rule := &rules[i]
+		if !rule.Enabled {
+			continue
+		}
+		for _, cond := range rule.Conditions {
+			if cond.Type != "absence" {
+				continue
+			}
+			for j := range devices {
+				device := &devices[j]
+				if !ruleAppliesToDevice(rule, device) {
+					continue
+				}
+				e.checkAbsence(ctx, rule, device, cond)
+			}
+		}
+	}
+}
+
+func (e *AlertEngine) checkAbsence(ctx context.Context, rule *models.AlertRule, device *models.Device, condition models.AlertRuleCondition) {
+	latest, err := e.db.GetLatestMetricForDevice(ctx, device.ID)
+	if err != nil {
+		return
+	}
+
+	metric := &models.Metric{
+		DeviceID:  device.ID,
+		Timestamp: time.Now().Add(-24 * time.Hour),
+		Status:    "unknown",
+	}
+	if latest != nil {
+		metric.Timestamp = latest.Timestamp
+		metric.Status = latest.Status
+	}
+
+	cr := EvaluateCondition(condition, metric, "", nil)
+	if !cr.Result {
+		return
+	}
+
+	if existing := e.findActiveAlertForRule(ctx, rule.ID, device.ID); existing != nil {
+		return
+	}
+
+	alertMsg := fmt.Sprintf("No data received from %s for %.0fs", device.Name, cr.ActualValue)
+	alert := &models.Alert{
+		DeviceID:   device.ID,
+		DeviceName: device.Name,
+		Severity:   rule.Severity,
+		Message:    alertMsg,
+		Status:     "active",
+		RuleID:     &rule.ID,
+	}
+
+	created, err := e.db.CreateAlert(ctx, alert)
+	if err != nil {
+		slog.Warn("Failed to create absence alert", "rule_id", rule.ID, "device_id", device.ID, "error", err)
+		return
+	}
+
+	e.recordHistory(ctx, created.ID, rule.ID, "fired", "system:alert_engine", map[string]any{
+		"trigger_reason": "absence detected",
+		"description":    cr.Description,
+	})
+
+	slog.Info("Absence alert fired",
+		"alert_id", created.ID, "rule_id", rule.ID,
+		"device_id", device.ID, "device_name", device.Name,
+	)
+
+	if e.hub != nil {
+		e.hub.Broadcast(websocket.Message{
+			Type: websocket.EventAlertTriggered,
+			Data: created,
+		})
+	}
+
+	e.sendNotifications(ctx, rule, created)
+}
+
 // ── rule matching ────────────────────────────────────────────────────────────
 
-// RuleAppliesToDevice reports whether the given rule should be evaluated for the device.
 func RuleAppliesToDevice(rule *models.AlertRule, device *models.Device) bool {
 	return ruleAppliesToDevice(rule, device)
 }
@@ -102,18 +214,20 @@ func ruleAppliesToDevice(rule *models.AlertRule, device *models.Device) bool {
 // ── core evaluation loop ─────────────────────────────────────────────────────
 
 func (e *AlertEngine) evaluateRule(ctx context.Context, rule *models.AlertRule, device *models.Device, metric *models.Metric, previousStatus string) {
-	// 1. Evaluate every condition against the current metric.
 	conditionsMet := 0
 	results := make([]ConditionResult, 0, len(rule.Conditions))
 	for _, cond := range rule.Conditions {
-		cr := EvaluateCondition(cond, metric, previousStatus)
+		var baseline *AnomalyBaseline
+		if cond.Type == "anomaly" {
+			baseline = e.baselineCache.Get(device.ID, cond.MetricField)
+		}
+		cr := EvaluateCondition(cond, metric, previousStatus, baseline)
 		results = append(results, cr)
 		if cr.Result {
 			conditionsMet++
 		}
 	}
 
-	// 2. Apply condition logic (all = AND, any = OR).
 	ruleTriggered := false
 	if rule.ConditionLogic == "all" {
 		ruleTriggered = conditionsMet == len(rule.Conditions)
@@ -121,7 +235,6 @@ func (e *AlertEngine) evaluateRule(ctx context.Context, rule *models.AlertRule, 
 		ruleTriggered = conditionsMet > 0
 	}
 
-	// 3. Get or initialise persisted rule state for this (rule, device) pair.
 	var state *models.AlertRuleState
 	var err error
 	if e.stateCache != nil {
@@ -130,7 +243,6 @@ func (e *AlertEngine) evaluateRule(ctx context.Context, rule *models.AlertRule, 
 		state, err = e.db.GetAlertRuleState(ctx, rule.ID, device.ID)
 	}
 	if err != nil {
-		// Row does not exist yet — treat as idle.
 		state = &models.AlertRuleState{
 			RuleID:   rule.ID,
 			DeviceID: device.ID,
@@ -158,9 +270,16 @@ func (e *AlertEngine) handleConditionMet(
 	now time.Time,
 	results []ConditionResult,
 ) {
+	sustainedDuration := rule.CooldownSec
+	for _, cond := range rule.Conditions {
+		if cond.DurationSeconds > 0 {
+			sustainedDuration = cond.DurationSeconds
+			break
+		}
+	}
+
 	switch state.State {
 	case "idle":
-		// idle → pending: start tracking sustained duration.
 		firstMet := now
 		e.upsertState(ctx, &models.AlertRuleState{
 			RuleID:            rule.ID,
@@ -172,36 +291,29 @@ func (e *AlertEngine) handleConditionMet(
 		})
 
 	case "pending":
-		// Check if sustained duration has been reached.
 		if state.FirstMetAt != nil {
 			elapsed := now.Sub(*state.FirstMetAt).Seconds()
-			if elapsed >= float64(rule.CooldownSec) {
-				// pending → firing: create alert and send notifications.
+			if elapsed >= float64(sustainedDuration) {
 				e.fireAlert(ctx, rule, device, state, now, results, int(elapsed))
 				return
 			}
 		}
-		// Still pending — update evaluation timestamp.
 		state.LastEvaluatedAt = &now
 		state.ConditionSnapshot = snapshotFromResults(results)
 		e.upsertState(ctx, state)
 
 	case "resolved":
-		// Check if cooldown has elapsed since last resolution.
 		if state.LastResolvedAt != nil {
 			cooldownLeft := float64(rule.CooldownSec) - now.Sub(*state.LastResolvedAt).Seconds()
 			if cooldownLeft > 0 {
-				// Still in cooldown — just update evaluation timestamp.
 				state.LastEvaluatedAt = &now
 				e.upsertState(ctx, state)
 				return
 			}
 		}
-		// resolved → firing: re-fire after cooldown.
 		e.fireAlert(ctx, rule, device, state, now, results, 0)
 
 	case "firing", "notified", "acknowledged":
-		// Already active — update evaluation timestamp.
 		state.LastEvaluatedAt = &now
 		e.upsertState(ctx, state)
 	}
@@ -216,7 +328,6 @@ func (e *AlertEngine) handleConditionCleared(
 ) {
 	switch state.State {
 	case "pending":
-		// pending → idle: sustained duration not yet reached.
 		e.upsertState(ctx, &models.AlertRuleState{
 			RuleID:          rule.ID,
 			DeviceID:        device.ID,
@@ -226,12 +337,10 @@ func (e *AlertEngine) handleConditionCleared(
 
 	case "firing", "notified", "acknowledged":
 		if !rule.AutoResolve {
-			// No auto-resolve — stay in current state.
 			state.LastEvaluatedAt = &now
 			e.upsertState(ctx, state)
 			return
 		}
-		// Auto-resolve the active alert.
 		if state.ActiveAlertID != nil {
 			if err := e.db.UpdateAlertStatus(ctx, *state.ActiveAlertID, "resolved", "system:alert_engine"); err != nil {
 				slog.Warn("Failed to auto-resolve alert", "alert_id", *state.ActiveAlertID, "error", err)
@@ -258,7 +367,6 @@ func (e *AlertEngine) handleConditionCleared(
 				)
 			}
 		}
-		// → resolved
 		now2 := now
 		e.upsertState(ctx, &models.AlertRuleState{
 			RuleID:          rule.ID,
@@ -281,7 +389,6 @@ func (e *AlertEngine) fireAlert(
 	results []ConditionResult,
 	sustainedSeconds int,
 ) {
-	// Idempotency check: do not create a duplicate active alert for the same rule+device.
 	if existing := e.findActiveAlertForRule(ctx, rule.ID, device.ID); existing != nil {
 		state.LastFiredAt = &now
 		state.ActiveAlertID = &existing.ID
@@ -290,8 +397,9 @@ func (e *AlertEngine) fireAlert(
 		return
 	}
 
-	// Create the alert.
-	alertMsg := fmt.Sprintf("Alert rule '%s' triggered for %s", rule.Name, device.Name)
+	alertMsg := buildAlertMessage(rule, device, results)
+	groupID := fmt.Sprintf("%d-%d", rule.ID, now.Unix()/60)
+
 	alert := &models.Alert{
 		DeviceID:   device.ID,
 		DeviceName: device.Name,
@@ -299,6 +407,7 @@ func (e *AlertEngine) fireAlert(
 		Message:    alertMsg,
 		Status:     "active",
 		RuleID:     &rule.ID,
+		GroupID:    &groupID,
 	}
 
 	created, err := e.db.CreateAlert(ctx, alert)
@@ -308,7 +417,6 @@ func (e *AlertEngine) fireAlert(
 		return
 	}
 
-	// Record history.
 	e.recordHistory(ctx, created.ID, rule.ID, "fired", "system:alert_engine", map[string]any{
 		"trigger_reason":    fmt.Sprintf("conditions sustained for %ds", sustainedSeconds),
 		"condition_results": results,
@@ -324,7 +432,6 @@ func (e *AlertEngine) fireAlert(
 		"sustained_seconds", sustainedSeconds,
 	)
 
-	// Broadcast via WebSocket.
 	if e.hub != nil {
 		e.hub.Broadcast(websocket.Message{
 			Type: websocket.EventAlertTriggered,
@@ -332,10 +439,8 @@ func (e *AlertEngine) fireAlert(
 		})
 	}
 
-	// Dispatch notifications.
 	e.sendNotifications(ctx, rule, created)
 
-	// Transition to notified.
 	now2 := now
 	e.upsertState(ctx, &models.AlertRuleState{
 		RuleID:            rule.ID,
@@ -347,6 +452,15 @@ func (e *AlertEngine) fireAlert(
 		ActiveAlertID:     &created.ID,
 		ConditionSnapshot: snapshotFromResults(results),
 	})
+}
+
+func buildAlertMessage(rule *models.AlertRule, device *models.Device, results []ConditionResult) string {
+	for _, r := range results {
+		if r.Result && r.Description != "" {
+			return fmt.Sprintf("%s on %s: %s", rule.Name, device.Name, r.Description)
+		}
+	}
+	return fmt.Sprintf("Alert rule '%s' triggered for %s", rule.Name, device.Name)
 }
 
 // ── notifications ────────────────────────────────────────────────────────────
