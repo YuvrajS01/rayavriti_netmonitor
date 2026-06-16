@@ -206,7 +206,7 @@ function DeviceScoreCard({ device, deviceInsights }: { device: DeviceHealth; dev
 
   return (
     <div className={`bg-surface-container-high rounded-xl border border-outline-variant/20 overflow-hidden transition-[border-color,box-shadow] hover:border-outline-variant/40 ${scoreGlow(device.label)}`}>
-      <div className="p-5 grid grid-cols-1 xl:grid-cols-[auto_1fr_280px] gap-5">
+      <div className="p-5 grid grid-cols-1 lg:grid-cols-[auto_1fr] xl:grid-cols-[auto_1fr_280px] gap-5">
         {/* Left: Gauge + Name + Trend */}
         <div className="flex items-center gap-4">
           <MiniGauge score={device.score} />

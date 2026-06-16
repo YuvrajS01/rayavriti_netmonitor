@@ -76,6 +76,8 @@ export default function Sensors() {
   const protocolBarData = useMemo(() => buildProtocolBarData(metrics), [metrics]);
   const activeProtocols = useMemo(() => Array.from(new Set(metrics.map((m) => m.protocol))).filter(Boolean), [metrics]);
   const radarData = useMemo(() => buildAvgResponseRadar(metrics, activeProtocols), [metrics, activeProtocols]);
+  const [visibleCount, setVisibleCount] = useState(20);
+  const visibleMetrics = metrics.slice(0, visibleCount);
 
   return (
     <div>
@@ -177,7 +179,7 @@ export default function Sensors() {
             <div className="xl:col-span-2 space-y-6">
               <h2 className="font-headline text-xl font-bold uppercase tracking-tight px-2">Active Sensor Feed</h2>
               <div className="space-y-3">
-                {metrics.map((m, i) => (
+                {visibleMetrics.map((m, i) => (
                   <div key={m.id || i} className={`bg-surface-container-low p-5 rounded-xl border-l-4 ${statusBorderColor(m.status)} group hover:bg-surface-container-high transition-[background-color]`}>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-5">
@@ -208,6 +210,14 @@ export default function Sensors() {
                   </div>
                 ))}
                 {metrics.length === 0 && <p className="text-sm text-on-surface-variant text-center py-8">No sensor data yet</p>}
+                {visibleCount < metrics.length && (
+                  <button
+                    onClick={() => setVisibleCount((prev) => prev + 20)}
+                    className="w-full py-3 text-xs font-bold uppercase tracking-widest text-on-surface-variant hover:text-primary border border-outline-variant/20 rounded-lg hover:border-primary/40 transition-colors"
+                  >
+                    Show more ({metrics.length - visibleCount} remaining)
+                  </button>
+                )}
               </div>
             </div>
 

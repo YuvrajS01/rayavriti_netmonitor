@@ -3,6 +3,7 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import type { Metric } from '../../api/types';
 import { STATUS_COLORS, STATUS_LABELS } from '../../utils/colors';
 import { TOOLTIP_STYLE } from '../../utils/chartConfig';
+import ChartDataTable from '../ui/ChartDataTable';
 
 interface Props {
   metrics: Metric[];
@@ -79,6 +80,13 @@ function StatusDistributionInner({ metrics }: Props) {
                 <span className="font-bold text-on-surface">{d.value}</span>
               </div>
             ))}
+          </div>
+          <div className="sr-only">
+            <ChartDataTable
+              title="Status Distribution"
+              columns={['Status', 'Count']}
+              rows={donutData.map((d) => [d.name, d.value])}
+            />
           </div>
         </div>
       )}

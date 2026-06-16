@@ -192,6 +192,14 @@
   animation: report-fade 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 
+@keyframes page-enter {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.page-enter {
+  animation: page-enter 0.2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
 /* ── Content Visibility (skip off-screen rendering) ──────── */
 .content-visibility-auto {
   content-visibility: auto;
@@ -246,5 +254,28 @@
   [class*="text-primary"] { color: #3a7d00 !important; }
   [class*="text-error"] { color: #c00 !important; }
   ::-webkit-scrollbar { display: none; }
+
+  /* Hide charts, show accessible data tables */
+  .recharts-wrapper,
+  .recharts-surface,
+  svg.recharts-surface { display: none !important; }
+  .sr-only {
+    position: static !important;
+    width: auto !important;
+    height: auto !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+    clip: auto !important;
+    white-space: normal !important;
+  }
+
+  /* Hide sidebar, mobile nav, and interactive elements */
+  aside, nav[aria-label="Mobile navigation"], .no-print { display: none !important; }
+  main { margin-left: 0 !important; padding: 16px !important; }
+
+  /* Ensure tables print well */
+  table { font-size: 10px !important; }
+  tr { page-break-inside: avoid; }
 }
 

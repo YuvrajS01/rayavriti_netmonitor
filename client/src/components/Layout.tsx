@@ -1,5 +1,5 @@
 import { useState, useEffect, memo } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { clearCredentials } from '../store/authSlice';
 import type { RootState } from '../store';
@@ -45,6 +45,7 @@ const SidebarLink = memo(function SidebarLink({ to, label, icon, badge, onClick 
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const dispatch = useDispatch();
   const user = useSelector((s: RootState) => s.auth.user);
   const [sidebarOpen, setSidebarOpen] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 1024);
@@ -86,7 +87,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         Skip to content
       </a>
       {/* Top Nav */}
-      <header className="bg-background text-primary font-body text-sm tracking-tight w-full h-16 border-b border-surface-container-high/30 shadow-[0_0_15px_rgba(217,253,58,0.05)] flex justify-between items-center px-6 fixed top-0 z-50">
+      <header className="bg-background text-on-surface font-body text-sm tracking-tight w-full h-16 border-b border-surface-container-high/30 shadow-[0_0_15px_rgba(217,253,58,0.05)] flex justify-between items-center px-6 fixed top-0 z-50">
         <div className="flex items-center gap-8">
           <button onClick={() => setSidebarOpen(!sidebarOpen)} className="material-symbols-outlined text-on-surface-variant hover:text-primary transition-colors" aria-label="Toggle sidebar">
             menu
@@ -166,7 +167,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
         {/* Main Content */}
         <main id="main-content" className={`flex-1 p-8 bg-surface min-h-[calc(100vh-64px)] transition-[margin-left] duration-300 ${sidebarOpen ? 'ml-64' : 'ml-0'}`}>
-          {children}
+          <div key={location.pathname} className="page-enter">
+            {children}
+          </div>
         </main>
       </div>
 

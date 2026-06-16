@@ -217,7 +217,7 @@ export default function Dashboard() {
         }
       />
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12" aria-live="polite" aria-label="Device statistics">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 mb-12" aria-live="polite" aria-label="Device statistics">
         <StatCard label="Total Devices" value={stats.totalDevices} />
         <StatCard label="Online" value={stats.onlineDevices} />
         <StatCard label="Uptime" value={`${stats.uptimePercent ?? 100}%`} />
