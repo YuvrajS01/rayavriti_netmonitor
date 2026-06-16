@@ -4,9 +4,10 @@ import { useSocket } from '../hooks/useSocket';
 import type { Device, Metric } from '../api/types';
 import DeviceModal from '../components/DeviceModal';
 import ConfirmDialog from '../components/ConfirmDialog';
-import Button from '../components/ui/Button';
 import StatCard from '../components/ui/StatCard';
+import Button from '../components/ui/Button';
 import SectionHeader from '../components/ui/SectionHeader';
+import { useToast } from '../components/ui/useToast';
 import { statusTextColor, statusBgColor } from '../utils/colors';
 import { iconForProtocol } from '../utils/icons';
 
@@ -29,6 +30,7 @@ const STATUS_GROUP_HOVER_TEXT: Record<string, string> = {
 };
 
 export default function Devices() {
+  const { addToast } = useToast();
   const [devices, setDevices] = useState<Device[]>([]);
   const [metricsMap, setMetricsMap] = useState<Map<number, Metric>>(new Map());
   const [search, setSearch] = useState('');
@@ -114,6 +116,7 @@ export default function Devices() {
     if (!deleteTarget) return;
     await deleteDevice(deleteTarget.id);
     setDevices((prev) => prev.filter((d) => d.id !== deleteTarget.id));
+    addToast(`Deleted "${deleteTarget.name}"`, 'success');
     setDeleteTarget(null);
     load().catch(() => {});
   };
@@ -236,6 +239,9 @@ export default function Devices() {
           return (
             <div 
               key={device.id} 
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedDevice(device); } }}
               className={`bg-surface-container-low rounded-xl group overflow-hidden border border-transparent ${hoverBorder} transition-[border-color,box-shadow] duration-300 flex flex-col cursor-pointer`}
               onClick={() => setSelectedDevice(device)}
             >
@@ -271,7 +277,7 @@ export default function Devices() {
         })}
 
         {/* Add New Card */}
-        <div onClick={() => setShowForm(true)} className="bg-surface-container-low rounded-xl border-2 border-dashed border-outline-variant/30 hover:border-primary/50 transition-[border-color] duration-300 flex flex-col items-center justify-center p-12 text-center group cursor-pointer min-h-[200px]">
+        <div onClick={() => setShowForm(true)} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setShowForm(true); } }} className="bg-surface-container-low rounded-xl border-2 border-dashed border-outline-variant/30 hover:border-primary/50 transition-[border-color] duration-300 flex flex-col items-center justify-center p-12 text-center group cursor-pointer min-h-[200px]">
           <div className="w-16 h-16 rounded-full bg-surface-container-high flex items-center justify-center mb-4 group-hover:bg-primary/10 transition-colors">
             <span className="material-symbols-outlined text-3xl text-outline group-hover:text-primary">add</span>
           </div>

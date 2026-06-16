@@ -6,6 +6,7 @@ import { store, type RootState } from './store';
 import { SocketProvider } from './hooks/useSocket';
 import { clearCredentials } from './store/authSlice';
 import { api } from './api/http';
+import { ToastProvider } from './components/ui/Toast';
 
 import Layout from './components/Layout';
 
@@ -88,9 +89,11 @@ export default function App() {
     <Provider store={store}>
       <ErrorBoundary>
         <SocketProvider>
-          <BrowserRouter>
-            <AppRoutes />
-          </BrowserRouter>
+          <ToastProvider>
+            <BrowserRouter>
+              <AppRoutes />
+            </BrowserRouter>
+          </ToastProvider>
         </SocketProvider>
       </ErrorBoundary>
     </Provider>

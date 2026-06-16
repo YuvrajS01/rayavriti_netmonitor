@@ -66,6 +66,13 @@
     outline: 2px solid var(--color-primary);
     outline-offset: 2px;
   }
+
+  [role="button"]:focus-visible,
+  a:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
 }
 
 .material-symbols-outlined {
@@ -164,6 +171,15 @@
 }
 .animate-slide-down > * {
   overflow: hidden;
+}
+
+/* ── Toast Slide Up ──────────────────────────────────────── */
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-slide-up {
+  animation: slide-up 0.25s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 
 /* ── GPU-Accelerated Utilities ───────────────────────────── */

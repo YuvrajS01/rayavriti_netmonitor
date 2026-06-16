@@ -270,7 +270,7 @@ export default function Dashboard() {
       />
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12" aria-live="polite" aria-label="Device statistics">
         <StatCard label="Total Devices" value={stats.totalDevices} />
         <StatCard label="Online" value={stats.onlineDevices} />
         <StatCard label="Uptime" value={`${stats.uptimePercent ?? 100}%`} />
@@ -352,6 +352,9 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-6 content-visibility-auto">
         <div
           className="xl:col-span-2 bg-surface-container-high rounded-xl p-4 border border-outline-variant/20 hover:border-primary/50 hover:shadow-[0_0_15px_rgba(217,253,58,0.1)] transition-[border-color,box-shadow] cursor-pointer group"
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setShowExpandedCharts(true); } }}
           onClick={() => setShowExpandedCharts(true)}
         >
           <div className="flex justify-between items-center mb-3">
@@ -446,6 +449,9 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-6 content-visibility-auto">
         <div
           className="bg-surface-container-high rounded-xl p-4 border border-outline-variant/20 hover:border-primary/50 hover:shadow-[0_0_15px_rgba(217,253,58,0.1)] transition-[border-color,box-shadow] cursor-pointer group"
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setShowResourceModal(true); } }}
           onClick={() => setShowResourceModal(true)}
         >
           <div className="flex justify-between items-center mb-3">
@@ -554,7 +560,7 @@ export default function Dashboard() {
             <span className="material-symbols-outlined text-error text-xl animate-pulse">notifications_active</span>
             <h3 className="text-sm font-headline font-bold uppercase tracking-widest text-on-surface">Active Alerts</h3>
             {alerts.length > 0 && (
-              <span className="ml-auto bg-error/20 text-error px-2 py-0.5 rounded-full text-[10px] font-bold">{alerts.length}</span>
+              <span className="ml-auto bg-error/20 text-error px-2 py-0.5 rounded-full text-[10px] font-bold" aria-label={`${alerts.length} active alerts`}>{alerts.length}</span>
             )}
           </div>
           <div className="space-y-3">

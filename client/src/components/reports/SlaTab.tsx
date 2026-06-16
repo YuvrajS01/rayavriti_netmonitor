@@ -10,7 +10,7 @@ function SlaGauge({ value }: { value: number }) {
   const pct = Math.min(100, Math.max(0, value));
   const color = pct >= SLA_TARGET ? '#d9fd3a' : pct >= 95 ? '#f59e0b' : '#ff4444';
   return (
-    <div className="flex flex-col items-center">
+    <div className="relative flex flex-col items-center">
       <svg width={160} height={160} className="transform -rotate-90">
         <circle cx={cx} cy={cy} r={r} fill="none" stroke="#26261d" strokeWidth={10} />
         <circle cx={cx} cy={cy} r={r} fill="none" stroke={color} strokeWidth={10}

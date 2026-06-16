@@ -5,8 +5,10 @@ import { severityIcon, severityTextColor, severityBgColor, severityBorderColor }
 import LoadingState from '../components/ui/LoadingState';
 import ErrorState from '../components/ui/ErrorState';
 import SectionHeader from '../components/ui/SectionHeader';
+import { useToast } from '../components/ui/useToast';
 
 export default function Alerts() {
+  const { addToast } = useToast();
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [counts, setCounts] = useState<AlertCounts>({ active: 0, acknowledged: 0, resolved: 0 });
   const [currentTab, setCurrentTab] = useState<'active' | 'acknowledged' | 'resolved'>('active');
@@ -34,11 +36,13 @@ export default function Alerts() {
 
   const handleAck = async (id: number) => {
     await acknowledgeAlert(id);
+    addToast('Alert acknowledged', 'success');
     load(currentTab);
   };
 
   const handleResolve = async (id: number) => {
     await resolveAlert(id);
+    addToast('Alert resolved', 'success');
     load(currentTab);
   };
 
