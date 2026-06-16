@@ -2,6 +2,9 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { getAlerts, getAlertCounts, getGroupedAlerts, acknowledgeAlert, resolveAlert } from '../api/client';
 import type { Alert, AlertCounts } from '../api/types';
 import type { AlertGroup } from '../api/alerts';
+import SectionHeader from '../components/ui/SectionHeader';
+import LoadingState from '../components/ui/LoadingState';
+import ErrorState from '../components/ui/ErrorState';
 
 function severityIcon(severity: string) {
   if (severity === 'critical') return 'dangerous';
@@ -16,7 +19,7 @@ function severityColors(severity: string) {
 }
 
 export default function Alerts() {
-  const { addToast } = useToast();
+
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [grouped, setGrouped] = useState<AlertGroup[]>([]);
   const [counts, setCounts] = useState<AlertCounts>({ active: 0, acknowledged: 0, resolved: 0 });
@@ -266,17 +269,17 @@ function AlertItem({ alert, onAck, onResolve }: { alert: Alert; onAck: (id: numb
   const deviceName = alert.deviceName || `Device ${alert.deviceId}`;
 
   return (
-    <div className={`group bg-surface-container-low rounded-xl border-l-[6px] ${severityBorderColor(alert.severity)} p-5 flex flex-col md:flex-row md:items-center justify-between gap-6 transition-[background-color,border-color] hover:bg-surface-container-high`}>
+    <div className={`group bg-surface-container-low rounded-xl border-l-[6px] ${severityColors(alert.severity).border} p-5 flex flex-col md:flex-row md:items-center justify-between gap-6 transition-[background-color,border-color] hover:bg-surface-container-high`}>
       <div className="flex items-start gap-4">
-        <div className={`${severityBgColor(alert.severity)} p-3 rounded-lg`}>
-          <span className={`material-symbols-outlined ${severityTextColor(alert.severity)}`} style={{ fontVariationSettings: "'FILL' 1" }}>
+        <div className={`${severityColors(alert.severity).bg} p-3 rounded-lg`}>
+          <span className={`material-symbols-outlined ${severityColors(alert.severity).text}`} style={{ fontVariationSettings: "'FILL' 1" }}>
             {severityIcon(alert.severity)}
           </span>
         </div>
         <div>
           <div className="flex items-center gap-3 mb-1 flex-wrap">
             <h3 className="font-headline font-bold text-on-surface tracking-tight uppercase">{alert.message}</h3>
-            <span className={`text-[10px] ${severityBgColor(alert.severity)} ${severityTextColor(alert.severity)} px-2 py-0.5 font-bold rounded`}>
+            <span className={`text-[10px] ${severityColors(alert.severity).bg} ${severityColors(alert.severity).text} px-2 py-0.5 font-bold rounded`}>
               {alert.severity.toUpperCase()}
             </span>
           </div>
@@ -288,7 +291,7 @@ function AlertItem({ alert, onAck, onResolve }: { alert: Alert; onAck: (id: numb
       </div>
       <div className="flex items-center gap-4">
         {alert.status === 'active' && (
-          <button onClick={() => onAck(alert.id)} className={`px-6 py-2 border-2 ${severityBorderColor(alert.severity)} ${severityTextColor(alert.severity)} font-headline font-bold text-xs uppercase hover:bg-surface-container-highest transition-[background-color,color,transform] active:scale-95`}>
+          <button onClick={() => onAck(alert.id)} className={`px-6 py-2 border-2 ${severityColors(alert.severity).border} ${severityColors(alert.severity).text} font-headline font-bold text-xs uppercase hover:bg-surface-container-highest transition-[background-color,color,transform] active:scale-95`}>
             ACKNOWLEDGE
           </button>
         )}

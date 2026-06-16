@@ -3,7 +3,7 @@ import { AreaChart, Area, XAxis, YAxis, ResponsiveContainer, Tooltip } from 'rec
 import { getInsights, getInsightsHistory } from '../api/client';
 import type { DeviceHealth, InsightItem, InsightsResponse, HealthHistoryPoint, HealthFactors } from '../api/types';
 import { TOOLTIP_STYLE } from '../utils/chartConfig';
-import LoadingState from '../components/ui/LoadingState';
+
 import SectionHeader from '../components/ui/SectionHeader';
 
 // ── Color helpers ──────────────────────────────────────────────
