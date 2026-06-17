@@ -27,7 +27,7 @@ function SmartInsightsInner({ insights }: Props) {
               <span className={`material-symbols-outlined ${color} text-lg mt-0.5`}>{isCritical ? 'error' : isWarn ? 'warning' : 'tips_and_updates'}</span>
               <div className="min-w-0">
                 <p className={`text-xs font-bold uppercase tracking-wide ${color}`}>{item.deviceName}</p>
-                <p className="text-xs text-on-surface-variant mt-1 leading-relaxed">Score: {item.score} — {item.label}</p>
+                <p className="text-xs text-on-surface-variant mt-1 leading-relaxed">Score: {item.score.toFixed(2)} — {item.label}</p>
               </div>
             </div>
           );

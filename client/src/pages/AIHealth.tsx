@@ -97,7 +97,7 @@ function RadialGauge({ score, size = 140, strokeWidth = 10, label }: { score: nu
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className={`font-headline text-3xl font-bold ${scoreColor(score)}`}>{score}</span>
+        <span className={`font-headline text-3xl font-bold ${scoreColor(score)}`}>{score.toFixed(2)}</span>
         {label && <span className="text-[10px] uppercase tracking-wide text-on-surface-variant mt-0.5">{label}</span>}
       </div>
     </div>
@@ -496,7 +496,7 @@ export default function AIHealth() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-5 mb-6">
         <div className="bg-surface-container-low rounded-lg p-5 border border-outline-variant/20">
           <p className="text-[10px] text-on-surface-variant uppercase tracking-wide mb-1">Average Score</p>
-          <p className={`font-headline text-3xl font-bold ${scoreColor(networkScore)}`}>{networkScore}</p>
+          <p className={`font-headline text-3xl font-bold ${scoreColor(networkScore)}`}>{networkScore.toFixed(2)}</p>
         </div>
         <div className="bg-surface-container-low rounded-lg p-5 border border-outline-variant/20">
           <p className="text-[10px] text-on-surface-variant uppercase tracking-wide mb-1">Critical Devices</p>

@@ -34,7 +34,7 @@ function AiHealthScoreInner({ networkHealth, insights }: Props) {
           />
         </svg>
         <span className={`absolute font-headline text-3xl font-bold ${networkHealth < 55 ? 'text-error' : networkHealth < 75 ? 'text-warning' : 'text-primary'}`}>
-          {networkHealth}
+          {networkHealth.toFixed(2)}
         </span>
       </div>
       {weakestDevice && (
