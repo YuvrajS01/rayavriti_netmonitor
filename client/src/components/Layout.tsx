@@ -25,17 +25,17 @@ const SidebarLink = memo(function SidebarLink({ to, label, icon, badge, onClick 
       end={to === '/'}
       onClick={onClick}
       className={({ isActive }) =>
-        `group flex items-center gap-4 py-4 px-6 font-label font-medium text-xs uppercase tracking-wide transition-[color,background-color,border-color] duration-200 ${
+        `group flex items-center gap-3 py-3 px-5 font-label font-medium text-sm tracking-wide transition-[color,background-color,border-color] duration-200 ${
           isActive
             ? 'bg-primary/8 text-primary border-l-2 border-primary'
             : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high border-l-2 border-transparent'
         }`
       }
     >
-      <span className="material-symbols-outlined">{icon}</span>
+      <span className="material-symbols-outlined text-[20px]">{icon}</span>
       <span>{label}</span>
       {badge != null && badge > 0 && (
-        <span className="ml-auto bg-error/20 text-error px-1.5 py-0.5 rounded-full text-[9px] font-bold min-w-[18px] text-center">
+        <span className="ml-auto bg-error/20 text-error px-2 py-0.5 rounded-full text-[10px] font-bold min-w-[20px] text-center">
           {badge > 99 ? '99+' : badge}
         </span>
       )}
@@ -137,8 +137,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             sidebarOpen ? 'translate-x-0' : '-translate-x-full'
           }`}
         >
-          <div className="px-6 py-6">
-            <span className="font-headline text-primary font-bold text-sm tracking-wide">
+          <div className="px-5 py-4">
+            <span className="font-headline text-primary font-bold text-base tracking-wide">
               {user?.username || 'Admin'}
             </span>
           </div>
@@ -149,10 +149,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             ))}
           </nav>
 
-          <div className="p-6">
+          <div className="p-5">
             <button
               onClick={handleLogout}
-              className="w-full bg-surface-container-highest text-error border border-error/20 py-3 font-headline font-bold text-xs tracking-wider rounded-md hover:bg-error hover:text-on-error transition-[background-color,color] uppercase"
+              className="w-full bg-surface-container-highest text-error border border-error/20 py-2.5 font-headline font-bold text-sm tracking-wide rounded-md hover:bg-error hover:text-on-error transition-[background-color,color] uppercase"
             >
               Sign Out
             </button>
