@@ -51,15 +51,15 @@ export default function ResourceLoadModal({ systemInfo, onClose }: ResourceLoadM
         aria-modal="true"
         aria-label="System resource analytics"
         tabIndex={-1}
-        className="bg-surface-container-low border border-outline-variant/30 rounded-xl w-full max-w-4xl max-h-[90vh] overflow-hidden shadow-2xl flex flex-col outline-none"
+        className="bg-surface-container-low border border-outline-variant/30 rounded-lg w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col outline-none"
         onClick={e => e.stopPropagation()}
       >
         <div className="p-6 border-b border-outline-variant/20 flex justify-between items-center bg-surface-container-high">
           <div className="flex items-center gap-3">
             <span className="material-symbols-outlined text-primary text-3xl">memory</span>
             <div>
-              <h2 className="font-headline text-2xl font-black text-on-surface uppercase tracking-tight">System Resource Analytics</h2>
-              <p className="text-on-surface-variant text-xs font-mono uppercase tracking-widest">Server node performance telemetry</p>
+              <h2 className="font-headline text-2xl font-bold text-on-surface uppercase tracking-tight">System Resource Analytics</h2>
+              <p className="text-on-surface-variant text-xs font-mono uppercase tracking-wide">Server node performance telemetry</p>
             </div>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-surface-container-highest rounded-full transition-[background-color]" aria-label="Close dialog">
@@ -71,20 +71,20 @@ export default function ResourceLoadModal({ systemInfo, onClose }: ResourceLoadM
           {!raw ? (
             <div className="flex flex-col items-center justify-center py-16 opacity-50">
               <span className="material-symbols-outlined text-6xl mb-4">cloud_off</span>
-              <p className="text-sm font-headline uppercase tracking-widest text-on-surface-variant">Detailed telemetry unavailable</p>
+              <p className="text-sm font-headline uppercase tracking-wide text-on-surface-variant">Detailed telemetry unavailable</p>
               <p className="text-xs text-on-surface-variant mt-2 max-w-md text-center">
                 The core system node is either offline or the telemetry collector agent is not transmitting detailed hardware utilization.
               </p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="bg-surface-container-high rounded-xl p-5 border border-outline-variant/20">
+              <div className="bg-surface-container-high rounded-lg p-5 border border-outline-variant/20">
                 <div className="flex items-center gap-2 mb-4">
                   <span className="material-symbols-outlined text-primary">developer_board</span>
-                  <h3 className="font-headline font-bold uppercase tracking-widest text-sm">Processor (CPU)</h3>
+                  <h3 className="font-headline font-bold uppercase tracking-wide text-sm">Processor (CPU)</h3>
                 </div>
                 <div className="flex items-end justify-between mb-2">
-                  <span className="text-4xl font-headline font-black text-on-surface">{raw.cpu.usage}%</span>
+                  <span className="text-4xl font-headline font-bold text-on-surface">{raw.cpu.usage}%</span>
                   <span className="text-xs font-mono text-on-surface-variant pb-1">{raw.cpu.cores} Cores</span>
                 </div>
                 <div className="h-2 bg-surface-container-highest rounded w-full mb-4">
@@ -95,13 +95,13 @@ export default function ResourceLoadModal({ systemInfo, onClose }: ResourceLoadM
                 </div>
               </div>
 
-              <div className="bg-surface-container-high rounded-xl p-5 border border-outline-variant/20">
+              <div className="bg-surface-container-high rounded-lg p-5 border border-outline-variant/20">
                 <div className="flex items-center gap-2 mb-4">
                   <span className="material-symbols-outlined text-primary-dim">memory_alt</span>
-                  <h3 className="font-headline font-bold uppercase tracking-widest text-sm">System Memory (RAM)</h3>
+                  <h3 className="font-headline font-bold uppercase tracking-wide text-sm">System Memory (RAM)</h3>
                 </div>
                 <div className="flex items-end justify-between mb-2">
-                  <span className="text-4xl font-headline font-black text-on-surface">{raw.memory.percent}%</span>
+                  <span className="text-4xl font-headline font-bold text-on-surface">{raw.memory.percent}%</span>
                   <span className="text-xs font-mono text-on-surface-variant pb-1">{(raw.memory.used || 0).toFixed(1)}GB / {(raw.memory.total || 0).toFixed(1)}GB</span>
                 </div>
                 <div className="h-2 bg-surface-container-highest rounded w-full mb-4">
@@ -110,13 +110,13 @@ export default function ResourceLoadModal({ systemInfo, onClose }: ResourceLoadM
               </div>
 
               {raw.disk && (
-                <div className="bg-surface-container-high rounded-xl p-5 border border-outline-variant/20">
+                <div className="bg-surface-container-high rounded-lg p-5 border border-outline-variant/20">
                   <div className="flex items-center gap-2 mb-4">
                     <span className="material-symbols-outlined text-secondary">hard_drive</span>
-                    <h3 className="font-headline font-bold uppercase tracking-widest text-sm">Storage (Disk)</h3>
+                    <h3 className="font-headline font-bold uppercase tracking-wide text-sm">Storage (Disk)</h3>
                   </div>
                   <div className="flex items-end justify-between mb-2">
-                    <span className="text-4xl font-headline font-black text-on-surface">{raw.disk.percent}%</span>
+                    <span className="text-4xl font-headline font-bold text-on-surface">{raw.disk.percent}%</span>
                     <span className="text-xs font-mono text-on-surface-variant pb-1">{(raw.disk.used || 0).toFixed(1)}GB / {(raw.disk.total || 0).toFixed(1)}GB</span>
                   </div>
                   <div className="h-2 bg-surface-container-highest rounded w-full mb-4">
@@ -125,12 +125,12 @@ export default function ResourceLoadModal({ systemInfo, onClose }: ResourceLoadM
                 </div>
               )}
 
-              <div className="bg-surface-container-high rounded-xl p-5 border border-outline-variant/20 flex flex-col justify-center">
+              <div className="bg-surface-container-high rounded-lg p-5 border border-outline-variant/20 flex flex-col justify-center">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <div className="flex items-center gap-2 mb-2">
                       <span className="material-symbols-outlined text-on-surface-variant text-sm">schedule</span>
-                      <h3 className="font-headline font-bold uppercase tracking-widest text-xs text-on-surface-variant">System Uptime</h3>
+                      <h3 className="font-headline font-bold uppercase tracking-wide text-xs text-on-surface-variant">System Uptime</h3>
                     </div>
                     <div className="font-mono text-lg text-on-surface">
                       {Math.floor((raw.uptime || 0) / 86400)}d {Math.floor(((raw.uptime || 0) % 86400) / 3600)}h {Math.floor(((raw.uptime || 0) % 3600) / 60)}m
@@ -139,7 +139,7 @@ export default function ResourceLoadModal({ systemInfo, onClose }: ResourceLoadM
                   <div>
                     <div className="flex items-center gap-2 mb-2">
                       <span className="material-symbols-outlined text-on-surface-variant text-sm">analytics</span>
-                      <h3 className="font-headline font-bold uppercase tracking-widest text-xs text-on-surface-variant">Load Average</h3>
+                      <h3 className="font-headline font-bold uppercase tracking-wide text-xs text-on-surface-variant">Load Average</h3>
                     </div>
                     <div className="font-mono text-sm text-on-surface mt-1">
                       {raw.loadAvg ? raw.loadAvg.map((l: number) => l.toFixed(2)).join('  ') : '-'}

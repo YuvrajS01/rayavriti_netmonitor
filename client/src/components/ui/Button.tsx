@@ -9,9 +9,9 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const VARIANT_CLASSES: Record<ButtonVariant, string> = {
-  primary: 'bg-primary text-on-primary hover:brightness-110 shadow-[0_4px_20px_rgba(217,253,58,0.2)]',
-  secondary: 'bg-surface-container-highest text-on-surface border border-outline-variant/30 hover:bg-surface-container-highest/80',
-  danger: 'bg-error text-on-error hover:brightness-110',
+  primary: 'bg-primary text-on-primary hover:bg-primary/90',
+  secondary: 'bg-surface-container-highest text-on-surface border border-outline-variant/30 hover:bg-surface-container-high',
+  danger: 'bg-error text-on-error hover:bg-error/90',
   'danger-outline': 'border border-error text-error hover:bg-error/10',
   ghost: 'text-on-surface-variant hover:text-primary hover:bg-surface-container-high',
   'primary-outline': 'border border-primary/40 text-primary hover:bg-primary/5',
@@ -21,14 +21,14 @@ export default function Button({ variant = 'primary', children, icon, className 
   return (
     <button
       className={[
-        'font-headline font-bold text-xs uppercase tracking-widest rounded-lg active:scale-95 transition-[filter,transform,background-color,color]',
+        'font-headline font-bold text-sm uppercase tracking-wide rounded-md px-5 py-2.5 transition-[background-color,color,border-color]',
         VARIANT_CLASSES[variant],
         className,
       ].filter(Boolean).join(' ')}
       {...props}
     >
       <span className="flex items-center justify-center gap-2">
-        {icon && <span className="material-symbols-outlined text-base">{icon}</span>}
+        {icon && <span className="material-symbols-outlined text-lg">{icon}</span>}
         {children}
       </span>
     </button>

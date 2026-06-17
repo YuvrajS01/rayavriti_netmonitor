@@ -214,16 +214,13 @@ export default function Dashboard() {
       <>
       <SectionHeader
         title="Network Overview"
-        subtitle="Real-time surveillance dashboard. All systems monitored and reporting."
+        subtitle="Real-time monitoring dashboard for all connected devices."
         action={
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-            <span className="text-primary font-mono text-xs">{lastUpdated}</span>
-          </div>
+          <span className="text-primary font-mono text-xs">{lastUpdated}</span>
         }
       />
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 mb-12" aria-live="polite" aria-label="Device statistics">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 mb-8" aria-live="polite" aria-label="Device statistics">
         <StatCard label="Total Devices" value={stats.totalDevices} />
         <StatCard label="Online" value={stats.onlineDevices} />
         <StatCard label="Uptime" value={`${stats.uptimePercent ?? 100}%`} />

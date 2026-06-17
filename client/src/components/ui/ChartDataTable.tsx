@@ -10,7 +10,7 @@ export default function ChartDataTable({ title, columns, rows }: ChartDataTableP
   return (
     <table className="w-full text-left border-collapse text-xs" role="table" aria-label={title}>
       <thead>
-        <tr className="text-[10px] uppercase tracking-widest text-on-surface-variant border-b border-outline-variant/20">
+        <tr className="text-[10px] uppercase tracking-wide text-on-surface-variant border-b border-outline-variant/20">
           {columns.map((col) => (
             <th key={col} className="pb-2 font-medium pr-4">{col}</th>
           ))}

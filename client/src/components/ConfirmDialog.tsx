@@ -69,7 +69,7 @@ export default function ConfirmDialog({
         aria-modal="true"
         aria-labelledby="confirm-title"
         aria-describedby="confirm-message"
-        className="bg-surface-container-low border border-outline-variant/30 rounded-xl w-full max-w-md overflow-hidden shadow-2xl"
+        className="bg-surface-container-low border border-outline-variant/30 rounded-lg w-full max-w-md overflow-hidden "
         onClick={(e) => e.stopPropagation()}
       >
         <div className="p-6">
@@ -88,7 +88,7 @@ export default function ConfirmDialog({
         <div className="flex border-t border-outline-variant/20">
           <button
             onClick={onCancel}
-            className="flex-1 py-3 text-xs font-headline font-bold uppercase tracking-widest text-on-surface-variant hover:bg-surface-container-high transition-[background-color]"
+            className="flex-1 py-3 text-xs font-headline font-bold uppercase tracking-wide text-on-surface-variant hover:bg-surface-container-high transition-[background-color]"
           >
             {cancelLabel}
           </button>
@@ -96,7 +96,7 @@ export default function ConfirmDialog({
           <button
             ref={confirmBtnRef}
             onClick={onConfirm}
-            className={`flex-1 py-3 text-xs font-headline font-bold uppercase tracking-widest transition-[background-color] ${
+            className={`flex-1 py-3 text-xs font-headline font-bold uppercase tracking-wide transition-[background-color] ${
               danger
                 ? 'text-error hover:bg-error/10'
                 : 'text-primary hover:bg-primary/10'

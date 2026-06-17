@@ -5,7 +5,7 @@ interface ErrorStateProps {
 
 export default function ErrorState({ message, onRetry }: ErrorStateProps) {
   return (
-    <div className="bg-error/10 border border-error/30 rounded-xl p-6 text-center">
+    <div className="bg-error/10 border border-error/30 rounded-lg p-6 text-center">
       <span className="material-symbols-outlined text-error text-3xl mb-2">error</span>
       <p className="text-sm text-error font-bold">{message}</p>
       {onRetry && (

@@ -124,11 +124,11 @@ export default function FlowAnalysis() {
     <div>
       <SectionHeader
         title="Flow Analysis"
-        subtitle="NetFlow / sFlow traffic analysis. Monitor bandwidth, top talkers, and protocol distribution in real-time."
+        subtitle="Analyze bandwidth, top talkers, and protocol distribution in real-time."
         action={
           <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-[#6ee7f7] animate-pulse" />
-            <span className="text-[#6ee7f7] font-mono text-xs">
+            <div className="w-2 h-2 rounded-full bg-info" />
+            <span className="text-info font-mono text-xs">
               {loading ? 'Connecting...' : stats ? (stats.totalFlows > 0 ? 'Flows active' : 'Awaiting flows') : 'No data'}
             </span>
           </div>
@@ -143,20 +143,20 @@ export default function FlowAnalysis() {
         <>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
             <StatCard label="Total Flows" value={stats ? formatNumber(stats.totalFlows) : '—'} icon="swap_horiz" />
-            <StatCard label="Bandwidth" value={stats ? formatBytes(stats.totalBytes) : '—'} icon="cloud_download" color="text-[#6ee7f7]" />
+            <StatCard label="Bandwidth" value={stats ? formatBytes(stats.totalBytes) : '—'} icon="cloud_download" color="text-info" />
             <StatCard label="Unique Sources" value={stats ? formatNumber(stats.uniqueSources) : '—'} icon="upload" />
             <StatCard label="Unique Destinations" value={stats ? formatNumber(stats.uniqueDestinations) : '—'} icon="download" />
           </div>
 
-          <div className="bg-surface-container-high rounded-xl p-5 border border-outline-variant/20 mb-6">
-            <h3 className="text-sm font-headline font-bold uppercase tracking-widest mb-4 flex items-center gap-2">
-              <span className="material-symbols-outlined text-[#6ee7f7] text-lg">show_chart</span>
+          <div className="bg-surface-container-high rounded-lg p-5 border border-outline-variant/20 mb-6">
+            <h3 className="text-sm font-headline font-bold uppercase tracking-wide mb-4 flex items-center gap-2">
+              <span className="material-symbols-outlined text-info text-lg">show_chart</span>
               Traffic Volume Over Time
             </h3>
             {timeseries.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-16 opacity-50">
+              <div className="flex flex-col items-center justify-center py-16">
                 <span className="material-symbols-outlined text-4xl mb-2">timeline</span>
-                <p className="text-xs text-on-surface-variant uppercase tracking-widest">
+                <p className="text-xs text-on-surface-variant uppercase tracking-wide">
                   No flow data yet — configure a router to export NetFlow/sFlow to UDP port 2055
                 </p>
               </div>
@@ -165,8 +165,8 @@ export default function FlowAnalysis() {
                 <AreaChart data={timeseries} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
                   <defs>
                     <linearGradient id="gradBytes" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#6ee7f7" stopOpacity={0.4} />
-                      <stop offset="95%" stopColor="#6ee7f7" stopOpacity={0} />
+                      <stop offset="5%" stopColor="#6bb8c9" stopOpacity={0.4} />
+                      <stop offset="95%" stopColor="#6bb8c9" stopOpacity={0} />
                     </linearGradient>
                     <linearGradient id="gradPackets" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#d9fd3a" stopOpacity={0.3} />
@@ -198,9 +198,9 @@ export default function FlowAnalysis() {
                   />
                   <Legend
                     wrapperStyle={LEGEND_STYLE}
-                    formatter={(value) => <span style={{ color: '#c8c5b0' }}>{value === 'totalBytes' ? 'Bytes' : 'Packets'}</span>}
+                    formatter={(value) => <span style={{ color: '#adaba1' }}>{value === 'totalBytes' ? 'Bytes' : 'Packets'}</span>}
                   />
-                  <Area type="monotone" dataKey="totalBytes" stroke="#6ee7f7" fill="url(#gradBytes)" strokeWidth={2} />
+                  <Area type="monotone" dataKey="totalBytes" stroke="#6bb8c9" fill="url(#gradBytes)" strokeWidth={2} />
                   <Area type="monotone" dataKey="totalPackets" stroke="#d9fd3a" fill="url(#gradPackets)" strokeWidth={1.5} />
                 </AreaChart>
               </ResponsiveContainer>
@@ -208,18 +208,18 @@ export default function FlowAnalysis() {
           </div>
 
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-6">
-            <div className="bg-surface-container-high rounded-xl p-5 border border-outline-variant/20">
-              <h3 className="text-sm font-headline font-bold uppercase tracking-widest mb-4 flex items-center gap-2">
+            <div className="bg-surface-container-high rounded-lg p-5 border border-outline-variant/20">
+              <h3 className="text-sm font-headline font-bold uppercase tracking-wide mb-4 flex items-center gap-2">
                 <span className="material-symbols-outlined text-[#d9fd3a] text-lg">upload</span>
                 Top Sources
               </h3>
               {topSources.length === 0 ? (
-                <p className="text-xs text-on-surface-variant text-center py-8 opacity-50">No data</p>
+                <p className="text-xs text-on-surface-variant text-center py-8">No data</p>
               ) : (
                 <ResponsiveContainer width="100%" height={280}>
                   <BarChart data={topSources} layout="vertical" margin={{ top: 0, right: 8, left: 0, bottom: 0 }}>
-                    <XAxis type="number" tick={{ fill: '#8a8a78', fontSize: 9 }} tickLine={false} axisLine={false} tickFormatter={(v) => formatBytes(v)} />
-                    <YAxis type="category" dataKey="ip" tick={{ fill: '#c8c5b0', fontSize: 10 }} tickLine={false} axisLine={false} width={110} />
+                    <XAxis type="number" tick={{ fill: '#77766d', fontSize: 9 }} tickLine={false} axisLine={false} tickFormatter={(v) => formatBytes(v)} />
+                    <YAxis type="category" dataKey="ip" tick={{ fill: '#adaba1', fontSize: 10 }} tickLine={false} axisLine={false} width={110} />
                     <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: unknown) => [formatBytes(Number(v ?? 0)), 'Bytes']} />
                     <Bar dataKey="count" fill="#d9fd3a" radius={[0, 4, 4, 0]} barSize={16} />
                   </BarChart>
@@ -227,32 +227,32 @@ export default function FlowAnalysis() {
               )}
             </div>
 
-            <div className="bg-surface-container-high rounded-xl p-5 border border-outline-variant/20">
-              <h3 className="text-sm font-headline font-bold uppercase tracking-widest mb-4 flex items-center gap-2">
-                <span className="material-symbols-outlined text-[#6ee7f7] text-lg">download</span>
+            <div className="bg-surface-container-high rounded-lg p-5 border border-outline-variant/20">
+              <h3 className="text-sm font-headline font-bold uppercase tracking-wide mb-4 flex items-center gap-2">
+                <span className="material-symbols-outlined text-info text-lg">download</span>
                 Top Destinations
               </h3>
               {topDestinations.length === 0 ? (
-                <p className="text-xs text-on-surface-variant text-center py-8 opacity-50">No data</p>
+                <p className="text-xs text-on-surface-variant text-center py-8">No data</p>
               ) : (
                 <ResponsiveContainer width="100%" height={280}>
                   <BarChart data={topDestinations} layout="vertical" margin={{ top: 0, right: 8, left: 0, bottom: 0 }}>
-                    <XAxis type="number" tick={{ fill: '#8a8a78', fontSize: 9 }} tickLine={false} axisLine={false} tickFormatter={(v) => formatBytes(v)} />
-                    <YAxis type="category" dataKey="ip" tick={{ fill: '#c8c5b0', fontSize: 10 }} tickLine={false} axisLine={false} width={110} />
+                    <XAxis type="number" tick={{ fill: '#77766d', fontSize: 9 }} tickLine={false} axisLine={false} tickFormatter={(v) => formatBytes(v)} />
+                    <YAxis type="category" dataKey="ip" tick={{ fill: '#adaba1', fontSize: 10 }} tickLine={false} axisLine={false} width={110} />
                     <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: unknown) => [formatBytes(Number(v ?? 0)), 'Bytes']} />
-                    <Bar dataKey="count" fill="#6ee7f7" radius={[0, 4, 4, 0]} barSize={16} />
+                    <Bar dataKey="count" fill="#6bb8c9" radius={[0, 4, 4, 0]} barSize={16} />
                   </BarChart>
                 </ResponsiveContainer>
               )}
             </div>
 
-            <div className="bg-surface-container-high rounded-xl p-5 border border-outline-variant/20 flex flex-col">
-              <h3 className="text-sm font-headline font-bold uppercase tracking-widest mb-4 flex items-center gap-2">
+            <div className="bg-surface-container-high rounded-lg p-5 border border-outline-variant/20 flex flex-col">
+              <h3 className="text-sm font-headline font-bold uppercase tracking-wide mb-4 flex items-center gap-2">
                 <span className="material-symbols-outlined text-[#c084fc] text-lg">pie_chart</span>
                 Protocol Distribution
               </h3>
               {protocols.length === 0 ? (
-                <p className="text-xs text-on-surface-variant text-center py-8 my-auto opacity-50">No data</p>
+                <p className="text-xs text-on-surface-variant text-center py-8 my-auto">No data</p>
               ) : (
                 <div className="flex flex-col items-center justify-center flex-1">
                   <ResponsiveContainer width="100%" height={200}>
@@ -293,9 +293,9 @@ export default function FlowAnalysis() {
           </div>
 
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-            <div className="xl:col-span-2 bg-surface-container-high rounded-xl p-5 border border-outline-variant/20">
+            <div className="xl:col-span-2 bg-surface-container-high rounded-lg p-5 border border-outline-variant/20">
               <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 mb-4">
-                <h3 className="text-sm font-headline font-bold uppercase tracking-widest flex items-center gap-2">
+                <h3 className="text-sm font-headline font-bold uppercase tracking-wide flex items-center gap-2">
                   <span className="material-symbols-outlined text-primary text-lg">table_chart</span>
                   Flow Records
                 </h3>
@@ -322,7 +322,7 @@ export default function FlowAnalysis() {
               <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
                 <table className="w-full text-left border-collapse">
                   <thead className="sticky top-0 bg-surface-container-high z-10">
-                    <tr className="text-[10px] uppercase tracking-widest text-on-surface-variant border-b border-outline-variant/20">
+                    <tr className="text-[10px] uppercase tracking-wide text-on-surface-variant border-b border-outline-variant/20">
                       <th className="pb-2 font-medium">Time</th>
                       <th className="pb-2 font-medium">Source</th>
                       <th className="pb-2 font-medium">Destination</th>
@@ -333,15 +333,15 @@ export default function FlowAnalysis() {
                   </thead>
                   <tbody className="text-xs">
                     {filteredFlows.length === 0 ? (
-                      <tr><td colSpan={6} className="py-12 text-center text-on-surface-variant opacity-50">
+                      <tr><td colSpan={6} className="py-12 text-center text-on-surface-variant">
                         <div className="flex flex-col items-center gap-2">
                           <span className="material-symbols-outlined text-3xl">swap_horiz</span>
-                          <span className="uppercase tracking-widest text-[10px]">No flow records yet</span>
+                          <span className="uppercase tracking-wide text-[10px]">No flow records yet</span>
                         </div>
                       </td></tr>
                     ) : (
                       filteredFlows.map((f) => {
-                        const protoColor = PROTOCOL_COLORS[f.protocol] || '#8a8a78';
+                        const protoColor = PROTOCOL_COLORS[f.protocol] || '#77766d';
                         return (
                           <tr key={f.id} className="border-b border-outline-variant/10 hover:bg-surface-container-highest/50 transition-colors">
                             <td className="py-2.5 text-on-surface-variant font-mono">
@@ -366,26 +366,26 @@ export default function FlowAnalysis() {
               </div>
             </div>
 
-            <div className="bg-surface-container-high rounded-xl p-5 border border-outline-variant/20">
-              <h3 className="text-sm font-headline font-bold uppercase tracking-widest mb-4 flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-[#6ee7f7] animate-pulse" />
+            <div className="bg-surface-container-high rounded-lg p-5 border border-outline-variant/20">
+              <h3 className="text-sm font-headline font-bold uppercase tracking-wide mb-4 flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-info" />
                 Live Flow Feed
               </h3>
               <div className="space-y-2 max-h-[400px] overflow-y-auto">
                 {flowFeed.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-12 opacity-50">
+                  <div className="flex flex-col items-center justify-center py-12">
                     <span className="material-symbols-outlined text-3xl mb-2">rss_feed</span>
-                    <p className="text-[10px] text-on-surface-variant uppercase tracking-widest">Waiting for flow data...</p>
+                    <p className="text-[10px] text-on-surface-variant uppercase tracking-wide">Waiting for flow data...</p>
                   </div>
                 ) : (
                   flowFeed.map((f, i) => (
-                    <div key={i} className="flex items-center gap-3 p-2.5 rounded-lg bg-surface-container-highest/50 border border-outline-variant/10 hover:border-[#6ee7f7]/20 transition-[border-color] text-xs">
+                    <div key={i} className="flex items-center gap-3 p-2.5 rounded-lg bg-surface-container-highest/50 border border-outline-variant/10 hover:border-info/20 transition-[border-color] text-xs">
                       <span className="text-[10px] text-on-surface-variant font-mono w-14 flex-shrink-0">{f.time}</span>
                       <span className="font-mono text-on-surface truncate flex-1">{f.src}</span>
                       <span className="material-symbols-outlined text-[12px] text-on-surface-variant">arrow_forward</span>
                       <span className="font-mono text-on-surface truncate flex-1">{f.dst}</span>
                       <span className="inline-flex px-1.5 py-0.5 rounded text-[9px] font-bold uppercase"
-                        style={{ color: PROTOCOL_COLORS[f.proto] || '#8a8a78', background: `${(PROTOCOL_COLORS[f.proto] || '#8a8a78')}15` }}>
+                        style={{ color: PROTOCOL_COLORS[f.proto] || '#77766d', background: `${(PROTOCOL_COLORS[f.proto] || '#77766d')}15` }}>
                         {f.proto}
                       </span>
                       <span className="font-mono text-on-surface-variant text-right w-16 flex-shrink-0">{formatBytes(f.bytes)}</span>

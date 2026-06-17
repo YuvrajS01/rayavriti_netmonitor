@@ -2,7 +2,7 @@ import type { ReportAlert } from '../../api/types';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 
 const TT = { background: 'var(--color-surface-container)', border: '1px solid var(--color-outline-variant)', borderRadius: '8px', fontSize: '12px', color: 'var(--color-on-surface)' };
-const SEV_COLORS: Record<string, string> = { critical: '#ff4444', warning: '#f59e0b', info: '#6ee7f7' };
+const SEV_COLORS: Record<string, string> = { critical: '#ff7351', warning: '#e5a910', info: '#6bb8c9' };
 const SEV_ICONS: Record<string, string> = { critical: 'error', warning: 'warning', info: 'info' };
 
 export default function AlertTab({ alerts }: { alerts: ReportAlert[] }) {
@@ -14,12 +14,12 @@ export default function AlertTab({ alerts }: { alerts: ReportAlert[] }) {
     <div className="space-y-6 report-section">
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Severity donut */}
-        <div className="bg-surface-container-high rounded-xl p-6 border border-outline-variant/20 flex flex-col items-center">
-          <h4 className="text-xs font-bold uppercase tracking-widest text-on-surface-variant mb-4">Severity Breakdown</h4>
+        <div className="bg-surface-container-high rounded-lg p-6 border border-outline-variant/20 flex flex-col items-center">
+          <h4 className="text-xs font-bold uppercase tracking-wide text-on-surface-variant mb-4">Severity Breakdown</h4>
           {alerts.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 opacity-50">
               <span className="material-symbols-outlined text-4xl mb-2 text-primary">check_circle</span>
-              <p className="text-xs text-on-surface-variant uppercase tracking-widest">No alerts in range</p>
+              <p className="text-xs text-on-surface-variant uppercase tracking-wide">No alerts in range</p>
             </div>
           ) : (
             <>
@@ -45,10 +45,10 @@ export default function AlertTab({ alerts }: { alerts: ReportAlert[] }) {
         </div>
 
         {/* Alert table */}
-        <div className="lg:col-span-2 bg-surface-container-high rounded-xl p-6 border border-outline-variant/20">
+        <div className="lg:col-span-2 bg-surface-container-high rounded-lg p-6 border border-outline-variant/20">
           <div className="flex items-center gap-2 mb-4">
             <span className="material-symbols-outlined text-error text-lg">notifications_active</span>
-            <h4 className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Alert Timeline</h4>
+            <h4 className="text-xs font-bold uppercase tracking-wide text-on-surface-variant">Alert Timeline</h4>
             <span className="ml-auto text-[10px] text-on-surface-variant">{alerts.length} alerts</span>
           </div>
           {alerts.length === 0 ? (
@@ -57,7 +57,7 @@ export default function AlertTab({ alerts }: { alerts: ReportAlert[] }) {
             <div className="overflow-y-auto max-h-[420px] space-y-2 pr-1">
               {alerts.map((a) => {
                 const color = SEV_COLORS[a.severity] || '#6b7280';
-                const bg = a.severity === 'critical' ? 'bg-error/10 border-error/25' : a.severity === 'warning' ? 'bg-amber-400/10 border-amber-400/25' : 'bg-sky-400/10 border-sky-400/25';
+                const bg = a.severity === 'critical' ? 'bg-error/10 border-error/25' : a.severity === 'warning' ? 'bg-warning/10 border-warning/25' : 'bg-sky-400/10 border-sky-400/25';
                 return (
                   <div key={a.id} className={`flex items-start gap-3 p-3 rounded-lg border ${bg} transition-[filter] hover:brightness-110`}>
                     <span className="material-symbols-outlined mt-0.5 text-sm" style={{ color }}>{SEV_ICONS[a.severity] || 'info'}</span>

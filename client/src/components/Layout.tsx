@@ -25,10 +25,10 @@ const SidebarLink = memo(function SidebarLink({ to, label, icon, badge, onClick 
       end={to === '/'}
       onClick={onClick}
       className={({ isActive }) =>
-        `group flex items-center gap-4 py-4 px-6 font-label font-medium text-xs uppercase tracking-[0.2em] transition-[color,background-color,border-color,box-shadow] duration-200 ${
+        `group flex items-center gap-4 py-4 px-6 font-label font-medium text-xs uppercase tracking-wide transition-[color,background-color,border-color] duration-200 ${
           isActive
-            ? 'bg-gradient-to-r from-primary/10 to-transparent text-primary border-l-4 border-primary shadow-[inset_10px_0_15px_-10px_rgba(217,253,58,0.3)]'
-            : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high border-l-4 border-transparent'
+            ? 'bg-primary/8 text-primary border-l-2 border-primary'
+            : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high border-l-2 border-transparent'
         }`
       }
     >
@@ -87,12 +87,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         Skip to content
       </a>
       {/* Top Nav */}
-      <header className="bg-background text-on-surface font-body text-sm tracking-tight w-full h-16 border-b border-surface-container-high/30 shadow-[0_0_15px_rgba(217,253,58,0.05)] flex justify-between items-center px-6 fixed top-0 z-50">
+      <header className="bg-background text-on-surface font-body text-sm tracking-tight w-full h-16 border-b border-surface-container-high/30 flex justify-between items-center px-6 fixed top-0 z-50">
         <div className="flex items-center gap-8">
           <button onClick={() => setSidebarOpen(!sidebarOpen)} className="material-symbols-outlined text-on-surface-variant hover:text-primary transition-colors" aria-label="Toggle sidebar">
             menu
           </button>
-          <NavLink to="/" className="font-headline font-black tracking-widest text-primary text-xl uppercase">
+          <NavLink to="/" className="font-headline font-bold tracking-wide text-primary text-xl uppercase">
             Rayavriti NetMonitor+
           </NavLink>
           <div className="hidden lg:flex items-center gap-6">
@@ -138,15 +138,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           }`}
         >
           <div className="px-6 py-6">
-            <div className="flex items-center gap-3 mb-1">
-              <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-              <span className="font-headline text-primary font-bold text-sm tracking-widest uppercase">
-                {user?.username || 'Admin'} Node
-              </span>
-            </div>
-            <p className="font-label font-medium text-[10px] uppercase tracking-[0.2em] text-on-surface-variant">
-              Network Ops Center
-            </p>
+            <span className="font-headline text-primary font-bold text-sm tracking-wide">
+              {user?.username || 'Admin'}
+            </span>
           </div>
 
           <nav className="flex-1 space-y-1" aria-label="Sidebar navigation">
@@ -158,7 +152,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           <div className="p-6">
             <button
               onClick={handleLogout}
-              className="w-full bg-surface-container-highest text-error border border-error/20 py-3 font-headline font-bold text-xs tracking-widest rounded-none hover:bg-error hover:text-on-error transition-[background-color,color] uppercase"
+              className="w-full bg-surface-container-highest text-error border border-error/20 py-3 font-headline font-bold text-xs tracking-wider rounded-md hover:bg-error hover:text-on-error transition-[background-color,color] uppercase"
             >
               Sign Out
             </button>
@@ -174,7 +168,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       </div>
 
       {/* Mobile Bottom Nav — only on small screens */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-background border-t border-surface-container-high/30 flex justify-around items-center px-4 z-50 shadow-[0_-10px_20px_rgba(0,0,0,0.5)]" aria-label="Mobile navigation">
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-background border-t border-surface-container-high/30 flex justify-around items-center px-4 z-50" aria-label="Mobile navigation">
         {[navItems[0], navItems[1], navItems[5], navItems[6]].map((item) => (
           <NavLink
             key={item.to}
@@ -185,7 +179,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             }
           >
             <span className="material-symbols-outlined">{item.icon}</span>
-            <span className="text-[9px] uppercase font-bold">{item.label.split(' ')[0]}</span>
+            <span className="text-[11px] uppercase font-bold">{item.label.split(' ')[0]}</span>
           </NavLink>
         ))}
       </nav>

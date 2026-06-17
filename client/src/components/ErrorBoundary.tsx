@@ -39,12 +39,12 @@ export default class ErrorBoundary extends Component<Props, State> {
 
     return (
       <div className="min-h-screen flex items-center justify-center bg-background font-body p-8">
-        <div className="w-full max-w-md text-center border border-outline-variant/30 rounded-xl p-12 bg-surface-container-high/80 ">
+        <div className="w-full max-w-md text-center border border-outline-variant/30 rounded-lg p-12 bg-surface-container-high/80 ">
           <div className="w-16 h-16 rounded-full bg-error/10 border-2 border-error/40 flex items-center justify-center mx-auto mb-6">
             <span className="material-symbols-outlined text-error text-3xl">warning</span>
           </div>
 
-          <h1 className="font-headline text-2xl font-black text-on-surface tracking-tight mb-3">
+          <h1 className="font-headline text-2xl font-bold text-on-surface tracking-tight mb-3">
             Something went wrong
           </h1>
 
@@ -62,13 +62,13 @@ export default class ErrorBoundary extends Component<Props, State> {
           <div className="flex gap-3 justify-center">
             <button
               onClick={this.handleRetry}
-              className="bg-primary text-on-primary font-headline font-bold py-3 px-6 rounded-lg text-xs tracking-widest uppercase hover:brightness-110 active:scale-95 transition-[filter,transform]"
+              className="bg-primary text-on-primary font-headline font-bold py-3 px-6 rounded-lg text-xs tracking-wide uppercase hover:brightness-110 transition-[filter,transform]"
             >
               Try Again
             </button>
             <button
               onClick={this.handleReload}
-              className="bg-surface-container-highest text-on-surface border border-outline-variant/30 font-headline font-bold py-3 px-6 rounded-lg text-xs tracking-widest uppercase hover:bg-surface-container-highest/80 active:scale-95 transition-[background-color,transform]"
+              className="bg-surface-container-highest text-on-surface border border-outline-variant/30 font-headline font-bold py-3 px-6 rounded-lg text-xs tracking-wide uppercase hover:bg-surface-container-highest/80 transition-[background-color,transform]"
             >
               Reload Page
             </button>
