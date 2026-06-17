@@ -20,7 +20,7 @@ function scoreBg(score: number) {
   return '#d9fd3a';
 }
 
-function scoreGlow(_label: string) {
+function scoreGlow() {
   return '';
 }
 
@@ -202,7 +202,7 @@ function DeviceScoreCard({ device, deviceInsights }: { device: DeviceHealth; dev
   const primaryIssue = issues.find((issue) => issue.severity !== 'info') || issues[0];
 
   return (
-    <div className={`bg-surface-container-high rounded-lg border border-outline-variant/20 overflow-hidden transition-[border-color,box-shadow] hover:border-outline-variant/40 ${scoreGlow(device.label)}`}>
+    <div className={`bg-surface-container-high rounded-lg border border-outline-variant/20 overflow-hidden transition-[border-color,box-shadow] hover:border-outline-variant/40 ${scoreGlow()}`}>
       <div className="p-5 grid grid-cols-1 lg:grid-cols-[auto_1fr] xl:grid-cols-[auto_1fr_280px] gap-5">
         {/* Left: Gauge + Name + Trend */}
         <div className="flex items-center gap-4">
@@ -402,7 +402,7 @@ export default function AIHealth() {
       {/* Hero: Network Score + Distribution + Timeline */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-8">
         {/* Network Score Gauge */}
-        <div className={`bg-surface-container-high rounded-lg p-6 border border-outline-variant/20 flex flex-col items-center justify-center ${scoreGlow(networkScore >= 85 ? 'healthy' : networkScore >= 65 ? 'watch' : networkScore >= 40 ? 'risk' : 'critical')}`}>
+        <div className={`bg-surface-container-high rounded-lg p-6 border border-outline-variant/20 flex flex-col items-center justify-center ${scoreGlow()}`}>
           <RadialGauge score={networkScore} size={160} strokeWidth={12} label="Network" />
           <div className={`flex items-center gap-1.5 mt-4 ${trendColor(networkTrend.trend)}`}>
             <span className={`material-symbols-outlined text-lg ${networkTrend.trend === 'degrading' ? 'trend-pulse' : ''}`}>
