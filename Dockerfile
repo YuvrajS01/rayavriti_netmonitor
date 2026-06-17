@@ -82,6 +82,7 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 COPY client/package.json ./client/
 RUN npm ci --workspace client
+RUN npm install --force @rolldown/binding-linux-x64-musl
 
 COPY client/ ./client/
 
