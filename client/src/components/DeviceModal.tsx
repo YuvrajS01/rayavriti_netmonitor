@@ -218,7 +218,7 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
                <button
                  onClick={handleScanPorts}
                  disabled={scanning}
-                  className="bg-primary text-on-primary disabled:opacity-60 font-bold py-2.5 px-4 rounded-lg tracking-wide uppercase hover:brightness-110 active:scale-95 transition-[filter,transform] text-xs flex items-center justify-center gap-2"
+                  className="bg-primary text-on-primary disabled:opacity-60 font-bold py-2.5 px-4 rounded-lg tracking-wide uppercase hover:bg-primary/90 transition-[background-color] text-xs flex items-center justify-center gap-2"
                >
                  <span className="material-symbols-outlined text-base">{scanning ? 'hourglass_top' : 'radar'}</span>
                  {scanning ? 'Scanning' : 'Scan Ports'}
@@ -256,7 +256,7 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
            <div className="bg-surface-container-high rounded-lg p-4 border border-outline-variant/20 mb-6">
              <h3 className="text-sm font-headline font-bold mb-4 uppercase tracking-wide">Live Response Time</h3>
              {loading ? (
-               <div className="h-64 flex items-center justify-center text-on-surface-variant text-sm animate-pulse">Loading data...</div>
+               <div className="h-64 flex items-center justify-center text-on-surface-variant text-sm">Loading data...</div>
              ) : chartData.length === 0 ? (
                <div className="h-64 flex items-center justify-center text-on-surface-variant text-sm">No metrics available</div>
              ) : (
@@ -287,7 +287,7 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
                     </div>
                     <div className="rounded-lg bg-surface-container-low px-3 py-2">
                       <p className="text-[10px] text-on-surface-variant uppercase tracking-wide">Outbound</p>
-                      <p className="text-sm font-bold text-sky-300">{formatMbps(latestTraffic?.outMbps)}</p>
+                      <p className="text-sm font-bold text-info">{formatMbps(latestTraffic?.outMbps)}</p>
                     </div>
                     <div className="rounded-lg bg-surface-container-low px-3 py-2">
                       <p className="text-[10px] text-on-surface-variant uppercase tracking-wide">Total</p>
@@ -296,7 +296,7 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
                   </div>
                 </div>
                 {loading ? (
-                  <div className="h-64 flex items-center justify-center text-on-surface-variant text-sm animate-pulse">Loading traffic...</div>
+                  <div className="h-64 flex items-center justify-center text-on-surface-variant text-sm">Loading traffic...</div>
                 ) : trafficData.length === 0 ? (
                   <div className="h-64 flex flex-col items-center justify-center text-center text-on-surface-variant text-sm px-6">
                     <span className="material-symbols-outlined text-3xl mb-2 text-outline">monitoring</span>
@@ -338,7 +338,7 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
 
            {/* Actions */}
            <div className="flex gap-4">
-              <button onClick={handleDelete} className="bg-error/10 text-error border border-error/30 font-bold py-3 px-6 rounded-lg tracking-wide uppercase hover:bg-error/20 active:scale-95 transition-[background-color,transform] w-full">
+              <button onClick={handleDelete} className="bg-error/10 text-error border border-error/30 font-bold py-3 px-6 rounded-lg tracking-wide uppercase hover:bg-error/20 transition-[background-color] w-full">
                Delete Device
              </button>
            </div>

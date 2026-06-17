@@ -30,7 +30,7 @@ function ActiveAlertsListInner({ alerts }: Props) {
             const icon = isCritical ? 'error' : isWarn ? 'warning' : 'info';
 
             return (
-              <div key={alert.id} className={`flex items-start gap-4 p-4 rounded-lg border ${bg} transition-[filter] hover:brightness-110`}>
+              <div key={alert.id} className={`flex items-start gap-4 p-4 rounded-lg border ${bg} transition-[background-color] hover:bg-surface-container-high`}>
                 <span className={`material-symbols-outlined ${color} mt-0.5`}>{icon}</span>
                 <div className="flex-1">
                   <div className="flex items-center justify-between mb-1">
