@@ -10,14 +10,14 @@ interface Props {
 function ResourceLoadChartInner({ systemInfo, onExpand }: Props) {
   return (
     <div
-      className="bg-surface-container-high rounded-xl p-4 border border-outline-variant/20 hover:border-primary/50 hover:shadow-[0_0_15px_rgba(217,253,58,0.1)] transition-[border-color,box-shadow] cursor-pointer group"
+      className="bg-surface-container-high rounded-lg p-4 border border-outline-variant/20 hover:border-primary/50 transition-[border-color] cursor-pointer group"
       role="button"
       tabIndex={0}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onExpand(); } }}
       onClick={onExpand}
     >
       <div className="flex justify-between items-center mb-3">
-        <h3 className="text-sm font-headline font-bold uppercase tracking-widest group-hover:text-primary transition-colors">Resource Load</h3>
+        <h3 className="text-sm font-headline font-bold uppercase tracking-wide group-hover:text-primary transition-colors">Resource Load</h3>
         <span className="material-symbols-outlined text-on-surface-variant group-hover:text-primary text-sm transition-colors">open_in_full</span>
       </div>
       <div className="space-y-4 mt-6">

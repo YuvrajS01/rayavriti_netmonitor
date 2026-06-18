@@ -10,26 +10,23 @@ import SectionHeader from '../components/ui/SectionHeader';
 
 function scoreColor(score: number) {
   if (score < 40) return 'text-error';
-  if (score < 70) return 'text-amber-400';
+  if (score < 70) return 'text-warning';
   return 'text-primary';
 }
 
 function scoreBg(score: number) {
-  if (score < 40) return '#ff4444';
-  if (score < 70) return '#f59e0b';
+  if (score < 40) return '#ff7351';
+  if (score < 70) return '#e5a910';
   return '#d9fd3a';
 }
 
-function scoreGlow(label: string) {
-  if (label === 'critical') return 'glow-critical';
-  if (label === 'risk') return 'glow-risk';
-  if (label === 'watch') return 'glow-watch';
-  return 'glow-healthy';
+function scoreGlow() {
+  return '';
 }
 
 function severityStyle(severity: string) {
   if (severity === 'critical') return 'text-error bg-error/10 border-error/25';
-  if (severity === 'warning') return 'text-amber-400 bg-amber-400/10 border-amber-400/25';
+  if (severity === 'warning') return 'text-warning bg-warning/10 border-warning/25';
   return 'text-primary bg-primary/10 border-primary/20';
 }
 
@@ -55,10 +52,10 @@ const FACTOR_LABELS: Record<keyof HealthFactors, string> = {
 
 const FACTOR_COLORS: Record<keyof HealthFactors, string> = {
   availability: '#d9fd3a',
-  latency: '#6ee7f7',
+  latency: '#6bb8c9',
   alerts: '#ff7351',
   stability: '#c084fc',
-  ports: '#4ade80',
+  ports: '#8cc63f',
 };
 
 // ── SVG Radial Gauge ───────────────────────────────────────────
@@ -96,13 +93,12 @@ function RadialGauge({ score, size = 140, strokeWidth = 10, label }: { score: nu
             '--gauge-circumference': circumference,
             '--gauge-offset': offset,
             strokeDashoffset: offset,
-            filter: `drop-shadow(0 0 8px ${scoreBg(score)}40)`,
           } as React.CSSProperties}
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className={`font-headline text-3xl font-black ${scoreColor(score)}`}>{score}</span>
-        {label && <span className="text-[10px] uppercase tracking-widest text-on-surface-variant mt-0.5">{label}</span>}
+        <span className={`font-headline text-3xl font-bold ${scoreColor(score)}`}>{score.toFixed(2)}</span>
+        {label && <span className="text-[10px] uppercase tracking-wide text-on-surface-variant mt-0.5">{label}</span>}
       </div>
     </div>
   );
@@ -128,7 +124,7 @@ function MiniGauge({ score, size = 72, strokeWidth = 6 }: { score: number; size?
           style={{ '--gauge-circumference': circumference, '--gauge-offset': offset, strokeDashoffset: offset } as React.CSSProperties}
         />
       </svg>
-      <span className={`absolute font-headline text-xl font-black ${scoreColor(score)}`}>{score.toFixed(2)}</span>
+      <span className={`absolute font-headline text-xl font-bold ${scoreColor(score)}`}>{score.toFixed(2)}</span>
     </div>
   );
 }
@@ -143,7 +139,7 @@ function FactorBreakdown({ factors }: { factors: HealthFactors }) {
         const factor = factors[key];
         return (
           <div key={key}>
-            <div className="flex justify-between text-[10px] uppercase tracking-widest mb-1">
+            <div className="flex justify-between text-[10px] uppercase tracking-wide mb-1">
               <span className="text-on-surface-variant">{FACTOR_LABELS[key]}</span>
               <span style={{ color: FACTOR_COLORS[key] }}>{factor.score.toFixed(2)}/100</span>
             </div>
@@ -167,9 +163,9 @@ function DistributionBar({ distribution }: { distribution: { critical: number; r
   if (total === 0) return null;
 
   const segments = [
-    { key: 'critical', count: distribution.critical, color: '#ff4444', label: 'Critical' },
+    { key: 'critical', count: distribution.critical, color: '#ff7351', label: 'Critical' },
     { key: 'risk', count: distribution.risk, color: '#ff7351', label: 'Risk' },
-    { key: 'watch', count: distribution.watch, color: '#f59e0b', label: 'Watch' },
+    { key: 'watch', count: distribution.watch, color: '#e5a910', label: 'Watch' },
     { key: 'healthy', count: distribution.healthy, color: '#d9fd3a', label: 'Healthy' },
   ].filter((s) => s.count > 0);
 
@@ -206,19 +202,19 @@ function DeviceScoreCard({ device, deviceInsights }: { device: DeviceHealth; dev
   const primaryIssue = issues.find((issue) => issue.severity !== 'info') || issues[0];
 
   return (
-    <div className={`bg-surface-container-high rounded-xl border border-outline-variant/20 overflow-hidden transition-[border-color,box-shadow] hover:border-outline-variant/40 ${scoreGlow(device.label)}`}>
+    <div className={`bg-surface-container-high rounded-lg border border-outline-variant/20 overflow-hidden transition-[border-color,box-shadow] hover:border-outline-variant/40 ${scoreGlow()}`}>
       <div className="p-5 grid grid-cols-1 lg:grid-cols-[auto_1fr] xl:grid-cols-[auto_1fr_280px] gap-5">
         {/* Left: Gauge + Name + Trend */}
         <div className="flex items-center gap-4">
           <MiniGauge score={device.score} />
           <div className="min-w-0">
             <h3 className="font-headline text-lg font-bold text-on-surface truncate">{device.deviceName}</h3>
-            <p className={`text-[10px] uppercase tracking-widest font-bold ${scoreColor(device.score)}`}>{device.label}</p>
+            <p className={`text-[10px] uppercase tracking-wide font-bold ${scoreColor(device.score)}`}>{device.label}</p>
             <div className={`flex items-center gap-1 mt-1.5 ${trendColor(device.trend)}`}>
               <span className={`material-symbols-outlined text-sm ${device.trend === 'degrading' ? 'trend-pulse' : ''}`}>
                 {trendIcon(device.trend)}
               </span>
-              <span className="text-[10px] uppercase tracking-widest font-bold">
+              <span className="text-[10px] uppercase tracking-wide font-bold">
                 {device.trend}{device.trendDelta !== 0 ? ` (${device.trendDelta > 0 ? '+' : ''}${device.trendDelta.toFixed(2)})` : ''}
               </span>
             </div>
@@ -229,19 +225,19 @@ function DeviceScoreCard({ device, deviceInsights }: { device: DeviceHealth; dev
         <div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
             <div className="bg-surface-container-low rounded-lg p-3">
-              <p className="text-[10px] uppercase tracking-widest text-on-surface-variant">Availability</p>
+              <p className="text-[10px] uppercase tracking-wide text-on-surface-variant">Availability</p>
               <p className="font-bold text-on-surface">{device.availabilityPercent}%</p>
             </div>
             <div className="bg-surface-container-low rounded-lg p-3">
-              <p className="text-[10px] uppercase tracking-widest text-on-surface-variant">Avg Response</p>
+              <p className="text-[10px] uppercase tracking-wide text-on-surface-variant">Avg Response</p>
               <p className="font-bold text-on-surface">{device.avgResponseMs}ms</p>
             </div>
             <div className="bg-surface-container-low rounded-lg p-3">
-              <p className="text-[10px] uppercase tracking-widest text-on-surface-variant">Alerts</p>
+              <p className="text-[10px] uppercase tracking-wide text-on-surface-variant">Alerts</p>
               <p className="font-bold text-on-surface">{device.activeAlerts}</p>
             </div>
             <div className="bg-surface-container-low rounded-lg p-3">
-              <p className="text-[10px] uppercase tracking-widest text-on-surface-variant">Open Ports</p>
+              <p className="text-[10px] uppercase tracking-wide text-on-surface-variant">Open Ports</p>
               <p className="font-bold text-on-surface">{device.openPorts}</p>
             </div>
           </div>
@@ -251,10 +247,10 @@ function DeviceScoreCard({ device, deviceInsights }: { device: DeviceHealth; dev
 
         {/* Right: Primary Issue + Insights */}
         <div className="bg-surface-container-low rounded-lg p-4 border border-outline-variant/15">
-          <p className="text-[10px] uppercase tracking-widest text-on-surface-variant mb-2">Primary Issue</p>
+          <p className="text-[10px] uppercase tracking-wide text-on-surface-variant mb-2">Primary Issue</p>
           <p className="text-sm font-bold text-on-surface leading-snug">{primaryIssue?.message || 'No issue detected'}</p>
           <div className="mt-4 pt-4 border-t border-outline-variant/15">
-            <p className="text-[10px] uppercase tracking-widest text-on-surface-variant mb-2">Related Insights</p>
+            <p className="text-[10px] uppercase tracking-wide text-on-surface-variant mb-2">Related Insights</p>
             {deviceInsights.length === 0 ? (
               <p className="text-xs text-on-surface-variant">No extra insights</p>
             ) : (
@@ -275,7 +271,7 @@ function DeviceScoreCard({ device, deviceInsights }: { device: DeviceHealth; dev
             onClick={() => setExpanded(!expanded)}
             className="w-full px-5 py-2.5 flex items-center justify-between text-xs text-on-surface-variant hover:text-on-surface transition-colors"
           >
-            <span className="uppercase tracking-widest font-bold">
+            <span className="uppercase tracking-wide font-bold">
               {expanded ? 'Hide' : 'Show'} all {issues.length} issues
             </span>
             <span className="material-symbols-outlined text-sm transition-transform" style={{ transform: expanded ? 'rotate(180deg)' : '' }}>
@@ -396,7 +392,7 @@ export default function AIHealth() {
         title="AI Health Score"
         subtitle="Weighted device risk scoring from availability, latency, alerts, stability, and port changes with trend analysis."
         action={
-          <button onClick={load} className="bg-primary text-on-primary font-bold py-3 px-5 rounded-lg tracking-widest uppercase hover:brightness-110 active:scale-95 transition-[filter,transform] text-xs flex items-center justify-center gap-2">
+          <button onClick={load} className="bg-primary text-on-primary font-bold py-2.5 px-5 rounded-lg tracking-wide uppercase hover:bg-primary/90 transition-[background-color] text-sm flex items-center justify-center gap-2">
             <span className="material-symbols-outlined text-base">refresh</span>
             Refresh
           </button>
@@ -406,35 +402,35 @@ export default function AIHealth() {
       {/* Hero: Network Score + Distribution + Timeline */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-8">
         {/* Network Score Gauge */}
-        <div className={`bg-surface-container-high rounded-xl p-6 border border-outline-variant/20 flex flex-col items-center justify-center ${scoreGlow(networkScore >= 85 ? 'healthy' : networkScore >= 65 ? 'watch' : networkScore >= 40 ? 'risk' : 'critical')}`}>
+        <div className={`bg-surface-container-high rounded-lg p-6 border border-outline-variant/20 flex flex-col items-center justify-center ${scoreGlow()}`}>
           <RadialGauge score={networkScore} size={160} strokeWidth={12} label="Network" />
           <div className={`flex items-center gap-1.5 mt-4 ${trendColor(networkTrend.trend)}`}>
             <span className={`material-symbols-outlined text-lg ${networkTrend.trend === 'degrading' ? 'trend-pulse' : ''}`}>
               {trendIcon(networkTrend.trend)}
             </span>
-            <span className="text-xs uppercase tracking-widest font-bold">
+            <span className="text-xs uppercase tracking-wide font-bold">
               {networkTrend.trend}
               {networkTrend.delta !== 0 && ` (${networkTrend.delta > 0 ? '+' : ''}${networkTrend.delta})`}
             </span>
           </div>
-          <p className="text-[10px] text-on-surface-variant uppercase tracking-widest mt-2">
+          <p className="text-[10px] text-on-surface-variant uppercase tracking-wide mt-2">
             {devices.length} device{devices.length !== 1 ? 's' : ''} monitored
           </p>
         </div>
 
         {/* Distribution + Top Risks */}
-        <div className="bg-surface-container-high rounded-xl p-6 border border-outline-variant/20 flex flex-col">
-          <h3 className="text-sm font-headline font-bold uppercase tracking-widest mb-4">Health Distribution</h3>
+        <div className="bg-surface-container-high rounded-lg p-6 border border-outline-variant/20 flex flex-col">
+          <h3 className="text-sm font-headline font-bold uppercase tracking-wide mb-4">Health Distribution</h3>
           <DistributionBar distribution={distribution} />
 
           {topRisks.length > 0 && (
             <div className="mt-6 pt-4 border-t border-outline-variant/15">
-              <h4 className="text-[10px] uppercase tracking-widest text-on-surface-variant mb-3 font-bold">Top Risks</h4>
+              <h4 className="text-[10px] uppercase tracking-wide text-on-surface-variant mb-3 font-bold">Top Risks</h4>
               <div className="space-y-2.5">
                 {topRisks.map((risk) => (
                   <div key={risk.deviceId} className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-full bg-surface-container-low grid place-items-center">
-                      <span className={`font-headline text-sm font-black ${scoreColor(risk.score)}`}>{risk.score.toFixed(2)}</span>
+                      <span className={`font-headline text-sm font-bold ${scoreColor(risk.score)}`}>{risk.score.toFixed(2)}</span>
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-bold text-on-surface truncate">{risk.deviceName}</p>
@@ -451,8 +447,8 @@ export default function AIHealth() {
         </div>
 
         {/* Health Timeline */}
-        <div className="bg-surface-container-high rounded-xl p-6 border border-outline-variant/20">
-          <h3 className="text-sm font-headline font-bold uppercase tracking-widest mb-4">12-Hour Timeline</h3>
+        <div className="bg-surface-container-high rounded-lg p-6 border border-outline-variant/20">
+          <h3 className="text-sm font-headline font-bold uppercase tracking-wide mb-4">12-Hour Timeline</h3>
           {timelineData.length < 2 ? (
             <div className="flex items-center justify-center h-40 text-xs text-on-surface-variant">
               Not enough history data yet
@@ -468,14 +464,14 @@ export default function AIHealth() {
                 </defs>
                 <XAxis
                   dataKey="time"
-                  tick={{ fill: '#8a8a78', fontSize: 9 }}
+                  tick={{ fill: '#77766d', fontSize: 9 }}
                   tickLine={false}
                   axisLine={false}
                   interval="preserveStartEnd"
                 />
                 <YAxis
                   domain={[0, 100]}
-                  tick={{ fill: '#8a8a78', fontSize: 9 }}
+                  tick={{ fill: '#77766d', fontSize: 9 }}
                   tickLine={false}
                   axisLine={false}
                   width={30}
@@ -498,27 +494,27 @@ export default function AIHealth() {
 
       {/* Summary Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-5 mb-6">
-        <div className="bg-surface-container-low rounded-xl p-5 border border-outline-variant/20">
-          <p className="text-[10px] text-on-surface-variant uppercase tracking-[0.2em] mb-1">Average Score</p>
-          <p className={`font-headline text-3xl font-black ${scoreColor(networkScore)}`}>{networkScore}</p>
+        <div className="bg-surface-container-low rounded-lg p-5 border border-outline-variant/20">
+          <p className="text-[10px] text-on-surface-variant uppercase tracking-wide mb-1">Average Score</p>
+          <p className={`font-headline text-3xl font-bold ${scoreColor(networkScore)}`}>{networkScore.toFixed(2)}</p>
         </div>
-        <div className="bg-surface-container-low rounded-xl p-5 border border-outline-variant/20">
-          <p className="text-[10px] text-on-surface-variant uppercase tracking-[0.2em] mb-1">Critical Devices</p>
-          <p className="font-headline text-3xl font-black text-error">{distribution.critical}</p>
+        <div className="bg-surface-container-low rounded-lg p-5 border border-outline-variant/20">
+          <p className="text-[10px] text-on-surface-variant uppercase tracking-wide mb-1">Critical Devices</p>
+          <p className="font-headline text-3xl font-bold text-error">{distribution.critical}</p>
         </div>
-        <div className="bg-surface-container-low rounded-xl p-5 border border-outline-variant/20">
-          <p className="text-[10px] text-on-surface-variant uppercase tracking-[0.2em] mb-1">Watch List</p>
-          <p className="font-headline text-3xl font-black text-amber-400">{distribution.watch + distribution.risk}</p>
+        <div className="bg-surface-container-low rounded-lg p-5 border border-outline-variant/20">
+          <p className="text-[10px] text-on-surface-variant uppercase tracking-wide mb-1">Watch List</p>
+          <p className="font-headline text-3xl font-bold text-warning">{distribution.watch + distribution.risk}</p>
         </div>
-        <div className="bg-surface-container-low rounded-xl p-5 border border-outline-variant/20">
-          <p className="text-[10px] text-on-surface-variant uppercase tracking-[0.2em] mb-1">Open Issues</p>
-          <p className="font-headline text-3xl font-black text-primary">{totalIssues}</p>
+        <div className="bg-surface-container-low rounded-lg p-5 border border-outline-variant/20">
+          <p className="text-[10px] text-on-surface-variant uppercase tracking-wide mb-1">Open Issues</p>
+          <p className="font-headline text-3xl font-bold text-primary">{totalIssues}</p>
         </div>
       </div>
 
       {/* Error State */}
       {error && !loading && (
-        <div className="bg-error/10 border border-error/30 rounded-xl p-6 text-center mb-6">
+        <div className="bg-error/10 border border-error/30 rounded-lg p-6 text-center mb-6">
           <span className="material-symbols-outlined text-error text-3xl mb-2">error</span>
           <p className="text-sm text-error font-bold">{error}</p>
           <button onClick={load} className="mt-3 text-xs text-on-surface-variant hover:text-primary transition-colors underline">
@@ -528,7 +524,7 @@ export default function AIHealth() {
       )}
 
       {/* Filters + Sort */}
-      <div className="bg-surface-container-high rounded-xl p-4 border border-outline-variant/20 mb-6 flex flex-col lg:flex-row gap-3">
+      <div className="bg-surface-container-high rounded-lg p-4 border border-outline-variant/20 mb-6 flex flex-col lg:flex-row gap-3">
         <input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
@@ -552,9 +548,9 @@ export default function AIHealth() {
 
       {/* Device Cards */}
       {loading ? (
-        <div className="bg-surface-container-high rounded-xl border border-outline-variant/20 py-16 text-center text-on-surface-variant animate-pulse">Calculating health scores...</div>
+        <div className="bg-surface-container-high rounded-lg border border-outline-variant/20 py-16 text-center text-on-surface-variant">Calculating health scores...</div>
       ) : error && !data ? null : filtered.length === 0 ? (
-        <div className="bg-surface-container-high rounded-xl border border-outline-variant/20 py-16 text-center text-on-surface-variant">No devices match this view</div>
+        <div className="bg-surface-container-high rounded-lg border border-outline-variant/20 py-16 text-center text-on-surface-variant">No devices match this view</div>
       ) : (
         <div className="space-y-4">
           {filtered.map((device) => (

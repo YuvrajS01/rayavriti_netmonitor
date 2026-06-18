@@ -18,9 +18,9 @@ export default function Card({ children, variant = 'high', hover = false, border
     <div
       className={[
         bgMap[variant],
-        'rounded-xl',
+        'rounded-lg',
         borderless ? '' : 'border border-outline-variant/20',
-        hover ? 'hover:border-primary/50 hover:shadow-[0_0_15px_rgba(217,253,58,0.1)] transition-[border-color,box-shadow] cursor-pointer' : '',
+        hover ? 'hover:border-primary/50 transition-[border-color] cursor-pointer' : '',
         className,
       ].filter(Boolean).join(' ')}
       {...props}

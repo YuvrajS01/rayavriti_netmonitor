@@ -36,7 +36,7 @@ function DonutCenter({ cx, cy, total }: { cx: number; cy: number; total: number 
   return (
     <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle" fill="#f4f1e6">
       <tspan x={cx} dy="-0.4em" fontSize="22" fontWeight="bold" fontFamily="'Space Grotesk', sans-serif">{total}</tspan>
-      <tspan x={cx} dy="1.4em" fontSize="10" fill="#8a8a78" fontFamily="'Space Grotesk', sans-serif">DEVICES</tspan>
+      <tspan x={cx} dy="1.4em" fontSize="10" fill="#77766d" fontFamily="'Space Grotesk', sans-serif">DEVICES</tspan>
     </text>
   );
 }
@@ -46,8 +46,8 @@ function StatusDistributionInner({ metrics }: Props) {
   const donutTotal = useMemo(() => donutData.reduce((s, d) => s + d.value, 0), [donutData]);
 
   return (
-    <div className="bg-surface-container-high rounded-xl p-4 border border-outline-variant/20 flex flex-col">
-      <h3 className="text-sm font-headline font-bold mb-3 uppercase tracking-widest">Status Distribution</h3>
+    <div className="bg-surface-container-high rounded-lg p-4 border border-outline-variant/20 flex flex-col">
+      <h3 className="text-sm font-headline font-bold mb-3 uppercase tracking-wide">Status Distribution</h3>
       {donutTotal === 0 ? (
         <p className="text-xs text-on-surface-variant text-center my-auto py-8">No data yet</p>
       ) : (

@@ -38,7 +38,7 @@ function ToastContainer({ toasts, onRemove }: { toasts: Toast[]; onRemove: (id: 
         <div
           key={toast.id}
           role="status"
-          className={`pointer-events-auto max-w-sm px-4 py-3 rounded-xl border shadow-lg flex items-center gap-3 animate-slide-up backdrop-blur-sm ${
+          className={`pointer-events-auto max-w-sm px-4 py-3 rounded-lg border shadow-lg flex items-center gap-3 animate-slide-up ${
             toast.type === 'success'
               ? 'bg-primary/10 border-primary/30 text-primary'
               : toast.type === 'error'

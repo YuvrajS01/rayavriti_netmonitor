@@ -8,24 +8,24 @@ export const TOOLTIP_STYLE: CSSProperties = {
   color: 'var(--color-on-surface)',
 };
 
-export const DEVICE_COLORS = ['#d9fd3a', '#ff7351', '#6ee7f7', '#c084fc', '#4ade80', '#fb923c'];
+export const DEVICE_COLORS = ['#d9fd3a', '#ff7351', '#6bb8c9', '#c084fc', '#8cc63f', '#fb923c'];
 
-export const CHART_COLORS = ['#6ee7f7', '#d9fd3a', '#f59e0b', '#c084fc', '#fb923c', '#4ade80', '#f472b6', '#ff7351'];
+export const CHART_COLORS = ['#6bb8c9', '#d9fd3a', '#e5a910', '#c084fc', '#fb923c', '#8cc63f', '#f472b6', '#ff7351'];
 
 export const PROTOCOL_COLORS: Record<string, string> = {
-  TCP: '#6ee7f7',
+  TCP: '#6bb8c9',
   UDP: '#d9fd3a',
-  ICMP: '#f59e0b',
+  ICMP: '#e5a910',
   IGMP: '#c084fc',
   GRE: '#fb923c',
-  SCTP: '#4ade80',
+  SCTP: '#8cc63f',
   ESP: '#f472b6',
 };
 
-export const AXIS_TICK_STYLE = { fill: '#8a8a78', fontSize: 10 };
+export const AXIS_TICK_STYLE = { fill: '#77766d', fontSize: 10 };
 
 export const LEGEND_STYLE = { fontSize: 11, paddingTop: 8 };
 
 export function legendFormatter(value: string): ReactNode {
-  return <span style={{ color: '#c8c5b0' }}>{value}</span>;
+  return <span style={{ color: '#adaba1' }}>{value}</span>;
 }

@@ -8,15 +8,15 @@ interface Props {
 
 function LatestMetricsTableInner({ metrics }: Props) {
   return (
-    <div className="bg-surface-container-high rounded-xl p-6 border border-outline-variant/20 flex flex-col shadow-lg">
+    <div className="bg-surface-container-high rounded-lg p-6 border border-outline-variant/20 flex flex-col">
       <div className="flex items-center gap-2 mb-6">
         <span className="material-symbols-outlined text-primary text-xl">speed</span>
-        <h3 className="text-sm font-headline font-bold uppercase tracking-widest text-on-surface">Latest Metrics</h3>
+        <h3 className="text-sm font-headline font-bold uppercase tracking-wide text-on-surface">Latest Metrics</h3>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-left border-collapse">
           <thead>
-            <tr className="text-[10px] uppercase tracking-widest text-on-surface-variant border-b border-outline-variant/20">
+            <tr className="text-xs uppercase tracking-wide text-on-surface-variant border-b border-outline-variant/20">
               <th className="pb-3 font-medium">Device</th>
               <th className="pb-3 font-medium">Protocol</th>
               <th className="pb-3 font-medium">Status</th>
@@ -28,7 +28,7 @@ function LatestMetricsTableInner({ metrics }: Props) {
             {metrics.slice(0, 15).map((m, i) => {
               const isDown = m.status === 'down';
               const isWarn = m.status === 'warning' || m.status === 'degraded';
-              const sc = isDown ? 'text-error bg-error/10 border-error/20' : isWarn ? 'text-amber-400 bg-amber-400/10 border-amber-400/20' : 'text-primary bg-primary/10 border-primary/20';
+              const sc = isDown ? 'text-error bg-error/10 border-error/20' : isWarn ? 'text-warning bg-warning/10 border-warning/20' : 'text-primary bg-primary/10 border-primary/20';
               const statusIcon = isDown ? 'cancel' : isWarn ? 'warning' : 'check_circle';
 
               return (
@@ -43,7 +43,7 @@ function LatestMetricsTableInner({ metrics }: Props) {
                     </div>
                   </td>
                   <td className="py-3">
-                    <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border ${sc} text-[10px] font-bold uppercase tracking-widest`}>
+                    <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border ${sc} text-xs font-bold uppercase tracking-wide`}>
                       <span className="material-symbols-outlined text-[14px]">{statusIcon}</span>
                       {m.status}
                     </div>
@@ -56,9 +56,9 @@ function LatestMetricsTableInner({ metrics }: Props) {
           </tbody>
         </table>
         {metrics.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-12 opacity-50">
+          <div className="flex flex-col items-center justify-center py-12">
             <span className="material-symbols-outlined text-4xl mb-2">monitoring</span>
-            <p className="text-xs text-on-surface-variant uppercase tracking-widest">No metrics data yet</p>
+            <p className="text-xs text-on-surface-variant uppercase tracking-wide">No metrics data yet</p>
           </div>
         )}
       </div>

@@ -1,9 +1,9 @@
 const STATUS_COLORS: Record<string, string> = {
   up: '#d9fd3a',
   ok: '#d9fd3a',
-  warning: '#f59e0b',
-  degraded: '#f59e0b',
-  down: '#ff4444',
+  warning: '#e5a910',
+  degraded: '#e5a910',
+  down: '#ff7351',
   unknown: '#6b7280',
 };
 
@@ -28,21 +28,21 @@ export function statusLabel(status: string): string {
 
 export function statusTextColor(status: string): string {
   if (status === 'down') return 'text-error';
-  if (status === 'warning' || status === 'degraded') return 'text-amber-400';
+  if (status === 'warning' || status === 'degraded') return 'text-warning';
   if (status === 'unknown') return 'text-outline';
   return 'text-primary';
 }
 
 export function statusBgColor(status: string): string {
   if (status === 'down') return 'bg-error';
-  if (status === 'warning' || status === 'degraded') return 'bg-amber-500';
+  if (status === 'warning' || status === 'degraded') return 'bg-warning';
   if (status === 'unknown') return 'bg-outline';
   return 'bg-primary';
 }
 
 export function statusBorderColor(status: string): string {
   if (status === 'down') return 'border-error';
-  if (status === 'warning' || status === 'degraded') return 'border-amber-500';
+  if (status === 'warning' || status === 'degraded') return 'border-warning';
   if (status === 'unknown') return 'border-outline-variant';
   return 'border-primary';
 }
@@ -61,19 +61,19 @@ export function severityIcon(severity: string): string {
 
 export function severityTextColor(severity: string): string {
   if (severity === 'critical') return 'text-error';
-  if (severity === 'warning') return 'text-amber-500';
+  if (severity === 'warning') return 'text-warning';
   return 'text-primary';
 }
 
 export function severityBgColor(severity: string): string {
   if (severity === 'critical') return 'bg-error/10';
-  if (severity === 'warning') return 'bg-amber-500/10';
+  if (severity === 'warning') return 'bg-warning/10';
   return 'bg-primary/10';
 }
 
 export function severityBorderColor(severity: string): string {
   if (severity === 'critical') return 'border-error';
-  if (severity === 'warning') return 'border-amber-500';
+  if (severity === 'warning') return 'border-warning';
   return 'border-primary';
 }
 

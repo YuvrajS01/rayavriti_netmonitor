@@ -173,13 +173,13 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
         aria-modal="true"
         aria-label={`Device details for ${device.name}`}
         tabIndex={-1}
-        className="bg-surface-container-low border border-outline-variant/30 rounded-xl w-full max-w-3xl overflow-hidden shadow-2xl flex flex-col outline-none"
+        className="bg-surface-container-low border border-outline-variant/30 rounded-lg w-full max-w-3xl overflow-hidden flex flex-col outline-none"
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
         <div className="p-6 border-b border-outline-variant/20 flex justify-between items-start">
           <div>
-            <h2 className="font-headline text-3xl font-black text-on-surface uppercase tracking-tight">{device.name}</h2>
+            <h2 className="font-headline text-3xl font-bold text-on-surface uppercase tracking-tight">{device.name}</h2>
             <p className="text-on-surface-variant text-sm font-mono">{device.protocol === 'http' || device.protocol === 'https' ? `${device.protocol}://${device.ipAddress}` : device.ipAddress}{device.port > 0 && !['http','https'].includes(device.protocol) ? `:${device.port}` : ''} ({device.protocol.toUpperCase()})</p>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-surface-container-highest rounded-full transition-colors" aria-label="Close dialog">
@@ -192,33 +192,33 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
            {/* Summary Stats */}
            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
              <div className="bg-surface-container-high p-4 rounded-lg">
-               <p className="text-[10px] text-on-surface-variant uppercase tracking-widest mb-1">Status</p>
-               <p className={`font-bold uppercase ${latestMetric?.status === 'down' ? 'text-error' : (latestMetric?.status === 'warning' || latestMetric?.status === 'degraded' ? 'text-amber-500' : 'text-primary')}`}>{latestMetric?.status || 'UNKNOWN'}</p>
+               <p className="text-[10px] text-on-surface-variant uppercase tracking-wide mb-1">Status</p>
+               <p className={`font-bold uppercase ${latestMetric?.status === 'down' ? 'text-error' : (latestMetric?.status === 'warning' || latestMetric?.status === 'degraded' ? 'text-warning' : 'text-primary')}`}>{latestMetric?.status || 'UNKNOWN'}</p>
              </div>
              <div className="bg-surface-container-high p-4 rounded-lg">
-               <p className="text-[10px] text-on-surface-variant uppercase tracking-widest mb-1">Response</p>
+               <p className="text-[10px] text-on-surface-variant uppercase tracking-wide mb-1">Response</p>
                 <p className="font-bold text-on-surface">{latestMetric?.responseTime ?? '-'} ms</p>
              </div>
              <div className="bg-surface-container-high p-4 rounded-lg">
-               <p className="text-[10px] text-on-surface-variant uppercase tracking-widest mb-1">Interval</p>
+               <p className="text-[10px] text-on-surface-variant uppercase tracking-wide mb-1">Interval</p>
                 <p className="font-bold text-on-surface">{device.interval}s</p>
              </div>
              <div className="bg-surface-container-high p-4 rounded-lg">
-               <p className="text-[10px] text-on-surface-variant uppercase tracking-widest mb-1">Protocol</p>
+               <p className="text-[10px] text-on-surface-variant uppercase tracking-wide mb-1">Protocol</p>
                <p className="font-bold text-on-surface uppercase">{device.protocol}</p>
              </div>
            </div>
 
-           <div className="bg-surface-container-high rounded-xl p-4 border border-outline-variant/20 mb-6">
+           <div className="bg-surface-container-high rounded-lg p-4 border border-outline-variant/20 mb-6">
              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
                <div>
-                 <h3 className="text-sm font-headline font-bold uppercase tracking-widest">Port Inventory</h3>
+                 <h3 className="text-sm font-headline font-bold uppercase tracking-wide">Port Inventory</h3>
                  <p className="text-xs text-on-surface-variant mt-1">{openPorts.length} open of {ports.length || 0} scanned ports</p>
                </div>
                <button
                  onClick={handleScanPorts}
                  disabled={scanning}
-                  className="bg-primary text-on-primary disabled:opacity-60 font-bold py-2.5 px-4 rounded-lg tracking-widest uppercase hover:brightness-110 active:scale-95 transition-[filter,transform] text-xs flex items-center justify-center gap-2"
+                  className="bg-primary text-on-primary disabled:opacity-60 font-bold py-2.5 px-4 rounded-lg tracking-wide uppercase hover:bg-primary/90 transition-[background-color] text-xs flex items-center justify-center gap-2"
                >
                  <span className="material-symbols-outlined text-base">{scanning ? 'hourglass_top' : 'radar'}</span>
                  {scanning ? 'Scanning' : 'Scan Ports'}
@@ -242,7 +242,7 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
                          </div>
                        </div>
                        <div className="text-right">
-                         <p className={`text-[10px] font-bold uppercase tracking-widest ${isOpen ? 'text-primary' : 'text-outline'}`}>{port.state}</p>
+                         <p className={`text-[10px] font-bold uppercase tracking-wide ${isOpen ? 'text-primary' : 'text-outline'}`}>{port.state}</p>
                          {typeof response === 'number' && <p className="text-[10px] text-on-surface-variant">{response}ms</p>}
                        </div>
                      </div>
@@ -253,17 +253,17 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
            </div>
 
            {/* Graph */}
-           <div className="bg-surface-container-high rounded-xl p-4 border border-outline-variant/20 mb-6">
-             <h3 className="text-sm font-headline font-bold mb-4 uppercase tracking-widest">Live Response Time</h3>
+           <div className="bg-surface-container-high rounded-lg p-4 border border-outline-variant/20 mb-6">
+             <h3 className="text-sm font-headline font-bold mb-4 uppercase tracking-wide">Live Response Time</h3>
              {loading ? (
-               <div className="h-64 flex items-center justify-center text-on-surface-variant text-sm animate-pulse">Loading data...</div>
+               <div className="h-64 flex items-center justify-center text-on-surface-variant text-sm">Loading data...</div>
              ) : chartData.length === 0 ? (
                <div className="h-64 flex items-center justify-center text-on-surface-variant text-sm">No metrics available</div>
              ) : (
                <ResponsiveContainer width="100%" height={256}>
                  <LineChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                   <XAxis dataKey="time" tick={{ fill: '#8a8a78', fontSize: 10 }} tickLine={false} axisLine={false} />
-                   <YAxis tick={{ fill: '#8a8a78', fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={(v) => `${v}ms`} />
+                   <XAxis dataKey="time" tick={{ fill: '#77766d', fontSize: 10 }} tickLine={false} axisLine={false} />
+                   <YAxis tick={{ fill: '#77766d', fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={(v) => `${v}ms`} />
                     <Tooltip
                        contentStyle={TOOLTIP_STYLE}
                      />
@@ -274,29 +274,29 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
             </div>
 
             {supportsTraffic && (
-              <div className="bg-surface-container-high rounded-xl p-4 border border-outline-variant/20 mb-6">
+              <div className="bg-surface-container-high rounded-lg p-4 border border-outline-variant/20 mb-6">
                 <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4 mb-4">
                   <div>
-                    <h3 className="text-sm font-headline font-bold uppercase tracking-widest">Live Traffic</h3>
+                    <h3 className="text-sm font-headline font-bold uppercase tracking-wide">Live Traffic</h3>
                     <p className="text-xs text-on-surface-variant mt-1">{activeInterfaces.length ? `${activeInterfaces.length} SNMP interfaces reporting counters` : 'Waiting for SNMP interface counters'}</p>
                   </div>
                   <div className="grid grid-cols-3 gap-2 min-w-full lg:min-w-[320px]">
                     <div className="rounded-lg bg-surface-container-low px-3 py-2">
-                      <p className="text-[10px] text-on-surface-variant uppercase tracking-widest">Inbound</p>
+                      <p className="text-[10px] text-on-surface-variant uppercase tracking-wide">Inbound</p>
                       <p className="text-sm font-bold text-primary">{formatMbps(latestTraffic?.inMbps)}</p>
                     </div>
                     <div className="rounded-lg bg-surface-container-low px-3 py-2">
-                      <p className="text-[10px] text-on-surface-variant uppercase tracking-widest">Outbound</p>
-                      <p className="text-sm font-bold text-sky-300">{formatMbps(latestTraffic?.outMbps)}</p>
+                      <p className="text-[10px] text-on-surface-variant uppercase tracking-wide">Outbound</p>
+                      <p className="text-sm font-bold text-info">{formatMbps(latestTraffic?.outMbps)}</p>
                     </div>
                     <div className="rounded-lg bg-surface-container-low px-3 py-2">
-                      <p className="text-[10px] text-on-surface-variant uppercase tracking-widest">Total</p>
+                      <p className="text-[10px] text-on-surface-variant uppercase tracking-wide">Total</p>
                       <p className="text-sm font-bold text-on-surface">{formatMbps(latestTraffic?.totalMbps)}</p>
                     </div>
                   </div>
                 </div>
                 {loading ? (
-                  <div className="h-64 flex items-center justify-center text-on-surface-variant text-sm animate-pulse">Loading traffic...</div>
+                  <div className="h-64 flex items-center justify-center text-on-surface-variant text-sm">Loading traffic...</div>
                 ) : trafficData.length === 0 ? (
                   <div className="h-64 flex flex-col items-center justify-center text-center text-on-surface-variant text-sm px-6">
                     <span className="material-symbols-outlined text-3xl mb-2 text-outline">monitoring</span>
@@ -306,8 +306,8 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
                 ) : (
                   <ResponsiveContainer width="100%" height={256}>
                     <LineChart data={trafficData} margin={{ top: 10, right: 10, left: -16, bottom: 0 }}>
-                      <XAxis dataKey="time" tick={{ fill: '#8a8a78', fontSize: 10 }} tickLine={false} axisLine={false} />
-                      <YAxis tick={{ fill: '#8a8a78', fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={(v) => `${v}M`} />
+                      <XAxis dataKey="time" tick={{ fill: '#77766d', fontSize: 10 }} tickLine={false} axisLine={false} />
+                      <YAxis tick={{ fill: '#77766d', fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={(v) => `${v}M`} />
                        <Tooltip
                          formatter={(value) => formatMbps(Number(value))}
                          contentStyle={TOOLTIP_STYLE}
@@ -324,9 +324,9 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
                      <div key={iface.index} className="flex items-center justify-between rounded-lg bg-surface-container-low border border-outline-variant/15 px-3 py-2">
                        <div className="min-w-0">
                          <p className="text-xs font-bold text-on-surface truncate">{iface.name}</p>
-                         <p className="text-[10px] text-on-surface-variant uppercase tracking-widest">ifIndex {iface.index}</p>
+                         <p className="text-[10px] text-on-surface-variant uppercase tracking-wide">ifIndex {iface.index}</p>
                        </div>
-                       <span className={`text-[10px] font-bold uppercase tracking-widest ${iface.operStatus === 1 ? 'text-primary' : 'text-outline'}`}>
+                       <span className={`text-[10px] font-bold uppercase tracking-wide ${iface.operStatus === 1 ? 'text-primary' : 'text-outline'}`}>
                          {iface.operStatus === 1 ? 'Up' : 'Seen'}
                        </span>
                      </div>
@@ -338,7 +338,7 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
 
            {/* Actions */}
            <div className="flex gap-4">
-              <button onClick={handleDelete} className="bg-error/10 text-error border border-error/30 font-bold py-3 px-6 rounded-lg tracking-widest uppercase hover:bg-error/20 active:scale-95 transition-[background-color,transform] w-full">
+              <button onClick={handleDelete} className="bg-error/10 text-error border border-error/30 font-bold py-3 px-6 rounded-lg tracking-wide uppercase hover:bg-error/20 transition-[background-color] w-full">
                Delete Device
              </button>
            </div>

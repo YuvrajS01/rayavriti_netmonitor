@@ -78,6 +78,7 @@ services:
         required: false
     volumes:
       - .:/app
+      - root-node-modules:/app/node_modules
       - client-node-modules:/app/client/node_modules
     command: npm --workspace client run dev -- --host 0.0.0.0
     depends_on:
@@ -118,4 +119,6 @@ volumes:
   backend-go-modules:
     driver: local
   client-node-modules:
+    driver: local
+  root-node-modules:
     driver: local

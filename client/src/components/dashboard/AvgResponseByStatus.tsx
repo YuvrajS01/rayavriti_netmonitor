@@ -26,8 +26,8 @@ function AvgResponseByStatusInner({ metrics }: Props) {
   }, [metrics]);
 
   return (
-    <div className="bg-surface-container-high rounded-xl p-4 border border-outline-variant/20">
-      <h3 className="text-sm font-headline font-bold mb-3 uppercase tracking-widest">Avg Response by Status</h3>
+    <div className="bg-surface-container-high rounded-lg p-4 border border-outline-variant/20">
+      <h3 className="text-sm font-headline font-bold mb-3 uppercase tracking-wide">Avg Response by Status</h3>
       <div className="space-y-3 mt-2">
         {rows.map((r) => (
           <div key={r.key}>

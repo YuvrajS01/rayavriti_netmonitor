@@ -68,11 +68,11 @@ export default function DeviceAddModal({ open, onClose, onAdded }: Props) {
 
   return (
     <div className="fixed inset-0 z-[90] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Add new device">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-surface-container-low rounded-2xl border border-outline-variant/20 shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+      <div className="absolute inset-0 bg-black/60 " onClick={onClose} />
+      <div className="relative bg-surface-container-low rounded-lg border border-outline-variant/20 w-full max-w-lg max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between p-6 border-b border-outline-variant/20">
           <div>
-            <h2 className="font-headline text-xl font-bold text-on-surface uppercase tracking-widest">New Device</h2>
+            <h2 className="font-headline text-xl font-bold text-on-surface uppercase tracking-wide">New Device</h2>
             <p className="text-xs text-on-surface-variant mt-1">Add a node to your monitoring network</p>
           </div>
           <button onClick={onClose} className="material-symbols-outlined text-on-surface-variant hover:text-on-surface transition-colors" aria-label="Close">
@@ -82,20 +82,20 @@ export default function DeviceAddModal({ open, onClose, onAdded }: Props) {
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div>
-            <label className="block text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-1.5">Device Name *</label>
+            <label className="block text-[10px] font-bold uppercase tracking-wide text-on-surface-variant mb-1.5">Device Name *</label>
             <input name="name" required placeholder="e.g. Core Router 01" className={`${inputClass} w-full ${borderClass('name')}`} />
             {errors.name && <p className="text-error text-[10px] mt-1">{errors.name}</p>}
           </div>
 
           <div>
-            <label className="block text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-1.5">Host / IP Address *</label>
+            <label className="block text-[10px] font-bold uppercase tracking-wide text-on-surface-variant mb-1.5">Host / IP Address *</label>
             <input name="host" required placeholder="e.g. 192.168.1.1 or example.com" className={`${inputClass} w-full ${borderClass('host')}`} />
             {errors.host && <p className="text-error text-[10px] mt-1">{errors.host}</p>}
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-1.5">Protocol</label>
+              <label className="block text-[10px] font-bold uppercase tracking-wide text-on-surface-variant mb-1.5">Protocol</label>
               <select
                 name="protocol"
                 value={protocol}
@@ -119,7 +119,7 @@ export default function DeviceAddModal({ open, onClose, onAdded }: Props) {
               </select>
             </div>
             <div>
-              <label className="block text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-1.5">Port</label>
+              <label className="block text-[10px] font-bold uppercase tracking-wide text-on-surface-variant mb-1.5">Port</label>
               {['https', 'http', 'snmp', 'port'].includes(protocol) ? (
                 <>
                   <input
@@ -144,7 +144,7 @@ export default function DeviceAddModal({ open, onClose, onAdded }: Props) {
           {protocol === 'snmp' && (
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-1.5">SNMP Community</label>
+                <label className="block text-[10px] font-bold uppercase tracking-wide text-on-surface-variant mb-1.5">SNMP Community</label>
                 <input
                   value={snmpCommunity}
                   onChange={(e) => setSnmpCommunity(e.target.value)}
@@ -153,7 +153,7 @@ export default function DeviceAddModal({ open, onClose, onAdded }: Props) {
                 />
               </div>
               <div>
-                <label className="block text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-1.5">SNMP Version</label>
+                <label className="block text-[10px] font-bold uppercase tracking-wide text-on-surface-variant mb-1.5">SNMP Version</label>
                 <select value={snmpVersion} onChange={(e) => setSnmpVersion(e.target.value)} className={`${inputClass} w-full cursor-pointer`}>
                   <option value="2c">v2c</option>
                   <option value="1">v1</option>
@@ -163,7 +163,7 @@ export default function DeviceAddModal({ open, onClose, onAdded }: Props) {
           )}
 
           <div>
-            <label className="block text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-1.5">Check Interval (seconds)</label>
+            <label className="block text-[10px] font-bold uppercase tracking-wide text-on-surface-variant mb-1.5">Check Interval (seconds)</label>
             <input name="interval" type="number" min="10" defaultValue={60} className={`${inputClass} w-full`} />
           </div>
 
