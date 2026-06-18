@@ -5,6 +5,9 @@ import {
 } from '../api/client';
 import { useSocket } from '../hooks/useSocket';
 import type { CapturedPacket, CaptureSession, NetworkInterface } from '../api/types';
+import { formatBytes } from '../utils/formatters';
+import SectionHeader from '../components/ui/SectionHeader';
+import EmptyState from '../components/ui/EmptyState';
 
 const PROTO_COLORS: Record<string, { text: string; bg: string; border: string }> = {
   TCP: { text: 'var(--color-secondary)', bg: 'color-mix(in srgb, var(--color-secondary) 8%, transparent)', border: 'color-mix(in srgb, var(--color-secondary) 20%, transparent)' },
@@ -15,14 +18,6 @@ const PROTO_COLORS: Record<string, { text: string; bg: string; border: string }>
 
 function getProtoStyle(proto: string) {
   return PROTO_COLORS[proto] || PROTO_COLORS.UNKNOWN;
-}
-
-function formatBytes(bytes: number): string {
-  if (bytes === 0) return '0 B';
-  const units = ['B', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(1024));
-  const val = bytes / Math.pow(1024, i);
-  return `${val.toFixed(i > 0 ? 1 : 0)} ${units[i]}`;
 }
 
 const HexDump = ({ hex }: { hex: string }) => {
@@ -181,19 +176,15 @@ export default function PacketCapture() {
 
   return (
     <div>
-      <header className="mb-8">
-        <h1 className="font-headline text-5xl font-black text-on-surface uppercase tracking-tight mb-2">
-          Packet Capture
-        </h1>
-        <p className="text-on-surface-variant font-body max-w-xl">
-          Live packet sniffing and analysis. Capture, inspect, and analyze network traffic in real-time.
-        </p>
-      </header>
+      <SectionHeader
+        title="Packet Capture"
+        subtitle="Capture, inspect, and analyze network traffic in real-time."
+      />
 
-      <div className="bg-surface-container-high rounded-xl p-5 border border-outline-variant/20 mb-6">
+      <div className="bg-surface-container-high rounded-lg p-5 border border-outline-variant/20 mb-6">
         <div className="flex flex-col md:flex-row items-start md:items-center gap-4">
           <div className="flex-shrink-0">
-            <label className="text-[10px] uppercase tracking-widest text-on-surface-variant block mb-1">Interface</label>
+            <label className="text-[10px] uppercase tracking-wide text-on-surface-variant block mb-1">Interface</label>
             <select
               value={selectedIface}
               onChange={(e) => setSelectedIface(e.target.value)}
@@ -209,7 +200,7 @@ export default function PacketCapture() {
           </div>
 
           <div className="flex-1 min-w-0">
-            <label className="text-[10px] uppercase tracking-widest text-on-surface-variant block mb-1">BPF Filter</label>
+            <label className="text-[10px] uppercase tracking-wide text-on-surface-variant block mb-1">BPF Filter</label>
             <input
               type="text"
               value={bpfFilter}
@@ -224,7 +215,7 @@ export default function PacketCapture() {
             {activeSession?.status === 'running' ? (
               <button
                 onClick={handleStop}
-                className="flex items-center gap-2 bg-error/20 text-error border border-error/30 px-6 py-2.5 rounded-lg font-headline font-bold text-xs uppercase tracking-widest hover:bg-error hover:text-on-error transition-[background-color,color]"
+                className="flex items-center gap-2 bg-error/20 text-error border border-error/30 px-6 py-2.5 rounded-lg font-headline font-bold text-xs uppercase tracking-wide hover:bg-error hover:text-on-error transition-[background-color,color]"
               >
                 <span className="material-symbols-outlined text-lg">stop_circle</span>
                 Stop Capture
@@ -233,7 +224,7 @@ export default function PacketCapture() {
               <button
                 onClick={handleStart}
                 disabled={isStarting || !selectedIface}
-                className="flex items-center gap-2 bg-primary/20 text-primary border border-primary/30 px-6 py-2.5 rounded-lg font-headline font-bold text-xs uppercase tracking-widest hover:bg-primary hover:text-on-primary transition-[background-color,color] disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex items-center gap-2 bg-primary/20 text-primary border border-primary/30 px-6 py-2.5 rounded-lg font-headline font-bold text-xs uppercase tracking-wide hover:bg-primary hover:text-on-primary transition-[background-color,color] disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <span className="material-symbols-outlined text-lg">play_circle</span>
                 {isStarting ? 'Starting...' : 'Start Capture'}
@@ -244,11 +235,11 @@ export default function PacketCapture() {
           {activeSession?.status === 'running' && (
             <div className="flex items-center gap-4 ml-auto">
               <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-error animate-pulse" />
+                <div className="w-2 h-2 rounded-full bg-error" />
                 <span className="text-error font-mono text-xs uppercase tracking-wider">Live</span>
               </div>
               <div className="text-center">
-                <p className="text-[10px] text-on-surface-variant uppercase tracking-widest">Packets</p>
+                <p className="text-[10px] text-on-surface-variant uppercase tracking-wide">Packets</p>
                 <p className="font-headline font-bold text-lg text-on-surface">{packets.length}</p>
               </div>
             </div>
@@ -264,9 +255,9 @@ export default function PacketCapture() {
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-6">
-        <div className="xl:col-span-2 bg-surface-container-high rounded-xl border border-outline-variant/20 flex flex-col" style={{ maxHeight: '600px' }}>
+        <div className="xl:col-span-2 bg-surface-container-high rounded-lg border border-outline-variant/20 flex flex-col" style={{ maxHeight: '600px' }}>
           <div className="flex items-center justify-between p-4 border-b border-outline-variant/20">
-            <h3 className="text-sm font-headline font-bold uppercase tracking-widest flex items-center gap-2">
+            <h3 className="text-sm font-headline font-bold uppercase tracking-wide flex items-center gap-2">
               <span className="material-symbols-outlined text-primary text-lg">list_alt</span>
               Captured Packets
               {packets.length > 0 && (
@@ -284,7 +275,7 @@ export default function PacketCapture() {
           <div className="overflow-auto flex-1">
             <table className="w-full text-left border-collapse">
               <thead className="sticky top-0 bg-surface-container-high z-10">
-                <tr className="text-[9px] uppercase tracking-widest text-on-surface-variant border-b border-outline-variant/20">
+                <tr className="text-[9px] uppercase tracking-wide text-on-surface-variant border-b border-outline-variant/20">
                   <th className="py-2 px-3 font-medium w-12">No.</th>
                   <th className="py-2 px-2 font-medium">Time</th>
                   <th className="py-2 px-2 font-medium">Source</th>
@@ -296,13 +287,11 @@ export default function PacketCapture() {
               </thead>
               <tbody className="text-[11px] font-mono">
                 {packets.length === 0 ? (
-                  <tr><td colSpan={7} className="py-16 text-center text-on-surface-variant opacity-50">
-                    <div className="flex flex-col items-center gap-2">
-                      <span className="material-symbols-outlined text-4xl">network_check</span>
-                      <span className="text-[10px] uppercase tracking-widest font-sans">
-                        {activeSession ? 'Waiting for packets...' : 'Start a capture to see packets'}
-                      </span>
-                    </div>
+                  <tr><td colSpan={7} className="py-16">
+                    <EmptyState
+                      icon="network_check"
+                      title={activeSession ? 'Waiting for packets...' : 'Start a capture to see packets'}
+                    />
                   </td></tr>
                 ) : (
                   visiblePackets.map((pkt, idx) => {
@@ -350,9 +339,9 @@ export default function PacketCapture() {
         </div>
 
         <div className="flex flex-col gap-6">
-          <div className="bg-surface-container-high rounded-xl border border-outline-variant/20 flex flex-col" style={{ maxHeight: '380px' }}>
+          <div className="bg-surface-container-high rounded-lg border border-outline-variant/20 flex flex-col" style={{ maxHeight: '380px' }}>
             <div className="p-4 border-b border-outline-variant/20">
-              <h3 className="text-sm font-headline font-bold uppercase tracking-widest flex items-center gap-2">
+              <h3 className="text-sm font-headline font-bold uppercase tracking-wide flex items-center gap-2">
                 <span className="material-symbols-outlined text-secondary text-lg">search</span>
                 Packet Detail
               </h3>
@@ -384,7 +373,7 @@ export default function PacketCapture() {
                   </div>
 
                   <div>
-                    <p className="text-[10px] uppercase tracking-widest text-on-surface-variant mb-2">Hex Dump</p>
+                    <p className="text-[10px] uppercase tracking-wide text-on-surface-variant mb-2">Hex Dump</p>
                     <div className="bg-surface rounded-lg p-3 border border-outline-variant/10 overflow-x-auto">
                       <HexDump hex={selectedPacket.payload} />
                     </div>
@@ -393,14 +382,14 @@ export default function PacketCapture() {
               ) : (
                 <div className="flex flex-col items-center justify-center h-full opacity-50 py-8">
                   <span className="material-symbols-outlined text-3xl mb-2 text-on-surface-variant">touch_app</span>
-                  <p className="text-[10px] text-on-surface-variant uppercase tracking-widest">Select a packet to inspect</p>
+                  <p className="text-[10px] text-on-surface-variant uppercase tracking-wide">Select a packet to inspect</p>
                 </div>
               )}
             </div>
           </div>
 
-          <div className="bg-surface-container-high rounded-xl p-4 border border-outline-variant/20">
-            <h3 className="text-sm font-headline font-bold uppercase tracking-widest mb-3 flex items-center gap-2">
+          <div className="bg-surface-container-high rounded-lg p-4 border border-outline-variant/20">
+            <h3 className="text-sm font-headline font-bold uppercase tracking-wide mb-3 flex items-center gap-2">
               <span className="material-symbols-outlined text-on-secondary-container text-lg">donut_small</span>
               Protocol Stats
             </h3>
@@ -429,8 +418,8 @@ export default function PacketCapture() {
         </div>
       </div>
 
-      <div className="bg-surface-container-high rounded-xl p-5 border border-outline-variant/20">
-        <h3 className="text-sm font-headline font-bold uppercase tracking-widest mb-4 flex items-center gap-2">
+      <div className="bg-surface-container-high rounded-lg p-5 border border-outline-variant/20">
+        <h3 className="text-sm font-headline font-bold uppercase tracking-wide mb-4 flex items-center gap-2">
           <span className="material-symbols-outlined text-on-surface-variant text-lg">history</span>
           Capture History
         </h3>
@@ -440,7 +429,7 @@ export default function PacketCapture() {
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="text-[10px] uppercase tracking-widest text-on-surface-variant border-b border-outline-variant/20">
+                <tr className="text-[10px] uppercase tracking-wide text-on-surface-variant border-b border-outline-variant/20">
                   <th className="pb-2 font-medium">ID</th>
                   <th className="pb-2 font-medium">Interface</th>
                   <th className="pb-2 font-medium">Filter</th>
@@ -466,7 +455,7 @@ export default function PacketCapture() {
                             : isError ? 'text-error bg-error/10 border border-error/20'
                             : 'text-on-surface-variant bg-surface-container-highest border border-outline-variant/20'
                         }`}>
-                          {isRunning && <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />}
+                          {isRunning && <div className="w-1.5 h-1.5 rounded-full bg-primary" />}
                           {s.status}
                         </span>
                       </td>

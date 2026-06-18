@@ -8,12 +8,12 @@ const TT = { background: 'var(--color-surface-container)', border: '1px solid va
 
 function KpiCard({ icon, label, value, sub, color = 'text-primary' }: { icon: string; label: string; value: string | number; sub?: string; color?: string }) {
   return (
-    <div className="bg-surface-container-high rounded-xl p-5 border border-outline-variant/20 flex flex-col gap-2 hover:border-primary/30 transition-[border-color]">
+    <div className="bg-surface-container-high rounded-lg p-5 border border-outline-variant/20 flex flex-col gap-2 hover:border-primary/30 transition-[border-color]">
       <div className="flex items-center gap-2">
         <span className="material-symbols-outlined text-lg opacity-60">{icon}</span>
-        <span className="text-[10px] text-on-surface-variant uppercase tracking-[0.15em] font-bold">{label}</span>
+        <span className="text-[10px] text-on-surface-variant uppercase tracking-wide font-bold">{label}</span>
       </div>
-      <p className={`font-headline text-3xl font-black ${color}`}>{value}</p>
+      <p className={`font-headline text-3xl font-bold ${color}`}>{value}</p>
       {sub && <p className="text-[11px] text-on-surface-variant">{sub}</p>}
     </div>
   );
@@ -40,7 +40,7 @@ export default function SummaryTab({ summary, series }: { summary: ReportSummary
     Healthy: Math.round((p.availability / 100) * p.samples),
   }));
 
-  const availColor = (summary?.availabilityPercent ?? 0) >= 99 ? 'text-primary' : (summary?.availabilityPercent ?? 0) >= 95 ? 'text-amber-400' : 'text-error';
+  const availColor = (summary?.availabilityPercent ?? 0) >= 99 ? 'text-primary' : (summary?.availabilityPercent ?? 0) >= 95 ? 'text-warning' : 'text-error';
 
   return (
     <div className="space-y-6 report-section">
@@ -55,8 +55,8 @@ export default function SummaryTab({ summary, series }: { summary: ReportSummary
       )}
 
       {/* Combined Chart */}
-      <div className="bg-surface-container-high rounded-xl p-5 border border-outline-variant/20">
-        <h3 className="text-sm font-headline font-bold mb-1 uppercase tracking-widest">Availability & Response Time</h3>
+      <div className="bg-surface-container-high rounded-lg p-5 border border-outline-variant/20">
+        <h3 className="text-sm font-headline font-bold mb-1 uppercase tracking-wide">Availability & Response Time</h3>
         <p className="text-[11px] text-on-surface-variant mb-3">Availability % (left) · Avg response ms (right)</p>
         {chartSeries.length === 0 ? <p className="text-xs text-on-surface-variant text-center py-16">No data for selected range</p> : (
           <ResponsiveContainer width="100%" height={280}>
@@ -68,11 +68,11 @@ export default function SummaryTab({ summary, series }: { summary: ReportSummary
                 </linearGradient>
               </defs>
               <CartesianGrid stroke="#2a2a22" strokeDasharray="4 4" />
-              <XAxis dataKey="label" tick={{ fill: '#8a8a78', fontSize: 10 }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
-              <YAxis yAxisId="left" domain={[0, 100]} tick={{ fill: '#8a8a78', fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={v => `${v}%`} width={42} />
-              <YAxis yAxisId="right" orientation="right" tick={{ fill: '#8a8a78', fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={v => `${v}ms`} width={52} />
+              <XAxis dataKey="label" tick={{ fill: '#77766d', fontSize: 10 }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
+              <YAxis yAxisId="left" domain={[0, 100]} tick={{ fill: '#77766d', fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={v => `${v}%`} width={42} />
+              <YAxis yAxisId="right" orientation="right" tick={{ fill: '#77766d', fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={v => `${v}ms`} width={52} />
               <Tooltip contentStyle={TT} formatter={(value: unknown, name: unknown) => { if (name === 'availability') return [`${Number(value ?? 0)}%`, 'Availability']; return [`${Number(value ?? 0)}ms`, 'Avg Response']; }} />
-              <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} formatter={v => <span style={{ color: '#c8c5b0' }}>{v === 'availability' ? 'Availability %' : 'Avg Response ms'}</span>} />
+              <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} formatter={v => <span style={{ color: '#adaba1' }}>{v === 'availability' ? 'Availability %' : 'Avg Response ms'}</span>} />
               <Area yAxisId="left" type="monotone" dataKey="availability" stroke="#d9fd3a" fill="url(#ag2)" strokeWidth={2} dot={false} />
               <Line yAxisId="right" type="monotone" dataKey="response" stroke="#ff7351" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
             </ComposedChart>
@@ -81,19 +81,19 @@ export default function SummaryTab({ summary, series }: { summary: ReportSummary
       </div>
 
       {/* Sample Distribution */}
-      <div className="bg-surface-container-high rounded-xl p-5 border border-outline-variant/20">
-        <h3 className="text-sm font-headline font-bold mb-1 uppercase tracking-widest">Sample Distribution</h3>
+      <div className="bg-surface-container-high rounded-lg p-5 border border-outline-variant/20">
+        <h3 className="text-sm font-headline font-bold mb-1 uppercase tracking-wide">Sample Distribution</h3>
         <p className="text-[11px] text-on-surface-variant mb-3">Count of healthy / down checks per time bucket</p>
         {chartSeries.length === 0 ? <p className="text-xs text-on-surface-variant text-center py-12">No data</p> : (
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={downBarData} margin={{ top: 4, right: 8, left: -20, bottom: 0 }} barSize={16}>
-              <XAxis dataKey="label" tick={{ fill: '#8a8a78', fontSize: 10 }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
-              <YAxis tick={{ fill: '#8a8a78', fontSize: 10 }} tickLine={false} axisLine={false} allowDecimals={false} />
+              <XAxis dataKey="label" tick={{ fill: '#77766d', fontSize: 10 }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
+              <YAxis tick={{ fill: '#77766d', fontSize: 10 }} tickLine={false} axisLine={false} allowDecimals={false} />
               <Tooltip contentStyle={TT} cursor={{ fill: 'rgba(255,255,255,0.03)' }} />
-              <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} formatter={v => <span style={{ color: '#c8c5b0' }}>{v}</span>} />
+              <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} formatter={v => <span style={{ color: '#adaba1' }}>{v}</span>} />
               <Bar dataKey="Healthy" stackId="a" fill="#d9fd3a" />
-              <Bar dataKey="Warning" stackId="a" fill="#f59e0b" />
-              <Bar dataKey="Down" stackId="a" fill="#ff4444" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="Warning" stackId="a" fill="#e5a910" />
+              <Bar dataKey="Down" stackId="a" fill="#ff7351" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         )}

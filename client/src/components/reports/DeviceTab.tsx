@@ -5,7 +5,7 @@ type SortKey = 'deviceName' | 'availabilityPercent' | 'avgResponse' | 'sampleCou
 
 function badge(avail: number) {
   if (avail >= 99) return 'bg-primary/15 text-primary border-primary/30';
-  if (avail >= 95) return 'bg-amber-400/15 text-amber-400 border-amber-400/30';
+  if (avail >= 95) return 'bg-warning/15 text-warning border-warning/30';
   return 'bg-error/15 text-error border-error/30';
 }
 
@@ -32,11 +32,11 @@ export default function DeviceTab({ devices, onSelectDevice }: { devices: Device
 
   return (
     <div className="report-section">
-      <div className="bg-surface-container-high rounded-xl p-6 border border-outline-variant/20">
+      <div className="bg-surface-container-high rounded-lg p-6 border border-outline-variant/20">
         <div className="flex items-center gap-2 mb-6">
           <span className="material-symbols-outlined text-primary text-xl">devices</span>
-          <h3 className="text-sm font-headline font-bold uppercase tracking-widest">Per-Device Performance</h3>
-          <span className="ml-auto text-[10px] text-on-surface-variant uppercase tracking-widest">{devices.length} devices</span>
+          <h3 className="text-sm font-headline font-bold uppercase tracking-wide">Per-Device Performance</h3>
+          <span className="ml-auto text-[10px] text-on-surface-variant uppercase tracking-wide">{devices.length} devices</span>
         </div>
         {devices.length === 0 ? (
           <p className="text-xs text-on-surface-variant text-center py-16">No device data for selected range</p>
@@ -44,7 +44,7 @@ export default function DeviceTab({ devices, onSelectDevice }: { devices: Device
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="text-[10px] uppercase tracking-widest text-on-surface-variant border-b border-outline-variant/20">
+                <tr className="text-[10px] uppercase tracking-wide text-on-surface-variant border-b border-outline-variant/20">
                   {hdr('Device', 'deviceName')}
                   {hdr('Availability', 'availabilityPercent', 'text-center')}
                   {hdr('Avg Response', 'avgResponse', 'text-right')}

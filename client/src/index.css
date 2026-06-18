@@ -45,6 +45,24 @@
   --color-inverse-surface: #fdf9ee;
   --color-inverse-on-surface: #56554d;
 
+  /* Semantic status colors */
+  --color-warning: #e5a910;
+  --color-on-warning: #3d2e00;
+  --color-success: #8cc63f;
+  --color-on-success: #1a2e00;
+  --color-info: #6bb8c9;
+  --color-on-info: #003540;
+
+  /* Chart accent palette */
+  --color-chart-1: #d9fd3a;
+  --color-chart-2: #6bb8c9;
+  --color-chart-3: #c084fc;
+  --color-chart-4: #e5a910;
+  --color-chart-5: #8cc63f;
+  --color-chart-6: #f0856a;
+  --color-chart-7: #f472b6;
+  --color-chart-8: #fb923c;
+
   --radius-DEFAULT: 0.25rem;
   --radius-lg: 0.5rem;
   --radius-xl: 0.75rem;
@@ -66,38 +84,18 @@
     outline: 2px solid var(--color-primary);
     outline-offset: 2px;
   }
+
+  [role="button"]:focus-visible,
+  a:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
 }
 
 .material-symbols-outlined {
   font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
   vertical-align: middle;
-}
-
-.neon-glow {
-  box-shadow: 0 0 20px rgba(217, 253, 58, 0.15), inset 0 0 10px rgba(217, 253, 58, 0.05);
-}
-
-.glass-panel {
-  background: rgba(38, 38, 29, 0.85);
-}
-
-.glass-panel-light {
-  background: rgba(38, 38, 29, 0.7);
-}
-
-.ambient-glow-primary {
-  box-shadow: 0 0 30px rgba(217, 253, 58, 0.08);
-}
-
-.geometric-input:focus-within {
-  border-bottom: 2px solid var(--color-primary);
-  border-right: 2px solid var(--color-primary);
-}
-
-.particle-bg {
-  background-image: radial-gradient(var(--color-primary) 1px, transparent 1px);
-  background-size: 40px 40px;
-  mask-image: radial-gradient(circle at center, black, transparent 80%);
 }
 
 ::-webkit-scrollbar { width: 4px; }
@@ -117,20 +115,6 @@
 
 .gauge-ring {
   animation: gauge-fill 1.2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
-}
-
-/* ── Health Status Glows ─────────────────────────────────── */
-.glow-healthy {
-  box-shadow: 0 0 20px rgba(217, 253, 58, 0.15), 0 0 40px rgba(217, 253, 58, 0.05);
-}
-.glow-watch {
-  box-shadow: 0 0 20px rgba(255, 113, 106, 0.15), 0 0 40px rgba(255, 113, 106, 0.05);
-}
-.glow-risk {
-  box-shadow: 0 0 20px rgba(255, 115, 81, 0.15), 0 0 40px rgba(255, 115, 81, 0.05);
-}
-.glow-critical {
-  box-shadow: 0 0 20px rgba(213, 61, 24, 0.2), 0 0 40px rgba(213, 61, 24, 0.08);
 }
 
 /* ── Trend Pulse ─────────────────────────────────────────── */
@@ -166,6 +150,15 @@
   overflow: hidden;
 }
 
+/* ── Toast Slide Up ──────────────────────────────────────── */
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-slide-up {
+  animation: slide-up 0.25s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
 /* ── GPU-Accelerated Utilities ───────────────────────────── */
 .gpu-accelerate {
   transform: translateZ(0);
@@ -174,6 +167,14 @@
 
 .fade-in-up {
   animation: report-fade 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+@keyframes page-enter {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.page-enter {
+  animation: page-enter 0.2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 
 /* ── Content Visibility (skip off-screen rendering) ──────── */
@@ -230,5 +231,28 @@
   [class*="text-primary"] { color: #3a7d00 !important; }
   [class*="text-error"] { color: #c00 !important; }
   ::-webkit-scrollbar { display: none; }
+
+  /* Hide charts, show accessible data tables */
+  .recharts-wrapper,
+  .recharts-surface,
+  svg.recharts-surface { display: none !important; }
+  .sr-only {
+    position: static !important;
+    width: auto !important;
+    height: auto !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+    clip: auto !important;
+    white-space: normal !important;
+  }
+
+  /* Hide sidebar, mobile nav, and interactive elements */
+  aside, nav[aria-label="Mobile navigation"], .no-print { display: none !important; }
+  main { margin-left: 0 !important; padding: 16px !important; }
+
+  /* Ensure tables print well */
+  table { font-size: 10px !important; }
+  tr { page-break-inside: avoid; }
 }
 

@@ -6,6 +6,7 @@ import { store, type RootState } from './store';
 import { SocketProvider } from './hooks/useSocket';
 import { clearCredentials } from './store/authSlice';
 import { api } from './api/http';
+import { ToastProvider } from './components/ui/Toast';
 
 import Layout from './components/Layout';
 
@@ -19,13 +20,14 @@ const AIHealth = lazy(() => import('./pages/AIHealth'));
 const Alerts = lazy(() => import('./pages/Alerts'));
 const Reports = lazy(() => import('./pages/Reports'));
 const Settings = lazy(() => import('./pages/Settings'));
+const NotFound = lazy(() => import('./pages/NotFound'));
 
 function PageLoader() {
   return (
     <div className="flex items-center justify-center min-h-[60vh]">
       <div className="flex flex-col items-center gap-3">
         <span className="material-symbols-outlined text-3xl text-primary animate-pulse">hourglass_top</span>
-        <p className="text-xs text-on-surface-variant uppercase tracking-widest">Loading...</p>
+        <p className="text-xs text-on-surface-variant uppercase tracking-wide">Loading...</p>
       </div>
     </div>
   );
@@ -58,7 +60,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
         <div className="flex items-center justify-center min-h-[60vh]">
           <div className="flex flex-col items-center gap-3">
             <span className="material-symbols-outlined text-3xl text-primary animate-pulse">hourglass_top</span>
-            <p className="text-xs text-on-surface-variant uppercase tracking-widest">Verifying session...</p>
+            <p className="text-xs text-on-surface-variant uppercase tracking-wide">Verifying session...</p>
           </div>
         </div>
       </Layout>
@@ -83,7 +85,7 @@ function AppRoutes() {
         <Route path="/alerts" element={<ProtectedRoute><Alerts /></ProtectedRoute>} />
         <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
         <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="*" element={<ProtectedRoute><NotFound /></ProtectedRoute>} />
       </Routes>
     </Suspense>
   );
@@ -94,9 +96,11 @@ export default function App() {
     <Provider store={store}>
       <ErrorBoundary>
         <SocketProvider>
-          <BrowserRouter>
-            <AppRoutes />
-          </BrowserRouter>
+          <ToastProvider>
+            <BrowserRouter>
+              <AppRoutes />
+            </BrowserRouter>
+          </ToastProvider>
         </SocketProvider>
       </ErrorBoundary>
     </Provider>
