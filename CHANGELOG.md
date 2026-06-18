@@ -39,6 +39,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Tracking-widest and tracking-[0.2em] (max tracking-wide)
 - Shadow effects from all containers and modals
 - Backdrop-blur from modals and toasts
+## [2.2.0] - 2026-06-15
+
+### Added
+- **Alert grouping** — Collapsible alert groups with `group_id` (rule + 60s window) and `/api/alerts/grouped` endpoint
+- **Grouped alerts view** — Alerts page toggle between grouped/list views with `AlertGroupCard` component
+- **AI Health Score persistence** — Weighted composite scores (Availability 30%, Latency 25%, Alerts 20%, Stability 15%, Ports 10%) saved to `health_scores` and `health_score_history` tables
+- **Health score history** — `/api/insights/history` returns network-wide score timeline for trend graphs
+- **Absence monitoring** — Alert rule condition that fires when a device stops reporting for a configurable duration
+- **Baseline cache** — 15-minute TTL cache for anomaly detection baselines, avoids repeated DB queries
+- **Database V33 migration** — `health_scores`, `health_score_history` tables and `alerts.group_id` column
+
+### Changed
+- **Alert engine rewritten** — Real anomaly detection using z-score with configurable standard deviation threshold, real absence detection, and port state evaluation
+- **Alert messages are contextual** — Rich descriptions like "Latency spike: 245ms (baseline 82ms, +199%)" instead of generic "Anomaly detected"
+- **Health scorer runs every 2 minutes** — Down from 5 minutes; scores persisted to DB instead of discarded
+- **Anomaly engine decoupled** — Uses `HealthScorer` and `BaselineCache` instead of computing inline
+- **Frontend insights API simplified** — Single `/api/insights/current` call replaces client-side score fabrication
+- **Resource load card uses real telemetry** — Dashboard card now shows actual server CPU/memory from `/v1/system/info` instead of synthetic heuristics
+
+### Fixed
+- Frontend crash when `issues` or `factors` are null from backend JSONB
+- Trend delta showing floating point noise (e.g. `-19.17999954223633` → `-19.18`)
+- All scores on AI Health page now display with 2 decimal places
+- Dashboard resource load widget showing wrong data (was using synthetic heuristics instead of real server metrics)
+
+### Removed
+- Client-side health score fabrication in `insights.ts` (~100 lines replaced with ~10 lines)
 
 ## [2.0.0] - 2026-06-13
 
