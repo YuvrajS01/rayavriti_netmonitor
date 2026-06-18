@@ -5,6 +5,41 @@ All notable changes to Rayavriti NetMonitor will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.5.0] - 2026-06-18
+
+### Added
+- **Expanded color palette** — 14 new tokens: warning, on-warning, success, on-success, info, on-info, chart-1–8
+- **SectionHeader component** — Consistent page headers with title, subtitle, and optional action
+- **StatCard component** — Reusable metric cards with icon, label, value, and trend
+- **Flat design system** — No shadows, glows, gradients, or glass effects on containers
+- **Professional copy** — Removed military/surveillance language across all pages
+
+### Changed
+- **Typography scale** — 5 standardized sizes: text-2xl (title), text-base (section), text-sm (body), text-xs (labels), text-[11px] (metadata)
+- **Border radius** — rounded-lg (8px) for cards/inputs, rounded-md (6px) for buttons/badges
+- **Button sizing** — Larger text (text-sm), proper padding (px-5 py-2.5), flat hover states
+- **Sidebar navigation** — Bigger text (text-sm), improved readability and spacing
+- **Score display** — All health scores standardized to 2 decimal places
+- **Chart colors** — All hex values synced to new theme tokens (info, success, warning, chart palette)
+- **Status colors** — Raw amber-400/amber-500 replaced with theme warning token
+- **Error color** — Unified to single red (#ff7351), removed conflicting #ff4444
+
+### Fixed
+- AlertTab info state now uses theme info token (was raw sky-400)
+- All hover states use background-color transitions (removed brightness filters)
+- Removed animate-pulse from loading text indicators
+- Removed active:scale-95 from all buttons
+- Score gauges no longer use drop-shadow filters
+
+### Removed
+- Utility classes: .neon-glow, .glass-panel, .glass-panel-light, .ambient-glow-primary
+- Utility classes: .glow-healthy, .glow-watch, .glow-risk, .glow-critical
+- Utility classes: .particle-bg, .geometric-input
+- Font-black weight (replaced with font-bold)
+- Tracking-widest and tracking-[0.2em] (max tracking-wide)
+- Shadow effects from all containers and modals
+- Backdrop-blur from modals and toasts
+
 ## [2.0.0] - 2026-06-13
 
 ### Added
