@@ -65,11 +65,11 @@ prompt() {
   local var_name="$1"
   local label="$2"
   local default="${3:-}"
-  if [[ -t 0 ]]; then
-    local prompt_str="  ${label}"
-    [[ -n "$default" ]] && prompt_str+=" [${default}]"
-    prompt_str+=": "
-    read -rp "$prompt_str" value
+  local prompt_str="  ${label}"
+  [[ -n "$default" ]] && prompt_str+=" [${default}]"
+  prompt_str+=": "
+  if [[ -t 0 ]] || [[ -t /dev/tty ]]; then
+    read -rp "$prompt_str" value < /dev/tty
     echo "${value:-$default}"
   else
     echo "$default"
@@ -79,9 +79,9 @@ prompt() {
 secret() {
   local var_name="$1"
   local label="$2"
-  if [[ -t 0 ]]; then
-    local prompt_str="  ${label}: "
-    read -rsp "$prompt_str" value
+  local prompt_str="  ${label}: "
+  if [[ -t 0 ]] || [[ -t /dev/tty ]]; then
+    read -rsp "$prompt_str" value < /dev/tty
     echo ""
     echo "$value"
   else
