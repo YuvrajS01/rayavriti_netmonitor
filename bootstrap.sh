@@ -6,7 +6,12 @@ set -euo pipefail
 #
 #  Usage (run on any fresh system):
 #
-#    curl -fsSL https://raw.githubusercontent.com/YuvrajS01/rayavriti_netmonitor/main/bootstrap.sh | bash
+#    curl -fsSL https://raw.githubusercontent.com/YuvrajS01/rayavriti_netmonitor/main/bootstrap.sh | bash -s -- --dev --docker
+#
+#  CLI flags (skip interactive prompts):
+#    --dev / --prod        Deployment mode
+#    --docker / --bare-metal  Runtime
+#    --dir <path>          Install directory
 #
 #  Or clone first and run manually:
 #
@@ -18,6 +23,22 @@ set -euo pipefail
 REPO_URL="https://github.com/YuvrajS01/rayavriti_netmonitor.git"
 REPO_NAME="rayavriti_netmonitor"
 DEFAULT_INSTALL_DIR="$HOME/projects"
+
+# ── CLI flags ────────────────────────────────────────────────────
+DEPLOY_MODE="${DEPLOY_MODE:-}"
+RUNTIME="${RUNTIME:-}"
+INSTALL_DIR="${INSTALL_DIR:-}"
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --dev)          DEPLOY_MODE="dev"; shift ;;
+    --prod)         DEPLOY_MODE="prod"; shift ;;
+    --docker)       RUNTIME="docker"; shift ;;
+    --bare-metal)   RUNTIME="bare-metal"; shift ;;
+    --dir)          INSTALL_DIR="$2"; shift 2 ;;
+    *)              shift ;;
+  esac
+done
 
 # ── Colors & helpers ─────────────────────────────────────────────
 RED='\033[0;31m'
@@ -47,7 +68,15 @@ prompt() {
   local prompt_str="  ${label}"
   [[ -n "$default" ]] && prompt_str+=" [${default}]"
   prompt_str+=": "
-  read -rp "$prompt_str" value
+  local value=""
+  if [[ -t 0 ]]; then
+    read -rp "$prompt_str" value
+  elif [[ -r /dev/tty ]]; then
+    read -rp "$prompt_str" value < /dev/tty || true
+  else
+    echo "$default"
+    return
+  fi
   echo "${value:-$default}"
 }
 
@@ -55,7 +84,15 @@ secret() {
   local var_name="$1"
   local label="$2"
   local prompt_str="  ${label}: "
-  read -rsp "$prompt_str" value
+  local value=""
+  if [[ -t 0 ]]; then
+    read -rsp "$prompt_str" value
+  elif [[ -r /dev/tty ]]; then
+    read -rsp "$prompt_str" value < /dev/tty || true
+  else
+    echo ""
+    return
+  fi
   echo ""
   echo "$value"
 }
@@ -73,8 +110,12 @@ echo ""
 # ── Step 0: Interactive choices ─────────────────────────────────
 header "Step 1/5 — Configuration"
 
-DEPLOY_MODE=$(prompt "deploy" "Deployment mode (dev/prod)" "dev")
-RUNTIME=$(prompt "runtime" "Runtime (docker/bare-metal)" "docker")
+if [[ -z "$DEPLOY_MODE" ]]; then
+  DEPLOY_MODE=$(prompt "deploy" "Deployment mode (dev/prod)" "dev")
+fi
+if [[ -z "$RUNTIME" ]]; then
+  RUNTIME=$(prompt "runtime" "Runtime (docker/bare-metal)" "docker")
+fi
 
 if [[ "$DEPLOY_MODE" != "dev" && "$DEPLOY_MODE" != "prod" ]]; then
   err "Invalid deploy mode: $DEPLOY_MODE (must be 'dev' or 'prod')"
@@ -86,7 +127,9 @@ if [[ "$RUNTIME" != "docker" && "$RUNTIME" != "bare-metal" ]]; then
   exit 1
 fi
 
-INSTALL_DIR=$(prompt "dir" "Install directory" "$DEFAULT_INSTALL_DIR/$REPO_NAME")
+if [[ -z "$INSTALL_DIR" ]]; then
+  INSTALL_DIR=$(prompt "dir" "Install directory" "$DEFAULT_INSTALL_DIR/$REPO_NAME")
+fi
 
 info "Mode: ${BOLD}$DEPLOY_MODE${NC}  |  Runtime: ${BOLD}$RUNTIME${NC}  |  Dir: ${BOLD}$INSTALL_DIR${NC}"
 echo ""
