@@ -187,4 +187,7 @@ type Database interface {
 
 	// Suppressed Alerts
 	RecordSuppressedAlert(ctx context.Context, deviceID int64, ruleID *int64, reason string, rootCauseDeviceID *int64) error
+
+	// RBAC
+	GetRolePermissions(ctx context.Context, roleID int64) ([]string, error)
 }

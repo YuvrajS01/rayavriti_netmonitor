@@ -289,6 +289,9 @@ func (m *mockRetDB2) GetAlertsByRuleSince(ctx context.Context, ruleID int64, sin
 func (m *mockRetDB2) RecordSuppressedAlert(ctx context.Context, deviceID int64, ruleID *int64, reason string, rootCauseDeviceID *int64) error {
 	return nil
 }
+func (m *mockRetDB2) GetRolePermissions(ctx context.Context, roleID int64) ([]string, error) {
+	return nil, nil
+}
 
 // ── prune calls all three prune functions ─────────────────────────────────────
 

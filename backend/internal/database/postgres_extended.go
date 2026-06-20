@@ -2,6 +2,7 @@ package database
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -658,4 +659,18 @@ func (p *Postgres) CleanupExpiredRefreshTokens(ctx context.Context) (int64, erro
 		return 0, err
 	}
 	return ct.RowsAffected(), nil
+}
+
+// GetRolePermissions returns the permission strings for a given role ID.
+func (p *Postgres) GetRolePermissions(ctx context.Context, roleID int64) ([]string, error) {
+	var raw json.RawMessage
+	err := p.pool.QueryRow(ctx, `SELECT permissions FROM roles WHERE id = $1`, roleID).Scan(&raw)
+	if err != nil {
+		return nil, err
+	}
+	var perms []string
+	if err := json.Unmarshal(raw, &perms); err != nil {
+		return nil, err
+	}
+	return perms, nil
 }

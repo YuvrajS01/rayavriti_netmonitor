@@ -14,7 +14,10 @@ import (
 	"github.com/rayavriti/netmonitor-backend/internal/config"
 	"github.com/rayavriti/netmonitor-backend/internal/database"
 	"github.com/rayavriti/netmonitor-backend/internal/handlers"
+	"github.com/rayavriti/netmonitor-backend/internal/httputil"
 	"github.com/rayavriti/netmonitor-backend/internal/logging"
+	"github.com/rayavriti/netmonitor-backend/internal/models"
+	"github.com/rayavriti/netmonitor-backend/internal/rbac"
 	"github.com/rayavriti/netmonitor-backend/internal/websocket"
 	"github.com/rs/cors"
 )
@@ -151,10 +154,7 @@ func (s *Server) Start() error {
 		r.Put("/api/devices/{id}", device.Update)
 		r.Delete("/api/devices/{id}", device.Delete)
 		r.Get("/api/v1/devices", device.List)
-		r.Post("/api/v1/devices", device.Create)
 		r.Get("/api/v1/devices/{id}", device.Get)
-		r.Put("/api/v1/devices/{id}", device.Update)
-		r.Delete("/api/v1/devices/{id}", device.Delete)
 
 		// Metrics
 		r.Get("/api/metrics/latest", metric.Latest)
@@ -358,6 +358,7 @@ func (s *Server) Start() error {
 		r.Get("/api/v1/roles", phase2.List("roles"))
 		r.Post("/api/v1/roles", phase2.Create("roles"))
 		r.Put("/api/v1/roles/{id}", phase2.Update("roles"))
+		r.Delete("/api/v1/roles/{id}", phase2.Delete("roles"))
 		r.Get("/api/v1/users", phase2.List("users"))
 		r.Get("/api/v1/users/{id}", phase2.Get("users"))
 		r.Put("/api/v1/users/{id}", phase2.Update("users"))
@@ -365,6 +366,26 @@ func (s *Server) Start() error {
 		r.Put("/api/v1/users/{id}/role", phase2.Update("users"))
 		r.Get("/api/v1/user-scopes", phase2.List("user_scopes"))
 		r.Put("/api/v1/users/{id}/scopes", phase2.Create("user_scopes"))
+		r.Delete("/api/v1/users/{id}/scopes/{sid}", phase2.Delete("user_scopes"))
+
+		// RBAC: permissions endpoint (returns the caller's own permissions)
+		r.Get("/api/v1/auth/permissions", func(w http.ResponseWriter, r *http.Request) {
+			claims := auth.GetClaims(r.Context())
+			if claims == nil {
+				httputil.SendError(w, http.StatusUnauthorized, "not authenticated")
+				return
+			}
+			httputil.SendOK(w, map[string]any{
+				"userId":      claims.UserID,
+				"role":        claims.Role,
+				"permissions": claims.Permissions,
+			})
+		})
+
+		// Device write routes require devices.write permission
+		r.With(rbac.RequirePermission(models.PermDevicesWrite)).Post("/api/v1/devices", device.Create)
+		r.With(rbac.RequirePermission(models.PermDevicesWrite)).Put("/api/v1/devices/{id}", device.Update)
+		r.With(rbac.RequirePermission(models.PermDevicesDelete)).Delete("/api/v1/devices/{id}", device.Delete)
 		r.Get("/api/v1/reports/generated", phase2.List("generated_reports"))
 		r.Get("/api/v1/reports/generated/{id}/download", phase2.Get("generated_reports"))
 		r.Get("/api/v1/reports/scheduled", phase2.List("scheduled_reports"))

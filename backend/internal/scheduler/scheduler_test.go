@@ -283,6 +283,9 @@ func (m *mockDB) GetAlertsByRuleSince(ctx context.Context, ruleID int64, since t
 func (m *mockDB) RecordSuppressedAlert(ctx context.Context, deviceID int64, ruleID *int64, reason string, rootCauseDeviceID *int64) error {
 	return nil
 }
+func (m *mockDB) GetRolePermissions(ctx context.Context, roleID int64) ([]string, error) {
+	return nil, nil
+}
 
 func newTestHub() *websocket.Hub {
 	return websocket.NewHub("test-secret", nil, nil)

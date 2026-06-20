@@ -287,6 +287,9 @@ func (m *serverMockDB) GetAlertsByRuleSince(ctx context.Context, ruleID int64, s
 func (m *serverMockDB) RecordSuppressedAlert(ctx context.Context, deviceID int64, ruleID *int64, reason string, rootCauseDeviceID *int64) error {
 	return nil
 }
+func (m *serverMockDB) GetRolePermissions(ctx context.Context, roleID int64) ([]string, error) {
+	return nil, nil
+}
 func (m *serverMockDB) CleanupExpiredRefreshTokens(ctx context.Context) (int64, error) { return 0, nil }
 
 func freePort(t *testing.T) int {

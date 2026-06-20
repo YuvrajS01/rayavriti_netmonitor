@@ -346,6 +346,9 @@ func (m *mockDB) GetAlertsByRuleSince(ctx context.Context, ruleID int64, since t
 func (m *mockDB) RecordSuppressedAlert(ctx context.Context, deviceID int64, ruleID *int64, reason string, rootCauseDeviceID *int64) error {
 	return nil
 }
+func (m *mockDB) GetRolePermissions(ctx context.Context, roleID int64) ([]string, error) {
+	return nil, nil
+}
 
 func (m *mockDB) GetAlerts(ctx context.Context, status string, limit, offset int) ([]models.Alert, int, error) {
 	if m.getAlertsFn != nil {

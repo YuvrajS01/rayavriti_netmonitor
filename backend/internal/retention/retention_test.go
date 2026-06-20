@@ -272,6 +272,9 @@ func (m *mockRetDB) GetAlertsByRuleSince(ctx context.Context, ruleID int64, sinc
 func (m *mockRetDB) RecordSuppressedAlert(ctx context.Context, deviceID int64, ruleID *int64, reason string, rootCauseDeviceID *int64) error {
 	return nil
 }
+func (m *mockRetDB) GetRolePermissions(ctx context.Context, roleID int64) ([]string, error) {
+	return nil, nil
+}
 
 func TestNew(t *testing.T) {
 	t.Parallel()

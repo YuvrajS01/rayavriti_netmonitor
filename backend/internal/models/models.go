@@ -357,29 +357,29 @@ type AlertRuleState struct {
 // Phase 2.3 — Contacts, Escalation, Notifications
 
 type Contact struct {
-	ID                    int64   `json:"id"`
-	Name                  string  `json:"name"`
-	Designation           string  `json:"designation,omitempty"`
-	Department            string  `json:"department,omitempty"`
-	Email                 string  `json:"email,omitempty"`
-	Phone                 string  `json:"phone,omitempty"`
-	TelegramChatID        string  `json:"telegramChatId,omitempty"`
-	WhatsAppNumber        string  `json:"whatsappNumber,omitempty"`
-	PreferredChannel      string  `json:"preferredChannel"`
-	NotificationEnabled   bool    `json:"notificationEnabled"`
-	QuietHoursStart       *string `json:"quietHoursStart,omitempty"`
-	QuietHoursEnd         *string `json:"quietHoursEnd,omitempty"`
-	UserID                *int64  `json:"userId,omitempty"`
-	Enabled               bool    `json:"enabled"`
+	ID                  int64   `json:"id"`
+	Name                string  `json:"name"`
+	Designation         string  `json:"designation,omitempty"`
+	Department          string  `json:"department,omitempty"`
+	Email               string  `json:"email,omitempty"`
+	Phone               string  `json:"phone,omitempty"`
+	TelegramChatID      string  `json:"telegramChatId,omitempty"`
+	WhatsAppNumber      string  `json:"whatsappNumber,omitempty"`
+	PreferredChannel    string  `json:"preferredChannel"`
+	NotificationEnabled bool    `json:"notificationEnabled"`
+	QuietHoursStart     *string `json:"quietHoursStart,omitempty"`
+	QuietHoursEnd       *string `json:"quietHoursEnd,omitempty"`
+	UserID              *int64  `json:"userId,omitempty"`
+	Enabled             bool    `json:"enabled"`
 }
 
 type DeviceContact struct {
-	ID         int64   `json:"id"`
-	DeviceID   *int64  `json:"deviceId,omitempty"`
-	LocationID *int64  `json:"locationId,omitempty"`
-	ContactID  int64   `json:"contactId"`
-	Role       string  `json:"role"`
-	NotifyOn   string  `json:"notifyOn"`
+	ID         int64  `json:"id"`
+	DeviceID   *int64 `json:"deviceId,omitempty"`
+	LocationID *int64 `json:"locationId,omitempty"`
+	ContactID  int64  `json:"contactId"`
+	Role       string `json:"role"`
+	NotifyOn   string `json:"notifyOn"`
 }
 
 type EscalationPolicy struct {
@@ -392,43 +392,85 @@ type EscalationPolicy struct {
 }
 
 type EscalationStep struct {
-	ID                      int64  `json:"id"`
-	PolicyID                int64  `json:"policyId"`
-	StepOrder               int    `json:"stepOrder"`
-	ContactID               int64  `json:"contactId"`
-	DelayMinutes            int    `json:"delayMinutes"`
-	NotifyVia               string `json:"notifyVia"`
-	RepeatCount             int    `json:"repeatCount"`
-	RepeatIntervalMinutes   int    `json:"repeatIntervalMinutes"`
+	ID                    int64  `json:"id"`
+	PolicyID              int64  `json:"policyId"`
+	StepOrder             int    `json:"stepOrder"`
+	ContactID             int64  `json:"contactId"`
+	DelayMinutes          int    `json:"delayMinutes"`
+	NotifyVia             string `json:"notifyVia"`
+	RepeatCount           int    `json:"repeatCount"`
+	RepeatIntervalMinutes int    `json:"repeatIntervalMinutes"`
 }
 
 type OncallSchedule struct {
-	ID             int64           `json:"id"`
-	Name           string          `json:"name"`
-	PolicyID       int64           `json:"policyId"`
-	RotationType   string          `json:"rotationType"`
-	Participants   json.RawMessage `json:"participants"`
-	CurrentIndex   int             `json:"currentIndex"`
-	RotationTime   string          `json:"rotationTime"`
-	Timezone       string          `json:"timezone"`
-	Enabled        bool            `json:"enabled"`
+	ID           int64           `json:"id"`
+	Name         string          `json:"name"`
+	PolicyID     int64           `json:"policyId"`
+	RotationType string          `json:"rotationType"`
+	Participants json.RawMessage `json:"participants"`
+	CurrentIndex int             `json:"currentIndex"`
+	RotationTime string          `json:"rotationTime"`
+	Timezone     string          `json:"timezone"`
+	Enabled      bool            `json:"enabled"`
 }
 
 type NotificationLog struct {
-	ID              int64      `json:"id"`
-	AlertID         *int64     `json:"alertId,omitempty"`
-	IncidentID      *int64     `json:"incidentId,omitempty"`
-	ContactID       int64      `json:"contactId"`
-	ChannelType     string     `json:"channelType"`
-	Recipient       string     `json:"recipient"`
-	MessagePreview  string     `json:"messagePreview,omitempty"`
-	Status          string     `json:"status"`
-	ExternalID      string     `json:"externalId,omitempty"`
-	ErrorMessage    string     `json:"errorMessage,omitempty"`
-	AttemptCount    int        `json:"attemptCount"`
-	EscalationStep  *int       `json:"escalationStep,omitempty"`
-	SentAt          *time.Time `json:"sentAt,omitempty"`
-	DeliveredAt     *time.Time `json:"deliveredAt,omitempty"`
-	ReadAt          *time.Time `json:"readAt,omitempty"`
-	CreatedAt       time.Time  `json:"createdAt"`
+	ID             int64      `json:"id"`
+	AlertID        *int64     `json:"alertId,omitempty"`
+	IncidentID     *int64     `json:"incidentId,omitempty"`
+	ContactID      int64      `json:"contactId"`
+	ChannelType    string     `json:"channelType"`
+	Recipient      string     `json:"recipient"`
+	MessagePreview string     `json:"messagePreview,omitempty"`
+	Status         string     `json:"status"`
+	ExternalID     string     `json:"externalId,omitempty"`
+	ErrorMessage   string     `json:"errorMessage,omitempty"`
+	AttemptCount   int        `json:"attemptCount"`
+	EscalationStep *int       `json:"escalationStep,omitempty"`
+	SentAt         *time.Time `json:"sentAt,omitempty"`
+	DeliveredAt    *time.Time `json:"deliveredAt,omitempty"`
+	ReadAt         *time.Time `json:"readAt,omitempty"`
+	CreatedAt      time.Time  `json:"createdAt"`
 }
+
+// Phase 2.4 — RBAC
+
+type Role struct {
+	ID          int64           `json:"id"`
+	Name        string          `json:"name"`
+	DisplayName string          `json:"displayName"`
+	Description string          `json:"description,omitempty"`
+	Permissions json.RawMessage `json:"permissions"`
+	IsSystem    bool            `json:"isSystem"`
+	CreatedAt   time.Time       `json:"createdAt"`
+}
+
+type UserScope struct {
+	ID         int64  `json:"id"`
+	UserID     int64  `json:"userId"`
+	ScopeType  string `json:"scopeType"`
+	ScopeValue string `json:"scopeValue"`
+}
+
+// Permission string constants matching the seeded JSONB values.
+const (
+	PermDevicesRead       = "devices.read"
+	PermDevicesWrite      = "devices.write"
+	PermDevicesDelete     = "devices.delete"
+	PermAlertsRead        = "alerts.read"
+	PermAlertsAcknowledge = "alerts.acknowledge"
+	PermAlertsResolve     = "alerts.resolve"
+	PermAlertRulesWrite   = "alert_rules.write"
+	PermIncidentsWrite    = "incidents.write"
+	PermMaintenanceWrite  = "maintenance.write"
+	PermContactsWrite     = "contacts.write"
+	PermReportsRead       = "reports.read"
+	PermSettingsWrite     = "settings.write"
+	PermUsersManage       = "users.manage"
+	PermImportExecute     = "import.execute"
+	PermDiscoveryExecute  = "discovery.execute"
+	PermCaptureExecute    = "capture.execute"
+	PermStatusPageManage  = "status_page.manage"
+	PermSystemMonitoring  = "system.monitoring"
+	PermSystemLogs        = "system.logs"
+)
