@@ -34,10 +34,41 @@ func (n *Notifier) Send(ctx context.Context, ch models.NotificationChannel, aler
 		return n.sendEmail(ctx, ch, alert)
 	case "slack":
 		return n.sendSlack(ctx, ch, alert)
+	case "telegram":
+		return n.sendTelegram(ctx, ch, alert)
 	default:
 		slog.Warn("Notifier: unsupported channel type", "type", ch.Type, "channel_id", ch.ID)
 		return fmt.Errorf("unsupported channel type: %s", ch.Type)
 	}
+}
+
+// SendToChatID sends a formatted alert message directly to a Telegram chat ID
+// using the bot token from config. Used by the escalation engine.
+func (n *Notifier) SendToChatID(ctx context.Context, botToken, chatID string, alert *models.Alert, keyboard [][]map[string]string) error {
+	if botToken == "" || chatID == "" {
+		return fmt.Errorf("telegram bot token or chat ID not configured")
+	}
+
+	severityEmoji := "⚠️"
+	switch alert.Severity {
+	case "critical":
+		severityEmoji = "🔴"
+	case "info":
+		severityEmoji = "ℹ️"
+	}
+
+	text := fmt.Sprintf(
+		"%s *[%s]* %s\n\n"+
+			"📍 Device: %s (ID: %d)\n"+
+			"⏰ Time: %s\n"+
+			"📋 Alert ID: %d",
+		severityEmoji, alert.Severity, alert.Message,
+		alert.DeviceName, alert.DeviceID,
+		time.Now().UTC().Format("15:04 MST, Jan 2 2006"),
+		alert.ID,
+	)
+
+	return n.sendTelegramMessage(ctx, botToken, chatID, text, keyboard)
 }
 
 func (n *Notifier) sendWebhook(ctx context.Context, ch models.NotificationChannel, alert *models.Alert) error {
@@ -154,6 +185,75 @@ func (n *Notifier) sendSlack(ctx context.Context, ch models.NotificationChannel,
 
 	if resp.StatusCode >= 300 {
 		return fmt.Errorf("slack returned status %d", resp.StatusCode)
+	}
+	return nil
+}
+
+func (n *Notifier) sendTelegram(ctx context.Context, ch models.NotificationChannel, alert *models.Alert) error {
+	botToken, _ := ch.Config["bot_token"].(string)
+	chatID, _ := ch.Config["chat_id"].(string)
+	if botToken == "" || chatID == "" {
+		return fmt.Errorf("telegram channel %d has no bot_token or chat_id", ch.ID)
+	}
+
+	severityEmoji := "⚠️"
+	switch alert.Severity {
+	case "critical":
+		severityEmoji = "🔴"
+	case "info":
+		severityEmoji = "ℹ️"
+	}
+
+	text := fmt.Sprintf(
+		"%s *\\[%s\\]* %s\n\n"+
+			"📍 Device: %s\n"+
+			"⏰ Time: %s\n"+
+			"📋 Alert ID: %d",
+		severityEmoji, alert.Severity, alert.Message,
+		alert.DeviceName,
+		time.Now().UTC().Format("15:04 MST, Jan 2 2006"),
+		alert.ID,
+	)
+
+	keyboard := [][]map[string]string{
+		{
+			{"text": "✅ Acknowledge", "callback_data": fmt.Sprintf("/ack %d", alert.ID)},
+			{"text": "🔍 Details", "callback_data": fmt.Sprintf("/device %s", alert.DeviceName)},
+		},
+	}
+
+	return n.sendTelegramMessage(ctx, botToken, chatID, text, keyboard)
+}
+
+func (n *Notifier) sendTelegramMessage(ctx context.Context, botToken, chatID, text string, keyboard [][]map[string]string) error {
+	payload := map[string]any{
+		"chat_id":    chatID,
+		"text":       text,
+		"parse_mode": "MarkdownV2",
+	}
+	if len(keyboard) > 0 {
+		payload["reply_markup"] = map[string]any{
+			"inline_keyboard": keyboard,
+		}
+	}
+
+	body, _ := json.Marshal(payload)
+	url := fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage", botToken)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := n.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("telegram send failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 300 {
+		return fmt.Errorf("telegram API returned status %d", resp.StatusCode)
 	}
 	return nil
 }
