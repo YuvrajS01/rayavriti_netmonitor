@@ -8,14 +8,25 @@ import { useSocket } from '../hooks/useSocket';
 
 const navItems = [
   { to: '/', label: 'Overview', icon: 'dashboard' },
+  { to: '/campus', label: 'Campus', icon: 'account_tree' },
   { to: '/devices', label: 'My Devices', icon: 'devices' },
   { to: '/sensors', label: 'Monitors & Sensors', icon: 'sensors' },
+  { to: '/incidents', label: 'Incidents', icon: 'crisis_alert' },
+  { to: '/maintenance', label: 'Maintenance', icon: 'event_repeat' },
+  { to: '/discovery', label: 'Discovery', icon: 'travel_explore' },
+  { to: '/isp', label: 'ISP Links', icon: 'router' },
   { to: '/flows', label: 'Flow Analysis', icon: 'swap_horiz' },
   { to: '/capture', label: 'Packet Capture', icon: 'network_check' },
   { to: '/ai-health', label: 'AI Health', icon: 'psychology' },
   { to: '/alerts', label: 'Alerts', icon: 'warning' },
   { to: '/reports', label: 'Reports', icon: 'analytics' },
+  { to: '/reports/builder', label: 'Report Builder', icon: 'summarize' },
   { to: '/settings', label: 'Settings', icon: 'settings' },
+  { to: '/settings/locations', label: 'Locations', icon: 'apartment' },
+  { to: '/settings/contacts', label: 'Contacts', icon: 'contacts' },
+  { to: '/settings/status-page', label: 'Status Page', icon: 'public' },
+  { to: '/settings/users', label: 'Users & Roles', icon: 'manage_accounts' },
+  { to: '/import', label: 'Bulk Import', icon: 'upload_file' },
 ];
 
 const SidebarLink = memo(function SidebarLink({ to, label, icon, badge, onClick }: { to: string; label: string; icon: string; badge?: number; onClick?: () => void }) {

@@ -20,6 +20,17 @@ const AIHealth = lazy(() => import('./pages/AIHealth'));
 const Alerts = lazy(() => import('./pages/Alerts'));
 const Reports = lazy(() => import('./pages/Reports'));
 const Settings = lazy(() => import('./pages/Settings'));
+const Campus = lazy(() => import('./pages/Campus'));
+const LocationManager = lazy(() => import('./pages/LocationManager'));
+const Incidents = lazy(() => import('./pages/Incidents'));
+const Contacts = lazy(() => import('./pages/Contacts'));
+const StatusPageAdmin = lazy(() => import('./pages/StatusPageAdmin'));
+const Maintenance = lazy(() => import('./pages/Maintenance'));
+const UserManagement = lazy(() => import('./pages/UserManagement'));
+const ReportBuilder = lazy(() => import('./pages/ReportBuilder'));
+const Discovery = lazy(() => import('./pages/Discovery'));
+const BulkImport = lazy(() => import('./pages/BulkImport'));
+const ISP = lazy(() => import('./pages/ISP'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 
 function PageLoader() {
@@ -84,7 +95,18 @@ function AppRoutes() {
         <Route path="/ai-health" element={<ProtectedRoute><AIHealth /></ProtectedRoute>} />
         <Route path="/alerts" element={<ProtectedRoute><Alerts /></ProtectedRoute>} />
         <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
+        <Route path="/reports/builder" element={<ProtectedRoute><ReportBuilder /></ProtectedRoute>} />
+        <Route path="/campus" element={<ProtectedRoute><Campus /></ProtectedRoute>} />
+        <Route path="/incidents" element={<ProtectedRoute><Incidents /></ProtectedRoute>} />
+        <Route path="/maintenance" element={<ProtectedRoute><Maintenance /></ProtectedRoute>} />
+        <Route path="/discovery" element={<ProtectedRoute><Discovery /></ProtectedRoute>} />
+        <Route path="/import" element={<ProtectedRoute><BulkImport /></ProtectedRoute>} />
+        <Route path="/isp" element={<ProtectedRoute><ISP /></ProtectedRoute>} />
         <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+        <Route path="/settings/locations" element={<ProtectedRoute><LocationManager /></ProtectedRoute>} />
+        <Route path="/settings/contacts" element={<ProtectedRoute><Contacts /></ProtectedRoute>} />
+        <Route path="/settings/status-page" element={<ProtectedRoute><StatusPageAdmin /></ProtectedRoute>} />
+        <Route path="/settings/users" element={<ProtectedRoute><UserManagement /></ProtectedRoute>} />
         <Route path="*" element={<ProtectedRoute><NotFound /></ProtectedRoute>} />
       </Routes>
     </Suspense>

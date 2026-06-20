@@ -78,12 +78,28 @@ type LoggingConfig struct {
 }
 
 type Phase2Config struct {
-	TelegramToken     string
-	TelegramChatID    string
-	TwilioSID         string
-	TwilioToken       string
-	TwilioFrom        string
-	StatusPageEnabled bool
+	TelegramBotToken       string
+	TelegramDefaultChatID  string
+	TelegramMode           string
+	WhatsAppAPIURL         string
+	WhatsAppAPIToken       string
+	WhatsAppSenderNumber   string
+	SMSGatewayURL          string
+	SMSAPIKey              string
+	SMSSenderID            string
+	ReportOutputDir        string
+	ReportSMTPHost         string
+	ReportSMTPPort         int
+	ReportSMTPUser         string
+	ReportSMTPPass         string
+	ReportFromEmail        string
+	ISPMonitorInterval     int
+	ISPExternalTargets     []string
+	StatusPageTitle        string
+	StatusPageLogoURL      string
+	DiscoveryMaxConcurrent int
+	DiscoveryTimeoutMS     int
+	DefaultTimezone        string
 }
 
 func Load() (*Config, error) {
@@ -157,12 +173,28 @@ func Load() (*Config, error) {
 			SlowRequestMs:  envInt("LOG_SLOW_REQUEST_MS", 1000),
 		},
 		Phase2: Phase2Config{
-			TelegramToken:     os.Getenv("TELEGRAM_TOKEN"),
-			TelegramChatID:    os.Getenv("TELEGRAM_CHAT_ID"),
-			TwilioSID:         os.Getenv("TWILIO_SID"),
-			TwilioToken:       os.Getenv("TWILIO_TOKEN"),
-			TwilioFrom:        os.Getenv("TWILIO_FROM"),
-			StatusPageEnabled: envBool("STATUS_PAGE_ENABLED", false),
+			TelegramBotToken:       envStr("TELEGRAM_BOT_TOKEN", envStr("TELEGRAM_TOKEN", "")),
+			TelegramDefaultChatID:  envStr("TELEGRAM_DEFAULT_CHAT_ID", envStr("TELEGRAM_CHAT_ID", "")),
+			TelegramMode:           envStr("TELEGRAM_MODE", "polling"),
+			WhatsAppAPIURL:         envStr("WHATSAPP_API_URL", ""),
+			WhatsAppAPIToken:       envStr("WHATSAPP_API_TOKEN", ""),
+			WhatsAppSenderNumber:   envStr("WHATSAPP_SENDER_NUMBER", ""),
+			SMSGatewayURL:          envStr("SMS_GATEWAY_URL", ""),
+			SMSAPIKey:              envStr("SMS_API_KEY", ""),
+			SMSSenderID:            envStr("SMS_SENDER_ID", ""),
+			ReportOutputDir:        envStr("REPORT_OUTPUT_DIR", "./data/reports"),
+			ReportSMTPHost:         envStr("REPORT_SMTP_HOST", ""),
+			ReportSMTPPort:         envInt("REPORT_SMTP_PORT", 587),
+			ReportSMTPUser:         envStr("REPORT_SMTP_USER", ""),
+			ReportSMTPPass:         envStr("REPORT_SMTP_PASS", ""),
+			ReportFromEmail:        envStr("REPORT_FROM_EMAIL", "netmonitor@college.edu"),
+			ISPMonitorInterval:     envInt("ISP_MONITOR_INTERVAL", 10),
+			ISPExternalTargets:     envSliceDefault("ISP_EXTERNAL_TARGETS", []string{"8.8.8.8", "1.1.1.1"}),
+			StatusPageTitle:        envStr("STATUS_PAGE_TITLE", "Campus Network Status"),
+			StatusPageLogoURL:      envStr("STATUS_PAGE_LOGO_URL", ""),
+			DiscoveryMaxConcurrent: envInt("DISCOVERY_MAX_CONCURRENT", 64),
+			DiscoveryTimeoutMS:     envInt("DISCOVERY_TIMEOUT_MS", 2000),
+			DefaultTimezone:        envStr("DEFAULT_TIMEZONE", "Asia/Kolkata"),
 		},
 	}
 
@@ -225,4 +257,11 @@ func envSlice(key string) []string {
 		return result
 	}
 	return nil
+}
+
+func envSliceDefault(key string, def []string) []string {
+	if v := envSlice(key); len(v) > 0 {
+		return v
+	}
+	return def
 }

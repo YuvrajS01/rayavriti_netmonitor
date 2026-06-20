@@ -467,4 +467,452 @@ var migrations = []string{
 	CREATE INDEX IF NOT EXISTS idx_hsh_device_time ON health_score_history(device_id, computed_at DESC);
 
 	ALTER TABLE alerts ADD COLUMN IF NOT EXISTS group_id TEXT;`,
+
+	// V34: Phase 2 campus-grade schema additions
+	`CREATE TABLE IF NOT EXISTS roles (
+		id           BIGSERIAL PRIMARY KEY,
+		name         TEXT NOT NULL UNIQUE,
+		display_name TEXT NOT NULL,
+		description  TEXT,
+		permissions  JSONB NOT NULL DEFAULT '[]',
+		is_system    BOOLEAN NOT NULL DEFAULT FALSE,
+		created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+	);
+
+	CREATE TABLE IF NOT EXISTS contacts (
+		id                   BIGSERIAL PRIMARY KEY,
+		name                 TEXT NOT NULL,
+		designation          TEXT,
+		department           TEXT,
+		email                TEXT,
+		phone                TEXT,
+		telegram_chat_id     TEXT,
+		whatsapp_number      TEXT,
+		preferred_channel    TEXT NOT NULL DEFAULT 'email',
+		notification_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+		quiet_hours_start    TEXT,
+		quiet_hours_end      TEXT,
+		user_id              BIGINT REFERENCES users(id) ON DELETE SET NULL,
+		enabled              BOOLEAN NOT NULL DEFAULT TRUE,
+		created_at           TIMESTAMPTZ NOT NULL DEFAULT NOW()
+	);
+
+	CREATE TABLE IF NOT EXISTS locations (
+		id                BIGSERIAL PRIMARY KEY,
+		name              TEXT NOT NULL,
+		type              TEXT NOT NULL,
+		parent_id         BIGINT REFERENCES locations(id) ON DELETE SET NULL,
+		code              TEXT UNIQUE,
+		description       TEXT,
+		address           TEXT,
+		latitude          REAL,
+		longitude         REAL,
+		floor_number      INTEGER,
+		contact_person_id BIGINT REFERENCES contacts(id) ON DELETE SET NULL,
+		metadata          JSONB NOT NULL DEFAULT '{}',
+		sort_order        INTEGER NOT NULL DEFAULT 0,
+		enabled           BOOLEAN NOT NULL DEFAULT TRUE,
+		created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+		updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
+	);
+	CREATE INDEX IF NOT EXISTS idx_loc_parent ON locations(parent_id);
+	CREATE INDEX IF NOT EXISTS idx_loc_type ON locations(type);
+	CREATE INDEX IF NOT EXISTS idx_loc_code ON locations(code);
+
+	CREATE TABLE IF NOT EXISTS subnets (
+		id           BIGSERIAL PRIMARY KEY,
+		name         TEXT NOT NULL,
+		vlan_id      BIGINT,
+		cidr         CIDR NOT NULL,
+		gateway      INET,
+		description  TEXT,
+		location_id  BIGINT REFERENCES locations(id) ON DELETE SET NULL,
+		dns_servers  INET[],
+		dhcp_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+		created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+	);
+	CREATE INDEX IF NOT EXISTS idx_subnets_vlan ON subnets(vlan_id);
+	CREATE INDEX IF NOT EXISTS idx_subnets_location ON subnets(location_id);
+
+	ALTER TABLE devices ADD COLUMN IF NOT EXISTS location_id BIGINT REFERENCES locations(id) ON DELETE SET NULL;
+	ALTER TABLE devices ADD COLUMN IF NOT EXISTS parent_device_id BIGINT REFERENCES devices(id) ON DELETE SET NULL;
+	ALTER TABLE devices ADD COLUMN IF NOT EXISTS dependency_port TEXT;
+	ALTER TABLE devices ADD COLUMN IF NOT EXISTS rack_position TEXT;
+	ALTER TABLE devices ADD COLUMN IF NOT EXISTS asset_tag TEXT;
+	ALTER TABLE devices ADD COLUMN IF NOT EXISTS mac_address TEXT;
+	ALTER TABLE devices ADD COLUMN IF NOT EXISTS serial_number TEXT;
+	ALTER TABLE devices ADD COLUMN IF NOT EXISTS manufacturer TEXT;
+	ALTER TABLE devices ADD COLUMN IF NOT EXISTS model TEXT;
+	ALTER TABLE devices ADD COLUMN IF NOT EXISTS device_category TEXT;
+	ALTER TABLE devices ADD COLUMN IF NOT EXISTS notes TEXT;
+	CREATE INDEX IF NOT EXISTS idx_devices_location ON devices(location_id);
+	CREATE INDEX IF NOT EXISTS idx_devices_parent ON devices(parent_device_id);
+	CREATE INDEX IF NOT EXISTS idx_devices_category ON devices(device_category);
+
+	ALTER TABLE users ADD COLUMN IF NOT EXISTS role_id BIGINT REFERENCES roles(id);
+	ALTER TABLE users ADD COLUMN IF NOT EXISTS display_name TEXT;
+	ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT;
+	ALTER TABLE users ADD COLUMN IF NOT EXISTS phone TEXT;
+	ALTER TABLE users ADD COLUMN IF NOT EXISTS contact_id BIGINT REFERENCES contacts(id) ON DELETE SET NULL;
+	ALTER TABLE users ADD COLUMN IF NOT EXISTS enabled BOOLEAN NOT NULL DEFAULT TRUE;
+	ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMPTZ;
+
+	CREATE TABLE IF NOT EXISTS suppressed_alerts (
+		id                   BIGSERIAL,
+		device_id            BIGINT NOT NULL REFERENCES devices(id),
+		rule_id              BIGINT,
+		suppression_reason   TEXT NOT NULL,
+		root_cause_device_id BIGINT REFERENCES devices(id),
+		root_cause_alert_id  BIGINT REFERENCES alerts(id),
+		would_have_fired_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+		released_at          TIMESTAMPTZ,
+		created_at           TIMESTAMPTZ NOT NULL DEFAULT NOW()
+	);
+	CREATE INDEX IF NOT EXISTS idx_suppressed_device ON suppressed_alerts(device_id);
+	CREATE INDEX IF NOT EXISTS idx_suppressed_root ON suppressed_alerts(root_cause_device_id);
+
+	CREATE TABLE IF NOT EXISTS discovery_jobs (
+		id                BIGSERIAL PRIMARY KEY,
+		subnet            TEXT NOT NULL,
+		scan_type         TEXT NOT NULL,
+		status            TEXT NOT NULL DEFAULT 'running',
+		location_id        BIGINT REFERENCES locations(id),
+		initiated_by       TEXT,
+		total_ips_scanned  INTEGER NOT NULL DEFAULT 0,
+		devices_found      INTEGER NOT NULL DEFAULT 0,
+		devices_new        INTEGER NOT NULL DEFAULT 0,
+		devices_known      INTEGER NOT NULL DEFAULT 0,
+		started_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+		completed_at       TIMESTAMPTZ,
+		error_message      TEXT
+	);
+
+	CREATE TABLE IF NOT EXISTS discovery_results (
+		id                 BIGSERIAL PRIMARY KEY,
+		job_id             BIGINT NOT NULL REFERENCES discovery_jobs(id) ON DELETE CASCADE,
+		ip_address         TEXT NOT NULL,
+		mac_address        TEXT,
+		manufacturer       TEXT,
+		hostname           TEXT,
+		device_description TEXT,
+		guessed_category   TEXT,
+		guessed_os         TEXT,
+		open_ports         JSONB NOT NULL DEFAULT '[]',
+		snmp_reachable     BOOLEAN NOT NULL DEFAULT FALSE,
+		response_time_ms   REAL,
+		status             TEXT NOT NULL DEFAULT 'pending',
+		approved_device_id BIGINT REFERENCES devices(id),
+		discovered_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+	);
+	CREATE INDEX IF NOT EXISTS idx_disc_results_job ON discovery_results(job_id);
+	CREATE INDEX IF NOT EXISTS idx_disc_results_status ON discovery_results(status);
+
+	CREATE TABLE IF NOT EXISTS status_page_services (
+		id                 BIGSERIAL PRIMARY KEY,
+		name               TEXT NOT NULL,
+		description        TEXT,
+		group_name         TEXT NOT NULL DEFAULT 'General',
+		aggregation        TEXT NOT NULL DEFAULT 'any_down',
+		display_order      INTEGER NOT NULL DEFAULT 0,
+		show_response_time BOOLEAN NOT NULL DEFAULT FALSE,
+		show_uptime        BOOLEAN NOT NULL DEFAULT TRUE,
+		enabled            BOOLEAN NOT NULL DEFAULT TRUE,
+		created_at         TIMESTAMPTZ NOT NULL DEFAULT NOW()
+	);
+
+	CREATE TABLE IF NOT EXISTS status_page_service_devices (
+		service_id BIGINT NOT NULL REFERENCES status_page_services(id) ON DELETE CASCADE,
+		device_id  BIGINT NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+		PRIMARY KEY (service_id, device_id)
+	);
+	CREATE INDEX IF NOT EXISTS idx_status_service_devices_device ON status_page_service_devices(device_id);
+
+	CREATE TABLE IF NOT EXISTS status_page_incidents (
+		id          BIGSERIAL PRIMARY KEY,
+		title       TEXT NOT NULL,
+		message     TEXT NOT NULL,
+		severity    TEXT NOT NULL DEFAULT 'info',
+		status      TEXT NOT NULL DEFAULT 'investigating',
+		started_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+		resolved_at TIMESTAMPTZ,
+		created_by  BIGINT REFERENCES users(id),
+		created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+		updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+	);
+
+	CREATE TABLE IF NOT EXISTS status_page_incident_services (
+		incident_id BIGINT NOT NULL REFERENCES status_page_incidents(id) ON DELETE CASCADE,
+		service_id  BIGINT NOT NULL REFERENCES status_page_services(id) ON DELETE CASCADE,
+		PRIMARY KEY (incident_id, service_id)
+	);
+
+	CREATE TABLE IF NOT EXISTS status_page_incident_updates (
+		id          BIGSERIAL PRIMARY KEY,
+		incident_id BIGINT NOT NULL REFERENCES status_page_incidents(id) ON DELETE CASCADE,
+		status      TEXT NOT NULL,
+		message     TEXT NOT NULL,
+		created_by  BIGINT REFERENCES users(id),
+		created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+	);
+
+	CREATE TABLE IF NOT EXISTS maintenance_windows (
+		id                      BIGSERIAL PRIMARY KEY,
+		name                    TEXT NOT NULL,
+		description             TEXT,
+		scope_type              TEXT NOT NULL,
+		scope_value             TEXT NOT NULL,
+		schedule_type           TEXT NOT NULL,
+		start_time              TIMESTAMPTZ,
+		end_time                TIMESTAMPTZ,
+		recurrence_rule         TEXT,
+		recurrence_start_time   TEXT,
+		recurrence_end_time     TEXT,
+		recurrence_timezone     TEXT NOT NULL DEFAULT 'Asia/Kolkata',
+		suppress_alerts         BOOLEAN NOT NULL DEFAULT TRUE,
+		suppress_notifications  BOOLEAN NOT NULL DEFAULT TRUE,
+		show_maintenance_status BOOLEAN NOT NULL DEFAULT TRUE,
+		created_by              BIGINT REFERENCES users(id),
+		enabled                 BOOLEAN NOT NULL DEFAULT TRUE,
+		created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+		updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
+	);
+	CREATE INDEX IF NOT EXISTS idx_maint_scope ON maintenance_windows(scope_type, scope_value);
+	CREATE INDEX IF NOT EXISTS idx_maint_schedule ON maintenance_windows(schedule_type, start_time, end_time);
+
+	CREATE TABLE IF NOT EXISTS device_contacts (
+		id          BIGSERIAL PRIMARY KEY,
+		device_id   BIGINT REFERENCES devices(id) ON DELETE CASCADE,
+		location_id BIGINT REFERENCES locations(id) ON DELETE CASCADE,
+		contact_id  BIGINT NOT NULL REFERENCES contacts(id) ON DELETE CASCADE,
+		role        TEXT NOT NULL DEFAULT 'primary',
+		notify_on   TEXT NOT NULL DEFAULT 'critical,warning',
+		created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+	);
+	CREATE INDEX IF NOT EXISTS idx_dc_device ON device_contacts(device_id);
+	CREATE INDEX IF NOT EXISTS idx_dc_location ON device_contacts(location_id);
+
+	CREATE TABLE IF NOT EXISTS escalation_policies (
+		id          BIGSERIAL PRIMARY KEY,
+		name        TEXT NOT NULL,
+		description TEXT,
+		scope_type  TEXT NOT NULL DEFAULT 'global',
+		scope_value TEXT,
+		enabled     BOOLEAN NOT NULL DEFAULT TRUE,
+		created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+	);
+
+	CREATE TABLE IF NOT EXISTS escalation_steps (
+		id                      BIGSERIAL PRIMARY KEY,
+		policy_id               BIGINT NOT NULL REFERENCES escalation_policies(id) ON DELETE CASCADE,
+		step_order              INTEGER NOT NULL,
+		contact_id              BIGINT NOT NULL REFERENCES contacts(id) ON DELETE CASCADE,
+		delay_minutes           INTEGER NOT NULL,
+		notify_via              TEXT NOT NULL DEFAULT 'preferred',
+		repeat_count            INTEGER NOT NULL DEFAULT 1,
+		repeat_interval_minutes INTEGER NOT NULL DEFAULT 5,
+		created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
+	);
+	CREATE INDEX IF NOT EXISTS idx_esc_steps_policy ON escalation_steps(policy_id, step_order);
+
+	CREATE TABLE IF NOT EXISTS oncall_schedules (
+		id            BIGSERIAL PRIMARY KEY,
+		name          TEXT NOT NULL,
+		policy_id     BIGINT NOT NULL REFERENCES escalation_policies(id) ON DELETE CASCADE,
+		rotation_type TEXT NOT NULL DEFAULT 'weekly',
+		participants  JSONB NOT NULL DEFAULT '[]',
+		current_index INTEGER NOT NULL DEFAULT 0,
+		rotation_time TEXT NOT NULL DEFAULT '09:00',
+		timezone      TEXT NOT NULL DEFAULT 'Asia/Kolkata',
+		enabled       BOOLEAN NOT NULL DEFAULT TRUE,
+		created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+	);
+
+	CREATE TABLE IF NOT EXISTS incidents (
+		id                    BIGSERIAL PRIMARY KEY,
+		title                 TEXT NOT NULL,
+		description           TEXT,
+		severity              TEXT NOT NULL,
+		status                TEXT NOT NULL DEFAULT 'open',
+		root_cause            TEXT,
+		root_cause_category   TEXT,
+		resolution            TEXT,
+		source                TEXT NOT NULL DEFAULT 'auto',
+		source_alert_id       BIGINT REFERENCES alerts(id),
+		assigned_to           BIGINT REFERENCES contacts(id),
+		location_id           BIGINT REFERENCES locations(id),
+		impact_description    TEXT,
+		affected_device_count INTEGER NOT NULL DEFAULT 0,
+		started_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+		acknowledged_at       TIMESTAMPTZ,
+		resolved_at           TIMESTAMPTZ,
+		closed_at             TIMESTAMPTZ,
+		duration_seconds      INTEGER,
+		sla_breached          BOOLEAN NOT NULL DEFAULT FALSE,
+		created_by            BIGINT REFERENCES users(id),
+		created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+		updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
+	);
+	CREATE INDEX IF NOT EXISTS idx_incidents_status ON incidents(status);
+	CREATE INDEX IF NOT EXISTS idx_incidents_severity ON incidents(severity);
+	CREATE INDEX IF NOT EXISTS idx_incidents_started ON incidents(started_at);
+	CREATE INDEX IF NOT EXISTS idx_incidents_location ON incidents(location_id);
+
+	CREATE TABLE IF NOT EXISTS incident_devices (
+		incident_id BIGINT NOT NULL REFERENCES incidents(id) ON DELETE CASCADE,
+		device_id   BIGINT NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+		PRIMARY KEY (incident_id, device_id)
+	);
+
+	CREATE TABLE IF NOT EXISTS incident_timeline (
+		id          BIGSERIAL,
+		incident_id BIGINT NOT NULL REFERENCES incidents(id) ON DELETE CASCADE,
+		entry_type  TEXT NOT NULL,
+		old_value   TEXT,
+		new_value   TEXT,
+		message     TEXT NOT NULL,
+		author      TEXT,
+		created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+	);
+	CREATE INDEX IF NOT EXISTS idx_inc_timeline ON incident_timeline(incident_id, created_at);
+
+	CREATE TABLE IF NOT EXISTS sla_definitions (
+		id                      BIGSERIAL PRIMARY KEY,
+		name                    TEXT NOT NULL,
+		severity                TEXT NOT NULL UNIQUE,
+		response_time_minutes   INTEGER NOT NULL,
+		resolution_time_minutes INTEGER NOT NULL,
+		enabled                 BOOLEAN NOT NULL DEFAULT TRUE,
+		created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
+	);
+
+	CREATE TABLE IF NOT EXISTS user_scopes (
+		id          BIGSERIAL PRIMARY KEY,
+		user_id     BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		scope_type  TEXT NOT NULL,
+		scope_value TEXT NOT NULL
+	);
+	CREATE INDEX IF NOT EXISTS idx_user_scopes ON user_scopes(user_id);
+
+	CREATE TABLE IF NOT EXISTS notification_log (
+		id              BIGSERIAL,
+		alert_id        BIGINT REFERENCES alerts(id),
+		incident_id     BIGINT REFERENCES incidents(id),
+		contact_id      BIGINT NOT NULL REFERENCES contacts(id),
+		channel_type    TEXT NOT NULL,
+		recipient       TEXT NOT NULL,
+		message_preview TEXT,
+		status          TEXT NOT NULL,
+		external_id     TEXT,
+		error_message   TEXT,
+		attempt_count   INTEGER NOT NULL DEFAULT 1,
+		escalation_step INTEGER,
+		sent_at         TIMESTAMPTZ,
+		delivered_at    TIMESTAMPTZ,
+		read_at         TIMESTAMPTZ,
+		created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+	);
+	CREATE INDEX IF NOT EXISTS idx_notif_log_alert ON notification_log(alert_id);
+	CREATE INDEX IF NOT EXISTS idx_notif_log_contact ON notification_log(contact_id);
+	CREATE INDEX IF NOT EXISTS idx_notif_log_status ON notification_log(status);
+
+	CREATE TABLE IF NOT EXISTS scheduled_reports (
+		id               BIGSERIAL PRIMARY KEY,
+		name             TEXT NOT NULL,
+		report_type      TEXT NOT NULL,
+		format           TEXT NOT NULL DEFAULT 'pdf',
+		schedule_cron    TEXT NOT NULL,
+		timezone         TEXT NOT NULL DEFAULT 'Asia/Kolkata',
+		scope_type       TEXT NOT NULL DEFAULT 'global',
+		scope_value      TEXT,
+		recipients       JSONB NOT NULL DEFAULT '[]',
+		include_charts   BOOLEAN NOT NULL DEFAULT TRUE,
+		lookback_period  TEXT NOT NULL DEFAULT '7d',
+		custom_from      TIMESTAMPTZ,
+		custom_to        TIMESTAMPTZ,
+		last_run_at      TIMESTAMPTZ,
+		last_run_status  TEXT,
+		enabled          BOOLEAN NOT NULL DEFAULT TRUE,
+		created_by       BIGINT REFERENCES users(id),
+		created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+	);
+	CREATE INDEX IF NOT EXISTS idx_sched_reports_cron ON scheduled_reports(enabled, schedule_cron);
+
+	CREATE TABLE IF NOT EXISTS generated_reports (
+		id                  BIGSERIAL PRIMARY KEY,
+		scheduled_report_id BIGINT REFERENCES scheduled_reports(id) ON DELETE SET NULL,
+		report_type         TEXT NOT NULL,
+		title               TEXT NOT NULL,
+		format              TEXT NOT NULL,
+		file_path           TEXT NOT NULL,
+		file_size_bytes     INTEGER,
+		scope_description   TEXT,
+		period_from         TIMESTAMPTZ,
+		period_to           TIMESTAMPTZ,
+		recipients          TEXT,
+		generated_by        TEXT,
+		generated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
+	);
+
+	CREATE TABLE IF NOT EXISTS isp_links (
+		id                          BIGSERIAL PRIMARY KEY,
+		name                        TEXT NOT NULL,
+		provider                    TEXT NOT NULL,
+		circuit_id                  TEXT,
+		bandwidth_mbps              INTEGER,
+		gateway_ip                  TEXT NOT NULL,
+		sla_uptime_percent          REAL,
+		cost_monthly                REAL,
+		contract_start              DATE,
+		contract_end                DATE,
+		monitoring_interval_seconds INTEGER NOT NULL DEFAULT 10,
+		enabled                     BOOLEAN NOT NULL DEFAULT TRUE,
+		created_at                  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+	);
+
+	CREATE TABLE IF NOT EXISTS isp_metrics (
+		id                  BIGSERIAL,
+		link_id             BIGINT NOT NULL REFERENCES isp_links(id) ON DELETE CASCADE,
+		latency_ms          REAL,
+		jitter_ms           REAL,
+		packet_loss_percent REAL,
+		download_speed_mbps REAL,
+		upload_speed_mbps   REAL,
+		status              TEXT NOT NULL,
+		target_ip           TEXT,
+		created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+	);
+	CREATE INDEX IF NOT EXISTS idx_isp_metrics_link ON isp_metrics(link_id, created_at);
+
+	INSERT INTO roles(name, display_name, description, permissions, is_system)
+	VALUES
+		('super_admin', 'Super Admin', 'Full platform access', '["*"]', TRUE),
+		('network_admin', 'Network Admin', 'Network operations access', '["devices.read","devices.write","alerts.read","alerts.acknowledge","alerts.resolve","alert_rules.write","incidents.write","maintenance.write","contacts.write","reports.read","import.execute","discovery.execute","capture.execute","status_page.manage","system.monitoring"]', TRUE),
+		('dept_admin', 'Department Admin', 'Scoped department operations', '["devices.read","alerts.read","alerts.acknowledge","incidents.write","reports.read"]', TRUE),
+		('viewer', 'Viewer', 'Scoped read-only access', '["devices.read","alerts.read"]', TRUE),
+		('public', 'Public', 'Public status access', '[]', TRUE)
+	ON CONFLICT (name) DO UPDATE SET display_name=EXCLUDED.display_name, permissions=EXCLUDED.permissions, is_system=EXCLUDED.is_system;
+
+	INSERT INTO locations(name, type, code, description)
+	VALUES ('Main Campus', 'campus', 'MC', 'Default Phase 2 root location')
+	ON CONFLICT (code) DO NOTHING;
+
+	INSERT INTO sla_definitions(name, severity, response_time_minutes, resolution_time_minutes)
+	VALUES
+		('Critical SLA', 'critical', 15, 120),
+		('Major SLA', 'major', 30, 480),
+		('Minor SLA', 'minor', 60, 1440)
+	ON CONFLICT (severity) DO UPDATE SET response_time_minutes=EXCLUDED.response_time_minutes, resolution_time_minutes=EXCLUDED.resolution_time_minutes;
+
+	INSERT INTO escalation_policies(name, description, scope_type, enabled)
+	VALUES ('Default IT Escalation', 'Default Phase 2 escalation policy', 'global', TRUE)
+	ON CONFLICT DO NOTHING;
+
+	UPDATE users SET role_id=(SELECT id FROM roles WHERE name='super_admin' LIMIT 1), role='super_admin'
+	WHERE username='admin';
+
+	CREATE EXTENSION IF NOT EXISTS timescaledb;
+	SELECT create_hypertable('suppressed_alerts', 'created_at', if_not_exists => TRUE);
+	SELECT create_hypertable('notification_log', 'created_at', if_not_exists => TRUE);
+	SELECT create_hypertable('incident_timeline', 'created_at', if_not_exists => TRUE);
+	SELECT create_hypertable('isp_metrics', 'created_at', if_not_exists => TRUE);`,
 }

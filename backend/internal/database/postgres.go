@@ -63,6 +63,12 @@ func (p *Postgres) Close() error {
 	return nil
 }
 
+// Pool returns the underlying pgx connection pool for use by domain-specific
+// service packages (campus, importer, etc.) that need direct SQL access.
+func (p *Postgres) Pool() *pgxpool.Pool {
+	return p.pool
+}
+
 func (p *Postgres) Ping(ctx context.Context) error {
 	return p.pool.Ping(ctx)
 }
@@ -142,10 +148,10 @@ func splitStatements(sql string) []string {
 // ── Devices ──────────────────────────────────────────────────────────────────
 
 const deviceSelectCols = `
-		SELECT id,name,ip_address,protocol,port,enabled,status,tags,
-		       COALESCE(snmp_community,''),COALESCE(snmp_version,''),COALESCE(snmp_port,0),COALESCE(http_path,''),COALESCE(http_expected_status,0),
-		       interval_sec,location_id,parent_device_id,COALESCE(rack_position,''),COALESCE(asset_tag,''),
-		       COALESCE(mac_address,''),COALESCE(manufacturer,''),COALESCE(model,''),COALESCE(device_category,''),COALESCE(notes,''),created_at,updated_at
+	SELECT id,name,ip_address,protocol,port,enabled,status,tags,
+	       COALESCE(snmp_community,''),COALESCE(snmp_version,''),COALESCE(snmp_port,0),COALESCE(http_path,''),COALESCE(http_expected_status,0),
+	       interval_sec,location_id,parent_device_id,COALESCE(dependency_port,''),COALESCE(rack_position,''),COALESCE(asset_tag,''),
+	       COALESCE(mac_address,''),COALESCE(serial_number,''),COALESCE(manufacturer,''),COALESCE(model,''),COALESCE(device_category,''),COALESCE(notes,''),created_at,updated_at
 		FROM devices`
 
 func (p *Postgres) GetDevices(ctx context.Context) ([]models.Device, error) {
@@ -179,15 +185,15 @@ func (p *Postgres) CreateDevice(ctx context.Context, d *models.Device) (*models.
 	err := p.pool.QueryRow(ctx, `
 		INSERT INTO devices(name,ip_address,protocol,port,enabled,tags,snmp_community,snmp_version,
 		                    snmp_port,http_path,http_expected_status,interval_sec,
-		                    location_id,rack_position,asset_tag,mac_address,manufacturer,
+		                    location_id,parent_device_id,dependency_port,rack_position,asset_tag,mac_address,serial_number,manufacturer,
 		                    model,device_category,notes)
-		VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
+		VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)
 		RETURNING id`,
 		d.Name, d.IPAddress, d.Protocol, d.Port, d.Enabled, tags,
 		nullStr(d.SNMPCommunity), nullStr(d.SNMPVersion), nullInt(d.SNMPPort),
 		nullStr(d.HTTPPath), nullInt(d.HTTPExpectedStatus), d.Interval,
-		d.LocationID, nullStr(d.RackPosition), nullStr(d.AssetTag),
-		nullStr(d.MACAddress), nullStr(d.Manufacturer), nullStr(d.Model),
+		d.LocationID, d.ParentDeviceID, nullStr(d.DependencyPort), nullStr(d.RackPosition), nullStr(d.AssetTag),
+		nullStr(d.MACAddress), nullStr(d.SerialNumber), nullStr(d.Manufacturer), nullStr(d.Model),
 		nullStr(d.DeviceCategory), nullStr(d.Notes),
 	).Scan(&id)
 	if err != nil {
@@ -202,14 +208,14 @@ func (p *Postgres) UpdateDevice(ctx context.Context, id int64, d *models.Device)
 		UPDATE devices SET name=$1,ip_address=$2,protocol=$3,port=$4,enabled=$5,tags=$6,
 		    snmp_community=$7,snmp_version=$8,snmp_port=$9,http_path=$10,
 		    http_expected_status=$11,interval_sec=$12,location_id=$13,
-		    rack_position=$14,asset_tag=$15,mac_address=$16,manufacturer=$17,
-		    model=$18,device_category=$19,notes=$20,updated_at=NOW()
-		WHERE id=$21`,
+		    parent_device_id=$14,dependency_port=$15,rack_position=$16,asset_tag=$17,mac_address=$18,serial_number=$19,manufacturer=$20,
+		    model=$21,device_category=$22,notes=$23,updated_at=NOW()
+		WHERE id=$24`,
 		d.Name, d.IPAddress, d.Protocol, d.Port, d.Enabled, tags,
 		nullStr(d.SNMPCommunity), nullStr(d.SNMPVersion), nullInt(d.SNMPPort),
 		nullStr(d.HTTPPath), nullInt(d.HTTPExpectedStatus), d.Interval,
-		d.LocationID, nullStr(d.RackPosition), nullStr(d.AssetTag),
-		nullStr(d.MACAddress), nullStr(d.Manufacturer), nullStr(d.Model),
+		d.LocationID, d.ParentDeviceID, nullStr(d.DependencyPort), nullStr(d.RackPosition), nullStr(d.AssetTag),
+		nullStr(d.MACAddress), nullStr(d.SerialNumber), nullStr(d.Manufacturer), nullStr(d.Model),
 		nullStr(d.DeviceCategory), nullStr(d.Notes), id)
 	if err != nil {
 		return nil, err
@@ -230,8 +236,8 @@ func scanDevices(rows pgx.Rows) ([]models.Device, error) {
 		err := rows.Scan(
 			&d.ID, &d.Name, &d.IPAddress, &d.Protocol, &d.Port, &d.Enabled, &d.Status, &tagsRaw,
 			&d.SNMPCommunity, &d.SNMPVersion, &d.SNMPPort, &d.HTTPPath, &d.HTTPExpectedStatus,
-			&d.Interval, &d.LocationID, &d.ParentDeviceID, &d.RackPosition, &d.AssetTag,
-			&d.MACAddress, &d.Manufacturer, &d.Model, &d.DeviceCategory, &d.Notes,
+			&d.Interval, &d.LocationID, &d.ParentDeviceID, &d.DependencyPort, &d.RackPosition, &d.AssetTag,
+			&d.MACAddress, &d.SerialNumber, &d.Manufacturer, &d.Model, &d.DeviceCategory, &d.Notes,
 			&d.CreatedAt, &d.UpdatedAt,
 		)
 		if err != nil {

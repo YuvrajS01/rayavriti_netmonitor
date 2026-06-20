@@ -24,9 +24,11 @@ type Device struct {
 	UpdatedAt          time.Time `json:"updatedAt"`
 	LocationID         *int64    `json:"locationId,omitempty"`
 	ParentDeviceID     *int64    `json:"parentDeviceId,omitempty"`
+	DependencyPort     string    `json:"dependencyPort,omitempty"`
 	RackPosition       string    `json:"rackPosition,omitempty"`
 	AssetTag           string    `json:"assetTag,omitempty"`
 	MACAddress         string    `json:"macAddress,omitempty"`
+	SerialNumber       string    `json:"serialNumber,omitempty"`
 	Manufacturer       string    `json:"manufacturer,omitempty"`
 	Model              string    `json:"model,omitempty"`
 	DeviceCategory     string    `json:"deviceCategory,omitempty"`
