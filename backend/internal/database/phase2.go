@@ -209,17 +209,23 @@ func (p *Postgres) Phase2Summary(ctx context.Context) (Phase2Summary, error) {
 }
 
 func filteredPhase2Values(res phase2Resource, values map[string]any) ([]string, []any) {
-	cols := make([]string, 0, len(values))
+	// Build mapping from snake_case column name to the original request key
+	// so we can look up values correctly even when keys are camelCase.
+	colToOriginal := make(map[string]string, len(values))
 	for key := range values {
 		col := toSnake(key)
 		if res.Cols[col] {
-			cols = append(cols, col)
+			colToOriginal[col] = key
 		}
+	}
+	cols := make([]string, 0, len(colToOriginal))
+	for col := range colToOriginal {
+		cols = append(cols, col)
 	}
 	sort.Strings(cols)
 	args := make([]any, 0, len(cols))
 	for _, col := range cols {
-		args = append(args, normalizePhase2Value(values[col]))
+		args = append(args, normalizePhase2Value(values[colToOriginal[col]]))
 	}
 	return cols, args
 }

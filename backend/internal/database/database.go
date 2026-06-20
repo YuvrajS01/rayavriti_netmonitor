@@ -8,14 +8,15 @@ import (
 )
 
 type DeviceFilter struct {
-	Status   string
-	Protocol string
-	Enabled  *bool
-	Search   string
-	SortBy   string
-	SortDir  string
-	Limit    int
-	Offset   int
+	Status     string
+	Protocol   string
+	Enabled    *bool
+	Search     string
+	SortBy     string
+	SortDir    string
+	Limit      int
+	Offset     int
+	LocationID *int64
 }
 
 type RefreshToken struct {

@@ -220,6 +220,25 @@ func (h *CampusHandler) LocationStatus(w http.ResponseWriter, r *http.Request) {
 	httputil.SendOK(w, status)
 }
 
+// LocationDevices returns all devices at the given location (non-recursive).
+func (h *CampusHandler) LocationDevices(w http.ResponseWriter, r *http.Request) {
+	if h.locations == nil {
+		httputil.SendError(w, http.StatusNotImplemented, "campus service unavailable")
+		return
+	}
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		httputil.SendError(w, http.StatusBadRequest, "invalid location id")
+		return
+	}
+	ids, err := h.locations.GetDevicesAtLocation(r.Context(), id, false)
+	if err != nil {
+		httputil.SendError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	httputil.SendOK(w, map[string]any{"deviceIds": ids})
+}
+
 // ── Topology endpoints ──────────────────────────────────────────
 
 // DependencyTree returns the full device dependency tree.

@@ -69,6 +69,12 @@ func (p *Postgres) GetDevicesFiltered(ctx context.Context, f DeviceFilter) ([]mo
 	if f.Search != "" {
 		where = append(where, fmt.Sprintf("(LOWER(name) LIKE $%d OR LOWER(ip_address) LIKE $%d)", argN, argN))
 		args = append(args, "%"+strings.ToLower(f.Search)+"%")
+		argN++
+	}
+	if f.LocationID != nil {
+		where = append(where, fmt.Sprintf("location_id=$%d", argN))
+		args = append(args, *f.LocationID)
+		argN++
 	}
 
 	whereClause := ""

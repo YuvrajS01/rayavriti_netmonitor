@@ -268,7 +268,7 @@ func (s *Server) Start() error {
 		r.Get("/api/v1/locations/{id}", campusH.GetLocation)
 		r.Get("/api/v1/locations/{id}/tree", campusH.GetLocationTree)
 		r.Get("/api/v1/locations/{id}/status", campusH.LocationStatus)
-		r.Get("/api/v1/locations/{id}/devices", device.List)
+		r.Get("/api/v1/locations/{id}/devices", campusH.LocationDevices)
 		r.Put("/api/v1/locations/{id}", campusH.UpdateLocation)
 		r.Delete("/api/v1/locations/{id}", campusH.DeleteLocation)
 		r.Post("/api/v1/locations/{id}/move", campusH.MoveLocation)
