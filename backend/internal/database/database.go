@@ -184,4 +184,7 @@ type Database interface {
 
 	// Stats
 	GetDashboardStats(ctx context.Context) (map[string]any, error)
+
+	// Suppressed Alerts
+	RecordSuppressedAlert(ctx context.Context, deviceID int64, ruleID *int64, reason string, rootCauseDeviceID *int64) error
 }

@@ -291,6 +291,10 @@ func (m *mockDB) GetAlertsByRuleSince(ctx context.Context, ruleID int64, since t
 	return 0, nil
 }
 
+func (m *mockDB) RecordSuppressedAlert(ctx context.Context, deviceID int64, ruleID *int64, reason string, rootCauseDeviceID *int64) error {
+	return nil
+}
+
 func int64Ptr(v int64) *int64 { return &v }
 
 func TestRuleAppliesToDevice_Global(t *testing.T) {

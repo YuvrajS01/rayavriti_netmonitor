@@ -19,6 +19,10 @@ type AlertEngine struct {
 	notifier   *Notifier
 	stateCache *cache.AlertStateCache
 
+	suppressionChecker SuppressionChecker
+	maintenanceChecker MaintenanceChecker
+	suppressedRecorder SuppressedAlertRecorder
+
 	baselineCache *BaselineCache
 	cancel        context.CancelFunc
 	wg            sync.WaitGroup
@@ -41,6 +45,18 @@ type AlertEngineOption func(*AlertEngine)
 
 func WithAlertStateCache(sc *cache.AlertStateCache) AlertEngineOption {
 	return func(e *AlertEngine) { e.stateCache = sc }
+}
+
+func WithSuppressionChecker(sc SuppressionChecker) AlertEngineOption {
+	return func(e *AlertEngine) { e.suppressionChecker = sc }
+}
+
+func WithMaintenanceChecker(mc MaintenanceChecker) AlertEngineOption {
+	return func(e *AlertEngine) { e.maintenanceChecker = mc }
+}
+
+func WithSuppressedAlertRecorder(sr SuppressedAlertRecorder) AlertEngineOption {
+	return func(e *AlertEngine) { e.suppressedRecorder = sr }
 }
 
 func (e *AlertEngine) ProcessMetric(ctx context.Context, device *models.Device, metric *models.Metric, previousStatus string) error {
@@ -155,6 +171,10 @@ func (e *AlertEngine) checkAbsence(ctx context.Context, rule *models.AlertRule, 
 	}
 
 	if existing := e.findActiveAlertForRule(ctx, rule.ID, device.ID); existing != nil {
+		return
+	}
+
+	if e.checkSuppressionForDevice(ctx, device, rule) {
 		return
 	}
 
@@ -393,6 +413,13 @@ func (e *AlertEngine) fireAlert(
 		state.LastFiredAt = &now
 		state.ActiveAlertID = &existing.ID
 		state.State = "firing"
+		e.upsertState(ctx, state)
+		return
+	}
+
+	if e.checkSuppressionForDevice(ctx, device, rule) {
+		state.LastEvaluatedAt = &now
+		state.State = "idle"
 		e.upsertState(ctx, state)
 		return
 	}

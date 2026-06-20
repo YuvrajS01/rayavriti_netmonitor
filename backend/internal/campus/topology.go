@@ -8,14 +8,14 @@ import (
 
 // DeviceNode represents a device in the dependency tree.
 type DeviceNode struct {
-	DeviceID       int64        `json:"deviceId"`
-	Name           string       `json:"name"`
-	Host           string       `json:"host"`
-	Status         string       `json:"status"`
-	Category       string       `json:"category,omitempty"`
-	LocationID     *int64       `json:"locationId,omitempty"`
-	ParentDeviceID *int64       `json:"parentDeviceId,omitempty"`
-	DependencyPort string       `json:"dependencyPort,omitempty"`
+	DeviceID       int64         `json:"deviceId"`
+	Name           string        `json:"name"`
+	Host           string        `json:"host"`
+	Status         string        `json:"status"`
+	Category       string        `json:"category,omitempty"`
+	LocationID     *int64        `json:"locationId,omitempty"`
+	ParentDeviceID *int64        `json:"parentDeviceId,omitempty"`
+	DependencyPort string        `json:"dependencyPort,omitempty"`
 	Children       []*DeviceNode `json:"children,omitempty"`
 }
 
@@ -162,11 +162,10 @@ func (s *TopologyService) CheckSuppression(ctx context.Context, deviceID int64) 
 	for {
 		var parentID *int64
 		var name, host, status string
-		err := s.db.QueryRow(ctx,
+		if err := s.db.QueryRow(ctx,
 			`SELECT name, ip_address, status, parent_device_id FROM devices WHERE id=$1`,
 			currentID,
-		).Scan(&name, &host, &status, &parentID)
-		if err != nil {
+		).Scan(&name, &host, &status, &parentID); err != nil {
 			break // device not found or no parent
 		}
 
@@ -177,11 +176,10 @@ func (s *TopologyService) CheckSuppression(ctx context.Context, deviceID int64) 
 		// Check the parent's status.
 		var pName, pHost, pStatus string
 		var pParentID *int64
-		err = s.db.QueryRow(ctx,
+		if err := s.db.QueryRow(ctx,
 			`SELECT name, ip_address, status, parent_device_id FROM devices WHERE id=$1`,
 			*parentID,
-		).Scan(&pName, &pHost, &pStatus, &pParentID)
-		if err != nil {
+		).Scan(&pName, &pHost, &pStatus, &pParentID); err != nil {
 			break
 		}
 
@@ -207,7 +205,7 @@ func (s *TopologyService) CheckSuppression(ctx context.Context, deviceID int64) 
 		currentID = *parentID
 	}
 
-	return &SuppressionResult{
+	return &SuppressionResult{ //nolint:nilerr // Intentional: DB errors mean device not found → no suppression needed
 		ShouldSuppress: false,
 		Reason:         "",
 		Message:        "No suppression: all ancestors are up",

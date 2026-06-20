@@ -280,6 +280,9 @@ func (m *mockDB) GetPortChanges(ctx context.Context, deviceID int64, since time.
 func (m *mockDB) GetAlertsByRuleSince(ctx context.Context, ruleID int64, since time.Time) (int, error) {
 	return 0, nil
 }
+func (m *mockDB) RecordSuppressedAlert(ctx context.Context, deviceID int64, ruleID *int64, reason string, rootCauseDeviceID *int64) error {
+	return nil
+}
 
 func newTestHub() *websocket.Hub {
 	return websocket.NewHub("test-secret", nil, nil)

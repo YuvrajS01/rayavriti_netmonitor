@@ -271,3 +271,12 @@ func toSnake(s string) string {
 	}
 	return b.String()
 }
+
+func (p *Postgres) RecordSuppressedAlert(ctx context.Context, deviceID int64, ruleID *int64, reason string, rootCauseDeviceID *int64) error {
+	_, err := p.pool.Exec(ctx,
+		`INSERT INTO suppressed_alerts(device_id, rule_id, suppression_reason, root_cause_device_id)
+		 VALUES($1, $2, $3, $4)`,
+		deviceID, ruleID, reason, rootCauseDeviceID,
+	)
+	return err
+}

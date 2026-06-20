@@ -269,6 +269,9 @@ func (m *mockRetDB) GetPortChanges(ctx context.Context, deviceID int64, since ti
 func (m *mockRetDB) GetAlertsByRuleSince(ctx context.Context, ruleID int64, since time.Time) (int, error) {
 	return 0, nil
 }
+func (m *mockRetDB) RecordSuppressedAlert(ctx context.Context, deviceID int64, ruleID *int64, reason string, rootCauseDeviceID *int64) error {
+	return nil
+}
 
 func TestNew(t *testing.T) {
 	t.Parallel()
