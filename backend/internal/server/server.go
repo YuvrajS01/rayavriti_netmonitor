@@ -116,6 +116,7 @@ func (s *Server) Start() error {
 	system := handlers.NewSystemHandler()
 	phase2 := handlers.NewPhase2Handler(s.db)
 	campusH := handlers.NewCampusHandler(s.db)
+	contactH := handlers.NewContactHandler(s.db)
 
 	// Public routes
 	r.Get("/health", health.Health)
@@ -330,6 +331,15 @@ func (s *Server) Start() error {
 		r.Post("/api/v1/escalation-policies", phase2.Create("escalation_policies"))
 		r.Put("/api/v1/escalation-policies/{id}", phase2.Update("escalation_policies"))
 		r.Delete("/api/v1/escalation-policies/{id}", phase2.Delete("escalation_policies"))
+		r.Post("/api/v1/escalation-policies/{id}/steps", phase2.Create("escalation_steps"))
+		r.Get("/api/v1/escalation-policies/{id}/steps", phase2.List("escalation_steps"))
+
+		// Typed escalation and notification endpoints
+		r.Post("/api/v1/devices/{id}/resolve-contacts", contactH.ResolveContacts)
+		r.Post("/api/v1/alerts/{id}/escalate", contactH.EscalationStart)
+		r.Post("/api/v1/alerts/{id}/cancel-escalation", contactH.EscalationCancel)
+		r.Get("/api/v1/alerts/{id}/escalation-status", contactH.EscalationStatus)
+		r.Get("/api/v1/notification-log", contactH.NotificationLog)
 		r.Get("/api/v1/oncall", phase2.List("oncall_schedules"))
 		r.Get("/api/v1/oncall/schedule", phase2.List("oncall_schedules"))
 		r.Put("/api/v1/oncall/{id}/override", phase2.Update("oncall_schedules"))
