@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { v1, wrap } from '../api/http';
 import { useSocket } from '../hooks/useSocket';
 import SectionHeader from '../components/ui/SectionHeader';
@@ -63,6 +64,7 @@ function timeAgo(ts: string | null): string {
 }
 
 export default function Incidents() {
+  const navigate = useNavigate();
   const { addToast } = useToast();
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [stats, setStats] = useState<IncidentStats | null>(null);
@@ -70,7 +72,6 @@ export default function Incidents() {
   const [search, setSearch] = useState('');
   const [severityFilter, setSeverityFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [selectedIncident, setSelectedIncident] = useState<Incident | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [createForm, setCreateForm] = useState({ title: '', description: '', severity: 'minor', impact_description: '' });
   const [submitting, setSubmitting] = useState(false);
@@ -204,7 +205,7 @@ export default function Incidents() {
         ) : (
           <div className="divide-y divide-outline-variant/20">
             {filtered.map((inc) => (
-              <article key={inc.id} className="p-5 hover:bg-surface-container-high/50 transition-colors cursor-pointer" onClick={() => setSelectedIncident(inc)}>
+              <article key={inc.id} className="p-5 hover:bg-surface-container-high/50 transition-colors cursor-pointer" onClick={() => navigate(`/incidents/${inc.id}`)}>
                 <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
                   <div className="flex items-start gap-4 min-w-0">
                     <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${severityBgColor(inc.severity)}`}>
@@ -258,46 +259,6 @@ export default function Incidents() {
           </div>
         )}
       </Card>
-
-      {selectedIncident && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60" onClick={() => setSelectedIncident(null)}>
-          <div className="bg-surface-container-low border border-outline-variant/30 rounded-lg w-full max-w-lg overflow-hidden" onClick={(e) => e.stopPropagation()}>
-            <div className="p-6 border-b border-outline-variant/20 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <span className={`material-symbols-outlined text-2xl ${severityTextColor(selectedIncident.severity)}`}>{severityIcon(selectedIncident.severity)}</span>
-                <div>
-                  <h2 className="font-headline text-lg font-bold">{selectedIncident.title}</h2>
-                  <p className="text-xs text-on-surface-variant">#{selectedIncident.id}</p>
-                </div>
-              </div>
-              <button onClick={() => setSelectedIncident(null)} className="text-on-surface-variant hover:text-on-surface p-1"><span className="material-symbols-outlined">close</span></button>
-            </div>
-            <div className="p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div><div className="text-[10px] text-on-surface-variant uppercase tracking-wide">Severity</div><div className={`text-sm font-bold capitalize ${severityTextColor(selectedIncident.severity)}`}>{selectedIncident.severity}</div></div>
-                <div><div className="text-[10px] text-on-surface-variant uppercase tracking-wide">Status</div><div className={`text-sm font-bold capitalize ${statusTextColor(selectedIncident.status)}`}>{selectedIncident.status}</div></div>
-                <div><div className="text-[10px] text-on-surface-variant uppercase tracking-wide">Source</div><div className="text-sm font-medium">{selectedIncident.source || 'manual'}</div></div>
-                <div><div className="text-[10px] text-on-surface-variant uppercase tracking-wide">Duration</div><div className="text-sm font-medium">{formatDuration(selectedIncident.duration_seconds)}</div></div>
-                <div><div className="text-[10px] text-on-surface-variant uppercase tracking-wide">Devices Affected</div><div className="text-sm font-medium">{selectedIncident.affected_device_count}</div></div>
-                <div><div className="text-[10px] text-on-surface-variant uppercase tracking-wide">SLA</div><div className={`text-sm font-medium ${selectedIncident.sla_breached ? 'text-error' : 'text-success'}`}>{selectedIncident.sla_breached ? 'Breached' : 'Met'}</div></div>
-              </div>
-              {selectedIncident.description && <div><div className="text-[10px] text-on-surface-variant uppercase tracking-wide mb-1">Description</div><p className="text-sm text-on-surface">{selectedIncident.description}</p></div>}
-              {selectedIncident.impact_description && <div><div className="text-[10px] text-on-surface-variant uppercase tracking-wide mb-1">Impact</div><p className="text-sm text-on-surface">{selectedIncident.impact_description}</p></div>}
-              {selectedIncident.resolution && <div><div className="text-[10px] text-on-surface-variant uppercase tracking-wide mb-1">Resolution</div><p className="text-sm text-on-surface">{selectedIncident.resolution}</p></div>}
-              {selectedIncident.root_cause && <div><div className="text-[10px] text-on-surface-variant uppercase tracking-wide mb-1">Root Cause</div><p className="text-sm text-on-surface">{selectedIncident.root_cause}</p></div>}
-              <div className="grid grid-cols-2 gap-4 text-xs text-on-surface-variant">
-                <div>Started: {timeAgo(selectedIncident.started_at)}</div>
-                {selectedIncident.acknowledged_at && <div>Acked: {timeAgo(selectedIncident.acknowledged_at)}</div>}
-                {selectedIncident.resolved_at && <div>Resolved: {timeAgo(selectedIncident.resolved_at)}</div>}
-                {selectedIncident.closed_at && <div>Closed: {timeAgo(selectedIncident.closed_at)}</div>}
-              </div>
-            </div>
-            <div className="flex border-t border-outline-variant/20">
-              <button onClick={() => setSelectedIncident(null)} className="flex-1 py-3 text-xs font-headline font-bold uppercase tracking-wide text-on-surface-variant hover:bg-surface-container-high transition-colors">Close</button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {showCreate && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60" onClick={() => setShowCreate(false)}>

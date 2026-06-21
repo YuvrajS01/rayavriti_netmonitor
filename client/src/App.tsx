@@ -23,6 +23,7 @@ const Settings = lazy(() => import('./pages/Settings'));
 const Campus = lazy(() => import('./pages/Campus'));
 const LocationManager = lazy(() => import('./pages/LocationManager'));
 const Incidents = lazy(() => import('./pages/Incidents'));
+const IncidentDetail = lazy(() => import('./pages/IncidentDetail'));
 const Contacts = lazy(() => import('./pages/Contacts'));
 const StatusPageAdmin = lazy(() => import('./pages/StatusPageAdmin'));
 const Maintenance = lazy(() => import('./pages/Maintenance'));
@@ -103,6 +104,7 @@ function AppRoutes() {
         <Route path="/reports/builder" element={<ProtectedRoute><ReportBuilder /></ProtectedRoute>} />
         <Route path="/campus" element={<ProtectedRoute><Campus /></ProtectedRoute>} />
         <Route path="/incidents" element={<ProtectedRoute><Incidents /></ProtectedRoute>} />
+        <Route path="/incidents/:id" element={<ProtectedRoute><IncidentDetail /></ProtectedRoute>} />
         <Route path="/maintenance" element={<ProtectedRoute><Maintenance /></ProtectedRoute>} />
         <Route path="/discovery" element={<ProtectedRoute><Discovery /></ProtectedRoute>} />
         <Route path="/import" element={<ProtectedRoute><BulkImport /></ProtectedRoute>} />
