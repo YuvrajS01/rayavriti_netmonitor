@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { v1, wrap } from '../api/http';
+import { useSocket } from '../hooks/useSocket';
 import SectionHeader from '../components/ui/SectionHeader';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
@@ -67,6 +68,18 @@ export default function ISP() {
   }, []);
 
   useEffect(() => { load().catch(() => setLoading(false)); }, [load]);
+
+  const lastRefresh = useRef(0);
+  useSocket({
+    onMetricUpdate: () => {
+      const now = Date.now();
+      if (now - lastRefresh.current > 15_000) { lastRefresh.current = now; load(); }
+    },
+    onDeviceStatus: () => {
+      const now = Date.now();
+      if (now - lastRefresh.current > 15_000) { lastRefresh.current = now; load(); }
+    },
+  });
 
   const filtered = useMemo(() => {
     const needle = search.trim().toLowerCase();

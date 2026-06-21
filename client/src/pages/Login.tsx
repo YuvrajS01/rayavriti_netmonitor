@@ -18,7 +18,11 @@ export default function Login() {
     setLoading(true);
     try {
       const result = await login(username.trim(), password);
-      dispatch(setCredentials({ token: result.data.token, user: result.data.user }));
+      const u = result.data.user;
+      dispatch(setCredentials({
+        token: result.data.token,
+        user: { id: u.id, username: u.username, role: u.role, permissions: u.permissions },
+      }));
       navigate('/');
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error || 'Login failed';

@@ -260,29 +260,150 @@ func (h *Phase2Handler) PublicStatusHTML(w http.ResponseWriter, r *http.Request)
 	}
 	services, _ := h.phase2.ListPhase2(r.Context(), "status_page_services", map[string]string{"enabled": "true"})
 	incidents, _ := h.phase2.ListPhase2(r.Context(), "status_page_incidents", nil)
-	var b strings.Builder
-	b.WriteString(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="60"><title>Campus Network Status</title><style>body{margin:0;font-family:system-ui,-apple-system,sans-serif;background:#f5f2ea;color:#1f2421}.wrap{max-width:920px;margin:auto;padding:40px 20px}.head{display:flex;justify-content:space-between;gap:20px;align-items:end;border-bottom:3px solid #1f2421;padding-bottom:18px}.status{font-weight:800;text-transform:uppercase;color:#2f6f4e}.grid{display:grid;gap:12px;margin-top:24px}.svc,.inc{background:#fffaf0;border:1px solid #d8d0bd;border-radius:8px;padding:16px}.name{font-weight:800}.muted{color:#6f6a5f}.pill{float:right;background:#dff1e4;color:#245a3a;border-radius:999px;padding:4px 10px;font-size:12px;font-weight:800;text-transform:uppercase}@media(max-width:640px){.head{display:block}}</style></head><body><main class="wrap"><section class="head"><div><h1>Campus Network Status</h1><p class="muted">Auto-refreshes every 60 seconds.</p></div><div class="status">Operational</div></section><section class="grid">`)
-	if len(services) == 0 {
-		b.WriteString(`<div class="svc"><div class="name">No public services configured</div><p class="muted">Ask IT to add status page services.</p></div>`)
-	}
+
+	groups := map[string][]map[string]any{}
+	overall := "operational"
 	for _, svc := range services {
-		b.WriteString(fmt.Sprintf(`<article class="svc"><span class="pill">operational</span><div class="name">%s</div><p class="muted">%s</p></article>`, html.EscapeString(fmt.Sprint(svc["name"])), html.EscapeString(fmt.Sprint(svc["description"]))))
-	}
-	b.WriteString(`</section><h2>Active incidents</h2><section class="grid">`)
-	active := 0
-	for _, inc := range incidents {
-		if inc["resolved_at"] != nil {
+		status := "operational"
+		if enabled, ok := svc["enabled"].(bool); ok && !enabled {
 			continue
 		}
-		active++
-		b.WriteString(fmt.Sprintf(`<article class="inc"><div class="name">%s</div><p>%s</p><p class="muted">%s</p></article>`, html.EscapeString(fmt.Sprint(inc["title"])), html.EscapeString(fmt.Sprint(inc["message"])), html.EscapeString(fmt.Sprint(inc["status"]))))
+		group, _ := svc["group_name"].(string)
+		if group == "" {
+			group = "General"
+		}
+		entry := map[string]any{
+			"id":          svc["id"],
+			"name":        svc["name"],
+			"description": svc["description"],
+			"status":      status,
+			"uptime_30d":  100,
+		}
+		groups[group] = append(groups[group], entry)
 	}
-	if active == 0 {
-		b.WriteString(`<div class="inc muted">No active public incidents.</div>`)
+
+	activeIncidents := []map[string]any{}
+	for _, inc := range incidents {
+		if inc["resolved_at"] == nil {
+			activeIncidents = append(activeIncidents, inc)
+			if overall == "operational" {
+				overall = "degraded"
+			}
+		}
 	}
-	b.WriteString(`</section></main></body></html>`)
+
+	overallColor := "#245a3a"
+	overallBg := "#dff1e4"
+	overallLabel := "Operational"
+	if overall == "degraded" {
+		overallColor = "#856404"
+		overallBg = "#fff3cd"
+		overallLabel = "Degraded"
+	} else if overall == "major_outage" {
+		overallColor = "#721c24"
+		overallBg = "#f8d7da"
+		overallLabel = "Major Outage"
+	}
+
+	var sb strings.Builder
+	sb.WriteString(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="60"><title>Campus Network Status</title><link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=League+Spartan:wght@400;700;800&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet"><style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0e0e09;color:#e6e1d5;font-family:'Space Grotesk',system-ui,sans-serif}
+.wrap{max-width:860px;margin:0 auto;padding:48px 24px}
+.header{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:3px solid #e6e1d5;padding-bottom:20px;margin-bottom:36px;flex-wrap:wrap;gap:16px}
+h1{font-family:'League Spartan',sans-serif;font-weight:800;font-size:28px;color:#e6e1d5;letter-spacing:-0.02em}
+.meta{color:#9d9689;font-size:13px;margin-top:4px}
+.badge{display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border-radius:999px;font-family:'League Spartan',sans-serif;font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:0.05em}
+.badge-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.group-section{margin-bottom:32px}
+.group-name{font-family:'League Spartan',sans-serif;font-weight:700;font-size:14px;text-transform:uppercase;letter-spacing:0.06em;color:#9d9689;margin-bottom:12px;padding-left:2px}
+.svc{background:#1a1a14;border:1px solid #2e2d25;border-radius:10px;padding:16px 20px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;transition:border-color 0.2s}
+.svc:hover{border-color:#d9fd3a40}
+.svc-left{min-width:0}
+.svc-name{font-family:'League Spartan',sans-serif;font-weight:700;font-size:16px;color:#e6e1d5}
+.svc-desc{color:#9d9689;font-size:13px;margin-top:2px}
+.svc-uptime{color:#9d9689;font-size:12px;margin-top:6px;font-weight:500}
+.svc-uptime strong{color:#d9fd3a}
+.pill{padding:4px 12px;border-radius:999px;font-family:'League Spartan',sans-serif;font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:0.04em;white-space:nowrap;flex-shrink:0}
+.pill-operational{background:#dff1e4;color:#245a3a}
+.pill-degraded{background:#fff3cd;color:#856404}
+.pill-outage{background:#f8d7da;color:#721c24}
+.inc-section{margin-top:40px}
+.inc-section h2{font-family:'League Spartan',sans-serif;font-weight:800;font-size:20px;margin-bottom:16px;color:#e6e1d5}
+.inc{background:#1a1a14;border-left:4px solid #ff7351;border-radius:0 10px 10px 0;padding:16px 20px;margin-bottom:8px}
+.inc-title{font-family:'League Spartan',sans-serif;font-weight:700;font-size:16px;color:#ff7351}
+.inc-meta{color:#9d9689;font-size:12px;margin-top:4px}
+.inc-msg{color:#e6e1d5;font-size:14px;margin-top:8px;line-height:1.5}
+.footer{margin-top:48px;padding-top:16px;border-top:1px solid #2e2d25;text-align:center;color:#6f6a5f;font-size:12px}
+.footer a{color:#d9fd3a;text-decoration:none}
+.empty{text-align:center;padding:40px;color:#9d9689;font-size:14px}
+@media(max-width:640px){.header{display:block}.svc{flex-direction:column;align-items:flex-start;gap:10px}}
+@media print{body{background:#fff;color:#000}.svc{border-color:#ccc}.header{border-color:#000}}
+</style></head><body><main class="wrap">`)
+
+	sb.WriteString(fmt.Sprintf(`<section class="header"><div><h1>Campus Network Status</h1><p class="meta">Auto-refreshes every 60 seconds &middot; Last checked: %s</p></div><div class="badge" style="background:%s;color:%s"><span class="badge-dot" style="background:%s"></span>%s</div></section>`,
+		time.Now().UTC().Format("15:04 UTC"),
+		overallBg, overallColor, overallColor, overallLabel,
+	))
+
+	if len(groups) == 0 && len(activeIncidents) == 0 {
+		sb.WriteString(`<div class="empty"><p>No services configured on the status page yet.</p><p style="margin-top:8px">Ask IT to add services in <strong>Status Page Admin</strong>.</p></div>`)
+	}
+
+	for name, items := range groups {
+		sb.WriteString(fmt.Sprintf(`<section class="group-section"><div class="group-name">%s</div>`, html.EscapeString(name)))
+		for _, svc := range items {
+			status, _ := svc["status"].(string)
+			pillClass := "pill-operational"
+			if status == "degraded_performance" {
+				pillClass = "pill-degraded"
+			} else if status == "major_outage" {
+				pillClass = "pill-outage"
+			}
+			pillLabel := "Operational"
+			if status == "degraded_performance" {
+				pillLabel = "Degraded"
+			} else if status == "major_outage" {
+				pillLabel = "Outage"
+			}
+			uptimeStr := ""
+			if u, ok := svc["uptime_30d"].(float64); ok && u < 100 {
+				uptimeStr = fmt.Sprintf(`<div class="svc-uptime">Uptime: <strong>%.1f%%</strong></div>`, u)
+			}
+			sb.WriteString(fmt.Sprintf(`<article class="svc"><div class="svc-left"><div class="svc-name">%s</div><div class="svc-desc">%s</div>%s</div><span class="pill %s">%s</span></article>`,
+				html.EscapeString(fmt.Sprint(svc["name"])),
+				html.EscapeString(fmt.Sprint(svc["description"])),
+				uptimeStr,
+				pillClass, pillLabel,
+			))
+		}
+		sb.WriteString(`</section>`)
+	}
+
+	sb.WriteString(`<section class="inc-section"><h2>Active Incidents</h2>`)
+	activeCount := 0
+	for _, inc := range activeIncidents {
+		activeCount++
+		title := html.EscapeString(fmt.Sprint(inc["title"]))
+		msg := html.EscapeString(fmt.Sprint(inc["message"]))
+		status := html.EscapeString(fmt.Sprint(inc["status"]))
+		severity := fmt.Sprint(inc["severity"])
+		sb.WriteString(fmt.Sprintf(`<article class="inc"><div class="inc-title">%s</div><div class="inc-meta">%s &middot; %s</div>%s</article>`,
+			title, severity, status,
+			func() string { if msg != "" { return `<div class="inc-msg">` + msg + `</div>` }; return "" }(),
+		))
+	}
+	if activeCount == 0 {
+		sb.WriteString(`<div class="empty">No active incidents. All systems running smoothly.</div>`)
+	}
+	sb.WriteString(`</section>`)
+
+	sb.WriteString(fmt.Sprintf(`<footer class="footer">Powered by <a href="/">Rayavriti NetMonitor</a> &middot; %s</footer>`, time.Now().UTC().Format("2006")))
+	sb.WriteString(`</main></body></html>`)
+
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_, _ = w.Write([]byte(b.String()))
+	w.Header().Set("Cache-Control", "no-cache, must-revalidate")
+	_, _ = w.Write([]byte(sb.String()))
 }
 
 func buildLocationTree(rows []map[string]any) []map[string]any {

@@ -3,7 +3,7 @@ import { api } from './http';
 interface LoginResponse {
   token: string;
   refreshToken: string;
-  user: { id: number; username: string; role: string };
+  user: { id: number; username: string; role: string; permissions?: string[] };
 }
 
 export const login = (username: string, password: string) =>

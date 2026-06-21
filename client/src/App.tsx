@@ -4,7 +4,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import { Provider, useSelector, useDispatch } from 'react-redux';
 import { store, type RootState } from './store';
 import { SocketProvider } from './hooks/useSocket';
-import { clearCredentials } from './store/authSlice';
+import { clearCredentials, setPermissions } from './store/authSlice';
 import { api } from './api/http';
 import { ToastProvider } from './components/ui/Toast';
 
@@ -56,6 +56,11 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     api.get('/auth/me')
       .then(() => {
         sessionChecked = true;
+        return api.get('/auth/permissions');
+      })
+      .then((res) => {
+        const perms = (res.data as { data?: { permissions?: string[] } })?.data?.permissions;
+        if (perms) dispatch(setPermissions(perms));
       })
       .catch(() => {
         sessionChecked = true;
