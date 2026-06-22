@@ -602,7 +602,13 @@ var migrations = []string{
 		response_time_ms   REAL,
 		status             TEXT NOT NULL DEFAULT 'pending',
 		approved_device_id BIGINT REFERENCES devices(id),
-		discovered_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		discovered_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+		http_title         TEXT,
+		ssh_banner         TEXT,
+		tls_cert_cn        TEXT,
+		snmp_name          TEXT,
+		snmp_description   TEXT,
+		snmp_sys_object_id TEXT
 	);
 	CREATE INDEX IF NOT EXISTS idx_disc_results_job ON discovery_results(job_id);
 	CREATE INDEX IF NOT EXISTS idx_disc_results_status ON discovery_results(status);

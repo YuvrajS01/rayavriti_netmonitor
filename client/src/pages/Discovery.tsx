@@ -36,6 +36,12 @@ interface DiscoveryResult {
   responseTimeMs: number;
   status: string;
   approvedDeviceId: number | null;
+  httpTitle: string;
+  sshBanner: string;
+  tlsCertCn: string;
+  snmpName: string;
+  snmpDescription: string;
+  snmpSysObjectId: string;
 }
 
 function formatDate(ts: string | null): string {
@@ -200,15 +206,25 @@ export default function Discovery() {
                 <div className="space-y-3">
                   {results.map((r) => (
                     <div key={r.id} className="bg-surface-container-highest rounded-lg p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                      <div className="min-w-0">
+                      <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
                           <span className="font-mono text-sm font-bold">{r.ipAddress}</span>
                           {r.approvedDeviceId && <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-success/10 text-success">Approved</span>}
                           {!r.approvedDeviceId && r.status === 'pending' && <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-warning/10 text-warning">Pending</span>}
+                          {r.guessedCategory && <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-primary/10 text-primary">{r.guessedCategory.replace(/_/g, ' ')}</span>}
+                          {r.guessedOs && <span className="text-[10px] px-2 py-0.5 rounded bg-surface-container text-on-surface-variant">{r.guessedOs}</span>}
                         </div>
-                        <div className="text-xs text-on-surface-variant mt-1">
-                          {r.hostname || r.macAddress || 'Unknown'} {r.manufacturer ? `· ${r.manufacturer}` : ''}
-                          {r.guessedCategory ? ` · ${r.guessedCategory}` : ''}
+                        <div className="text-xs text-on-surface-variant mt-1 space-y-0.5">
+                          {r.manufacturer && <div>Vendor: {r.manufacturer}</div>}
+                          {r.hostname && <div>Host: {r.hostname}</div>}
+                          {r.httpTitle && <div>HTTP: {r.httpTitle}</div>}
+                          {r.sshBanner && <div>SSH: {r.sshBanner}</div>}
+                          {r.tlsCertCn && <div>Cert: {r.tlsCertCn}</div>}
+                          {r.snmpName && <div>SNMP: {r.snmpName}</div>}
+                          {r.snmpDescription && <div>SNMP Desc: {r.snmpDescription.length > 80 ? r.snmpDescription.slice(0, 80) + '...' : r.snmpDescription}</div>}
+                          {!r.manufacturer && !r.hostname && !r.httpTitle && !r.sshBanner && !r.tlsCertCn && !r.snmpName && (
+                            <span>{r.macAddress || 'Unknown device'}</span>
+                          )}
                         </div>
                       </div>
                       {!r.approvedDeviceId && r.status !== 'rejected' && (

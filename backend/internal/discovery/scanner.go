@@ -1,11 +1,15 @@
 package discovery
 
 import (
+	"bufio"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
+	"net/http"
 	"os/exec"
 	"regexp"
 	"strconv"
@@ -24,7 +28,7 @@ const (
 	arpRefreshDelay    = 500 * time.Millisecond
 )
 
-var commonPorts = []int{22, 80, 443, 161, 3389, 515, 554, 9100}
+var commonPorts = []int{21, 22, 23, 25, 53, 80, 161, 443, 515, 554, 631, 9100, 8080, 8443, 2000, 5060, 1900}
 
 var ouiTable = map[string]string{
 	"00:01:42": "Cisco",
@@ -628,6 +632,7 @@ func (s *Scanner) Scan(ctx context.Context, jobID int64, subnet string, scanType
 			}
 			category := guessCategoryFromPorts(openPorts)
 			hostname := reverseLookup(ipAddr)
+
 			dr := &DiscoveryResult{
 				JobID:           jobID,
 				IPAddress:       ipAddr,
@@ -639,14 +644,32 @@ func (s *Scanner) Scan(ctx context.Context, jobID int64, subnet string, scanType
 				ResponseTimeMs:  respMs,
 				Status:          "pending",
 			}
+
 			if scanType == "full" || scanType == "ping_snmp" {
-				for _, p := range openPorts {
-					if p == 161 {
-						dr.SNMPReachable = true
-						break
-					}
+				hasHTTP := portHas(openPorts, 80) || portHas(openPorts, 443) || portHas(openPorts, 8080) || portHas(openPorts, 8443)
+				hasSSH := portHas(openPorts, 22)
+				hasHTTPS := portHas(openPorts, 443) || portHas(openPorts, 8443)
+				hasSNMP := portHas(openPorts, 161)
+
+				if hasHTTP || hasHTTPS {
+					dr.HTTPTitle = probeHTTPTitle(ctx, ipAddr, hasHTTPS)
+				}
+				if hasSSH {
+					dr.SSHBanner = probeSSHBanner(ctx, ipAddr)
+				}
+				if hasHTTPS {
+					dr.TLSCertCN = probeTLSCertCN(ctx, ipAddr)
+				}
+				if hasSNMP {
+					name, desc, sysObjID := probeSNMP(ctx, ipAddr)
+					dr.SNMPName = ptrString(name)
+					dr.SNMPDescription = ptrString(desc)
+					dr.SNMPSysObjectID = ptrString(sysObjID)
+					dr.SNMPReachable = true
 				}
 			}
+
+			enrichFromProbes(dr)
 			results[idx] = ipResult{result: dr}
 			devicesFound.Add(1)
 		}(i, ip)
@@ -728,11 +751,15 @@ func (s *Scanner) insertResult(ctx context.Context, dr *DiscoveryResult) error {
 		INSERT INTO discovery_results
 			(job_id, ip_address, mac_address, manufacturer, hostname,
 			 device_description, guessed_category, guessed_os, open_ports,
-			 snmp_reachable, response_time_ms, status)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+			 snmp_reachable, response_time_ms, status,
+			 http_title, ssh_banner, tls_cert_cn,
+			 snmp_name, snmp_description, snmp_sys_object_id)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)`,
 		dr.JobID, dr.IPAddress, dr.MACAddress, dr.Manufacturer, dr.Hostname,
 		dr.DeviceDescription, dr.GuessedCategory, dr.GuessedOS, string(portsJSON),
-		dr.SNMPReachable, dr.ResponseTimeMs, dr.Status)
+		dr.SNMPReachable, dr.ResponseTimeMs, dr.Status,
+		dr.HTTPTitle, dr.SSHBanner, dr.TLSCertCN,
+		dr.SNMPName, dr.SNMPDescription, dr.SNMPSysObjectID)
 	return err
 }
 
@@ -760,6 +787,12 @@ type DiscoveryResult struct {
 	ApprovedDeviceID  *int64     `json:"approvedDeviceId,omitempty"`
 	IsKnown           bool       `json:"isKnown"`
 	LocationID        *int64     `json:"locationId,omitempty"`
+	HTTPTitle         *string    `json:"httpTitle,omitempty"`
+	SSHBanner         *string    `json:"sshBanner,omitempty"`
+	TLSCertCN         *string    `json:"tlsCertCn,omitempty"`
+	SNMPName          *string    `json:"snmpName,omitempty"`
+	SNMPDescription   *string    `json:"snmpDescription,omitempty"`
+	SNMPSysObjectID   *string    `json:"snmpSysObjectID,omitempty"`
 }
 
 type DiscoveryJob struct {
@@ -993,4 +1026,450 @@ func excludeIPs(all []string, known map[string]bool) []string {
 		}
 	}
 	return filtered
+}
+
+func portHas(ports []int, target int) bool {
+	for _, p := range ports {
+		if p == target {
+			return true
+		}
+	}
+	return false
+}
+
+func probeHTTPTitle(ctx context.Context, ip string, https bool) *string {
+	scheme := "http"
+	port := 80
+	if https {
+		scheme = "https"
+		port = 443
+	}
+
+	client := &http.Client{
+		Timeout: 3 * time.Second,
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		},
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	url := fmt.Sprintf("%s://%s:%d/", scheme, ip, port)
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return nil
+	}
+	req.Header.Set("User-Agent", "Rayavriti-Discovery/1.0")
+	resp, err := client.Do(req)
+	if err != nil {
+		if https && !https {
+			return nil
+		}
+		return nil
+	}
+	defer resp.Body.Close()
+
+	// Read up to 8KB to find the <title> tag
+	limited := io.LimitReader(resp.Body, 8192)
+	scanner := bufio.NewScanner(limited)
+	scanner.Buffer(make([]byte, 0, 4096), 8192)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.Contains(strings.ToLower(line), "<title") {
+			title := extractTitle(line)
+			if title != "" {
+				return &title
+			}
+		}
+		if strings.Contains(strings.ToLower(line), "</head>") {
+			break
+		}
+	}
+	return nil
+}
+
+var titleRegex = regexp.MustCompile(`(?i)<title[^>]*>\s*([^<]+?)\s*</title>`)
+
+func extractTitle(html string) string {
+	matches := titleRegex.FindStringSubmatch(html)
+	if len(matches) >= 2 {
+		title := strings.TrimSpace(matches[1])
+		if len(title) > 120 {
+			title = title[:120]
+		}
+		return title
+	}
+	return ""
+}
+
+func probeSSHBanner(ctx context.Context, ip string) *string {
+	dialer := net.Dialer{Timeout: 3 * time.Second}
+	conn, err := dialer.DialContext(ctx, "tcp", net.JoinHostPort(ip, "22"))
+	if err != nil {
+		return nil
+	}
+	defer conn.Close()
+
+	conn.SetReadDeadline(time.Now().Add(3 * time.Second))
+	buf := make([]byte, 256)
+	n, err := conn.Read(buf)
+	if err != nil || n == 0 {
+		return nil
+	}
+	banner := strings.TrimSpace(string(buf[:n]))
+	if len(banner) > 120 {
+		banner = banner[:120]
+	}
+	return &banner
+}
+
+func probeTLSCertCN(ctx context.Context, ip string) *string {
+	for _, port := range []int{443, 8443} {
+		dialer := &net.Dialer{Timeout: 3 * time.Second}
+		addr := net.JoinHostPort(ip, strconv.Itoa(port))
+		rawConn, err := tls.DialWithDialer(dialer, "tcp", addr, &tls.Config{
+			InsecureSkipVerify: true,
+		})
+		if err != nil {
+			continue
+		}
+		defer rawConn.Close()
+
+		cert := rawConn.ConnectionState().PeerCertificates
+		if len(cert) == 0 {
+			continue
+		}
+		cn := cert[0].Subject.CommonName
+		if cn != "" {
+			if len(cn) > 120 {
+				cn = cn[:120]
+			}
+			return &cn
+		}
+	}
+	return nil
+}
+
+func probeSNMP(ctx context.Context, ip string) (name, description, sysObjectID string) {
+	// SNMPv2 GET for sysName.0, sysDescr.0, sysObjectID.0
+	// Using a minimal SNMPv2c GET request with community "public"
+	oids := []string{
+		"1.3.6.1.2.1.1.5.0", // sysName.0
+		"1.3.6.1.2.1.1.1.0", // sysDescr.0
+		"1.3.6.1.2.1.1.2.0", // sysObjectID.0
+	}
+
+	for i, oid := range oids {
+		val := snmpGet(ctx, ip, oid)
+		if val != "" {
+			switch i {
+			case 0:
+				name = val
+			case 1:
+				description = val
+			case 2:
+				sysObjectID = val
+			}
+		}
+	}
+	return
+}
+
+func snmpGet(ctx context.Context, ip, oid string) string {
+	// Build a minimal SNMPv2c GET request
+	pkt := buildSNMPGetRequest(oid)
+	dialer := net.Dialer{Timeout: 3 * time.Second}
+	conn, err := dialer.DialContext(ctx, "udp", net.JoinHostPort(ip, "161"))
+	if err != nil {
+		return ""
+	}
+	defer conn.Close()
+
+	conn.SetDeadline(time.Now().Add(3 * time.Second))
+	_, err = conn.Write(pkt)
+	if err != nil {
+		return ""
+	}
+
+	buf := make([]byte, 1024)
+	n, err := conn.Read(buf)
+	if err != nil || n == 0 {
+		return ""
+	}
+	return parseSNMPResponse(buf[:n])
+}
+
+func buildSNMPGetRequest(oid string) []byte {
+	oidBytes := encodeOID(oid)
+	pduValue := append([]byte{0x30}, encodeLength(len(oidBytes)+2)...)
+	pduValue = append(pduValue, 0x06, byte(len(oidBytes)))
+	pduValue = append(pduValue, oidBytes...)
+	pduValue = append(pduValue, 0x05, 0x00) // NULL
+
+	getReq := append([]byte{0xa0}, encodeLength(len(pduValue)+10)...)
+	getReq = append(getReq, 0x02, 0x01, 0x00) // request-id = 0
+	getReq = append(getReq, 0x02, 0x01, 0x00) // error-status = 0
+	getReq = append(getReq, 0x02, 0x01, 0x00) // error-index = 0
+	getReq = append(getReq, pduValue...)
+
+Community := []byte("public")
+	version := []byte{0x02, 0x01, 0x01} // SNMPv2c
+
+	snmpBody := append(version, []byte{0x04, byte(len(Community))}...)
+	snmpBody = append(snmpBody, Community...)
+	snmpBody = append(snmpBody, getReq...)
+
+	pkt := append([]byte{0x30}, encodeLength(len(snmpBody))...)
+	pkt = append(pkt, snmpBody...)
+	return pkt
+}
+
+func encodeOID(oid string) []byte {
+	parts := strings.Split(oid, ".")
+	if len(parts) < 2 {
+		return nil
+	}
+	var encoded []byte
+	first := 40*atoi(parts[0]) + atoi(parts[1])
+	encoded = append(encoded, byte(first))
+	for _, p := range parts[2:] {
+		val := atoi(p)
+		encoded = append(encoded, encodeVarint(val)...)
+	}
+	return encoded
+}
+
+func encodeVarint(val int) []byte {
+	if val < 128 {
+		return []byte{byte(val)}
+	}
+	var bytes []byte
+	for val > 0 {
+		b := byte(val & 0x7f)
+		val >>= 7
+		if val > 0 {
+			b |= 0x80
+		}
+		bytes = append([]byte{b}, bytes...)
+	}
+	return bytes
+}
+
+func encodeLength(length int) []byte {
+	if length < 128 {
+		return []byte{byte(length)}
+	}
+	var bytes []byte
+	for length > 0 {
+		b := byte(length & 0xff)
+		length >>= 8
+		bytes = append([]byte{b}, bytes...)
+	}
+	result := make([]byte, 1+len(bytes)+1)
+	result[0] = byte(0x80 | len(bytes))
+	copy(result[1:], bytes)
+	return result
+}
+
+func atoi(s string) int {
+	v, _ := strconv.Atoi(s)
+	return v
+}
+
+var snmpValueRegex = regexp.MustCompile(`\x04[\x80-\xff]..+\x04([\x80-\xff])(.{0,128})|4\x00([\x80-\xff])(.{0,128})`)
+
+func parseSNMPResponse(data []byte) string {
+	// Find the Value octet in the response — look for the OCTET STRING tag 0x04 after the PDU
+	// Simple parser: find the last 0x04 tag that represents the variable binding value
+	for i := len(data) - 1; i >= 4; i-- {
+		if data[i-1] == 0x04 { // OCTET STRING
+			length := int(data[i])
+			if i+1+length <= len(data) && length > 0 && length < 256 {
+				val := string(data[i+1 : i+1+length])
+				// Filter out binary garbage — only printable ASCII
+				if isPrintable(val) {
+					return strings.TrimSpace(val)
+				}
+			}
+		}
+	}
+	return ""
+}
+
+func isPrintable(s string) bool {
+	if len(s) == 0 {
+		return false
+	}
+	printable := 0
+	for _, r := range s {
+		if r >= 32 && r < 127 {
+			printable++
+		}
+	}
+	return float64(printable)/float64(len(s)) > 0.6
+}
+
+func enrichFromProbes(dr *DiscoveryResult) {
+	// Build a device description from the best available identification
+	parts := []string{}
+
+	if dr.SNMPDescription != nil && *dr.SNMPDescription != "" {
+		desc := *dr.SNMPDescription
+		// Truncate long SNMP descriptions
+		if len(desc) > 200 {
+			desc = desc[:200]
+		}
+		parts = append(parts, desc)
+	}
+
+	if dr.SSHBanner != nil && *dr.SSHBanner != "" {
+		parts = append(parts, *dr.SSHBanner)
+	}
+
+	if dr.TLSCertCN != nil && *dr.TLSCertCN != "" {
+		parts = append(parts, "cert:"+*dr.TLSCertCN)
+	}
+
+	if len(parts) > 0 {
+		desc := strings.Join(parts, " | ")
+		dr.DeviceDescription = &desc
+	}
+
+	// Enrich hostname from SNMP if not set via DNS
+	if (dr.Hostname == nil || *dr.Hostname == "") && dr.SNMPName != nil && *dr.SNMPName != "" {
+		dr.Hostname = dr.SNMPName
+	}
+
+	// Enrich category from probe data
+	category := guessCategoryFromProbes(dr)
+	if category != "" {
+		dr.GuessedCategory = ptrString(category)
+	}
+
+	// Enrich OS from SSH banner
+	if dr.GuessedOS == nil || *dr.GuessedOS == "" {
+		if dr.SSHBanner != nil && *dr.SSHBanner != "" {
+			os := guessOSFromSSHBanner(*dr.SSHBanner)
+			if os != "" {
+				dr.GuessedOS = ptrString(os)
+			}
+		}
+	}
+}
+
+func guessCategoryFromProbes(dr *DiscoveryResult) string {
+	category := ""
+	if dr.GuessedCategory != nil {
+		category = *dr.GuessedCategory
+	}
+
+	// SNMP-based: check sysObjectID for known vendor OIDs
+	if dr.SNMPSysObjectID != nil {
+		oid := *dr.SNMPSysObjectID
+		if strings.HasPrefix(oid, "1.3.6.1.4.1.9") {
+			return "cisco_device"
+		}
+		if strings.HasPrefix(oid, "1.3.6.1.4.1.11") {
+			return "printer"
+		}
+		if strings.HasPrefix(oid, "1.3.6.1.4.1.25461") {
+			return "firewall"
+		}
+		if strings.HasPrefix(oid, "1.3.6.1.4.1.2636") {
+			return "managed_switch"
+		}
+		if strings.HasPrefix(oid, "1.3.6.1.4.1.14823") {
+			return "access_point"
+		}
+		if strings.HasPrefix(oid, "1.3.6.1.4.1.12356") {
+			return "firewall"
+		}
+		if strings.HasPrefix(oid, "1.3.6.1.4.1.171") {
+			return "firewall"
+		}
+	}
+
+	// HTTP title hints
+	if dr.HTTPTitle != nil {
+		title := strings.ToLower(*dr.HTTPTitle)
+		if strings.Contains(title, "router") || strings.Contains(title, "gateway") {
+			return "router"
+		}
+		if strings.Contains(title, "switch") {
+			return "managed_switch"
+		}
+		if strings.Contains(title, "access point") || strings.Contains(title, "wifi") || strings.Contains(title, "wireless") {
+			return "access_point"
+		}
+		if strings.Contains(title, "firewall") || strings.Contains(title, "fortigate") || strings.Contains(title, "sophos") {
+			return "firewall"
+		}
+		if strings.Contains(title, "printer") || strings.Contains(title, "laserjet") || strings.Contains(title, "officejet") {
+			return "printer"
+		}
+		if strings.Contains(title, "camera") || strings.Contains(title, "nvr") || strings.Contains(title, "dvr") {
+			return "camera"
+		}
+		if strings.Contains(title, "nas") || strings.Contains(title, "synology") || strings.Contains(title, "qnap") {
+			return "nas"
+		}
+		if strings.Contains(title, "unifi") || strings.Contains(title, "ubiquiti") {
+			return "access_point"
+		}
+		if strings.Contains(title, "pfsense") || strings.Contains(title, "opnsense") {
+			return "firewall"
+		}
+	}
+
+	// TLS cert CN hints
+	if dr.TLSCertCN != nil {
+		cn := strings.ToLower(*dr.TLSCertCN)
+		if strings.Contains(cn, "fortigate") || strings.Contains(cn, "sophos") {
+			return "firewall"
+		}
+	}
+
+	return category
+}
+
+func guessOSFromSSHBanner(banner string) string {
+	lower := strings.ToLower(banner)
+	if strings.Contains(lower, "openssh") {
+		if strings.Contains(lower, "ubuntu") {
+			return "Linux (Ubuntu)"
+		}
+		if strings.Contains(lower, "debian") {
+			return "Linux (Debian)"
+		}
+		if strings.Contains(lower, "centos") || strings.Contains(lower, "red hat") || strings.Contains(lower, "redhat") {
+			return "Linux (RHEL/CentOS)"
+		}
+		if strings.Contains(lower, "freebsd") {
+			return "FreeBSD"
+		}
+		if strings.Contains(lower, "openbsd") {
+			return "OpenBSD"
+		}
+		return "Linux/Unix"
+	}
+	if strings.Contains(lower, "cisco") {
+		return "Cisco IOS"
+	}
+	if strings.Contains(lower, "microsoft") || strings.Contains(lower, "windows") {
+		return "Windows"
+	}
+	if strings.Contains(lower, "dropbear") {
+		return "Embedded/Linux"
+	}
+	if strings.Contains(lower, "libssh") {
+		return "Embedded/SSH"
+	}
+	if strings.Contains(lower, "tp-link") || strings.Contains(lower, "tplink") {
+		return "Embedded (TP-Link)"
+	}
+	if strings.Contains(lower, "mikrotik") {
+		return "MikroTik RouterOS"
+	}
+	return ""
 }

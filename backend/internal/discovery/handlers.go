@@ -153,7 +153,9 @@ func (h *DiscoveryHandler) GetJobResults(w http.ResponseWriter, r *http.Request)
 	rows, err := h.pool.Query(r.Context(),
 		`SELECT id, job_id, ip_address, mac_address, manufacturer, hostname,
 		        device_description, guessed_category, guessed_os, open_ports,
-		        snmp_reachable, response_time_ms, status, approved_device_id
+		        snmp_reachable, response_time_ms, status, approved_device_id,
+		        http_title, ssh_banner, tls_cert_cn,
+		        snmp_name, snmp_description, snmp_sys_object_id
 		 FROM discovery_results WHERE job_id = $1
 		 ORDER BY ip_address`, id)
 	if err != nil {
@@ -166,11 +168,15 @@ func (h *DiscoveryHandler) GetJobResults(w http.ResponseWriter, r *http.Request)
 		var dr DiscoveryResult
 		var openPortsJSON []byte
 		var mac, mfg, host, desc, cat, os *string
+		var httpTitle, sshBanner, tlsCertCN *string
+		var snmpName, snmpDesc, snmpObjID *string
 		if err := rows.Scan(
 			&dr.ID, &dr.JobID, &dr.IPAddress, &mac, &mfg,
 			&host, &desc, &cat, &os,
 			&openPortsJSON, &dr.SNMPReachable, &dr.ResponseTimeMs, &dr.Status,
 			&dr.ApprovedDeviceID,
+			&httpTitle, &sshBanner, &tlsCertCN,
+			&snmpName, &snmpDesc, &snmpObjID,
 		); err != nil {
 			httputil.SendError(w, http.StatusInternalServerError, err.Error())
 			return
@@ -181,6 +187,12 @@ func (h *DiscoveryHandler) GetJobResults(w http.ResponseWriter, r *http.Request)
 		dr.DeviceDescription = desc
 		dr.GuessedCategory = cat
 		dr.GuessedOS = os
+		dr.HTTPTitle = httpTitle
+		dr.SSHBanner = sshBanner
+		dr.TLSCertCN = tlsCertCN
+		dr.SNMPName = snmpName
+		dr.SNMPDescription = snmpDesc
+		dr.SNMPSysObjectID = snmpObjID
 		if openPortsJSON != nil {
 			_ = json.Unmarshal(openPortsJSON, &dr.OpenPorts)
 		}
