@@ -21,6 +21,7 @@ const navItems: NavItem[] = [
   { to: '/incidents', label: 'Incidents', icon: 'crisis_alert', permission: 'incidents.read' },
   { to: '/maintenance', label: 'Maintenance', icon: 'event_repeat', permission: 'maintenance.read' },
   { to: '/discovery', label: 'Discovery', icon: 'travel_explore', permission: 'discovery.read' },
+  { to: '/service-templates', label: 'Service Templates', icon: 'widgets', permission: 'devices.write' },
   { to: '/isp', label: 'ISP Links', icon: 'router', permission: 'isp.read' },
   { to: '/flows', label: 'Flow Analysis', icon: 'swap_horiz', permission: 'flows.read' },
   { to: '/capture', label: 'Packet Capture', icon: 'network_check', permission: 'capture.read' },

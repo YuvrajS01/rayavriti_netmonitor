@@ -13,11 +13,13 @@ import (
 	"github.com/rayavriti/netmonitor-backend/internal/cache"
 	"github.com/rayavriti/netmonitor-backend/internal/config"
 	"github.com/rayavriti/netmonitor-backend/internal/database"
+	"github.com/rayavriti/netmonitor-backend/internal/discovery"
 	"github.com/rayavriti/netmonitor-backend/internal/handlers"
 	"github.com/rayavriti/netmonitor-backend/internal/httputil"
 	"github.com/rayavriti/netmonitor-backend/internal/logging"
 	"github.com/rayavriti/netmonitor-backend/internal/models"
 	"github.com/rayavriti/netmonitor-backend/internal/rbac"
+	"github.com/rayavriti/netmonitor-backend/internal/servicetmpl"
 	"github.com/rayavriti/netmonitor-backend/internal/websocket"
 	"github.com/rs/cors"
 )
@@ -124,6 +126,55 @@ func (s *Server) Start() error {
 	statusPageH := handlers.NewStatusPageHandler(s.db)
 	ispH := handlers.NewISPHandler(s.db)
 	reportGenH := handlers.NewReportGenHandler(s.db, s.cfg.Phase2.ReportOutputDir)
+	discH := discovery.NewDiscoveryHandler(s.db)
+
+	var svcTmplH *servicetmpl.Handler
+	if pg, ok := s.db.(*database.Postgres); ok {
+		svcTmplH = servicetmpl.NewHandler(servicetmpl.NewService(pg.Pool()))
+	}
+
+	// WebSocket scope filter: only deliver events to users with matching scopes
+	if pg, ok := s.db.(*database.Postgres); ok {
+		pool := pg.Pool()
+		s.hub.SetScopeFilter(func(info websocket.ClientInfo, msg websocket.Message) bool {
+		if info.Role == "super_admin" || info.Role == "admin" {
+			return true
+		}
+		if len(info.Scopes) == 0 {
+			return true
+		}
+		switch msg.Type {
+		case websocket.EventMetricUpdate, websocket.EventAlertTriggered,
+			websocket.EventAlertUpdated, websocket.EventAlertResolved,
+			websocket.EventDeviceStatus:
+			data, ok := msg.Data.(map[string]any)
+			if !ok {
+				return true
+			}
+			deviceID, _ := data["device_id"].(float64)
+			if deviceID == 0 {
+				return true
+			}
+			var locationID int64
+			_ = pool.QueryRow(context.Background(),
+				"SELECT COALESCE(location_id, 0) FROM devices WHERE id = $1", int64(deviceID)).
+				Scan(&locationID)
+			if locationID == 0 {
+				return true
+			}
+			for _, scope := range info.Scopes {
+				if scope.ScopeType == "location" && scope.ScopeValue == fmt.Sprintf("%d", locationID) {
+					return true
+				}
+			}
+			return false
+		default:
+			return true
+		}
+	})
+	}
+
+	// Service templates
 
 	// Public routes
 	r.Get("/health", health.Health)
@@ -148,6 +199,9 @@ func (s *Server) Start() error {
 	r.Group(func(r chi.Router) {
 		r.Use(requireAuth)
 		r.Use(auth.UserRateLimiter(ctx, s.rdb))
+		if pg, ok := s.db.(*database.Postgres); ok {
+			r.Use(rbac.RequireScopeContext(pg.Pool()))
+		}
 		r.Get("/api/auth/me", authH.Me)
 		r.Get("/api/stats", health.Stats)
 
@@ -295,13 +349,13 @@ func (s *Server) Start() error {
 		r.Get("/api/v1/import/template", campusH.ImportTemplate)
 		r.Post("/api/v1/import/devices", campusH.ImportPreview)
 		r.Post("/api/v1/import/devices/confirm", campusH.ImportExecute)
-		r.Post("/api/v1/discovery/scan", phase2.Create("discovery_jobs"))
-		r.Get("/api/v1/discovery/jobs", phase2.List("discovery_jobs"))
-		r.Get("/api/v1/discovery/jobs/{id}", phase2.Get("discovery_jobs"))
-		r.Get("/api/v1/discovery/jobs/{id}/results", phase2.List("discovery_results"))
-		r.Post("/api/v1/discovery/results/{id}/approve", phase2.Update("discovery_results"))
-		r.Post("/api/v1/discovery/results/{id}/reject", phase2.Update("discovery_results"))
-		r.Post("/api/v1/discovery/results/bulk-approve", phase2.List("discovery_results"))
+		r.Post("/api/v1/discovery/scan", discH.StartScan)
+		r.Get("/api/v1/discovery/jobs", discH.ListJobs)
+		r.Get("/api/v1/discovery/jobs/{id}", discH.GetJob)
+		r.Get("/api/v1/discovery/jobs/{id}/results", discH.GetJobResults)
+		r.Post("/api/v1/discovery/results/{id}/approve", discH.ApproveResult)
+		r.Post("/api/v1/discovery/results/{id}/reject", discH.RejectResult)
+		r.Post("/api/v1/discovery/results/bulk-approve", discH.BulkApprove)
 
 		// Status page administration (typed)
 		r.Get("/api/v1/status-page/services", phase2.List("status_page_services"))
@@ -419,6 +473,13 @@ func (s *Server) Start() error {
 		r.Delete("/api/v1/isp-links/{id}", phase2.Delete("isp_links"))
 		r.Get("/api/v1/isp-links/{id}/metrics", ispH.MetricsSummary)
 		r.Get("/api/v1/isp-links/{id}/sla", ispH.LinkSLA)
+
+		// Service Templates
+		if svcTmplH != nil {
+			r.Get("/api/v1/service-templates", svcTmplH.ListTemplates)
+			r.Get("/api/v1/service-templates/{name}", svcTmplH.GetTemplate)
+			r.With(rbac.RequirePermission(models.PermDevicesWrite)).Post("/api/v1/service-templates/apply", svcTmplH.ApplyTemplate)
+		}
 
 		// Simulator (admin only)
 		r.Group(func(r chi.Router) {

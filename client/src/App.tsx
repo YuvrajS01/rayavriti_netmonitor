@@ -30,6 +30,7 @@ const Maintenance = lazy(() => import('./pages/Maintenance'));
 const UserManagement = lazy(() => import('./pages/UserManagement'));
 const ReportBuilder = lazy(() => import('./pages/ReportBuilder'));
 const Discovery = lazy(() => import('./pages/Discovery'));
+const ServiceTemplates = lazy(() => import('./pages/ServiceTemplates'));
 const BulkImport = lazy(() => import('./pages/BulkImport'));
 const ISP = lazy(() => import('./pages/ISP'));
 const NotFound = lazy(() => import('./pages/NotFound'));
@@ -107,6 +108,7 @@ function AppRoutes() {
         <Route path="/incidents/:id" element={<ProtectedRoute><IncidentDetail /></ProtectedRoute>} />
         <Route path="/maintenance" element={<ProtectedRoute><Maintenance /></ProtectedRoute>} />
         <Route path="/discovery" element={<ProtectedRoute><Discovery /></ProtectedRoute>} />
+        <Route path="/service-templates" element={<ProtectedRoute><ServiceTemplates /></ProtectedRoute>} />
         <Route path="/import" element={<ProtectedRoute><BulkImport /></ProtectedRoute>} />
         <Route path="/isp" element={<ProtectedRoute><ISP /></ProtectedRoute>} />
         <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
