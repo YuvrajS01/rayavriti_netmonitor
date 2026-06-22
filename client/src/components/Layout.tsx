@@ -11,10 +11,11 @@ interface NavItem {
   label: string;
   icon: string;
   permission?: string;
+  end?: boolean;
 }
 
 const navItems: NavItem[] = [
-  { to: '/', label: 'Overview', icon: 'dashboard' },
+  { to: '/', label: 'Overview', icon: 'dashboard', end: true },
   { to: '/campus', label: 'Campus', icon: 'account_tree', permission: 'locations.read' },
   { to: '/devices', label: 'My Devices', icon: 'devices', permission: 'devices.read' },
   { to: '/sensors', label: 'Monitors & Sensors', icon: 'sensors', permission: 'devices.read' },
@@ -27,9 +28,9 @@ const navItems: NavItem[] = [
   { to: '/capture', label: 'Packet Capture', icon: 'network_check', permission: 'capture.read' },
   { to: '/ai-health', label: 'AI Health', icon: 'psychology', permission: 'insights.read' },
   { to: '/alerts', label: 'Alerts', icon: 'warning', permission: 'alerts.read' },
-  { to: '/reports', label: 'Reports', icon: 'analytics', permission: 'reports.read' },
+  { to: '/reports', label: 'Reports', icon: 'analytics', permission: 'reports.read', end: true },
   { to: '/reports/builder', label: 'Report Builder', icon: 'summarize', permission: 'reports.write' },
-  { to: '/settings', label: 'Settings', icon: 'settings' },
+  { to: '/settings', label: 'Settings', icon: 'settings', end: true },
   { to: '/settings/locations', label: 'Locations', icon: 'apartment', permission: 'locations.write' },
   { to: '/settings/contacts', label: 'Contacts', icon: 'contacts', permission: 'contacts.write' },
   { to: '/settings/status-page', label: 'Status Page', icon: 'public', permission: 'status_page.manage' },
@@ -37,11 +38,11 @@ const navItems: NavItem[] = [
   { to: '/import', label: 'Bulk Import', icon: 'upload_file', permission: 'devices.write' },
 ];
 
-const SidebarLink = memo(function SidebarLink({ to, label, icon, badge, onClick }: { to: string; label: string; icon: string; badge?: number; onClick?: () => void }) {
+const SidebarLink = memo(function SidebarLink({ to, label, icon, badge, end, onClick }: { to: string; label: string; icon: string; badge?: number; end?: boolean; onClick?: () => void }) {
   return (
     <NavLink
       to={to}
-      end={to === '/'}
+      end={end}
       onClick={onClick}
       className={({ isActive }) =>
         `group flex items-center gap-3 py-3 px-5 font-label font-medium text-sm tracking-wide transition-[color,background-color,border-color] duration-200 ${
@@ -125,7 +126,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               <NavLink
                 key={item.to}
                 to={item.to}
-                end={item.to === '/'}
+                end={item.end}
                 className={({ isActive }) =>
                   `cursor-pointer transition-colors duration-300 ${
                     isActive ? 'text-primary border-b-2 border-primary' : 'text-on-surface-variant hover:text-primary'
@@ -168,7 +169,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             </span>
           </div>
 
-          <nav className="flex-1 space-y-1" aria-label="Sidebar navigation">
+          <nav className="flex-1 space-y-1 overflow-y-auto" aria-label="Sidebar navigation">
             {visibleNavItems.map((item) => (
               <SidebarLink key={item.to} {...item} badge={item.to === '/alerts' ? activeAlertCount : undefined} />
             ))}
