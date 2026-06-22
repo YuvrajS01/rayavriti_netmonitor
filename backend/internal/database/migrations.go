@@ -920,5 +920,12 @@ var migrations = []string{
 	SELECT create_hypertable('suppressed_alerts', 'created_at', if_not_exists => TRUE);
 	SELECT create_hypertable('notification_log', 'created_at', if_not_exists => TRUE);
 	SELECT create_hypertable('incident_timeline', 'created_at', if_not_exists => TRUE);
-	SELECT create_hypertable('isp_metrics', 'created_at', if_not_exists => TRUE);`,
+	SELECT create_hypertable('isp_metrics', 'created_at', if_not_exists => TRUE);
+
+	ALTER TABLE discovery_results ADD COLUMN IF NOT EXISTS http_title TEXT;
+	ALTER TABLE discovery_results ADD COLUMN IF NOT EXISTS ssh_banner TEXT;
+	ALTER TABLE discovery_results ADD COLUMN IF NOT EXISTS tls_cert_cn TEXT;
+	ALTER TABLE discovery_results ADD COLUMN IF NOT EXISTS snmp_name TEXT;
+	ALTER TABLE discovery_results ADD COLUMN IF NOT EXISTS snmp_description TEXT;
+	ALTER TABLE discovery_results ADD COLUMN IF NOT EXISTS snmp_sys_object_id TEXT;`,
 }
