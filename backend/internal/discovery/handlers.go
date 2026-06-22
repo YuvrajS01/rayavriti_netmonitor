@@ -1,6 +1,7 @@
 package discovery
 
 import (
+	"context"
 	"encoding/json"
 	"log/slog"
 	"net/http"
@@ -62,7 +63,7 @@ func (h *DiscoveryHandler) StartScan(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	go func() {
-		ctx := r.Context()
+		ctx := context.Background()
 		err := h.scanner.Scan(ctx, jobID, req.Subnet, req.ScanType, req.LocationID, excludeKnown)
 		if err != nil && ctx.Err() == nil {
 			slog.Error("discovery scan failed", "jobId", jobID, "error", err)
