@@ -10,32 +10,32 @@ import { useToast } from '../components/ui/useToast';
 interface DiscoveryJob {
   id: number;
   subnet: string;
-  scan_type: string;
+  scanType: string;
   status: string;
-  location_id: number | null;
-  initiated_by: string;
-  total_ips_scanned: number;
-  devices_found: number;
-  devices_new: number;
-  devices_known: number;
-  completed_at: string | null;
-  error_message: string | null;
+  locationId: number | null;
+  initiatedBy: string;
+  totalIpsScanned: number;
+  devicesFound: number;
+  devicesNew: number;
+  devicesKnown: number;
+  completedAt: string | null;
+  errorMessage: string | null;
 }
 
 interface DiscoveryResult {
   id: number;
-  job_id: number;
-  ip_address: string;
-  mac_address: string;
+  jobId: number;
+  ipAddress: string;
+  macAddress: string;
   hostname: string;
   manufacturer: string;
-  guessed_category: string;
-  guessed_os: string;
-  open_ports: string;
-  snmp_reachable: boolean;
-  response_time_ms: number;
+  guessedCategory: string;
+  guessedOs: string;
+  openPorts: string;
+  snmpReachable: boolean;
+  responseTimeMs: number;
   status: string;
-  approved_device_id: number | null;
+  approvedDeviceId: number | null;
 }
 
 function formatDate(ts: string | null): string {
@@ -77,7 +77,7 @@ export default function Discovery() {
     total: jobs.length,
     completed: jobs.filter((j) => j.status === 'completed').length,
     running: jobs.filter((j) => j.status === 'running').length,
-    totalFound: jobs.reduce((s, j) => s + (j.devices_found || 0), 0),
+    totalFound: jobs.reduce((s, j) => s + (j.devicesFound || 0), 0),
   }), [jobs]);
 
   const handleScan = async () => {
@@ -154,26 +154,26 @@ export default function Discovery() {
                     </div>
                     <div className="min-w-0">
                       <h3 className="font-headline font-bold text-lg font-mono">{job.subnet}</h3>
-                      <p className="text-xs text-on-surface-variant mt-0.5 capitalize">{job.scan_type.replace(/_/g, ' ')} · {job.status} · {formatDate(job.completed_at)}</p>
-                      {job.error_message && <p className="text-sm text-error mt-1">{job.error_message}</p>}
+                      <p className="text-xs text-on-surface-variant mt-0.5 capitalize">{job.scanType.replace(/_/g, ' ')} · {job.status} · {formatDate(job.completedAt)}</p>
+                      {job.errorMessage && <p className="text-sm text-error mt-1">{job.errorMessage}</p>}
                     </div>
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 lg:max-w-xl flex-shrink-0">
                     <div>
                       <div className="text-[10px] text-on-surface-variant uppercase tracking-wide">Scanned</div>
-                      <div className="text-sm font-medium">{job.total_ips_scanned}</div>
+                      <div className="text-sm font-medium">{job.totalIpsScanned}</div>
                     </div>
                     <div>
                       <div className="text-[10px] text-on-surface-variant uppercase tracking-wide">Found</div>
-                      <div className="text-sm font-bold text-primary">{job.devices_found}</div>
+                      <div className="text-sm font-bold text-primary">{job.devicesFound}</div>
                     </div>
                     <div>
                       <div className="text-[10px] text-on-surface-variant uppercase tracking-wide">New</div>
-                      <div className="text-sm font-medium text-success">{job.devices_new}</div>
+                      <div className="text-sm font-medium text-success">{job.devicesNew}</div>
                     </div>
                     <div>
                       <div className="text-[10px] text-on-surface-variant uppercase tracking-wide">Known</div>
-                      <div className="text-sm font-medium">{job.devices_known}</div>
+                      <div className="text-sm font-medium">{job.devicesKnown}</div>
                     </div>
                   </div>
                 </div>
@@ -202,16 +202,16 @@ export default function Discovery() {
                     <div key={r.id} className="bg-surface-container-highest rounded-lg p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">
-                          <span className="font-mono text-sm font-bold">{r.ip_address}</span>
-                          {r.approved_device_id && <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-success/10 text-success">Approved</span>}
-                          {!r.approved_device_id && r.status === 'pending' && <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-warning/10 text-warning">Pending</span>}
+                          <span className="font-mono text-sm font-bold">{r.ipAddress}</span>
+                          {r.approvedDeviceId && <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-success/10 text-success">Approved</span>}
+                          {!r.approvedDeviceId && r.status === 'pending' && <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-warning/10 text-warning">Pending</span>}
                         </div>
                         <div className="text-xs text-on-surface-variant mt-1">
-                          {r.hostname || r.mac_address || 'Unknown'} {r.manufacturer ? `· ${r.manufacturer}` : ''}
-                          {r.guessed_category ? ` · ${r.guessed_category}` : ''}
+                          {r.hostname || r.macAddress || 'Unknown'} {r.manufacturer ? `· ${r.manufacturer}` : ''}
+                          {r.guessedCategory ? ` · ${r.guessedCategory}` : ''}
                         </div>
                       </div>
-                      {!r.approved_device_id && r.status !== 'rejected' && (
+                      {!r.approvedDeviceId && r.status !== 'rejected' && (
                         <button onClick={(e) => { e.stopPropagation(); handleApprove(r.id); }} className="text-xs font-bold text-primary hover:bg-primary/10 px-3 py-1.5 rounded transition-colors whitespace-nowrap">Approve</button>
                       )}
                     </div>
