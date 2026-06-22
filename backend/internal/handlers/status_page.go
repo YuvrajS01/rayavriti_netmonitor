@@ -17,12 +17,12 @@ type StatusPageHandler struct {
 }
 
 func NewStatusPageHandler(db database.Database) *StatusPageHandler {
-	pg, ok := db.(*database.Postgres)
-	if !ok {
-		slog.Warn("StatusPageHandler: database is not *Postgres, status page features will be unavailable")
+	pp, ok := db.(database.PoolProvider)
+	if !ok || pp.Pool() == nil {
+		slog.Warn("StatusPageHandler: database does not provide a pool, status page features will be unavailable")
 		return &StatusPageHandler{}
 	}
-	return &StatusPageHandler{pool: pg.Pool()}
+	return &StatusPageHandler{pool: pp.Pool()}
 }
 
 func (h *StatusPageHandler) PublicStatusJSON(w http.ResponseWriter, r *http.Request) {

@@ -24,12 +24,12 @@ type IncidentHandler struct {
 }
 
 func NewIncidentHandler(db database.Database, hub *websocket.Hub) *IncidentHandler {
-	pg, ok := db.(*database.Postgres)
-	if !ok {
-		slog.Warn("IncidentHandler: database is not *Postgres, incident features will be unavailable")
+	pp, ok := db.(database.PoolProvider)
+	if !ok || pp.Pool() == nil {
+		slog.Warn("IncidentHandler: database does not provide a pool, incident features will be unavailable")
 		return &IncidentHandler{hub: hub}
 	}
-	return &IncidentHandler{pool: pg.Pool(), hub: hub}
+	return &IncidentHandler{pool: pp.Pool(), hub: hub}
 }
 
 func (h *IncidentHandler) CreateIncident(w http.ResponseWriter, r *http.Request) {

@@ -23,13 +23,14 @@ type ReportGenHandler struct {
 }
 
 func NewReportGenHandler(db database.Database, outputDir string) *ReportGenHandler {
-	pg, ok := db.(*database.Postgres)
-	if !ok {
-		slog.Warn("ReportGenHandler: database is not *Postgres, report generation will be unavailable")
+	pp, ok := db.(database.PoolProvider)
+	if !ok || pp.Pool() == nil {
+		slog.Warn("ReportGenHandler: database does not provide a pool, report generation will be unavailable")
 		return &ReportGenHandler{}
 	}
-	generator := reports.NewGenerator(pg.Pool(), outputDir)
-	return &ReportGenHandler{generator: generator, pool: pg.Pool()}
+	pool := pp.Pool()
+	generator := reports.NewGenerator(pool, outputDir)
+	return &ReportGenHandler{generator: generator, pool: pool}
 }
 
 func (h *ReportGenHandler) Generator() *reports.Generator {

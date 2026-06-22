@@ -4,8 +4,14 @@ import (
 	"context"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rayavriti/netmonitor-backend/internal/models"
 )
+
+// PoolProvider is satisfied by *Postgres and any wrapper (e.g. *CachedDatabase).
+type PoolProvider interface {
+	Pool() *pgxpool.Pool
+}
 
 type DeviceFilter struct {
 	Status     string

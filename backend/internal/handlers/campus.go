@@ -24,12 +24,12 @@ type CampusHandler struct {
 
 // NewCampusHandler creates a CampusHandler wired to the Postgres pool.
 func NewCampusHandler(db database.Database) *CampusHandler {
-	pg, ok := db.(*database.Postgres)
-	if !ok {
-		slog.Warn("CampusHandler: database is not *Postgres, campus features will be unavailable")
+	pp, ok := db.(database.PoolProvider)
+	if !ok || pp.Pool() == nil {
+		slog.Warn("CampusHandler: database does not provide a pool, campus features will be unavailable")
 		return &CampusHandler{}
 	}
-	pool := pg.Pool()
+	pool := pp.Pool()
 	return &CampusHandler{
 		locations: campus.NewLocationService(pool),
 		topology:  campus.NewTopologyService(pool),

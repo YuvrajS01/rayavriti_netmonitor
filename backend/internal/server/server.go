@@ -129,13 +129,13 @@ func (s *Server) Start() error {
 	discH := discovery.NewDiscoveryHandler(s.db)
 
 	var svcTmplH *servicetmpl.Handler
-	if pg, ok := s.db.(*database.Postgres); ok {
-		svcTmplH = servicetmpl.NewHandler(servicetmpl.NewService(pg.Pool()))
+	if pp, ok := s.db.(database.PoolProvider); ok && pp.Pool() != nil {
+		svcTmplH = servicetmpl.NewHandler(servicetmpl.NewService(pp.Pool()))
 	}
 
 	// WebSocket scope filter: only deliver events to users with matching scopes
-	if pg, ok := s.db.(*database.Postgres); ok {
-		pool := pg.Pool()
+	if pp, ok := s.db.(database.PoolProvider); ok && pp.Pool() != nil {
+		pool := pp.Pool()
 		s.hub.SetScopeFilter(func(info websocket.ClientInfo, msg websocket.Message) bool {
 		if info.Role == "super_admin" || info.Role == "admin" {
 			return true
@@ -199,8 +199,8 @@ func (s *Server) Start() error {
 	r.Group(func(r chi.Router) {
 		r.Use(requireAuth)
 		r.Use(auth.UserRateLimiter(ctx, s.rdb))
-		if pg, ok := s.db.(*database.Postgres); ok {
-			r.Use(rbac.RequireScopeContext(pg.Pool()))
+		if pp, ok := s.db.(database.PoolProvider); ok && pp.Pool() != nil {
+			r.Use(rbac.RequireScopeContext(pp.Pool()))
 		}
 		r.Get("/api/auth/me", authH.Me)
 		r.Get("/api/stats", health.Stats)

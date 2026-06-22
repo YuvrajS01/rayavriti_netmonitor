@@ -17,12 +17,12 @@ type ISPHandler struct {
 }
 
 func NewISPHandler(db database.Database) *ISPHandler {
-	pg, ok := db.(*database.Postgres)
-	if !ok {
-		slog.Warn("ISPHandler: database is not *Postgres, ISP features will be unavailable")
+	pp, ok := db.(database.PoolProvider)
+	if !ok || pp.Pool() == nil {
+		slog.Warn("ISPHandler: database does not provide a pool, ISP features will be unavailable")
 		return &ISPHandler{}
 	}
-	return &ISPHandler{pool: pg.Pool()}
+	return &ISPHandler{pool: pp.Pool()}
 }
 
 func (h *ISPHandler) Comparison(w http.ResponseWriter, r *http.Request) {

@@ -20,12 +20,12 @@ type DiscoveryHandler struct {
 }
 
 func NewDiscoveryHandler(db database.Database) *DiscoveryHandler {
-	pg, ok := db.(*database.Postgres)
-	if !ok {
-		slog.Warn("DiscoveryHandler: database is not *Postgres, discovery features will be unavailable")
+	pp, ok := db.(database.PoolProvider)
+	if !ok || pp.Pool() == nil {
+		slog.Warn("DiscoveryHandler: database does not provide a pool, discovery features will be unavailable")
 		return &DiscoveryHandler{}
 	}
-	pool := pg.Pool()
+	pool := pp.Pool()
 	return &DiscoveryHandler{
 		pool:    pool,
 		scanner: NewScanner(pool),

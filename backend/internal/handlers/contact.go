@@ -23,12 +23,12 @@ type ContactHandler struct {
 
 // NewContactHandler creates a ContactHandler wired to the Postgres pool.
 func NewContactHandler(db database.Database) *ContactHandler {
-	pg, ok := db.(*database.Postgres)
-	if !ok {
-		slog.Warn("ContactHandler: database is not *Postgres, contact features will be unavailable")
+	pp, ok := db.(database.PoolProvider)
+	if !ok || pp.Pool() == nil {
+		slog.Warn("ContactHandler: database does not provide a pool, contact features will be unavailable")
 		return &ContactHandler{}
 	}
-	pool := pg.Pool()
+	pool := pp.Pool()
 	resolver := engine.NewContactResolver(pool, db)
 	notifier := engine.NewNotifier()
 	escalation := engine.NewEscalationEngine(pool, resolver, notifier, nil)

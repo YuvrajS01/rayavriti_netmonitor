@@ -5,9 +5,24 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rayavriti/netmonitor-backend/internal/database"
 	"github.com/rayavriti/netmonitor-backend/internal/models"
 )
+
+// phase2Inner checks if the embedded Database also implements Phase2Store.
+func phase2Inner(db database.Database) (database.Phase2Store, bool) {
+	ps, ok := db.(database.Phase2Store)
+	return ps, ok
+}
+
+// Pool delegates to the inner Database if it implements PoolProvider (*Postgres).
+func (c *CachedDatabase) Pool() *pgxpool.Pool {
+	if pp, ok := c.Database.(database.PoolProvider); ok {
+		return pp.Pool()
+	}
+	return nil
+}
 
 // CachedDatabase wraps a Database with Redis caching.
 // It implements the database.Database interface by embedding the real DB
@@ -139,4 +154,56 @@ func (c *CachedDatabase) GetDevicesFiltered(ctx context.Context, f database.Devi
 		return devices, total, nil
 	}
 	return c.Database.GetDevicesFiltered(ctx, f)
+}
+
+// Phase2Store delegation — the inner Database (typically *Postgres) implements
+// Phase2Store, but the interface embedding in CachedDatabase hides those methods.
+// We explicitly delegate so that db.(database.Phase2Store) succeeds.
+
+func (c *CachedDatabase) ListPhase2(ctx context.Context, resource string, filters map[string]string) ([]map[string]any, error) {
+	ps, ok := phase2Inner(c.Database)
+	if !ok {
+		return nil, fmt.Errorf("inner database does not implement Phase2Store")
+	}
+	return ps.ListPhase2(ctx, resource, filters)
+}
+
+func (c *CachedDatabase) GetPhase2(ctx context.Context, resource string, id int64) (map[string]any, error) {
+	ps, ok := phase2Inner(c.Database)
+	if !ok {
+		return nil, fmt.Errorf("inner database does not implement Phase2Store")
+	}
+	return ps.GetPhase2(ctx, resource, id)
+}
+
+func (c *CachedDatabase) CreatePhase2(ctx context.Context, resource string, values map[string]any) (map[string]any, error) {
+	ps, ok := phase2Inner(c.Database)
+	if !ok {
+		return nil, fmt.Errorf("inner database does not implement Phase2Store")
+	}
+	return ps.CreatePhase2(ctx, resource, values)
+}
+
+func (c *CachedDatabase) UpdatePhase2(ctx context.Context, resource string, id int64, values map[string]any) (map[string]any, error) {
+	ps, ok := phase2Inner(c.Database)
+	if !ok {
+		return nil, fmt.Errorf("inner database does not implement Phase2Store")
+	}
+	return ps.UpdatePhase2(ctx, resource, id, values)
+}
+
+func (c *CachedDatabase) DeletePhase2(ctx context.Context, resource string, id int64) error {
+	ps, ok := phase2Inner(c.Database)
+	if !ok {
+		return fmt.Errorf("inner database does not implement Phase2Store")
+	}
+	return ps.DeletePhase2(ctx, resource, id)
+}
+
+func (c *CachedDatabase) Phase2Summary(ctx context.Context) (database.Phase2Summary, error) {
+	ps, ok := phase2Inner(c.Database)
+	if !ok {
+		return database.Phase2Summary{}, fmt.Errorf("inner database does not implement Phase2Store")
+	}
+	return ps.Phase2Summary(ctx)
 }
