@@ -165,15 +165,22 @@ func (h *DiscoveryHandler) GetJobResults(w http.ResponseWriter, r *http.Request)
 	for rows.Next() {
 		var dr DiscoveryResult
 		var openPortsJSON []byte
+		var mac, mfg, host, desc, cat, os *string
 		if err := rows.Scan(
-			&dr.ID, &dr.JobID, &dr.IPAddress, &dr.MACAddress, &dr.Manufacturer,
-			&dr.Hostname, &dr.DeviceDescription, &dr.GuessedCategory, &dr.GuessedOS,
+			&dr.ID, &dr.JobID, &dr.IPAddress, &mac, &mfg,
+			&host, &desc, &cat, &os,
 			&openPortsJSON, &dr.SNMPReachable, &dr.ResponseTimeMs, &dr.Status,
 			&dr.ApprovedDeviceID,
 		); err != nil {
 			httputil.SendError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
+		dr.MACAddress = mac
+		dr.Manufacturer = mfg
+		dr.Hostname = host
+		dr.DeviceDescription = desc
+		dr.GuessedCategory = cat
+		dr.GuessedOS = os
 		if openPortsJSON != nil {
 			_ = json.Unmarshal(openPortsJSON, &dr.OpenPorts)
 		}
@@ -235,8 +242,8 @@ func (h *DiscoveryHandler) ApproveResult(w http.ResponseWriter, r *http.Request)
 	}
 	deviceName := req.Name
 	if deviceName == "" {
-		if dr.Hostname != "" {
-			deviceName = dr.Hostname
+		if dr.Hostname != nil && *dr.Hostname != "" {
+			deviceName = *dr.Hostname
 		} else {
 			deviceName = dr.IPAddress
 		}
@@ -391,9 +398,9 @@ func (h *DiscoveryHandler) BulkApprove(w http.ResponseWriter, r *http.Request) {
 	var approved []approvedItem
 	var failed []map[string]any
 	for _, dr := range toApprove {
-		deviceName := dr.Hostname
-		if deviceName == "" {
-			deviceName = dr.IPAddress
+		deviceName := dr.IPAddress
+		if dr.Hostname != nil && *dr.Hostname != "" {
+			deviceName = *dr.Hostname
 		}
 		locationID := req.LocationID
 		if locationID == nil {

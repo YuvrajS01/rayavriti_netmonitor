@@ -631,10 +631,10 @@ func (s *Scanner) Scan(ctx context.Context, jobID int64, subnet string, scanType
 			dr := &DiscoveryResult{
 				JobID:           jobID,
 				IPAddress:       ipAddr,
-				MACAddress:      mac,
-				Manufacturer:    manufacturer,
-				Hostname:        hostname,
-				GuessedCategory: category,
+				MACAddress:      ptrString(mac),
+				Manufacturer:    ptrString(manufacturer),
+				Hostname:        ptrString(hostname),
+				GuessedCategory: ptrString(category),
 				OpenPorts:       openPorts,
 				ResponseTimeMs:  respMs,
 				Status:          "pending",
@@ -724,59 +724,42 @@ func (s *Scanner) insertResult(ctx context.Context, dr *DiscoveryResult) error {
 	if err != nil {
 		portsJSON = []byte("[]")
 	}
-	var description *string
-	if dr.DeviceDescription != "" {
-		description = &dr.DeviceDescription
-	}
-	var macAddr *string
-	if dr.MACAddress != "" {
-		macAddr = &dr.MACAddress
-	}
-	var manufacturer *string
-	if dr.Manufacturer != "" {
-		manufacturer = &dr.Manufacturer
-	}
-	var hostname *string
-	if dr.Hostname != "" {
-		hostname = &dr.Hostname
-	}
-	var category *string
-	if dr.GuessedCategory != "" {
-		category = &dr.GuessedCategory
-	}
-	var guessedOS *string
-	if dr.GuessedOS != "" {
-		guessedOS = &dr.GuessedOS
-	}
 	_, err = s.pool.Exec(ctx, `
 		INSERT INTO discovery_results
 			(job_id, ip_address, mac_address, manufacturer, hostname,
 			 device_description, guessed_category, guessed_os, open_ports,
 			 snmp_reachable, response_time_ms, status)
 		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
-		dr.JobID, dr.IPAddress, macAddr, manufacturer, hostname,
-		description, category, guessedOS, string(portsJSON),
+		dr.JobID, dr.IPAddress, dr.MACAddress, dr.Manufacturer, dr.Hostname,
+		dr.DeviceDescription, dr.GuessedCategory, dr.GuessedOS, string(portsJSON),
 		dr.SNMPReachable, dr.ResponseTimeMs, dr.Status)
 	return err
 }
 
+func ptrString(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
+}
+
 type DiscoveryResult struct {
-	ID                int64   `json:"id"`
-	JobID             int64   `json:"jobId"`
-	IPAddress         string  `json:"ipAddress"`
-	MACAddress        string  `json:"macAddress,omitempty"`
-	Manufacturer      string  `json:"manufacturer,omitempty"`
-	Hostname          string  `json:"hostname,omitempty"`
-	DeviceDescription string  `json:"deviceDescription,omitempty"`
-	GuessedCategory   string  `json:"guessedCategory,omitempty"`
-	GuessedOS         string  `json:"guessedOS,omitempty"`
-	OpenPorts         []int   `json:"openPorts"`
-	SNMPReachable     bool    `json:"snmpReachable"`
-	ResponseTimeMs    float64 `json:"responseTimeMs"`
-	Status            string  `json:"status"`
-	ApprovedDeviceID  *int64  `json:"approvedDeviceId,omitempty"`
-	IsKnown           bool    `json:"isKnown"`
-	LocationID        *int64  `json:"locationId,omitempty"`
+	ID                int64      `json:"id"`
+	JobID             int64      `json:"jobId"`
+	IPAddress         string     `json:"ipAddress"`
+	MACAddress        *string    `json:"macAddress,omitempty"`
+	Manufacturer      *string    `json:"manufacturer,omitempty"`
+	Hostname          *string    `json:"hostname,omitempty"`
+	DeviceDescription *string    `json:"deviceDescription,omitempty"`
+	GuessedCategory   *string    `json:"guessedCategory,omitempty"`
+	GuessedOS         *string    `json:"guessedOS,omitempty"`
+	OpenPorts         []int      `json:"openPorts"`
+	SNMPReachable     bool       `json:"snmpReachable"`
+	ResponseTimeMs    float64    `json:"responseTimeMs"`
+	Status            string     `json:"status"`
+	ApprovedDeviceID  *int64     `json:"approvedDeviceId,omitempty"`
+	IsKnown           bool       `json:"isKnown"`
+	LocationID        *int64     `json:"locationId,omitempty"`
 }
 
 type DiscoveryJob struct {
