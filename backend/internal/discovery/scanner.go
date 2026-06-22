@@ -785,14 +785,14 @@ type DiscoveryJob struct {
 	ScanType        string     `json:"scanType"`
 	Status          string     `json:"status"`
 	LocationID      *int64     `json:"locationId,omitempty"`
-	InitiatedBy     string     `json:"initiatedBy,omitempty"`
+	InitiatedBy     *string    `json:"initiatedBy,omitempty"`
 	TotalIPsScanned int        `json:"totalIpsScanned"`
 	DevicesFound    int        `json:"devicesFound"`
 	DevicesNew      int        `json:"devicesNew"`
 	DevicesKnown    int        `json:"devicesKnown"`
 	StartedAt       time.Time  `json:"startedAt"`
 	CompletedAt     *time.Time `json:"completedAt,omitempty"`
-	ErrorMessage    string     `json:"errorMessage,omitempty"`
+	ErrorMessage    *string    `json:"errorMessage,omitempty"`
 }
 
 type StartScanRequest struct {
