@@ -6,7 +6,9 @@ import EmptyState from '../components/ui/EmptyState';
 import LocationTree from '../components/LocationTree';
 import { listPhase2, createPhase2, updatePhase2, type Phase2Row } from '../api/phase2';
 import { v1 } from '../api/http';
+import { getDevices } from '../api/client';
 import { useToast } from '../components/ui/useToast';
+import type { Device } from '../api/types';
 
 const locationTypes = ['campus', 'building', 'floor', 'room', 'rack', 'zone'] as const;
 
@@ -28,6 +30,7 @@ export default function LocationManager() {
   const [isCreating, setIsCreating] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [devices, setDevices] = useState<Device[]>([]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -56,6 +59,10 @@ export default function LocationManager() {
       floor_number: loc.floor_number != null ? String(loc.floor_number) : '',
       enabled: loc.enabled !== false,
     });
+    getDevices().then((res) => {
+      const all = res.data || [];
+      setDevices(all.filter((d) => d.locationId === Number(loc.id)));
+    }).catch(() => setDevices([]));
   }, []);
 
   const handleNew = useCallback(() => {
@@ -307,11 +314,39 @@ export default function LocationManager() {
                     setIsCreating(false);
                     setSelected(null);
                     setForm(emptyForm);
+                    setDevices([]);
                   }}
                 >
                   Cancel
                 </Button>
               </div>
+
+              {/* Assigned Devices */}
+              {isEditing && (
+                <div className="mt-6 pt-5 border-t border-outline-variant/20">
+                  <h3 className="font-headline font-bold text-sm uppercase tracking-wide text-on-surface-variant mb-3">
+                    Devices at this Location
+                  </h3>
+                  {devices.length === 0 ? (
+                    <p className="text-xs text-on-surface-variant">No devices assigned to this location.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {devices.map((dev) => (
+                        <div key={dev.id} className="flex items-center justify-between bg-surface-container-highest rounded-lg px-4 py-2.5 border border-outline-variant/15">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <span className={`w-2 h-2 rounded-full shrink-0 ${dev.status === 'up' ? 'bg-primary' : dev.status === 'down' ? 'bg-error' : 'bg-warning'}`} />
+                            <div className="min-w-0">
+                              <p className="text-sm font-bold text-on-surface truncate">{dev.name}</p>
+                              <p className="text-[10px] text-on-surface-variant font-mono">{dev.ipAddress}</p>
+                            </div>
+                          </div>
+                          <span className="text-[10px] font-bold uppercase tracking-wide text-on-surface-variant shrink-0 ml-3">{dev.protocol}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center min-h-[400px] text-on-surface-variant">

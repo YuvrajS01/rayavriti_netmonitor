@@ -1,5 +1,6 @@
-import { useState, type FormEvent } from 'react';
+import { useState, useEffect, type FormEvent } from 'react';
 import { addDevice } from '../api/client';
+import { listPhase2, type Phase2Row } from '../api/phase2';
 import Button from './ui/Button';
 import { useToast } from './ui/useToast';
 
@@ -17,6 +18,13 @@ export default function DeviceAddModal({ open, onClose, onAdded }: Props) {
   const [snmpVersion, setSnmpVersion] = useState('2c');
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [locations, setLocations] = useState<Phase2Row[]>([]);
+
+  useEffect(() => {
+    if (open) {
+      listPhase2('/locations').then((res) => setLocations(res.data || [])).catch(() => setLocations([]));
+    }
+  }, [open]);
 
   if (!open) return null;
 
@@ -48,6 +56,8 @@ export default function DeviceAddModal({ open, onClose, onAdded }: Props) {
         port,
         interval: Number(fd.get('interval') || 60),
       };
+      const locVal = fd.get('locationId') as string;
+      if (locVal) payload.locationId = Number(locVal);
       if (protocol === 'snmp') {
         payload.snmpCommunity = snmpCommunity.trim() || 'public';
         payload.snmpVersion = snmpVersion;
@@ -166,6 +176,20 @@ export default function DeviceAddModal({ open, onClose, onAdded }: Props) {
             <label className="block text-[10px] font-bold uppercase tracking-wide text-on-surface-variant mb-1.5">Check Interval (seconds)</label>
             <input name="interval" type="number" min="10" defaultValue={60} className={`${inputClass} w-full`} />
           </div>
+
+          {locations.length > 0 && (
+            <div>
+              <label className="block text-[10px] font-bold uppercase tracking-wide text-on-surface-variant mb-1.5">Location</label>
+              <select name="locationId" defaultValue="" className={`${inputClass} w-full cursor-pointer`}>
+                <option value="">Unassigned</option>
+                {locations.map((loc) => (
+                  <option key={Number(loc.id)} value={String(loc.id)}>
+                    {String(loc.name)}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div className="flex gap-3 pt-2">
             <Button type="submit" icon="add_circle" disabled={submitting}>

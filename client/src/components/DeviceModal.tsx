@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import { getDeviceMetrics, deleteDevice, getDevicePorts, scanDevicePorts } from '../api/client';
+import { listPhase2, type Phase2Row } from '../api/phase2';
+import { v1 } from '../api/http';
 import { useSocket } from '../hooks/useSocket';
 import type { Device, Metric, MetricMessagePayload, PortScanResult, TrafficInterfaceSample } from '../api/types';
 import ConfirmDialog from './ConfirmDialog';
@@ -60,6 +62,8 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
   const previousFocus = useRef<HTMLElement | null>(null);
   const [metrics, setMetrics] = useState<Metric[]>([]);
   const [ports, setPorts] = useState<PortScanResult[]>([]);
+  const [locations, setLocations] = useState<Phase2Row[]>([]);
+  const [locationId, setLocationId] = useState<string>(device.locationId != null ? String(device.locationId) : '');
   const [loading, setLoading] = useState(true);
   const [scanning, setScanning] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -98,12 +102,14 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
 
   const loadData = useCallback(async () => {
     try {
-      const [metricRes, portRes] = await Promise.all([
+      const [metricRes, portRes, locRes] = await Promise.all([
         getDeviceMetrics(device.id, 50),
-        getDevicePorts(device.id)
+        getDevicePorts(device.id),
+        listPhase2('/locations')
       ]);
-      setMetrics((metricRes.data || []).reverse()); // Oldest to newest for the chart
+      setMetrics((metricRes.data || []).reverse());
       setPorts(portRes.data || []);
+      setLocations(locRes.data || []);
     } catch {
       // ignore
     } finally {
@@ -148,6 +154,17 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
       })));
     } finally {
       setScanning(false);
+    }
+  };
+
+  const handleLocationChange = async (newLocId: string) => {
+    setLocationId(newLocId);
+    try {
+      await v1.put(`/devices/${device.id}`, {
+        locationId: newLocId ? Number(newLocId) : null,
+      });
+    } catch {
+      setLocationId(device.locationId != null ? String(device.locationId) : '');
     }
   };
 
@@ -205,8 +222,24 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
              </div>
              <div className="bg-surface-container-high p-4 rounded-lg">
                <p className="text-[10px] text-on-surface-variant uppercase tracking-wide mb-1">Protocol</p>
-               <p className="font-bold text-on-surface uppercase">{device.protocol}</p>
+                <p className="font-bold text-on-surface uppercase">{device.protocol}</p>
              </div>
+           </div>
+
+           <div className="bg-surface-container-high p-4 rounded-lg mb-6">
+             <label className="block text-[10px] text-on-surface-variant uppercase tracking-wide mb-1.5">Location</label>
+             <select
+               value={locationId}
+               onChange={(e) => handleLocationChange(e.target.value)}
+               className="bg-surface-container-highest border border-outline-variant/20 rounded-lg px-3 py-2 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary w-full cursor-pointer"
+             >
+               <option value="">Unassigned</option>
+               {locations.map((loc) => (
+                 <option key={Number(loc.id)} value={String(loc.id)}>
+                   {String(loc.name)}
+                 </option>
+               ))}
+             </select>
            </div>
 
            <div className="bg-surface-container-high rounded-lg p-4 border border-outline-variant/20 mb-6">
