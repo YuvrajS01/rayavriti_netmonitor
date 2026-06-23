@@ -65,7 +65,7 @@ export default function Campus() {
       const locId = Number(loc.id);
       const st = statusByLoc[locId] || { up: 0, down: 0, warning: 0, maintenance: 0, unknown: 0 };
       const total = Object.values(st).reduce((a, b) => a + b, 0);
-      return { ...loc, status: st, deviceCount: total };
+      return { ...loc, status: st, device_count: total };
     });
   }, [locations, devices]);
 

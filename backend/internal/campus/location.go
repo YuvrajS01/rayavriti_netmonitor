@@ -4,6 +4,7 @@ package campus
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -40,21 +41,21 @@ type Location struct {
 	ID              int64           `json:"id"`
 	Name            string          `json:"name"`
 	Type            string          `json:"type"`
-	ParentID        *int64          `json:"parentId,omitempty"`
-	Code            string          `json:"code,omitempty"`
-	Description     string          `json:"description,omitempty"`
-	Address         string          `json:"address,omitempty"`
-	Latitude        *float64        `json:"latitude,omitempty"`
-	Longitude       *float64        `json:"longitude,omitempty"`
-	FloorNumber     *int            `json:"floorNumber,omitempty"`
-	ContactPersonID *int64          `json:"contactPersonId,omitempty"`
-	Metadata        any             `json:"metadata,omitempty"`
-	SortOrder       int             `json:"sortOrder"`
+	ParentID        *int64          `json:"parent_id"`
+	Code            string          `json:"code"`
+	Description     string          `json:"description"`
+	Address         string          `json:"address"`
+	Latitude        *float64        `json:"latitude"`
+	Longitude       *float64        `json:"longitude"`
+	FloorNumber     *int            `json:"floor_number"`
+	ContactPersonID *int64          `json:"contact_person_id"`
+	Metadata        json.RawMessage `json:"metadata"`
+	SortOrder       int             `json:"sort_order"`
 	Enabled         bool            `json:"enabled"`
-	CreatedAt       time.Time       `json:"createdAt"`
-	UpdatedAt       time.Time       `json:"updatedAt"`
+	CreatedAt       time.Time       `json:"created_at"`
+	UpdatedAt       time.Time       `json:"updated_at"`
 	Children        []*Location     `json:"children,omitempty"`
-	DeviceCount     int             `json:"deviceCount"`
+	DeviceCount     int             `json:"device_count"`
 	Status          *LocationStatus `json:"status,omitempty"`
 }
 
@@ -90,15 +91,21 @@ const locationColumns = `id, name, type, parent_id, code, description, address,
 // scanLocation scans a single row into a Location.
 func scanLocation(row pgx.Row) (*Location, error) {
 	var l Location
+	var meta []byte
 	err := row.Scan(
 		&l.ID, &l.Name, &l.Type, &l.ParentID,
 		&l.Code, &l.Description, &l.Address,
 		&l.Latitude, &l.Longitude, &l.FloorNumber,
-		&l.ContactPersonID, &l.Metadata,
+		&l.ContactPersonID, &meta,
 		&l.SortOrder, &l.Enabled, &l.CreatedAt, &l.UpdatedAt,
 	)
 	if err != nil {
 		return nil, err
+	}
+	if meta != nil {
+		l.Metadata = meta
+	} else {
+		l.Metadata = json.RawMessage(`{}`)
 	}
 	return &l, nil
 }
@@ -109,14 +116,20 @@ func scanLocations(rows pgx.Rows) ([]Location, error) {
 	var out []Location
 	for rows.Next() {
 		var l Location
+		var meta []byte
 		if err := rows.Scan(
 			&l.ID, &l.Name, &l.Type, &l.ParentID,
 			&l.Code, &l.Description, &l.Address,
 			&l.Latitude, &l.Longitude, &l.FloorNumber,
-			&l.ContactPersonID, &l.Metadata,
+			&l.ContactPersonID, &meta,
 			&l.SortOrder, &l.Enabled, &l.CreatedAt, &l.UpdatedAt,
 		); err != nil {
 			return nil, fmt.Errorf("scan location row: %w", err)
+		}
+		if meta != nil {
+			l.Metadata = meta
+		} else {
+			l.Metadata = json.RawMessage(`{}`)
 		}
 		out = append(out, l)
 	}
@@ -231,6 +244,10 @@ func (s *LocationService) Create(ctx context.Context, loc *Location) (*Location,
 		}
 	}
 
+	if loc.Metadata == nil {
+		loc.Metadata = json.RawMessage(`{}`)
+	}
+
 	row := s.db.QueryRow(ctx, `
 		INSERT INTO locations (name, type, parent_id, code, description, address,
 			latitude, longitude, floor_number, contact_person_id, metadata,
@@ -254,6 +271,10 @@ func (s *LocationService) Create(ctx context.Context, loc *Location) (*Location,
 func (s *LocationService) Update(ctx context.Context, id int64, loc *Location) (*Location, error) {
 	if loc.Type != "" && !validLocationTypes[loc.Type] {
 		return nil, fmt.Errorf("invalid location type %q", loc.Type)
+	}
+
+	if loc.Metadata == nil {
+		loc.Metadata = json.RawMessage(`{}`)
 	}
 
 	if loc.Code != "" {

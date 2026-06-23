@@ -120,7 +120,7 @@ function TreeItem({
     showStatus && node.status && typeof node.status === 'object'
       ? (node.status as Record<string, unknown>)
       : null;
-  const devCount = showDeviceCount ? Number(node.deviceCount ?? 0) : 0;
+  const devCount = showDeviceCount ? Number(node.device_count ?? 0) : 0;
 
   return (
     <li>

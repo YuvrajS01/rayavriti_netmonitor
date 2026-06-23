@@ -927,5 +927,7 @@ var migrations = []string{
 	ALTER TABLE discovery_results ADD COLUMN IF NOT EXISTS tls_cert_cn TEXT;
 	ALTER TABLE discovery_results ADD COLUMN IF NOT EXISTS snmp_name TEXT;
 	ALTER TABLE discovery_results ADD COLUMN IF NOT EXISTS snmp_description TEXT;
-	ALTER TABLE discovery_results ADD COLUMN IF NOT EXISTS snmp_sys_object_id TEXT;`,
+	ALTER TABLE discovery_results ADD COLUMN IF NOT EXISTS snmp_sys_object_id TEXT;
+
+	UPDATE locations SET metadata = '{}' WHERE metadata IS NULL;`,
 }
