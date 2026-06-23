@@ -50,8 +50,8 @@ type Metric struct {
 	CustomValue  *float64       `json:"customValue,omitempty"`
 	Value        *float64       `json:"value,omitempty"`
 	Message      string         `json:"message,omitempty"`
-	Protocol     string         `json:"protocol,omitempty"`
-	DeviceName   string         `json:"deviceName,omitempty"`
+	Protocol     string         `json:"protocol"`
+	DeviceName   string         `json:"deviceName"`
 	Details      map[string]any `json:"details,omitempty"`
 }
 
