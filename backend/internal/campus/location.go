@@ -92,15 +92,25 @@ const locationColumns = `id, name, type, parent_id, code, description, address,
 func scanLocation(row pgx.Row) (*Location, error) {
 	var l Location
 	var meta []byte
+	var code, desc, addr *string
 	err := row.Scan(
 		&l.ID, &l.Name, &l.Type, &l.ParentID,
-		&l.Code, &l.Description, &l.Address,
+		&code, &desc, &addr,
 		&l.Latitude, &l.Longitude, &l.FloorNumber,
 		&l.ContactPersonID, &meta,
 		&l.SortOrder, &l.Enabled, &l.CreatedAt, &l.UpdatedAt,
 	)
 	if err != nil {
 		return nil, err
+	}
+	if code != nil {
+		l.Code = *code
+	}
+	if desc != nil {
+		l.Description = *desc
+	}
+	if addr != nil {
+		l.Address = *addr
 	}
 	if meta != nil {
 		l.Metadata = meta
@@ -117,14 +127,24 @@ func scanLocations(rows pgx.Rows) ([]Location, error) {
 	for rows.Next() {
 		var l Location
 		var meta []byte
+		var code, desc, addr *string
 		if err := rows.Scan(
 			&l.ID, &l.Name, &l.Type, &l.ParentID,
-			&l.Code, &l.Description, &l.Address,
+			&code, &desc, &addr,
 			&l.Latitude, &l.Longitude, &l.FloorNumber,
 			&l.ContactPersonID, &meta,
 			&l.SortOrder, &l.Enabled, &l.CreatedAt, &l.UpdatedAt,
 		); err != nil {
 			return nil, fmt.Errorf("scan location row: %w", err)
+		}
+		if code != nil {
+			l.Code = *code
+		}
+		if desc != nil {
+			l.Description = *desc
+		}
+		if addr != nil {
+			l.Address = *addr
 		}
 		if meta != nil {
 			l.Metadata = meta
