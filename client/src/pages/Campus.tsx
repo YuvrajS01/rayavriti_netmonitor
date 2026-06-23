@@ -4,17 +4,8 @@ import Card from '../components/ui/Card';
 import EmptyState from '../components/ui/EmptyState';
 import LocationTree from '../components/LocationTree';
 import { listPhase2, type Phase2Row } from '../api/phase2';
-import { v1 } from '../api/http';
-
-interface DeviceRow {
-  id: number;
-  name: string;
-  ipAddress: string;
-  status: string;
-  protocol: string;
-  deviceCategory: string;
-  locationId: number | null;
-}
+import { getDevices } from '../api/client';
+import type { Device } from '../api/types';
 
 const statusColors: Record<string, string> = {
   up: 'bg-success',
@@ -27,7 +18,7 @@ const statusColors: Record<string, string> = {
 
 export default function Campus() {
   const [locations, setLocations] = useState<Phase2Row[]>([]);
-  const [devices, setDevices] = useState<DeviceRow[]>([]);
+  const [devices, setDevices] = useState<Device[]>([]);
   const [selected, setSelected] = useState<Phase2Row | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -37,11 +28,10 @@ export default function Campus() {
       try {
         const [locRes, devRes] = await Promise.all([
           listPhase2('/locations'),
-          v1.get('/devices').then((r) => r.data),
+          getDevices(),
         ]);
         setLocations(locRes.data || []);
-        const devData = devRes?.data ?? devRes ?? [];
-        setDevices(Array.isArray(devData) ? devData : []);
+        setDevices(devRes.data || []);
       } catch {
         setLocations([]);
         setDevices([]);

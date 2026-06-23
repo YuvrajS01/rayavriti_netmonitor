@@ -37,6 +37,16 @@ export interface Device {
   locationId?: number;
   snmpCommunity?: string | null;
   snmpVersion?: string | null;
+  deviceCategory?: string;
+  manufacturer?: string;
+  model?: string;
+  serialNumber?: string;
+  macAddress?: string;
+  notes?: string;
+  parentDeviceId?: number;
+  dependencyPort?: string;
+  rackPosition?: string;
+  assetTag?: string;
 }
 
 export interface Metric {
