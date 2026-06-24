@@ -166,10 +166,12 @@ func (h *ISPHandler) MetricsTimeSeries(w http.ResponseWriter, r *http.Request) {
 	var points []point
 	for rows.Next() {
 		var p point
-		if err := rows.Scan(&p.Timestamp, &p.Latency, &p.Jitter, &p.PktLoss, &p.Download, &p.Upload, &p.Status, &p.TargetIP); err != nil {
+		var ts time.Time
+		if err := rows.Scan(&ts, &p.Latency, &p.Jitter, &p.PktLoss, &p.Download, &p.Upload, &p.Status, &p.TargetIP); err != nil {
 			httputil.SendError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
+		p.Timestamp = ts.UTC().Format(time.RFC3339)
 		points = append(points, p)
 	}
 	if points == nil {
