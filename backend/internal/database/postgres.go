@@ -831,7 +831,7 @@ func (p *Postgres) PruneMetrics(ctx context.Context, olderThan time.Time) (int64
 	}
 	if p.hasTimescaleDB {
 		t, err := p.pool.Exec(ctx,
-			`SELECT drop_chunks('metrics', 'timestamp', older_than => $1::interval)`,
+			`SELECT drop_chunks('metrics', older_than => $1::interval)`,
 			dur.String())
 		if err == nil {
 			return t.RowsAffected(), nil
@@ -848,7 +848,7 @@ func (p *Postgres) PruneFlows(ctx context.Context, olderThan time.Time) (int64, 
 	}
 	if p.hasTimescaleDB {
 		t, err := p.pool.Exec(ctx,
-			`SELECT drop_chunks('flows', 'created_at', older_than => $1::interval)`,
+			`SELECT drop_chunks('flows', older_than => $1::interval)`,
 			dur.String())
 		if err == nil {
 			return t.RowsAffected(), nil
