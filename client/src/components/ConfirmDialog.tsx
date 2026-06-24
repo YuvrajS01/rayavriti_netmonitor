@@ -69,7 +69,7 @@ export default function ConfirmDialog({
         aria-modal="true"
         aria-labelledby="confirm-title"
         aria-describedby="confirm-message"
-        className="bg-surface-container-low border border-outline-variant/30 rounded-lg w-full max-w-md overflow-hidden "
+        className="bg-surface-container-low border border-outline-variant/30 rounded-lg w-full max-w-md max-h-[90vh] overflow-hidden "
         onClick={(e) => e.stopPropagation()}
       >
         <div className="p-6">

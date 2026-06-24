@@ -203,7 +203,7 @@ export default function Maintenance() {
 
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60" onClick={() => setShowForm(false)}>
-          <div className="bg-surface-container-low border border-outline-variant/30 rounded-lg w-full max-w-lg overflow-hidden" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-surface-container-low border border-outline-variant/30 rounded-lg w-full max-w-lg max-h-[90vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
             <div className="p-6 border-b border-outline-variant/20"><h2 className="font-headline text-lg font-bold">{editing ? 'Edit Window' : 'New Maintenance Window'}</h2></div>
             <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
               <div>

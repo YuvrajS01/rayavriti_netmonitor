@@ -241,7 +241,7 @@ export default function Discovery() {
 
       {showScanForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60" onClick={() => setShowScanForm(false)}>
-          <div className="bg-surface-container-low border border-outline-variant/30 rounded-lg w-full max-w-md overflow-hidden" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-surface-container-low border border-outline-variant/30 rounded-lg w-full max-w-md max-h-[90vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
             <div className="p-6 border-b border-outline-variant/20"><h2 className="font-headline text-lg font-bold">New Subnet Scan</h2></div>
             <div className="p-6 space-y-4">
               <div>

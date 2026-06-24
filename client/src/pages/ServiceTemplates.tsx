@@ -117,7 +117,7 @@ export default function ServiceTemplates() {
 
       {selected && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60" onClick={() => setSelected(null)}>
-          <div className="bg-surface-container-low border border-outline-variant/30 rounded-lg w-full max-w-lg overflow-hidden" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-surface-container-low border border-outline-variant/30 rounded-lg w-full max-w-lg max-h-[90vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
             <div className="p-6 border-b border-outline-variant/20">
               <div className="flex items-center justify-between">
                 <h2 className="font-headline text-lg font-bold">{selected.name}</h2>

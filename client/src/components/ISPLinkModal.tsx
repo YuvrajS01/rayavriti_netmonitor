@@ -113,7 +113,7 @@ export default function ISPLinkModal({ link, onClose }: { link: ISPLink; onClose
         aria-modal="true"
         aria-label={`ISP link details for ${link.name}`}
         tabIndex={-1}
-        className="bg-surface-container-low border border-outline-variant/30 rounded-lg w-full max-w-3xl overflow-hidden flex flex-col outline-none"
+        className="bg-surface-container-low border border-outline-variant/30 rounded-lg w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col outline-none"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="p-6 border-b border-outline-variant/20 flex justify-between items-start">

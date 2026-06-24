@@ -190,7 +190,7 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
         aria-modal="true"
         aria-label={`Device details for ${device.name}`}
         tabIndex={-1}
-        className="bg-surface-container-low border border-outline-variant/30 rounded-lg w-full max-w-3xl overflow-hidden flex flex-col outline-none"
+        className="bg-surface-container-low border border-outline-variant/30 rounded-lg w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col outline-none"
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
