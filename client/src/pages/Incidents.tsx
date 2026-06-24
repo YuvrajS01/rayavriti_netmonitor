@@ -262,9 +262,9 @@ export default function Incidents() {
 
       {showCreate && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60" onClick={() => setShowCreate(false)}>
-          <div className="bg-surface-container-low border border-outline-variant/30 rounded-lg w-full max-w-lg max-h-[90vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
-            <div className="p-6 border-b border-outline-variant/20"><h2 className="font-headline text-lg font-bold">New Incident</h2></div>
-            <div className="p-6 space-y-4">
+          <div className="bg-surface-container-low border border-outline-variant/30 rounded-lg w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="p-6 border-b border-outline-variant/20 shrink-0"><h2 className="font-headline text-lg font-bold">New Incident</h2></div>
+            <div className="p-6 space-y-4 flex-1 min-h-0 overflow-y-auto">
               <div>
                 <label className="text-[10px] text-on-surface-variant uppercase tracking-wide block mb-1">Title</label>
                 <input value={createForm.title} onChange={(e) => setCreateForm({ ...createForm, title: e.target.value })} className="w-full bg-surface-container-highest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary outline-none" placeholder="What happened?" />
@@ -284,7 +284,7 @@ export default function Incidents() {
                 <textarea value={createForm.impact_description} onChange={(e) => setCreateForm({ ...createForm, impact_description: e.target.value })} rows={2} className="w-full bg-surface-container-highest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary outline-none resize-none" placeholder="Who/what is affected?" />
               </div>
             </div>
-            <div className="flex border-t border-outline-variant/20">
+            <div className="flex border-t border-outline-variant/20 shrink-0">
               <button onClick={() => setShowCreate(false)} className="flex-1 py-3 text-xs font-headline font-bold uppercase tracking-wide text-on-surface-variant hover:bg-surface-container-high transition-colors">Cancel</button>
               <div className="w-px bg-outline-variant/20" />
               <button onClick={handleCreate} disabled={submitting || !createForm.title} className="flex-1 py-3 text-xs font-headline font-bold uppercase tracking-wide text-primary hover:bg-primary/10 transition-colors disabled:opacity-50">{submitting ? 'Creating...' : 'Create'}</button>

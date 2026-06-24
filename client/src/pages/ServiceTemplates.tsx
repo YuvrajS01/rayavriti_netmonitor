@@ -117,8 +117,8 @@ export default function ServiceTemplates() {
 
       {selected && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60" onClick={() => setSelected(null)}>
-          <div className="bg-surface-container-low border border-outline-variant/30 rounded-lg w-full max-w-lg max-h-[90vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
-            <div className="p-6 border-b border-outline-variant/20">
+          <div className="bg-surface-container-low border border-outline-variant/30 rounded-lg w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="p-6 border-b border-outline-variant/20 shrink-0">
               <div className="flex items-center justify-between">
                 <h2 className="font-headline text-lg font-bold">{selected.name}</h2>
                 <button onClick={() => setSelected(null)} className="text-on-surface-variant hover:text-on-surface p-1">
@@ -128,7 +128,7 @@ export default function ServiceTemplates() {
               <p className="text-sm text-on-surface-variant mt-1">{selected.description}</p>
             </div>
 
-            <div className="p-6 space-y-4 max-h-96 overflow-y-auto">
+            <div className="p-6 space-y-4 flex-1 min-h-0 overflow-y-auto">
               <div>
                 <h3 className="text-xs font-bold uppercase tracking-wide text-on-surface-variant mb-2">Checks ({selected.checks.length})</h3>
                 <div className="space-y-2">
@@ -176,7 +176,7 @@ export default function ServiceTemplates() {
               </div>
             </div>
 
-            <div className="flex border-t border-outline-variant/20">
+            <div className="flex border-t border-outline-variant/20 shrink-0">
               <button onClick={() => setSelected(null)} className="flex-1 py-3 text-xs font-headline font-bold uppercase tracking-wide text-on-surface-variant hover:bg-surface-container-high transition-colors">Cancel</button>
               <div className="w-px bg-outline-variant/20" />
               <button onClick={handleApply} disabled={applying || !applyForm.host} className="flex-1 py-3 text-xs font-headline font-bold uppercase tracking-wide text-primary hover:bg-primary/10 transition-colors disabled:opacity-50">

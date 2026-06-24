@@ -227,11 +227,11 @@ export default function Contacts() {
 
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60" onClick={() => setShowForm(false)}>
-          <div className="bg-surface-container-low border border-outline-variant/30 rounded-lg w-full max-w-lg max-h-[90vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
-            <div className="p-6 border-b border-outline-variant/20">
+          <div className="bg-surface-container-low border border-outline-variant/30 rounded-lg w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="p-6 border-b border-outline-variant/20 shrink-0">
               <h2 className="font-headline text-lg font-bold">{editing ? 'Edit Contact' : 'New Contact'}</h2>
             </div>
-            <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
+            <div className="p-6 space-y-4 flex-1 min-h-0 overflow-y-auto">
               {(['name', 'designation', 'department', 'email', 'phone'] as const).map((f) => (
                 <div key={f}>
                   <label className="text-[10px] text-on-surface-variant uppercase tracking-wide block mb-1">{f.replace(/_/g, ' ')}</label>
@@ -273,7 +273,7 @@ export default function Contacts() {
                 <label htmlFor="contact_enabled" className="text-sm text-on-surface">Active</label>
               </div>
             </div>
-            <div className="flex border-t border-outline-variant/20">
+            <div className="flex border-t border-outline-variant/20 shrink-0">
               <button onClick={() => setShowForm(false)} className="flex-1 py-3 text-xs font-headline font-bold uppercase tracking-wide text-on-surface-variant hover:bg-surface-container-high transition-colors">Cancel</button>
               <div className="w-px bg-outline-variant/20" />
               <button onClick={handleSubmit} disabled={submitting} className="flex-1 py-3 text-xs font-headline font-bold uppercase tracking-wide text-primary hover:bg-primary/10 transition-colors disabled:opacity-50">

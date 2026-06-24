@@ -79,8 +79,8 @@ export default function DeviceAddModal({ open, onClose, onAdded }: Props) {
   return (
     <div className="fixed inset-0 z-[90] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Add new device">
       <div className="absolute inset-0 bg-black/60 " onClick={onClose} />
-      <div className="relative bg-surface-container-low rounded-lg border border-outline-variant/20 w-full max-w-lg max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between p-6 border-b border-outline-variant/20">
+      <div className="relative bg-surface-container-low rounded-lg border border-outline-variant/20 w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col">
+        <div className="flex items-center justify-between p-6 border-b border-outline-variant/20 shrink-0">
           <div>
             <h2 className="font-headline text-xl font-bold text-on-surface uppercase tracking-wide">New Device</h2>
             <p className="text-xs text-on-surface-variant mt-1">Add a node to your monitoring network</p>
@@ -90,7 +90,7 @@ export default function DeviceAddModal({ open, onClose, onAdded }: Props) {
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="p-6 space-y-4 flex-1 min-h-0 overflow-y-auto">
           <div>
             <label className="block text-[10px] font-bold uppercase tracking-wide text-on-surface-variant mb-1.5">Device Name *</label>
             <input name="name" required placeholder="e.g. Core Router 01" className={`${inputClass} w-full ${borderClass('name')}`} />

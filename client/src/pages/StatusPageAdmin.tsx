@@ -206,9 +206,9 @@ export default function StatusPageAdmin() {
 
       {showServiceForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60" onClick={() => setShowServiceForm(false)}>
-          <div className="bg-surface-container-low border border-outline-variant/30 rounded-lg w-full max-w-lg max-h-[90vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
-            <div className="p-6 border-b border-outline-variant/20"><h2 className="font-headline text-lg font-bold">{editingService ? 'Edit Service' : 'New Service'}</h2></div>
-            <div className="p-6 space-y-4">
+          <div className="bg-surface-container-low border border-outline-variant/30 rounded-lg w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="p-6 border-b border-outline-variant/20 shrink-0"><h2 className="font-headline text-lg font-bold">{editingService ? 'Edit Service' : 'New Service'}</h2></div>
+            <div className="p-6 space-y-4 flex-1 min-h-0 overflow-y-auto">
               {[
                 { key: 'name', label: 'Service Name', type: 'text' },
                 { key: 'description', label: 'Description', type: 'text' },
@@ -240,7 +240,7 @@ export default function StatusPageAdmin() {
                 ))}
               </div>
             </div>
-            <div className="flex border-t border-outline-variant/20">
+            <div className="flex border-t border-outline-variant/20 shrink-0">
               <button onClick={() => setShowServiceForm(false)} className="flex-1 py-3 text-xs font-headline font-bold uppercase tracking-wide text-on-surface-variant hover:bg-surface-container-high transition-colors">Cancel</button>
               <div className="w-px bg-outline-variant/20" />
               <button onClick={handleServiceSubmit} disabled={submitting || !serviceForm.name} className="flex-1 py-3 text-xs font-headline font-bold uppercase tracking-wide text-primary hover:bg-primary/10 transition-colors disabled:opacity-50">{submitting ? 'Saving...' : editingService ? 'Update' : 'Create'}</button>

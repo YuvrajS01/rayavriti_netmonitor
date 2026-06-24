@@ -378,9 +378,9 @@ export default function UserManagement() {
 
       {editingUser && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60" onClick={() => setEditingUser(null)}>
-          <div className="bg-surface-container-low border border-outline-variant/30 rounded-lg w-full max-w-lg max-h-[90vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
-            <div className="p-6 border-b border-outline-variant/20"><h2 className="font-headline text-lg font-bold">Edit User: {editingUser.username}</h2></div>
-            <div className="p-6 space-y-4">
+          <div className="bg-surface-container-low border border-outline-variant/30 rounded-lg w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="p-6 border-b border-outline-variant/20 shrink-0"><h2 className="font-headline text-lg font-bold">Edit User: {editingUser.username}</h2></div>
+            <div className="p-6 space-y-4 flex-1 min-h-0 overflow-y-auto">
               <div>
                 <label className="text-[10px] text-on-surface-variant uppercase tracking-wide block mb-1">Role</label>
                 <select value={String(userForm.role ?? '')} onChange={(e) => setUserForm({ ...userForm, role: e.target.value })} className="w-full bg-surface-container-highest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary">
@@ -400,7 +400,7 @@ export default function UserManagement() {
                 <label htmlFor="user_enabled" className="text-sm text-on-surface">Enabled</label>
               </div>
             </div>
-            <div className="flex border-t border-outline-variant/20">
+            <div className="flex border-t border-outline-variant/20 shrink-0">
               <button onClick={() => setEditingUser(null)} className="flex-1 py-3 text-xs font-headline font-bold uppercase tracking-wide text-on-surface-variant hover:bg-surface-container-high transition-colors">Cancel</button>
               <div className="w-px bg-outline-variant/20" />
               <button onClick={handleUserUpdate} disabled={submitting} className="flex-1 py-3 text-xs font-headline font-bold uppercase tracking-wide text-primary hover:bg-primary/10 transition-colors disabled:opacity-50">{submitting ? 'Saving...' : 'Update'}</button>
@@ -411,8 +411,8 @@ export default function UserManagement() {
 
       {showRoleForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60" onClick={() => setShowRoleForm(false)}>
-          <div className="bg-surface-container-low border border-outline-variant/30 rounded-lg w-full max-w-2xl max-h-[90vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
-            <div className="p-6 border-b border-outline-variant/20 flex items-center justify-between">
+          <div className="bg-surface-container-low border border-outline-variant/30 rounded-lg w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="p-6 border-b border-outline-variant/20 flex items-center justify-between shrink-0">
               <div>
                 <h2 className="font-headline text-lg font-bold">{editingRole ? `Edit Role: ${editingRole.name}` : 'Create Role'}</h2>
                 <p className="text-xs text-on-surface-variant mt-1">{roleForm.permissions.length} permissions selected</p>
@@ -422,7 +422,7 @@ export default function UserManagement() {
                 <button onClick={() => setRoleForm((prev) => ({ ...prev, permissions: [] }))} className="text-[10px] font-bold uppercase tracking-wide text-on-surface-variant hover:bg-surface-container-high px-3 py-1.5 rounded transition-colors">Clear</button>
               </div>
             </div>
-            <div className="p-6 space-y-4 max-h-[55vh] overflow-y-auto">
+            <div className="p-6 space-y-4 flex-1 min-h-0 overflow-y-auto">
               {!editingRole && (
                 <div>
                   <label className="text-[10px] text-on-surface-variant uppercase tracking-wide block mb-1">Role ID (unique key)</label>
@@ -483,7 +483,7 @@ export default function UserManagement() {
                 </div>
               </div>
             </div>
-            <div className="flex border-t border-outline-variant/20">
+            <div className="flex border-t border-outline-variant/20 shrink-0">
               <button onClick={() => setShowRoleForm(false)} className="flex-1 py-3 text-xs font-headline font-bold uppercase tracking-wide text-on-surface-variant hover:bg-surface-container-high transition-colors">Cancel</button>
               <div className="w-px bg-outline-variant/20" />
               <button onClick={handleRoleSubmit} disabled={submitting || (!editingRole && !roleForm.name)} className="flex-1 py-3 text-xs font-headline font-bold uppercase tracking-wide text-primary hover:bg-primary/10 transition-colors disabled:opacity-50">{submitting ? 'Saving...' : editingRole ? 'Update Role' : 'Create Role'}</button>

@@ -192,7 +192,7 @@ export default function Discovery() {
       {selectedJob && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60" onClick={() => { setSelectedJob(null); setResults([]); }}>
           <div className="bg-surface-container-low border border-outline-variant/30 rounded-lg w-full max-w-3xl overflow-hidden max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
-            <div className="p-6 border-b border-outline-variant/20 flex items-center justify-between">
+            <div className="p-6 border-b border-outline-variant/20 flex items-center justify-between shrink-0">
               <div>
                 <h2 className="font-headline text-lg font-bold font-mono">{selectedJob.subnet}</h2>
                 <p className="text-xs text-on-surface-variant mt-0.5 capitalize">{selectedJob.status} · {results.length} results</p>
@@ -241,9 +241,9 @@ export default function Discovery() {
 
       {showScanForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60" onClick={() => setShowScanForm(false)}>
-          <div className="bg-surface-container-low border border-outline-variant/30 rounded-lg w-full max-w-md max-h-[90vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
-            <div className="p-6 border-b border-outline-variant/20"><h2 className="font-headline text-lg font-bold">New Subnet Scan</h2></div>
-            <div className="p-6 space-y-4">
+          <div className="bg-surface-container-low border border-outline-variant/30 rounded-lg w-full max-w-md max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="p-6 border-b border-outline-variant/20 shrink-0"><h2 className="font-headline text-lg font-bold">New Subnet Scan</h2></div>
+            <div className="p-6 space-y-4 flex-1 min-h-0 overflow-y-auto">
               <div>
                 <label className="text-[10px] text-on-surface-variant uppercase tracking-wide block mb-1">Subnet (CIDR)</label>
                 <input value={scanForm.subnet} onChange={(e) => setScanForm({ ...scanForm, subnet: e.target.value })} className="w-full bg-surface-container-highest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface font-mono placeholder:text-outline focus:ring-1 focus:ring-primary outline-none" placeholder="10.0.0.0/24" />
@@ -257,7 +257,7 @@ export default function Discovery() {
                 </select>
               </div>
             </div>
-            <div className="flex border-t border-outline-variant/20">
+            <div className="flex border-t border-outline-variant/20 shrink-0">
               <button onClick={() => setShowScanForm(false)} className="flex-1 py-3 text-xs font-headline font-bold uppercase tracking-wide text-on-surface-variant hover:bg-surface-container-high transition-colors">Cancel</button>
               <div className="w-px bg-outline-variant/20" />
               <button onClick={handleScan} disabled={submitting || !scanForm.subnet} className="flex-1 py-3 text-xs font-headline font-bold uppercase tracking-wide text-primary hover:bg-primary/10 transition-colors disabled:opacity-50">{submitting ? 'Starting...' : 'Start Scan'}</button>

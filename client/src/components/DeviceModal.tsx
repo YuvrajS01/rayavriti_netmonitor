@@ -194,7 +194,7 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="p-6 border-b border-outline-variant/20 flex justify-between items-start">
+        <div className="p-6 border-b border-outline-variant/20 flex justify-between items-start shrink-0">
           <div>
             <h2 className="font-headline text-3xl font-bold text-on-surface uppercase tracking-tight">{device.name}</h2>
             <p className="text-on-surface-variant text-sm font-mono">{device.protocol === 'http' || device.protocol === 'https' ? `${device.protocol}://${device.ipAddress}` : device.ipAddress}{device.port > 0 && !['http','https'].includes(device.protocol) ? `:${device.port}` : ''} ({device.protocol.toUpperCase()})</p>
@@ -205,7 +205,7 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
         </div>
 
         {/* Content */}
-        <div className="p-6 overflow-y-auto max-h-[70vh]">
+        <div className="p-6 overflow-y-auto flex-1 min-h-0">
            {/* Summary Stats */}
            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
              <div className="bg-surface-container-high p-4 rounded-lg">
