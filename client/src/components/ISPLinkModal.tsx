@@ -46,7 +46,7 @@ export default function ISPLinkModal({ link, onClose }: { link: ISPLink; onClose
   const dialogRef = useRef<HTMLDivElement>(null);
   const previousFocus = useRef<HTMLElement | null>(null);
   const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
+  useEffect(() => { onCloseRef.current = onClose; });
   const [sla, setSLA] = useState<ISPSLA | null>(null);
   const [timeSeries, setTimeSeries] = useState<ISPTimeSeriesPoint[]>([]);
   const [loading, setLoading] = useState(true);
