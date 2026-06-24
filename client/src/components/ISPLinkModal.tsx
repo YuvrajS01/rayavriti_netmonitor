@@ -45,6 +45,8 @@ interface ISPTimeSeriesPoint {
 export default function ISPLinkModal({ link, onClose }: { link: ISPLink; onClose: () => void }) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const previousFocus = useRef<HTMLElement | null>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
   const [sla, setSLA] = useState<ISPSLA | null>(null);
   const [timeSeries, setTimeSeries] = useState<ISPTimeSeriesPoint[]>([]);
   const [loading, setLoading] = useState(true);
@@ -54,7 +56,7 @@ export default function ISPLinkModal({ link, onClose }: { link: ISPLink; onClose
     dialogRef.current?.focus();
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') { onClose(); return; }
+      if (e.key === 'Escape') { onCloseRef.current(); return; }
       if (e.key !== 'Tab' || !dialogRef.current) return;
       const focusable = dialogRef.current.querySelectorAll<HTMLElement>(
         'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
@@ -68,7 +70,7 @@ export default function ISPLinkModal({ link, onClose }: { link: ISPLink; onClose
 
     document.addEventListener('keydown', handleKeyDown);
     return () => { document.removeEventListener('keydown', handleKeyDown); previousFocus.current?.focus(); };
-  }, [onClose]);
+  }, []);
 
   const loadData = useCallback(async () => {
     try {
