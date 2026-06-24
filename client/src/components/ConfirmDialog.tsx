@@ -62,7 +62,7 @@ export default function ConfirmDialog({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60" onClick={onCancel}>
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 pt-20 bg-black/60" onClick={onCancel}>
       <div
         ref={dialogRef}
         role="alertdialog"

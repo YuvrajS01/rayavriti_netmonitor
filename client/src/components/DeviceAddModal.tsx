@@ -77,7 +77,7 @@ export default function DeviceAddModal({ open, onClose, onAdded }: Props) {
   const borderClass = (field: string) => errors[field] ? 'border-error/50' : 'border-outline-variant/20';
 
   return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Add new device">
+    <div className="fixed inset-0 z-[90] flex items-center justify-center p-4 pt-20" role="dialog" aria-modal="true" aria-label="Add new device">
       <div className="absolute inset-0 bg-black/60 " onClick={onClose} />
       <div className="relative bg-surface-container-low rounded-lg border border-outline-variant/20 w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col">
         <div className="flex items-center justify-between p-6 border-b border-outline-variant/20 shrink-0">

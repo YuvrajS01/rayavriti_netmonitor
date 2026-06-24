@@ -190,7 +190,7 @@ export default function Discovery() {
       </Card>
 
       {selectedJob && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60" onClick={() => { setSelectedJob(null); setResults([]); }}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pt-20 bg-black/60" onClick={() => { setSelectedJob(null); setResults([]); }}>
           <div className="bg-surface-container-low border border-outline-variant/30 rounded-lg w-full max-w-3xl overflow-hidden max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
             <div className="p-6 border-b border-outline-variant/20 flex items-center justify-between shrink-0">
               <div>
@@ -240,7 +240,7 @@ export default function Discovery() {
       )}
 
       {showScanForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60" onClick={() => setShowScanForm(false)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pt-20 bg-black/60" onClick={() => setShowScanForm(false)}>
           <div className="bg-surface-container-low border border-outline-variant/30 rounded-lg w-full max-w-md max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
             <div className="p-6 border-b border-outline-variant/20 shrink-0"><h2 className="font-headline text-lg font-bold">New Subnet Scan</h2></div>
             <div className="p-6 space-y-4 flex-1 min-h-0 overflow-y-auto">

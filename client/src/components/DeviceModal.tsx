@@ -183,7 +183,7 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
   const openPorts = ports.filter((port) => port.state === 'open');
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pt-20 bg-black/60" onClick={onClose}>
       <div
         ref={dialogRef}
         role="dialog"

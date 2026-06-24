@@ -109,7 +109,7 @@ export default function ISPLinkModal({ link, onClose }: { link: ISPLink; onClose
   const slaColor = slaMet === true ? 'text-success' : slaMet === false ? 'text-error' : 'text-outline';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pt-20 bg-black/60" onClick={onClose}>
       <div
         ref={dialogRef}
         role="dialog"
