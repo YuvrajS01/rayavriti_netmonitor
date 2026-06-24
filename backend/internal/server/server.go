@@ -472,6 +472,7 @@ func (s *Server) Start() error {
 		r.Put("/api/v1/isp-links/{id}", phase2.Update("isp_links"))
 		r.Delete("/api/v1/isp-links/{id}", phase2.Delete("isp_links"))
 		r.Get("/api/v1/isp-links/{id}/metrics", ispH.MetricsSummary)
+		r.Get("/api/v1/isp-links/{id}/metrics/timeseries", ispH.MetricsTimeSeries)
 		r.Get("/api/v1/isp-links/{id}/sla", ispH.LinkSLA)
 
 		// Service Templates

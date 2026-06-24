@@ -132,6 +132,52 @@ func (h *ISPHandler) MetricsSummary(w http.ResponseWriter, r *http.Request) {
 	httputil.SendOK(w, stats)
 }
 
+func (h *ISPHandler) MetricsTimeSeries(w http.ResponseWriter, r *http.Request) {
+	if h.pool == nil {
+		httputil.SendError(w, http.StatusNotImplemented, "ISP service unavailable")
+		return
+	}
+	linkID, err := parseID(chi.URLParam(r, "id"))
+	if err != nil {
+		httputil.SendError(w, http.StatusBadRequest, "invalid link id")
+		return
+	}
+
+	rows, err := h.pool.Query(r.Context(),
+		`SELECT created_at, latency_ms, jitter_ms, packet_loss_percent,
+		        download_speed_mbps, upload_speed_mbps, status, target_ip
+		 FROM isp_metrics WHERE link_id=$1 ORDER BY created_at DESC LIMIT 200`, linkID)
+	if err != nil {
+		httputil.SendError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	defer rows.Close()
+
+	type point struct {
+		Timestamp string   `json:"timestamp"`
+		Latency   *float64 `json:"latencyMs"`
+		Jitter    *float64 `json:"jitterMs"`
+		PktLoss   *float64 `json:"packetLoss"`
+		Download  *float64 `json:"downloadMbps"`
+		Upload    *float64 `json:"uploadMbps"`
+		Status    string   `json:"status"`
+		TargetIP  *string  `json:"targetIp"`
+	}
+	var points []point
+	for rows.Next() {
+		var p point
+		if err := rows.Scan(&p.Timestamp, &p.Latency, &p.Jitter, &p.PktLoss, &p.Download, &p.Upload, &p.Status, &p.TargetIP); err != nil {
+			httputil.SendError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		points = append(points, p)
+	}
+	if points == nil {
+		points = []point{}
+	}
+	httputil.SendOK(w, points)
+}
+
 func (h *ISPHandler) getEnabledLinks(ctx context.Context) ([]map[string]any, error) {
 	rows, err := h.pool.Query(ctx,
 		`SELECT id, name, provider, circuit_id, bandwidth_mbps, gateway_ip, sla_uptime_percent, cost_monthly, enabled

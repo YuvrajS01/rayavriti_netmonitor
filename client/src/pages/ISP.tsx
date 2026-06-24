@@ -8,19 +8,7 @@ import StatCard from '../components/ui/StatCard';
 import EmptyState from '../components/ui/EmptyState';
 import ConfirmDialog from '../components/ConfirmDialog';
 import { useToast } from '../components/ui/useToast';
-
-interface ISPLink {
-  id: number;
-  name: string;
-  provider: string;
-  circuit_id: string;
-  bandwidth_mbps: number;
-  gateway_ip: string;
-  sla_uptime_percent: number;
-  cost_monthly: number;
-  monitoring_interval_seconds: number;
-  enabled: boolean;
-}
+import ISPLinkModal, { type ISPLink } from '../components/ISPLinkModal';
 
 interface ISPComparison {
   links: ISPCompareLink[];
@@ -55,6 +43,7 @@ export default function ISP() {
   const [form, setForm] = useState<Record<string, unknown>>({});
   const [submitting, setSubmitting] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<ISPLink | null>(null);
+  const [selectedLink, setSelectedLink] = useState<ISPLink | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -171,7 +160,7 @@ export default function ISP() {
             {filtered.map((link) => {
               const comp = compMap.get(link.id);
               return (
-                <article key={link.id} className="p-5 hover:bg-surface-container-high/50 transition-colors">
+                <article key={link.id} className="p-5 hover:bg-surface-container-high/50 transition-colors cursor-pointer" onClick={() => setSelectedLink(link)}>
                   <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
                     <div className="flex items-start gap-4 min-w-0">
                       <div className="w-10 h-10 rounded-lg bg-surface-container-highest flex items-center justify-center flex-shrink-0">
@@ -206,7 +195,7 @@ export default function ISP() {
                       </div>
                     </div>
                   </div>
-                  <div className="flex gap-2 mt-3 pt-3 border-t border-outline-variant/10">
+                  <div className="flex gap-2 mt-3 pt-3 border-t border-outline-variant/10" onClick={(e) => e.stopPropagation()}>
                     <button onClick={() => openEdit(link)} className="text-xs font-bold text-primary hover:bg-primary/10 px-3 py-1 rounded transition-colors">Edit</button>
                     <button onClick={() => setDeleteTarget(link)} className="text-xs font-bold text-error hover:bg-error/10 px-3 py-1 rounded transition-colors">Delete</button>
                   </div>
@@ -250,6 +239,8 @@ export default function ISP() {
       )}
 
       <ConfirmDialog open={!!deleteTarget} title="Delete ISP Link" message={`Delete "${deleteTarget?.name}"? Monitoring data will be lost.`} confirmLabel="Delete" danger onConfirm={handleDelete} onCancel={() => setDeleteTarget(null)} />
+
+      {selectedLink && <ISPLinkModal link={selectedLink} onClose={() => setSelectedLink(null)} />}
     </div>
   );
 }
