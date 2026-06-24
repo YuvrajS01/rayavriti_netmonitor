@@ -113,7 +113,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         Skip to content
       </a>
       {/* Top Nav */}
-      <header className="bg-background text-on-surface font-body text-sm tracking-tight w-full h-16 border-b border-surface-container-high/30 flex justify-between items-center px-6 fixed top-0 z-50">
+      <header className="bg-background text-on-surface font-body text-sm tracking-tight w-full h-16 border-b border-surface-container-high/30 flex justify-between items-center px-6 fixed top-0 z-40">
         <div className="flex items-center gap-8">
           <button onClick={() => setSidebarOpen(!sidebarOpen)} className="material-symbols-outlined text-on-surface-variant hover:text-primary transition-colors" aria-label="Toggle sidebar">
             menu
