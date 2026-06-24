@@ -1,6 +1,7 @@
 package reports
 
 import (
+	"context"
 	"encoding/csv"
 	"os"
 	"path/filepath"
@@ -21,7 +22,7 @@ func TestNewGenerator(t *testing.T) {
 
 func TestGenerate_UnknownReportType(t *testing.T) {
 	g := NewGenerator(nil, t.TempDir())
-	_, err := g.Generate(nil, GenerateRequest{ReportType: "nonexistent"})
+	_, err := g.Generate(context.TODO(), GenerateRequest{ReportType: "nonexistent"})
 	if err == nil {
 		t.Error("expected error for unknown report type")
 	}
@@ -32,7 +33,7 @@ func TestGenerate_UnknownReportType(t *testing.T) {
 
 func TestGenerate_SetsDefaultFormat(t *testing.T) {
 	g := NewGenerator(nil, t.TempDir())
-	_, err := g.Generate(nil, GenerateRequest{ReportType: "nonexistent"})
+	_, err := g.Generate(context.TODO(), GenerateRequest{ReportType: "nonexistent"})
 	if err == nil {
 		t.Error("expected error for unknown report type")
 	}

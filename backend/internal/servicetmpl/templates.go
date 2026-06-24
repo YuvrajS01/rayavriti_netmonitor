@@ -40,11 +40,11 @@ type Service struct {
 }
 
 type CheckConfig struct {
-	Type       string         `json:"type"`
-	Name       string         `json:"name"`
-	Enabled    bool           `json:"enabled"`
-	Interval   int            `json:"interval"`
-	Config     map[string]any `json:"config"`
+	Type     string         `json:"type"`
+	Name     string         `json:"name"`
+	Enabled  bool           `json:"enabled"`
+	Interval int            `json:"interval"`
+	Config   map[string]any `json:"config"`
 }
 
 type AlertDef struct {
@@ -330,7 +330,7 @@ func (s *Service) Apply(ctx context.Context, req ApplyRequest) (*ApplyResult, er
 	if err != nil {
 		return nil, fmt.Errorf("begin transaction: %w", err)
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 
 	var deviceID int64
 	err = tx.QueryRow(ctx, `

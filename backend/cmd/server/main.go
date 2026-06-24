@@ -45,8 +45,8 @@ func run() error {
 
 	// 3. Connect to database
 	dbCfg := &database.DatabaseConfig{
-		MaxConns:          int32(cfg.Database.MaxConns),
-		MinConns:          int32(cfg.Database.MinConns),
+		MaxConns:          int32(cfg.Database.MaxConns), //nolint:gosec // MaxConns is validated in config parsing
+		MinConns:          int32(cfg.Database.MinConns), //nolint:gosec // MinConns is validated in config parsing
 		MaxConnLifetime:   cfg.Database.MaxConnLifetime,
 		HealthCheckPeriod: cfg.Database.HealthCheckPeriod,
 	}
@@ -54,7 +54,7 @@ func run() error {
 	if err := db.Connect(context.Background()); err != nil {
 		return fmt.Errorf("database connect: %w", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	logger.Info("Database connected")
 
 	// 3.5 Connect to Redis (optional)
@@ -68,7 +68,7 @@ func run() error {
 		if err != nil {
 			logger.Warn("Redis connection failed, running without cache", "error", err)
 		} else {
-			defer rdb.Close()
+			defer func() { _ = rdb.Close() }()
 			logger.Info("Redis connected")
 			auth.SetDefaultStore(auth.NewRedisSessionStore(rdb))
 		}

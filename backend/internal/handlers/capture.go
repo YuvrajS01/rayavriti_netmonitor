@@ -268,7 +268,7 @@ func (h *CaptureHandler) runCapture(ctx context.Context, sessionID int64, iface,
 	// -e adds link-level headers, -tttt adds human-readable timestamps
 	args = append(args, "-e", "-tttt")
 
-	cmd := exec.CommandContext(ctx, "tcpdump", args...)
+	cmd := exec.CommandContext(ctx, "tcpdump", args...) //nolint:gosec // args built from validated user input
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		slog.Error("failed to start tcpdump", "error", err)
@@ -700,7 +700,7 @@ func isValidIPv6(s string) bool {
 	}
 	// Basic check: no dots, all hex chars and colons
 	for _, c := range s {
-		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F') || c == ':') {
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') && (c < 'A' || c > 'F') && c != ':' {
 			return false
 		}
 	}

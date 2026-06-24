@@ -100,9 +100,9 @@ func TestExpandCIDR_Sequential(t *testing.T) {
 
 func TestOUILookup(t *testing.T) {
 	tests := []struct {
-		name     string
-		mac      string
-		wantMfr  string
+		name    string
+		mac     string
+		wantMfr string
 	}{
 		{
 			name:    "Cisco prefix",

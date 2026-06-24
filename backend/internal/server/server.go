@@ -137,41 +137,41 @@ func (s *Server) Start() error {
 	if pp, ok := s.db.(database.PoolProvider); ok && pp.Pool() != nil {
 		pool := pp.Pool()
 		s.hub.SetScopeFilter(func(info websocket.ClientInfo, msg websocket.Message) bool {
-		if info.Role == "super_admin" || info.Role == "admin" {
-			return true
-		}
-		if len(info.Scopes) == 0 {
-			return true
-		}
-		switch msg.Type {
-		case websocket.EventMetricUpdate, websocket.EventAlertTriggered,
-			websocket.EventAlertUpdated, websocket.EventAlertResolved,
-			websocket.EventDeviceStatus:
-			data, ok := msg.Data.(map[string]any)
-			if !ok {
+			if info.Role == "super_admin" || info.Role == "admin" {
 				return true
 			}
-			deviceID, _ := data["device_id"].(float64)
-			if deviceID == 0 {
+			if len(info.Scopes) == 0 {
 				return true
 			}
-			var locationID int64
-			_ = pool.QueryRow(context.Background(),
-				"SELECT COALESCE(location_id, 0) FROM devices WHERE id = $1", int64(deviceID)).
-				Scan(&locationID)
-			if locationID == 0 {
-				return true
-			}
-			for _, scope := range info.Scopes {
-				if scope.ScopeType == "location" && scope.ScopeValue == fmt.Sprintf("%d", locationID) {
+			switch msg.Type {
+			case websocket.EventMetricUpdate, websocket.EventAlertTriggered,
+				websocket.EventAlertUpdated, websocket.EventAlertResolved,
+				websocket.EventDeviceStatus:
+				data, ok := msg.Data.(map[string]any)
+				if !ok {
 					return true
 				}
+				deviceID, _ := data["device_id"].(float64)
+				if deviceID == 0 {
+					return true
+				}
+				var locationID int64
+				_ = pool.QueryRow(context.Background(),
+					"SELECT COALESCE(location_id, 0) FROM devices WHERE id = $1", int64(deviceID)).
+					Scan(&locationID)
+				if locationID == 0 {
+					return true
+				}
+				for _, scope := range info.Scopes {
+					if scope.ScopeType == "location" && scope.ScopeValue == fmt.Sprintf("%d", locationID) {
+						return true
+					}
+				}
+				return false
+			default:
+				return true
 			}
-			return false
-		default:
-			return true
-		}
-	})
+		})
 	}
 
 	// Service templates

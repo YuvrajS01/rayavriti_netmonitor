@@ -187,7 +187,7 @@ func (h *Hub) Stop() {
 		c.mu.Lock()
 		c.dead = true
 		c.mu.Unlock()
-		c.conn.Close()
+		_ = c.conn.Close()
 	}
 	h.mu.Unlock()
 	slog.Info("WebSocket hub stopped")
@@ -302,7 +302,7 @@ func (h *Hub) ServeWS(w http.ResponseWriter, r *http.Request) {
 		ticker := time.NewTicker(pingPeriod)
 		defer func() {
 			ticker.Stop()
-			conn.Close()
+			_ = conn.Close()
 			close(c.closed)
 			slog.Info("WebSocket client disconnected",
 				"user_id", c.info.UserID,

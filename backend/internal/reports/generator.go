@@ -427,18 +427,18 @@ func (g *Generator) generatePerformance(ctx context.Context, req GenerateRequest
 }
 
 func (g *Generator) writeCSV(req GenerateRequest, headers []string, writeRows func(*csv.Writer) error) (*GenerateResult, error) {
-	if err := os.MkdirAll(g.outputDir, 0o755); err != nil {
+	if err := os.MkdirAll(g.outputDir, 0o750); err != nil {
 		return nil, fmt.Errorf("create output dir: %w", err)
 	}
 
 	filename := fmt.Sprintf("%s_%s.csv", req.ReportType, time.Now().Format("20060102_150405"))
 	filePath := filepath.Join(g.outputDir, filename)
 
-	f, err := os.Create(filePath)
+	f, err := os.Create(filePath) //nolint:gosec // filePath constructed from safe components
 	if err != nil {
 		return nil, fmt.Errorf("create file: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	w := csv.NewWriter(f)
 	_ = w.Write(headers)
@@ -460,7 +460,7 @@ func (g *Generator) writeCSV(req GenerateRequest, headers []string, writeRows fu
 }
 
 func (g *Generator) writeHTML(req GenerateRequest, htmlContent string) (*GenerateResult, error) {
-	if err := os.MkdirAll(g.outputDir, 0o755); err != nil {
+	if err := os.MkdirAll(g.outputDir, 0o750); err != nil {
 		return nil, fmt.Errorf("create output dir: %w", err)
 	}
 

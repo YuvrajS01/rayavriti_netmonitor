@@ -110,17 +110,18 @@ func (h *ReportGenHandler) DownloadReport(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	f, err := os.Open(filePath)
+	f, err := os.Open(filePath) //nolint:gosec // filePath from database, not user input
 	if err != nil {
 		httputil.SendError(w, http.StatusNotFound, "report file not found on disk")
 		return
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	contentType := "application/octet-stream"
-	if format == "csv" {
+	switch format {
+	case "csv":
 		contentType = "text/csv"
-	} else if format == "html" {
+	case "html":
 		contentType = "text/html"
 	}
 

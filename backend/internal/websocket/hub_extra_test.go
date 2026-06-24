@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const wsExtraSecret = "extra-test-secret"
+const wsExtraSecret = "extra-test-secret" //nolint:gosec // Test fixture, not a real credential
 
 func wsExtraToken(t *testing.T) string {
 	t.Helper()

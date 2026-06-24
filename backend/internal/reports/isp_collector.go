@@ -131,7 +131,7 @@ func (c *ISPCollector) probeLink(ctx context.Context, target string) linkMetrics
 		return m
 	}
 
-	cmd := exec.CommandContext(ctx, "ping", "-c", "10", "-W", "2", target)
+	cmd := exec.CommandContext(ctx, "ping", "-c", "10", "-W", "2", target) //nolint:gosec // target validated by net.ParseIP check above
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		m.packetLoss = 100
@@ -174,7 +174,7 @@ func measureDownload(ctx context.Context) float64 {
 	if err != nil {
 		return 0
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	n, _ := io.Copy(io.Discard, resp.Body)
 	elapsed := time.Since(start).Seconds()
 	if elapsed < 0.1 {
@@ -195,8 +195,8 @@ func measureUpload(ctx context.Context) float64 {
 	if err != nil {
 		return 0
 	}
-	defer resp.Body.Close()
-	io.Copy(io.Discard, resp.Body)
+	defer func() { _ = resp.Body.Close() }()
+	_, _ = io.Copy(io.Discard, resp.Body)
 	elapsed := time.Since(start).Seconds()
 	if elapsed < 0.1 {
 		return 0

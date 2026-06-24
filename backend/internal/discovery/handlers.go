@@ -3,6 +3,7 @@ package discovery
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -62,7 +63,7 @@ func (h *DiscoveryHandler) StartScan(w http.ResponseWriter, r *http.Request) {
 		httputil.SendError(w, http.StatusInternalServerError, "failed to create scan job: "+err.Error())
 		return
 	}
-	go func() {
+	go func() { //nolint:gosec // Background scan after HTTP response; request context not available
 		ctx := context.Background()
 		err := h.scanner.Scan(ctx, jobID, req.Subnet, req.ScanType, req.LocationID, excludeKnown)
 		if err != nil && ctx.Err() == nil {
@@ -128,7 +129,7 @@ func (h *DiscoveryHandler) GetJob(w http.ResponseWriter, r *http.Request) {
 		&j.TotalIPsScanned, &j.DevicesFound, &j.DevicesNew, &j.DevicesKnown,
 		&j.StartedAt, &j.CompletedAt, &j.ErrorMessage,
 	)
-	if err == pgx.ErrNoRows {
+	if errors.Is(err, pgx.ErrNoRows) {
 		httputil.SendError(w, http.StatusNotFound, "job not found")
 		return
 	}
@@ -219,8 +220,8 @@ func (h *DiscoveryHandler) ApproveResult(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	var req struct {
-		Name       string  `json:"name"`
-		LocationID *int64  `json:"locationId,omitempty"`
+		Name       string   `json:"name"`
+		LocationID *int64   `json:"locationId,omitempty"`
 		Tags       []string `json:"tags,omitempty"`
 	}
 	if err := httputil.ParseJSON(r, &req); err != nil {
@@ -240,7 +241,7 @@ func (h *DiscoveryHandler) ApproveResult(w http.ResponseWriter, r *http.Request)
 		&openPortsJSON, &dr.SNMPReachable, &dr.ResponseTimeMs, &dr.Status,
 		&dr.LocationID,
 	)
-	if err == pgx.ErrNoRows {
+	if errors.Is(err, pgx.ErrNoRows) {
 		httputil.SendError(w, http.StatusNotFound, "result not found")
 		return
 	}

@@ -106,7 +106,7 @@ func (n *Notifier) sendWebhook(ctx context.Context, ch models.NotificationChanne
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode >= 300 {
 		return fmt.Errorf("webhook returned status %d", resp.StatusCode)
@@ -157,9 +157,10 @@ func (n *Notifier) sendSlack(ctx context.Context, ch models.NotificationChannel,
 	}
 
 	severityEmoji := "⚠️"
-	if alert.Severity == "critical" {
+	switch alert.Severity {
+	case "critical":
 		severityEmoji = "🔴"
-	} else if alert.Severity == "info" {
+	case "info":
 		severityEmoji = "ℹ️"
 	}
 
@@ -181,7 +182,7 @@ func (n *Notifier) sendSlack(ctx context.Context, ch models.NotificationChannel,
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode >= 300 {
 		return fmt.Errorf("slack returned status %d", resp.StatusCode)
@@ -250,7 +251,7 @@ func (n *Notifier) sendTelegramMessage(ctx context.Context, botToken, chatID, te
 	if err != nil {
 		return fmt.Errorf("telegram send failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode >= 300 {
 		return fmt.Errorf("telegram API returned status %d", resp.StatusCode)

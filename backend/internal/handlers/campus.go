@@ -316,7 +316,7 @@ func (h *CampusHandler) ImportPreview(w http.ResponseWriter, r *http.Request) {
 			httputil.SendError(w, http.StatusBadRequest, "no file uploaded: "+err.Error())
 			return
 		}
-		defer file.Close()
+		defer func() { _ = file.Close() }()
 		rows, err = h.importer.ParseCSV(file)
 		if err != nil {
 			httputil.SendError(w, http.StatusBadRequest, "CSV parse error: "+err.Error())

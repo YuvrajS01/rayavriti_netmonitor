@@ -28,7 +28,7 @@ func ImportFromSQLite(ctx context.Context, db Database, cfg SQLiteImportConfig) 
 	if err != nil {
 		return fmt.Errorf("open sqlite: %w", err)
 	}
-	defer src.Close()
+	defer func() { _ = src.Close() }()
 
 	if err := src.PingContext(ctx); err != nil {
 		return fmt.Errorf("ping sqlite: %w", err)
@@ -103,7 +103,7 @@ func importUsers(ctx context.Context, src *sql.DB, pg *Postgres, dryRun bool) (i
 		slog.Warn("SQLite import: users table missing", "error", err)
 		return 0, 0, 0
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	for rows.Next() {
 		var id int64
@@ -148,7 +148,7 @@ func importDevices(ctx context.Context, src *sql.DB, pg *Postgres, dryRun bool) 
 		slog.Warn("SQLite import: devices table missing", "error", err)
 		return 0, 0, 0
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	for rows.Next() {
 		var id, interval int64
@@ -198,7 +198,7 @@ func importMetrics(ctx context.Context, src *sql.DB, pg *Postgres, dryRun bool) 
 		slog.Warn("SQLite import: metrics table missing", "error", err)
 		return 0, 0, 0
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	batch := 0
 	for rows.Next() {
@@ -261,7 +261,7 @@ func importAlerts(ctx context.Context, src *sql.DB, pg *Postgres, dryRun bool) (
 		slog.Warn("SQLite import: alerts table missing", "error", err)
 		return 0, 0, 0
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	for rows.Next() {
 		var id, deviceID int64
@@ -304,7 +304,7 @@ func importDashboards(ctx context.Context, src *sql.DB, pg *Postgres, dryRun boo
 		slog.Warn("SQLite import: dashboards table missing", "error", err)
 		return 0, 0, 0
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	for rows.Next() {
 		var id, userID int64

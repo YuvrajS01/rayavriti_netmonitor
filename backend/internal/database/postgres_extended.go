@@ -75,7 +75,6 @@ func (p *Postgres) GetDevicesFiltered(ctx context.Context, f DeviceFilter) ([]mo
 	if f.LocationID != nil {
 		where = append(where, fmt.Sprintf("location_id=$%d", argN))
 		args = append(args, *f.LocationID)
-		argN++
 	}
 
 	whereClause := ""

@@ -6,6 +6,7 @@ package importer
 import (
 	"context"
 	"encoding/csv"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -244,7 +245,7 @@ func (s *ImportService) validateRow(ctx context.Context, row *ImportRow, seen ma
 		if err == nil {
 			rv.IsDuplicate = true
 			rv.Warnings = append(rv.Warnings, fmt.Sprintf("host already exists in database (device id %d)", existingID))
-		} else if err != pgx.ErrNoRows {
+		} else if !errors.Is(err, pgx.ErrNoRows) {
 			slog.Warn("csv import: error checking host duplicate", "host", row.Host, "err", err)
 		}
 	}
@@ -258,7 +259,7 @@ func (s *ImportService) validateRow(ctx context.Context, row *ImportRow, seen ma
 		if err == nil {
 			row.ResolvedLocationID = &locID
 			rv.Row.ResolvedLocationID = &locID
-		} else if err == pgx.ErrNoRows {
+		} else if errors.Is(err, pgx.ErrNoRows) {
 			rv.Warnings = append(rv.Warnings, fmt.Sprintf("location code %q not found", row.LocationCode))
 		} else {
 			slog.Warn("csv import: error resolving location", "code", row.LocationCode, "err", err)
@@ -274,7 +275,7 @@ func (s *ImportService) validateRow(ctx context.Context, row *ImportRow, seen ma
 		if err == nil {
 			row.ResolvedParentID = &parentID
 			rv.Row.ResolvedParentID = &parentID
-		} else if err == pgx.ErrNoRows {
+		} else if errors.Is(err, pgx.ErrNoRows) {
 			rv.Warnings = append(rv.Warnings, fmt.Sprintf("parent device host %q not found", row.ParentDeviceHost))
 		} else {
 			slog.Warn("csv import: error resolving parent device", "host", row.ParentDeviceHost, "err", err)

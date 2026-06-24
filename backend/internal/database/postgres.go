@@ -15,9 +15,9 @@ import (
 )
 
 type Postgres struct {
-	pool          *pgxpool.Pool
-	dsn           string
-	cfg           DatabaseConfig
+	pool           *pgxpool.Pool
+	dsn            string
+	cfg            DatabaseConfig
 	hasTimescaleDB bool
 }
 

@@ -250,7 +250,7 @@ func rowsToMaps(rows pgx.Rows) ([]map[string]any, error) {
 		}
 		item := make(map[string]any, len(fields))
 		for i, fd := range fields {
-			item[string(fd.Name)] = values[i]
+			item[fd.Name] = values[i]
 		}
 		out = append(out, item)
 	}

@@ -79,7 +79,7 @@ func (e *EscalationEngine) StartEscalation(ctx context.Context, alert *models.Al
 	}
 
 	if len(steps) > 1 {
-		go e.runSteps(alert, steps)
+		go e.runSteps(alert, steps) //nolint:gosec // Background escalation; request context not available
 	}
 
 	return nil

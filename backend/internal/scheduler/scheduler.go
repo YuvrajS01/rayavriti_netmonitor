@@ -118,7 +118,7 @@ func (s *Scheduler) scheduleDevice(ctx context.Context, device models.Device) {
 		interval = 5 * time.Second
 	}
 
-	deviceCtx, deviceCancel := context.WithCancel(ctx)
+	deviceCtx, deviceCancel := context.WithCancel(ctx) //nolint:gosec // cancel stored in s.jobs map, called by StopJob
 	s.jobs[device.ID] = deviceCancel
 	s.jobCount.Store(int64(len(s.jobs)))
 

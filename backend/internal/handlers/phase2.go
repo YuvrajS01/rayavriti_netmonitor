@@ -295,11 +295,12 @@ func (h *Phase2Handler) PublicStatusHTML(w http.ResponseWriter, r *http.Request)
 	overallColor := "#245a3a"
 	overallBg := "#dff1e4"
 	overallLabel := "Operational"
-	if overall == "degraded" {
+	switch overall {
+	case "degraded":
 		overallColor = "#856404"
 		overallBg = "#fff3cd"
 		overallLabel = "Degraded"
-	} else if overall == "major_outage" {
+	case "major_outage":
 		overallColor = "#721c24"
 		overallBg = "#f8d7da"
 		overallLabel = "Major Outage"
@@ -341,41 +342,39 @@ h1{font-family:'League Spartan',sans-serif;font-weight:800;font-size:28px;color:
 @media print{body{background:#fff;color:#000}.svc{border-color:#ccc}.header{border-color:#000}}
 </style></head><body><main class="wrap">`)
 
-	sb.WriteString(fmt.Sprintf(`<section class="header"><div><h1>Campus Network Status</h1><p class="meta">Auto-refreshes every 60 seconds &middot; Last checked: %s</p></div><div class="badge" style="background:%s;color:%s"><span class="badge-dot" style="background:%s"></span>%s</div></section>`,
+	fmt.Fprintf(&sb, `<section class="header"><div><h1>Campus Network Status</h1><p class="meta">Auto-refreshes every 60 seconds &middot; Last checked: %s</p></div><div class="badge" style="background:%s;color:%s"><span class="badge-dot" style="background:%s"></span>%s</div></section>`,
 		time.Now().UTC().Format("15:04 UTC"),
 		overallBg, overallColor, overallColor, overallLabel,
-	))
+	)
 
 	if len(groups) == 0 && len(activeIncidents) == 0 {
 		sb.WriteString(`<div class="empty"><p>No services configured on the status page yet.</p><p style="margin-top:8px">Ask IT to add services in <strong>Status Page Admin</strong>.</p></div>`)
 	}
 
 	for name, items := range groups {
-		sb.WriteString(fmt.Sprintf(`<section class="group-section"><div class="group-name">%s</div>`, html.EscapeString(name)))
+		fmt.Fprintf(&sb, `<section class="group-section"><div class="group-name">%s</div>`, html.EscapeString(name))
 		for _, svc := range items {
 			status, _ := svc["status"].(string)
 			pillClass := "pill-operational"
-			if status == "degraded_performance" {
-				pillClass = "pill-degraded"
-			} else if status == "major_outage" {
-				pillClass = "pill-outage"
-			}
 			pillLabel := "Operational"
-			if status == "degraded_performance" {
+			switch status {
+			case "degraded_performance":
+				pillClass = "pill-degraded"
 				pillLabel = "Degraded"
-			} else if status == "major_outage" {
+			case "major_outage":
+				pillClass = "pill-outage"
 				pillLabel = "Outage"
 			}
 			uptimeStr := ""
 			if u, ok := svc["uptime_30d"].(float64); ok && u < 100 {
 				uptimeStr = fmt.Sprintf(`<div class="svc-uptime">Uptime: <strong>%.1f%%</strong></div>`, u)
 			}
-			sb.WriteString(fmt.Sprintf(`<article class="svc"><div class="svc-left"><div class="svc-name">%s</div><div class="svc-desc">%s</div>%s</div><span class="pill %s">%s</span></article>`,
+			fmt.Fprintf(&sb, `<article class="svc"><div class="svc-left"><div class="svc-name">%s</div><div class="svc-desc">%s</div>%s</div><span class="pill %s">%s</span></article>`,
 				html.EscapeString(fmt.Sprint(svc["name"])),
 				html.EscapeString(fmt.Sprint(svc["description"])),
 				uptimeStr,
 				pillClass, pillLabel,
-			))
+			)
 		}
 		sb.WriteString(`</section>`)
 	}
@@ -388,17 +387,22 @@ h1{font-family:'League Spartan',sans-serif;font-weight:800;font-size:28px;color:
 		msg := html.EscapeString(fmt.Sprint(inc["message"]))
 		status := html.EscapeString(fmt.Sprint(inc["status"]))
 		severity := fmt.Sprint(inc["severity"])
-		sb.WriteString(fmt.Sprintf(`<article class="inc"><div class="inc-title">%s</div><div class="inc-meta">%s &middot; %s</div>%s</article>`,
+		fmt.Fprintf(&sb, `<article class="inc"><div class="inc-title">%s</div><div class="inc-meta">%s &middot; %s</div>%s</article>`,
 			title, severity, status,
-			func() string { if msg != "" { return `<div class="inc-msg">` + msg + `</div>` }; return "" }(),
-		))
+			func() string {
+				if msg != "" {
+					return `<div class="inc-msg">` + msg + `</div>`
+				}
+				return ""
+			}(),
+		)
 	}
 	if activeCount == 0 {
 		sb.WriteString(`<div class="empty">No active incidents. All systems running smoothly.</div>`)
 	}
 	sb.WriteString(`</section>`)
 
-	sb.WriteString(fmt.Sprintf(`<footer class="footer">Powered by <a href="/">Rayavriti NetMonitor</a> &middot; %s</footer>`, time.Now().UTC().Format("2006")))
+	fmt.Fprintf(&sb, `<footer class="footer">Powered by <a href="/">Rayavriti NetMonitor</a> &middot; %s</footer>`, time.Now().UTC().Format("2006"))
 	sb.WriteString(`</main></body></html>`)
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")

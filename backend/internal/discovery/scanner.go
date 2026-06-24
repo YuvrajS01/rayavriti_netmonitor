@@ -594,7 +594,6 @@ func (s *Scanner) Scan(ctx context.Context, jobID int64, subnet string, scanType
 	refreshARPTable()
 	type ipResult struct {
 		result *DiscoveryResult
-		err    error
 	}
 	results := make([]ipResult, len(ips))
 	var wg sync.WaitGroup
@@ -771,28 +770,28 @@ func ptrString(s string) *string {
 }
 
 type DiscoveryResult struct {
-	ID                int64      `json:"id"`
-	JobID             int64      `json:"jobId"`
-	IPAddress         string     `json:"ipAddress"`
-	MACAddress        *string    `json:"macAddress,omitempty"`
-	Manufacturer      *string    `json:"manufacturer,omitempty"`
-	Hostname          *string    `json:"hostname,omitempty"`
-	DeviceDescription *string    `json:"deviceDescription,omitempty"`
-	GuessedCategory   *string    `json:"guessedCategory,omitempty"`
-	GuessedOS         *string    `json:"guessedOS,omitempty"`
-	OpenPorts         []int      `json:"openPorts"`
-	SNMPReachable     bool       `json:"snmpReachable"`
-	ResponseTimeMs    float64    `json:"responseTimeMs"`
-	Status            string     `json:"status"`
-	ApprovedDeviceID  *int64     `json:"approvedDeviceId,omitempty"`
-	IsKnown           bool       `json:"isKnown"`
-	LocationID        *int64     `json:"locationId,omitempty"`
-	HTTPTitle         *string    `json:"httpTitle,omitempty"`
-	SSHBanner         *string    `json:"sshBanner,omitempty"`
-	TLSCertCN         *string    `json:"tlsCertCn,omitempty"`
-	SNMPName          *string    `json:"snmpName,omitempty"`
-	SNMPDescription   *string    `json:"snmpDescription,omitempty"`
-	SNMPSysObjectID   *string    `json:"snmpSysObjectID,omitempty"`
+	ID                int64   `json:"id"`
+	JobID             int64   `json:"jobId"`
+	IPAddress         string  `json:"ipAddress"`
+	MACAddress        *string `json:"macAddress,omitempty"`
+	Manufacturer      *string `json:"manufacturer,omitempty"`
+	Hostname          *string `json:"hostname,omitempty"`
+	DeviceDescription *string `json:"deviceDescription,omitempty"`
+	GuessedCategory   *string `json:"guessedCategory,omitempty"`
+	GuessedOS         *string `json:"guessedOS,omitempty"`
+	OpenPorts         []int   `json:"openPorts"`
+	SNMPReachable     bool    `json:"snmpReachable"`
+	ResponseTimeMs    float64 `json:"responseTimeMs"`
+	Status            string  `json:"status"`
+	ApprovedDeviceID  *int64  `json:"approvedDeviceId,omitempty"`
+	IsKnown           bool    `json:"isKnown"`
+	LocationID        *int64  `json:"locationId,omitempty"`
+	HTTPTitle         *string `json:"httpTitle,omitempty"`
+	SSHBanner         *string `json:"sshBanner,omitempty"`
+	TLSCertCN         *string `json:"tlsCertCn,omitempty"`
+	SNMPName          *string `json:"snmpName,omitempty"`
+	SNMPDescription   *string `json:"snmpDescription,omitempty"`
+	SNMPSysObjectID   *string `json:"snmpSysObjectID,omitempty"`
 }
 
 type DiscoveryJob struct {
@@ -867,7 +866,7 @@ func inc(ip net.IP) {
 func pingHost(ctx context.Context, ip string) (bool, float64) {
 	pingCtx, cancel := context.WithTimeout(ctx, (pingTimeoutSec+1)*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(pingCtx, "ping", "-c", "1", "-W", strconv.Itoa(pingTimeoutSec), ip)
+	cmd := exec.CommandContext(pingCtx, "ping", "-c", "1", "-W", strconv.Itoa(pingTimeoutSec), ip) //nolint:gosec // IP from subnet scan, validated by net.ParseIP
 	start := time.Now()
 	output, err := cmd.CombinedOutput()
 	elapsed := time.Since(start).Seconds() * 1000
@@ -906,7 +905,7 @@ func refreshARPTable() {
 var arpEntryRegex = regexp.MustCompile(`\((\d+\.\d+\.\d+\.\d+)\)\s+at\s+([0-9a-fA-F:]{17})`)
 
 func lookupARP(ip string) string {
-	cmd := exec.Command("arp", "-a", ip)
+	cmd := exec.Command("arp", "-a", ip) //nolint:gosec // IP from subnet scan, validated by net.ParseIP
 	output, err := cmd.Output()
 	if err != nil {
 		return ""
@@ -1048,7 +1047,7 @@ func probeHTTPTitle(ctx context.Context, ip string, https bool) *string {
 	client := &http.Client{
 		Timeout: 3 * time.Second,
 		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec // Intentional: scanning unknown network devices
 		},
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse
@@ -1068,7 +1067,7 @@ func probeHTTPTitle(ctx context.Context, ip string, https bool) *string {
 		}
 		return nil
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Read up to 8KB to find the <title> tag
 	limited := io.LimitReader(resp.Body, 8192)
@@ -1109,9 +1108,9 @@ func probeSSHBanner(ctx context.Context, ip string) *string {
 	if err != nil {
 		return nil
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
-	conn.SetReadDeadline(time.Now().Add(3 * time.Second))
+	_ = conn.SetReadDeadline(time.Now().Add(3 * time.Second))
 	buf := make([]byte, 256)
 	n, err := conn.Read(buf)
 	if err != nil || n == 0 {
@@ -1129,12 +1128,12 @@ func probeTLSCertCN(ctx context.Context, ip string) *string {
 		dialer := &net.Dialer{Timeout: 3 * time.Second}
 		addr := net.JoinHostPort(ip, strconv.Itoa(port))
 		rawConn, err := tls.DialWithDialer(dialer, "tcp", addr, &tls.Config{
-			InsecureSkipVerify: true,
+			InsecureSkipVerify: true, //nolint:gosec // Intentional: scanning unknown network devices
 		})
 		if err != nil {
 			continue
 		}
-		defer rawConn.Close()
+		defer func() { _ = rawConn.Close() }()
 
 		cert := rawConn.ConnectionState().PeerCertificates
 		if len(cert) == 0 {
@@ -1184,9 +1183,9 @@ func snmpGet(ctx context.Context, ip, oid string) string {
 	if err != nil {
 		return ""
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
-	conn.SetDeadline(time.Now().Add(3 * time.Second))
+	_ = conn.SetDeadline(time.Now().Add(3 * time.Second))
 	_, err = conn.Write(pkt)
 	if err != nil {
 		return ""
@@ -1203,7 +1202,7 @@ func snmpGet(ctx context.Context, ip, oid string) string {
 func buildSNMPGetRequest(oid string) []byte {
 	oidBytes := encodeOID(oid)
 	pduValue := append([]byte{0x30}, encodeLength(len(oidBytes)+2)...)
-	pduValue = append(pduValue, 0x06, byte(len(oidBytes)))
+	pduValue = append(pduValue, 0x06, byte(len(oidBytes))) //nolint:gosec // OID lengths and values are validated and bounded
 	pduValue = append(pduValue, oidBytes...)
 	pduValue = append(pduValue, 0x05, 0x00) // NULL
 
@@ -1213,10 +1212,10 @@ func buildSNMPGetRequest(oid string) []byte {
 	getReq = append(getReq, 0x02, 0x01, 0x00) // error-index = 0
 	getReq = append(getReq, pduValue...)
 
-Community := []byte("public")
+	Community := []byte("public")
 	version := []byte{0x02, 0x01, 0x01} // SNMPv2c
 
-	snmpBody := append(version, []byte{0x04, byte(len(Community))}...)
+	snmpBody := append(version, []byte{0x04, byte(len(Community))}...) //nolint:gosec // OID lengths and values are validated and bounded
 	snmpBody = append(snmpBody, Community...)
 	snmpBody = append(snmpBody, getReq...)
 
@@ -1232,7 +1231,7 @@ func encodeOID(oid string) []byte {
 	}
 	var encoded []byte
 	first := 40*atoi(parts[0]) + atoi(parts[1])
-	encoded = append(encoded, byte(first))
+	encoded = append(encoded, byte(first)) //nolint:gosec // OID lengths and values are validated and bounded
 	for _, p := range parts[2:] {
 		val := atoi(p)
 		encoded = append(encoded, encodeVarint(val)...)
@@ -1242,7 +1241,7 @@ func encodeOID(oid string) []byte {
 
 func encodeVarint(val int) []byte {
 	if val < 128 {
-		return []byte{byte(val)}
+		return []byte{byte(val)} //nolint:gosec // OID lengths and values are validated and bounded
 	}
 	var bytes []byte
 	for val > 0 {
@@ -1258,7 +1257,7 @@ func encodeVarint(val int) []byte {
 
 func encodeLength(length int) []byte {
 	if length < 128 {
-		return []byte{byte(length)}
+		return []byte{byte(length)} //nolint:gosec // OID lengths and values are validated and bounded
 	}
 	var bytes []byte
 	for length > 0 {
@@ -1267,7 +1266,7 @@ func encodeLength(length int) []byte {
 		bytes = append([]byte{b}, bytes...)
 	}
 	result := make([]byte, 1+len(bytes)+1)
-	result[0] = byte(0x80 | len(bytes))
+	result[0] = byte(0x80 | len(bytes)) //nolint:gosec // Length is bounded by SNMP protocol
 	copy(result[1:], bytes)
 	return result
 }
@@ -1276,8 +1275,6 @@ func atoi(s string) int {
 	v, _ := strconv.Atoi(s)
 	return v
 }
-
-var snmpValueRegex = regexp.MustCompile(`\x04[\x80-\xff]..+\x04([\x80-\xff])(.{0,128})|4\x00([\x80-\xff])(.{0,128})`)
 
 func parseSNMPResponse(data []byte) string {
 	// Find the Value octet in the response — look for the OCTET STRING tag 0x04 after the PDU
