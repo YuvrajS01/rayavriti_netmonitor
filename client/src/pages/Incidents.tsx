@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { v1, wrap } from '../api/http';
 import { useSocket } from '../hooks/useSocket';
@@ -76,7 +76,7 @@ export default function Incidents() {
   const [createForm, setCreateForm] = useState({ title: '', description: '', severity: 'minor', impact_description: '' });
   const [submitting, setSubmitting] = useState(false);
 
-  const load = useCallback(async () => {
+  const load = async () => {
     setLoading(true);
     const [listRes, statsRes] = await Promise.all([
       v1.get('/incidents'),
@@ -85,9 +85,29 @@ export default function Incidents() {
     setIncidents(wrap<Incident[]>(listRes.data).data || []);
     if (statsRes.data) setStats(wrap<IncidentStats>(statsRes.data).data);
     setLoading(false);
-  }, []);
+  };
 
-  useEffect(() => { load().catch(() => setLoading(false)); }, [load]);
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      setLoading(true);
+      try {
+        const [listRes, statsRes] = await Promise.all([
+          v1.get('/incidents'),
+          v1.get('/incidents/stats').catch(() => ({ data: null })),
+        ]);
+        if (active) setIncidents(wrap<Incident[]>(listRes.data).data || []);
+        if (active && statsRes.data) setStats(wrap<IncidentStats>(statsRes.data).data);
+      } catch {
+        if (active) {
+          setIncidents([]);
+          setStats(null);
+        }
+      }
+      if (active) setLoading(false);
+    })();
+    return () => { active = false; };
+  }, []);
 
   const lastRefresh = useRef(0);
   useSocket({

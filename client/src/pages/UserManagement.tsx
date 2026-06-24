@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { v1, wrap } from '../api/http';
 import SectionHeader from '../components/ui/SectionHeader';
 import Card from '../components/ui/Card';
@@ -128,7 +128,7 @@ export default function UserManagement() {
   const [submitting, setSubmitting] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Role | null>(null);
 
-  const load = useCallback(async () => {
+  const loadData = async () => {
     setLoading(true);
     const [usersRes, rolesRes] = await Promise.all([
       v1.get('/users'),
@@ -137,9 +137,31 @@ export default function UserManagement() {
     setUsers(wrap<User[]>(usersRes.data).data || []);
     setRoles(wrap<Role[]>(rolesRes.data).data || []);
     setLoading(false);
-  }, []);
+  };
 
-  useEffect(() => { load().catch(() => setLoading(false)); }, [load]);
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      setLoading(true);
+      try {
+        const [usersRes, rolesRes] = await Promise.all([
+          v1.get('/users'),
+          v1.get('/roles'),
+        ]);
+        if (active) {
+          setUsers(wrap<User[]>(usersRes.data).data || []);
+          setRoles(wrap<Role[]>(rolesRes.data).data || []);
+        }
+      } catch {
+        if (active) {
+          setUsers([]);
+          setRoles([]);
+        }
+      }
+      if (active) setLoading(false);
+    })();
+    return () => { active = false; };
+  }, []);
 
   const filteredUsers = useMemo(() => {
     const needle = search.trim().toLowerCase();
@@ -170,7 +192,7 @@ export default function UserManagement() {
       await v1.put(`/users/${editingUser.id}`, userForm);
       addToast('User updated', 'success');
       setEditingUser(null);
-      await load();
+      await loadData();
     } catch (err) {
       addToast(err instanceof Error ? err.message : 'Update failed', 'error');
     } finally {
@@ -232,7 +254,7 @@ export default function UserManagement() {
         addToast('Role created', 'success');
       }
       setShowRoleForm(false);
-      await load();
+      await loadData();
     } catch (err) {
       addToast(err instanceof Error ? err.message : 'Save failed', 'error');
     } finally {
@@ -246,7 +268,7 @@ export default function UserManagement() {
       await v1.delete(`/roles/${deleteTarget.id}`);
       addToast('Role deleted', 'success');
       setDeleteTarget(null);
-      await load();
+      await loadData();
     } catch (err) {
       addToast(err instanceof Error ? err.message : 'Delete failed', 'error');
     }

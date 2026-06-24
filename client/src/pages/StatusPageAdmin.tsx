@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { v1, wrap } from '../api/http';
 import SectionHeader from '../components/ui/SectionHeader';
 import Card from '../components/ui/Card';
@@ -43,7 +43,7 @@ export default function StatusPageAdmin() {
   const [submitting, setSubmitting] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<StatusService | null>(null);
 
-  const load = useCallback(async () => {
+  const load = async () => {
     setLoading(true);
     const [svcRes, incRes] = await Promise.all([
       v1.get('/status-page/services'),
@@ -52,9 +52,29 @@ export default function StatusPageAdmin() {
     setServices(wrap<StatusService[]>(svcRes.data).data || []);
     setIncidents(wrap<StatusIncident[]>(incRes.data).data || []);
     setLoading(false);
-  }, []);
+  };
 
-  useEffect(() => { load().catch(() => setLoading(false)); }, [load]);
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      setLoading(true);
+      try {
+        const [svcRes, incRes] = await Promise.all([
+          v1.get('/status-page/services'),
+          v1.get('/status-page/incidents'),
+        ]);
+        if (active) setServices(wrap<StatusService[]>(svcRes.data).data || []);
+        if (active) setIncidents(wrap<StatusIncident[]>(incRes.data).data || []);
+      } catch {
+        if (active) {
+          setServices([]);
+          setIncidents([]);
+        }
+      }
+      if (active) setLoading(false);
+    })();
+    return () => { active = false; };
+  }, []);
 
   const filteredServices = useMemo(() => {
     const needle = search.trim().toLowerCase();

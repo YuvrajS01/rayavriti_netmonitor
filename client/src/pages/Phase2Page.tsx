@@ -43,22 +43,44 @@ export default function Phase2Page({ config }: { config: Phase2PageConfig }) {
   const [search, setSearch] = useState('');
   const [creating, setCreating] = useState(false);
 
-  const load = async () => {
+  const loadData = async () => {
     setLoading(true);
-    const [items, counts] = await Promise.all([
-      listPhase2(config.path),
-      getPhase2Summary().catch(() => ({ data: null })),
-    ]);
-    setRows(items.data || []);
-    setSummary(counts.data);
-    setLoading(false);
+    try {
+      const [items, counts] = await Promise.all([
+        listPhase2(config.path),
+        getPhase2Summary().catch(() => ({ data: null })),
+      ]);
+      setRows(items.data || []);
+      setSummary(counts.data);
+    } catch {
+      setRows([]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
-    load().catch(() => {
-      setRows([]);
-      setLoading(false);
-    });
+    let active = true;
+    (async () => {
+      setLoading(true);
+      try {
+        const [items, counts] = await Promise.all([
+          listPhase2(config.path),
+          getPhase2Summary().catch(() => ({ data: null })),
+        ]);
+        if (active) {
+          setRows(items.data || []);
+          setSummary(counts.data);
+          setLoading(false);
+        }
+      } catch {
+        if (active) {
+          setRows([]);
+          setLoading(false);
+        }
+      }
+    })();
+    return () => { active = false; };
   }, [config.path]);
 
   const filtered = useMemo(() => {
@@ -73,7 +95,7 @@ export default function Phase2Page({ config }: { config: Phase2PageConfig }) {
     try {
       await createPhase2(config.path, config.quickCreate);
       addToast('Created starter record', 'success');
-      await load();
+      await loadData();
     } catch (err) {
       addToast(err instanceof Error ? err.message : 'Create failed', 'error');
     } finally {

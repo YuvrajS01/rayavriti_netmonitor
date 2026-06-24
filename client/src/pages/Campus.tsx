@@ -153,7 +153,7 @@ export default function Campus() {
                     {/* Status badges */}
                     <div className="flex items-center gap-2 shrink-0">
                       {(() => {
-                        const st = (selected as any).status as Record<string, number> | undefined;
+                        const st = (selected as Phase2Row & { status?: Record<string, number> }).status;
                         if (!st) return null;
                         return (
                           <>

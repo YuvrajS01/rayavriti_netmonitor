@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { listPhase2, createPhase2, updatePhase2, type Phase2Row } from '../api/phase2';
 import { v1 } from '../api/http';
 import SectionHeader from '../components/ui/SectionHeader';
@@ -48,14 +48,27 @@ export default function Maintenance() {
   const [submitting, setSubmitting] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<MaintenanceWindow | null>(null);
 
-  const load = useCallback(async () => {
+  const load = async () => {
     setLoading(true);
     const res = await listPhase2('/maintenance');
     setWindows((res.data || []) as MaintenanceWindow[]);
     setLoading(false);
-  }, []);
+  };
 
-  useEffect(() => { load().catch(() => setLoading(false)); }, [load]);
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      setLoading(true);
+      try {
+        const res = await listPhase2('/maintenance');
+        if (active) setWindows((res.data || []) as MaintenanceWindow[]);
+      } catch {
+        if (active) setWindows([]);
+      }
+      if (active) setLoading(false);
+    })();
+    return () => { active = false; };
+  }, []);
 
   const filtered = useMemo(() => {
     const needle = search.trim().toLowerCase();

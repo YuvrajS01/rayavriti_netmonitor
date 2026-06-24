@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { v1, wrap } from '../api/http';
 import SectionHeader from '../components/ui/SectionHeader';
 import Card from '../components/ui/Card';
@@ -60,19 +60,30 @@ export default function Discovery() {
   const [scanForm, setScanForm] = useState({ subnet: '', scan_type: 'ping_only' });
   const [submitting, setSubmitting] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    const res = await v1.get('/discovery/jobs');
-    setJobs(wrap<DiscoveryJob[]>(res.data).data || []);
-    setLoading(false);
-  }, []);
-
-  const loadResults = useCallback(async (jobId: number) => {
+  const loadResults = async (jobId: number) => {
     const res = await v1.get(`/discovery/jobs/${jobId}/results`);
     setResults(wrap<DiscoveryResult[]>(res.data).data || []);
+  };
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      setLoading(true);
+      try {
+        const res = await v1.get('/discovery/jobs');
+        if (active) setJobs(wrap<DiscoveryJob[]>(res.data).data || []);
+      } catch {
+        if (active) setJobs([]);
+      }
+      if (active) setLoading(false);
+    })();
+    return () => { active = false; };
   }, []);
 
-  useEffect(() => { load().catch(() => setLoading(false)); }, [load]);
+  const load = async () => {
+    const res = await v1.get('/discovery/jobs');
+    setJobs(wrap<DiscoveryJob[]>(res.data).data || []);
+  };
 
   const filtered = useMemo(() => {
     const needle = search.trim().toLowerCase();

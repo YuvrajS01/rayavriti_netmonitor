@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { v1, wrap } from '../api/http';
 import SectionHeader from '../components/ui/SectionHeader';
 import Card from '../components/ui/Card';
@@ -62,7 +62,7 @@ export default function ReportBuilder() {
   const [submitting, setSubmitting] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<ScheduledReport | null>(null);
 
-  const load = useCallback(async () => {
+  const load = async () => {
     setLoading(true);
     const [schedRes, genRes] = await Promise.all([
       v1.get('/reports/scheduled'),
@@ -71,9 +71,29 @@ export default function ReportBuilder() {
     setScheduled(wrap<ScheduledReport[]>(schedRes.data).data || []);
     setGenerated(wrap<GeneratedReport[]>(genRes.data).data || []);
     setLoading(false);
-  }, []);
+  };
 
-  useEffect(() => { load().catch(() => setLoading(false)); }, [load]);
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      setLoading(true);
+      try {
+        const [schedRes, genRes] = await Promise.all([
+          v1.get('/reports/scheduled'),
+          v1.get('/reports/generated'),
+        ]);
+        if (active) setScheduled(wrap<ScheduledReport[]>(schedRes.data).data || []);
+        if (active) setGenerated(wrap<GeneratedReport[]>(genRes.data).data || []);
+      } catch {
+        if (active) {
+          setScheduled([]);
+          setGenerated([]);
+        }
+      }
+      if (active) setLoading(false);
+    })();
+    return () => { active = false; };
+  }, []);
 
   const filteredScheduled = useMemo(() => {
     const needle = search.trim().toLowerCase();

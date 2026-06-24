@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { listPhase2, createPhase2, updatePhase2, type Phase2Row } from '../api/phase2';
 import SectionHeader from '../components/ui/SectionHeader';
 import Card from '../components/ui/Card';
@@ -51,14 +51,25 @@ export default function Contacts() {
   const [submitting, setSubmitting] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Contact | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    const res = await listPhase2('/contacts');
-    setContacts((res.data || []) as Contact[]);
-    setLoading(false);
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      setLoading(true);
+      try {
+        const res = await listPhase2('/contacts');
+        if (active) setContacts((res.data || []) as Contact[]);
+      } catch {
+        if (active) setContacts([]);
+      }
+      if (active) setLoading(false);
+    })();
+    return () => { active = false; };
   }, []);
 
-  useEffect(() => { load().catch(() => { setLoading(false); }); }, [load]);
+  const load = async () => {
+    const res = await listPhase2('/contacts');
+    setContacts((res.data || []) as Contact[]);
+  };
 
   const filtered = useMemo(() => {
     const needle = search.trim().toLowerCase();

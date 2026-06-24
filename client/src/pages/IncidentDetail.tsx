@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { v1, wrap } from '../api/http';
 import Card from '../components/ui/Card';
@@ -95,9 +95,34 @@ export default function IncidentDetail() {
   const [resolveForm, setResolveForm] = useState({ resolution: '', rootCause: '', rootCauseCategory: '' });
   const [showResolve, setShowResolve] = useState(false);
 
-  const load = useCallback(async () => {
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      if (!id) return;
+      setLoading(true);
+      try {
+        const [incRes, tlRes, devRes] = await Promise.all([
+          v1.get(`/incidents/${id}`),
+          v1.get(`/incidents/${id}/timeline`).catch(() => ({ data: { data: [] } })),
+          v1.get(`/incidents/${id}/devices`).catch(() => ({ data: { data: [] } })),
+        ]);
+        if (active) setIncident(wrap<Incident>(incRes.data).data);
+        if (active) setTimeline(wrap<TimelineEntry[]>(tlRes.data).data || []);
+        if (active) setDevices(wrap<IncidentDevice[]>(devRes.data).data || []);
+      } catch {
+        if (active) {
+          setIncident(null);
+          setTimeline([]);
+          setDevices([]);
+        }
+      }
+      if (active) setLoading(false);
+    })();
+    return () => { active = false; };
+  }, [id]);
+
+  const load = async () => {
     if (!id) return;
-    setLoading(true);
     const [incRes, tlRes, devRes] = await Promise.all([
       v1.get(`/incidents/${id}`),
       v1.get(`/incidents/${id}/timeline`).catch(() => ({ data: { data: [] } })),
@@ -106,10 +131,7 @@ export default function IncidentDetail() {
     setIncident(wrap<Incident>(incRes.data).data);
     setTimeline(wrap<TimelineEntry[]>(tlRes.data).data || []);
     setDevices(wrap<IncidentDevice[]>(devRes.data).data || []);
-    setLoading(false);
-  }, [id]);
-
-  useEffect(() => { load().catch(() => setLoading(false)); }, [load]);
+  };
 
   const handleAction = async (action: string, body?: Record<string, unknown>) => {
     setSubmitting(true);

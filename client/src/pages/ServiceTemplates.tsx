@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { v1, wrap } from '../api/http';
 import SectionHeader from '../components/ui/SectionHeader';
 import Card from '../components/ui/Card';
@@ -46,24 +46,26 @@ export default function ServiceTemplates() {
   const [applyForm, setApplyForm] = useState({ host: '', name: '', locationId: '' });
   const [applying, setApplying] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await v1.get('/service-templates');
-      setTemplates(wrap<Template[]>(res.data).data || []);
-    } catch {
-      addToast('Failed to load templates', 'error');
-    }
-    setLoading(false);
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      setLoading(true);
+      try {
+        const res = await v1.get('/service-templates');
+        if (active) setTemplates(wrap<Template[]>(res.data).data || []);
+      } catch {
+        if (active) addToast('Failed to load templates', 'error');
+      }
+      if (active) setLoading(false);
+    })();
+    return () => { active = false; };
   }, [addToast]);
-
-  useEffect(() => { load(); }, [load]);
 
   const handleApply = async () => {
     if (!selected || !applyForm.host) return;
     setApplying(true);
     try {
-      const body: Record<string, any> = { template: selected.name, host: applyForm.host };
+      const body: Record<string, string | number | boolean> = { template: selected.name, host: applyForm.host };
       if (applyForm.name) body.name = applyForm.name;
       if (applyForm.locationId) body.locationId = parseInt(applyForm.locationId);
       const res = await v1.post('/service-templates/apply', body);
@@ -71,8 +73,8 @@ export default function ServiceTemplates() {
       addToast(`Created device "${result?.deviceName}" with ${result?.sensorIds?.length || 0} sensors and ${result?.ruleIds?.length || 0} alert rules`, 'success');
       setSelected(null);
       setApplyForm({ host: '', name: '', locationId: '' });
-    } catch (err: any) {
-      addToast(err?.response?.data?.error || 'Failed to apply template', 'error');
+    } catch (err: unknown) {
+      addToast((err as { response?: { data?: { error?: string } } })?.response?.data?.error || 'Failed to apply template', 'error');
     }
     setApplying(false);
   };

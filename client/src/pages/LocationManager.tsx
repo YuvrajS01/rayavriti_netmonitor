@@ -32,7 +32,7 @@ export default function LocationManager() {
   const [loading, setLoading] = useState(true);
   const [devices, setDevices] = useState<Device[]>([]);
 
-  const load = useCallback(async () => {
+  const loadData = async () => {
     setLoading(true);
     try {
       const res = await listPhase2('/locations');
@@ -41,11 +41,22 @@ export default function LocationManager() {
       setLocations([]);
     }
     setLoading(false);
-  }, []);
+  };
 
   useEffect(() => {
-    load();
-  }, [load]);
+    let active = true;
+    (async () => {
+      setLoading(true);
+      try {
+        const res = await listPhase2('/locations');
+        if (active) setLocations(res.data || []);
+      } catch {
+        if (active) setLocations([]);
+      }
+      if (active) setLoading(false);
+    })();
+    return () => { active = false; };
+  }, []);
 
   const handleSelect = useCallback((loc: Phase2Row) => {
     setSelected(loc);
@@ -95,7 +106,7 @@ export default function LocationManager() {
         await updatePhase2('/locations', Number(selected.id), payload);
         addToast('Location updated', 'success');
       }
-      await load();
+      await loadData();
       if (isCreating) {
         setIsCreating(false);
         setForm(emptyForm);
@@ -114,7 +125,7 @@ export default function LocationManager() {
       addToast('Location deleted', 'success');
       setSelected(null);
       setForm(emptyForm);
-      await load();
+      await loadData();
     } catch (err) {
       addToast(err instanceof Error ? err.message : 'Delete failed', 'error');
     }
