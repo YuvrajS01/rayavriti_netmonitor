@@ -50,6 +50,7 @@ export default function ISPLinkModal({ link, onClose }: { link: ISPLink; onClose
   const [sla, setSLA] = useState<ISPSLA | null>(null);
   const [timeSeries, setTimeSeries] = useState<ISPTimeSeriesPoint[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     previousFocus.current = document.activeElement as HTMLElement;
@@ -80,8 +81,8 @@ export default function ISPLinkModal({ link, onClose }: { link: ISPLink; onClose
       ]);
       setSLA(wrap<ISPSLA>(slaRes.data).data);
       setTimeSeries(wrap<ISPTimeSeriesPoint[]>(tsRes.data).data || []);
-    } catch {
-      // ignore
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load ISP data');
     } finally {
       setLoading(false);
     }
@@ -118,7 +119,7 @@ export default function ISPLinkModal({ link, onClose }: { link: ISPLink; onClose
         className="bg-surface-container-low border border-outline-variant/30 rounded-lg w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col outline-none"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="p-6 border-b border-outline-variant/20 flex justify-between items-start">
+        <div className="p-6 border-b border-outline-variant/20 flex justify-between items-start shrink-0">
           <div>
             <h2 className="font-headline text-3xl font-bold text-on-surface uppercase tracking-tight">{link.name}</h2>
             <p className="text-on-surface-variant text-sm font-mono mt-0.5">{link.provider} · {link.gateway_ip} · #{link.id}</p>
@@ -128,9 +129,15 @@ export default function ISPLinkModal({ link, onClose }: { link: ISPLink; onClose
           </button>
         </div>
 
-        <div className="p-6 overflow-y-auto max-h-[70vh]">
+        <div className="p-6 overflow-y-auto flex-1 min-h-0">
           {loading ? (
             <div className="h-64 flex items-center justify-center text-on-surface-variant text-sm">Loading ISP data...</div>
+          ) : error ? (
+            <div className="h-64 flex flex-col items-center justify-center text-error text-sm gap-2">
+              <span className="material-symbols-outlined text-3xl">error</span>
+              <p>{error}</p>
+              <button onClick={() => { setError(null); setLoading(true); loadData(); }} className="text-xs text-primary hover:underline">Retry</button>
+            </div>
           ) : (
             <>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
