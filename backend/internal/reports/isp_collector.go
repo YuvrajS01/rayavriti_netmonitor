@@ -3,11 +3,14 @@ package reports
 import (
 	"context"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
+	"net/http"
 	"os/exec"
 	"regexp"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -119,7 +122,7 @@ type linkMetrics struct {
 }
 
 var pingLossRe = regexp.MustCompile(`(\d+)% packet loss`)
-var pingRTTRe = regexp.MustCompile(`rtt min/avg/max/mdev = [\d.]+/([\d.]+)/[\d.]+/[\d.]+`)
+var pingRTTRe = regexp.MustCompile(`(?:rtt|round-trip) min/avg/max(?:/mdev)? = [\d.]+/([\d.]+)/[\d.]+(?:/[\d.]+)? ms`)
 
 func (c *ISPCollector) probeLink(ctx context.Context, target string) linkMetrics {
 	m := linkMetrics{}
@@ -153,5 +156,50 @@ func (c *ISPCollector) probeLink(ctx context.Context, target string) linkMetrics
 		m.jitter = m.latency * 0.1
 	}
 
+	m.download = measureDownload(ctx)
+	m.upload = measureUpload(ctx)
+
 	return m
+}
+
+var speedClient = &http.Client{Timeout: 15 * time.Second}
+
+func measureDownload(ctx context.Context) float64 {
+	req, err := http.NewRequestWithContext(ctx, "GET", "https://speed.cloudflare.com/__down?bytes=10485760", nil)
+	if err != nil {
+		return 0
+	}
+	start := time.Now()
+	resp, err := speedClient.Do(req)
+	if err != nil {
+		return 0
+	}
+	defer resp.Body.Close()
+	n, _ := io.Copy(io.Discard, resp.Body)
+	elapsed := time.Since(start).Seconds()
+	if elapsed < 0.1 {
+		return 0
+	}
+	return float64(n) * 8 / elapsed / 1000000.0
+}
+
+func measureUpload(ctx context.Context) float64 {
+	body := strings.NewReader(strings.Repeat("0", 10485760))
+	req, err := http.NewRequestWithContext(ctx, "POST", "https://speed.cloudflare.com/__up", body)
+	if err != nil {
+		return 0
+	}
+	req.Header.Set("Content-Type", "application/octet-stream")
+	start := time.Now()
+	resp, err := speedClient.Do(req)
+	if err != nil {
+		return 0
+	}
+	defer resp.Body.Close()
+	io.Copy(io.Discard, resp.Body)
+	elapsed := time.Since(start).Seconds()
+	if elapsed < 0.1 {
+		return 0
+	}
+	return float64(10485760) * 8 / elapsed / 1000000.0
 }
