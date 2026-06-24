@@ -15,9 +15,10 @@ import (
 )
 
 type Postgres struct {
-	pool *pgxpool.Pool
-	dsn  string
-	cfg  DatabaseConfig
+	pool          *pgxpool.Pool
+	dsn           string
+	cfg           DatabaseConfig
+	hasTimescaleDB bool
 }
 
 type DatabaseConfig struct {
@@ -53,7 +54,13 @@ func (p *Postgres) Connect(ctx context.Context) error {
 		return fmt.Errorf("create pool: %w", err)
 	}
 	p.pool = pool
-	return p.Ping(ctx)
+	if err := p.Ping(ctx); err != nil {
+		return err
+	}
+	var hasTS bool
+	_ = p.pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM pg_extension WHERE extname='timescaledb')`).Scan(&hasTS)
+	p.hasTimescaleDB = hasTS
+	return nil
 }
 
 func (p *Postgres) Close() error {
@@ -822,13 +829,15 @@ func (p *Postgres) PruneMetrics(ctx context.Context, olderThan time.Time) (int64
 	if dur < 0 {
 		return 0, nil
 	}
-	t, err := p.pool.Exec(ctx,
-		`SELECT drop_chunks('metrics', 'timestamp', older_than => $1::interval)`,
-		dur.String())
-	if err != nil {
-		// Fallback to DELETE if drop_chunks is unavailable (non-TimescaleDB)
-		t, err = p.pool.Exec(ctx, `DELETE FROM metrics WHERE timestamp < $1`, olderThan)
+	if p.hasTimescaleDB {
+		t, err := p.pool.Exec(ctx,
+			`SELECT drop_chunks('metrics', 'timestamp', older_than => $1::interval)`,
+			dur.String())
+		if err == nil {
+			return t.RowsAffected(), nil
+		}
 	}
+	t, err := p.pool.Exec(ctx, `DELETE FROM metrics WHERE timestamp < $1`, olderThan)
 	return t.RowsAffected(), err
 }
 
@@ -837,12 +846,15 @@ func (p *Postgres) PruneFlows(ctx context.Context, olderThan time.Time) (int64, 
 	if dur < 0 {
 		return 0, nil
 	}
-	t, err := p.pool.Exec(ctx,
-		`SELECT drop_chunks('flows', 'created_at', older_than => $1::interval)`,
-		dur.String())
-	if err != nil {
-		t, err = p.pool.Exec(ctx, `DELETE FROM flows WHERE created_at < $1`, olderThan)
+	if p.hasTimescaleDB {
+		t, err := p.pool.Exec(ctx,
+			`SELECT drop_chunks('flows', 'created_at', older_than => $1::interval)`,
+			dur.String())
+		if err == nil {
+			return t.RowsAffected(), nil
+		}
 	}
+	t, err := p.pool.Exec(ctx, `DELETE FROM flows WHERE created_at < $1`, olderThan)
 	return t.RowsAffected(), err
 }
 
