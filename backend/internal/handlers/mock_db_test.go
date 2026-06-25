@@ -343,6 +343,12 @@ func (m *mockDB) GetPortChanges(ctx context.Context, deviceID int64, since time.
 func (m *mockDB) GetAlertsByRuleSince(ctx context.Context, ruleID int64, since time.Time) (int, error) {
 	return 0, nil
 }
+func (m *mockDB) RecordSuppressedAlert(ctx context.Context, deviceID int64, ruleID *int64, reason string, rootCauseDeviceID *int64) error {
+	return nil
+}
+func (m *mockDB) GetRolePermissions(ctx context.Context, roleID int64) ([]string, error) {
+	return nil, nil
+}
 
 func (m *mockDB) GetAlerts(ctx context.Context, status string, limit, offset int) ([]models.Alert, int, error) {
 	if m.getAlertsFn != nil {

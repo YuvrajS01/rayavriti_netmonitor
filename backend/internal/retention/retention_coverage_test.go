@@ -286,6 +286,12 @@ func (m *mockRetDB2) GetPortChanges(ctx context.Context, deviceID int64, since t
 func (m *mockRetDB2) GetAlertsByRuleSince(ctx context.Context, ruleID int64, since time.Time) (int, error) {
 	return 0, nil
 }
+func (m *mockRetDB2) RecordSuppressedAlert(ctx context.Context, deviceID int64, ruleID *int64, reason string, rootCauseDeviceID *int64) error {
+	return nil
+}
+func (m *mockRetDB2) GetRolePermissions(ctx context.Context, roleID int64) ([]string, error) {
+	return nil, nil
+}
 
 // ── prune calls all three prune functions ─────────────────────────────────────
 

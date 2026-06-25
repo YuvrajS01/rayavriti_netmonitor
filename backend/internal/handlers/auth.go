@@ -40,13 +40,25 @@ func (h *AuthHandler) authenticate(w http.ResponseWriter, r *http.Request, inclu
 		httputil.SendError(w, http.StatusForbidden, "account disabled")
 		return
 	}
-	at, rt, err := auth.GenerateTokenPair(user.ID, user.Username, user.Role,
+
+	// Load permissions from the roles table
+	var permissions []string
+	if user.RoleID != nil {
+		if perms, err := h.db.GetRolePermissions(r.Context(), *user.RoleID); err == nil {
+			permissions = perms
+		}
+	}
+	// Fallback: derive permissions from the legacy role string
+	if len(permissions) == 0 {
+		permissions = permissionsForRole(user.Role)
+	}
+
+	at, rt, err := auth.GenerateTokenPairWithPerms(user.ID, user.Username, user.Role, permissions,
 		h.cfg.Auth.JWTSecret, h.cfg.Auth.AccessTokenExpiry, h.cfg.Auth.RefreshTokenExpiry)
 	if err != nil {
 		httputil.SendError(w, http.StatusInternalServerError, "token generation failed")
 		return
 	}
-	// Store refresh token hash in DB
 	tokenHash := auth.HashToken(rt)
 	expiresAt := time.Now().Add(h.cfg.Auth.RefreshTokenExpiry)
 	if err := h.db.CreateRefreshToken(r.Context(), tokenHash, user.ID, expiresAt); err != nil {
@@ -57,9 +69,10 @@ func (h *AuthHandler) authenticate(w http.ResponseWriter, r *http.Request, inclu
 		"accessToken":  at,
 		"refreshToken": rt,
 		"user": map[string]any{
-			"id":       user.ID,
-			"username": user.Username,
-			"role":     user.Role,
+			"id":          user.ID,
+			"username":    user.Username,
+			"role":        user.Role,
+			"permissions": permissions,
 		},
 	}
 	if includeExpires {
@@ -222,4 +235,39 @@ func parseID(s string) (int64, error) {
 		return 0, err
 	}
 	return id, nil
+}
+
+// permissionsForRole returns a default permission set for the legacy role string.
+func permissionsForRole(role string) []string {
+	switch role {
+	case "super_admin", "admin":
+		return []string{
+			"devices.read", "devices.write", "devices.delete",
+			"alerts.read", "alerts.acknowledge", "alerts.resolve",
+			"alert_rules.write", "incidents.write", "maintenance.write",
+			"contacts.write", "reports.read", "settings.write",
+			"users.manage", "import.execute", "discovery.execute",
+			"capture.execute", "status_page.manage", "system.monitoring", "system.logs",
+		}
+	case "network_admin":
+		return []string{
+			"devices.read", "devices.write", "devices.delete",
+			"alerts.read", "alerts.acknowledge", "alerts.resolve",
+			"alert_rules.write", "incidents.write", "maintenance.write",
+			"contacts.write", "reports.read",
+			"import.execute", "discovery.execute", "capture.execute",
+			"status_page.manage", "system.monitoring",
+		}
+	case "dept_admin":
+		return []string{
+			"devices.read", "alerts.read", "alerts.acknowledge",
+			"reports.read",
+		}
+	case "viewer":
+		return []string{
+			"devices.read", "alerts.read", "reports.read",
+		}
+	default:
+		return nil
+	}
 }

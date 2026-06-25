@@ -2,7 +2,7 @@
   <h1>🌐 Rayavriti NetMonitor</h1>
   <p><strong>Production-grade, real-time network monitoring and traffic visibility platform.</strong></p>
 
-  ![Version](https://img.shields.io/badge/Version-2.0.0-brightgreen?style=flat-square)
+  ![Version](https://img.shields.io/badge/Version-3.0.0-brightgreen?style=flat-square)
   ![Go](https://img.shields.io/badge/Go-1.26-00ADD8?style=flat-square&logo=go)
   ![React](https://img.shields.io/badge/React-v19-blue?style=flat-square&logo=react)
   ![TypeScript](https://img.shields.io/badge/TypeScript-Strict-blue?style=flat-square&logo=typescript)

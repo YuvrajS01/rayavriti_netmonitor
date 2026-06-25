@@ -57,7 +57,7 @@ export default function ExpandedChartsModal({ metrics, onClose }: ExpandedCharts
   }, [onClose]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pt-20 bg-black/80" onClick={onClose}>
       <div
         ref={dialogRef}
         role="dialog"
@@ -67,7 +67,7 @@ export default function ExpandedChartsModal({ metrics, onClose }: ExpandedCharts
         className="bg-surface-container-low border border-outline-variant/30 rounded-lg w-full max-w-7xl h-[90vh] overflow-hidden flex flex-col outline-none"
         onClick={e => e.stopPropagation()}
       >
-        <div className="p-6 border-b border-outline-variant/20 flex justify-between items-center bg-surface-container-high">
+        <div className="p-6 border-b border-outline-variant/20 flex justify-between items-center bg-surface-container-high shrink-0">
           <div className="flex items-center gap-3">
             <span className="material-symbols-outlined text-primary text-3xl">query_stats</span>
             <div>

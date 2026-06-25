@@ -40,7 +40,7 @@ func (s *Scheduler) Start(ctx context.Context) {
 
 	// Run initial sweep after 30 seconds (give server time to boot)
 	s.wg.Add(1)
-	go func() {
+	go func() { //nolint:gosec // Background retention sweep; request context not applicable
 		defer s.wg.Done()
 		timer := time.NewTimer(30 * time.Second)
 		select {
@@ -54,7 +54,7 @@ func (s *Scheduler) Start(ctx context.Context) {
 
 	// Periodic sweep every 6 hours
 	s.wg.Add(1)
-	go func() {
+	go func() { //nolint:gosec // Background retention sweep; request context not applicable
 		defer s.wg.Done()
 		ticker := time.NewTicker(6 * time.Hour)
 		defer ticker.Stop()

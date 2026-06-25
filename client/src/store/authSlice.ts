@@ -2,7 +2,7 @@ import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
 
 interface AuthState {
   token: string | null;
-  user: { id: number; username: string; role: string } | null;
+  user: { id: number; username: string; role: string; permissions?: string[] } | null;
   isAuthenticated: boolean;
 }
 
@@ -18,12 +18,18 @@ const authSlice = createSlice({
   name: 'auth',
   initialState,
   reducers: {
-    setCredentials(state, action: PayloadAction<{ token: string; user: { id: number; username: string; role: string } }>) {
+    setCredentials(state, action: PayloadAction<{ token: string; user: { id: number; username: string; role: string; permissions?: string[] } }>) {
       state.token = action.payload.token;
       state.user = action.payload.user;
       state.isAuthenticated = true;
       localStorage.setItem('netmonitor_token', action.payload.token);
       localStorage.setItem('netmonitor_user', JSON.stringify(action.payload.user));
+    },
+    setPermissions(state, action: PayloadAction<string[]>) {
+      if (state.user) {
+        state.user.permissions = action.payload;
+        localStorage.setItem('netmonitor_user', JSON.stringify(state.user));
+      }
     },
     clearCredentials(state) {
       state.token = null;
@@ -35,5 +41,5 @@ const authSlice = createSlice({
   },
 });
 
-export const { setCredentials, clearCredentials } = authSlice.actions;
+export const { setCredentials, setPermissions, clearCredentials } = authSlice.actions;
 export default authSlice.reducer;

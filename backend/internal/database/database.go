@@ -4,18 +4,25 @@ import (
 	"context"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rayavriti/netmonitor-backend/internal/models"
 )
 
+// PoolProvider is satisfied by *Postgres and any wrapper (e.g. *CachedDatabase).
+type PoolProvider interface {
+	Pool() *pgxpool.Pool
+}
+
 type DeviceFilter struct {
-	Status   string
-	Protocol string
-	Enabled  *bool
-	Search   string
-	SortBy   string
-	SortDir  string
-	Limit    int
-	Offset   int
+	Status     string
+	Protocol   string
+	Enabled    *bool
+	Search     string
+	SortBy     string
+	SortDir    string
+	Limit      int
+	Offset     int
+	LocationID *int64
 }
 
 type RefreshToken struct {
@@ -24,6 +31,27 @@ type RefreshToken struct {
 	UserID    int64
 	ExpiresAt time.Time
 	CreatedAt time.Time
+}
+
+type Phase2Summary struct {
+	Locations          int `json:"locations"`
+	Subnets            int `json:"subnets"`
+	Contacts           int `json:"contacts"`
+	Incidents          int `json:"incidents"`
+	MaintenanceWindows int `json:"maintenanceWindows"`
+	StatusServices     int `json:"statusServices"`
+	DiscoveryJobs      int `json:"discoveryJobs"`
+	ISPLinks           int `json:"ispLinks"`
+	ScheduledReports   int `json:"scheduledReports"`
+}
+
+type Phase2Store interface {
+	ListPhase2(ctx context.Context, resource string, filters map[string]string) ([]map[string]any, error)
+	GetPhase2(ctx context.Context, resource string, id int64) (map[string]any, error)
+	CreatePhase2(ctx context.Context, resource string, values map[string]any) (map[string]any, error)
+	UpdatePhase2(ctx context.Context, resource string, id int64, values map[string]any) (map[string]any, error)
+	DeletePhase2(ctx context.Context, resource string, id int64) error
+	Phase2Summary(ctx context.Context) (Phase2Summary, error)
 }
 
 type Database interface {
@@ -162,4 +190,10 @@ type Database interface {
 
 	// Stats
 	GetDashboardStats(ctx context.Context) (map[string]any, error)
+
+	// Suppressed Alerts
+	RecordSuppressedAlert(ctx context.Context, deviceID int64, ruleID *int64, reason string, rootCauseDeviceID *int64) error
+
+	// RBAC
+	GetRolePermissions(ctx context.Context, roleID int64) ([]string, error)
 }

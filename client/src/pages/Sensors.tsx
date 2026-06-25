@@ -195,14 +195,14 @@ export default function Sensors() {
                             </span>
                             <span className="text-xs text-outline font-label flex items-center gap-1">
                               <span className="material-symbols-outlined text-[14px]">lan</span>
-                              {m.protocol.toUpperCase()}
+                              {m.protocol?.toUpperCase()}
                             </span>
                           </div>
                         </div>
                       </div>
                       <div className="text-right">
                         <p className={`text-xl font-headline font-bold ${statusTextColor(m.status)} tracking-tighter`}>
-                          {m.responseTime != null ? `${m.responseTime}ms` : m.status.toUpperCase()}
+                          {m.responseTime != null ? `${m.responseTime}ms` : (m.status ?? 'UNKNOWN').toUpperCase()}
                         </p>
                         <p className="text-xs text-outline uppercase font-label max-w-xs truncate">{formatMetricDetails(m.details, m.protocol)}</p>
                       </div>

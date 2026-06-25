@@ -42,9 +42,17 @@ type Message struct {
 }
 
 type ClientInfo struct {
-	UserID   int64
-	Username string
-	Role     string
+	UserID      int64
+	Username    string
+	Role        string
+	Permissions []string
+	Scopes      []ScopeEntry
+}
+
+// ScopeEntry represents a user scope for filtering events.
+type ScopeEntry struct {
+	ScopeType  string
+	ScopeValue string
 }
 
 type client struct {
@@ -57,14 +65,19 @@ type client struct {
 }
 
 type Hub struct {
-	mu        sync.RWMutex
-	clients   map[*client]struct{}
-	broadcast chan Message
-	upgrader  websocket.Upgrader
-	jwtSecret string
-	bootstrap BootstrapFunc
-	publisher func(ctx context.Context, msg Message)
+	mu          sync.RWMutex
+	clients     map[*client]struct{}
+	broadcast   chan Message
+	upgrader    websocket.Upgrader
+	jwtSecret   string
+	bootstrap   BootstrapFunc
+	publisher   func(ctx context.Context, msg Message)
+	scopeFilter ScopeFilterFunc
 }
+
+// ScopeFilterFunc determines whether a client should receive a message.
+// Returns true if the message should be delivered to the client.
+type ScopeFilterFunc func(clientInfo ClientInfo, msg Message) bool
 
 // BootstrapFunc generates the initial bootstrap payload for a newly connected client.
 type BootstrapFunc func(ctx context.Context, userID int64, username, role string) (map[string]any, error)
@@ -107,8 +120,12 @@ func (h *Hub) Run() {
 		for c := range h.clients {
 			c.mu.Lock()
 			dead := c.dead
+			info := c.info
 			c.mu.Unlock()
 			if dead {
+				continue
+			}
+			if h.scopeFilter != nil && !h.scopeFilter(info, msg) {
 				continue
 			}
 			select {
@@ -128,6 +145,11 @@ func (h *Hub) Run() {
 			)
 		}
 	}
+}
+
+// SetScopeFilter sets a function that filters which clients receive which messages.
+func (h *Hub) SetScopeFilter(fn ScopeFilterFunc) {
+	h.scopeFilter = fn
 }
 
 func (h *Hub) Broadcast(msg Message) {
@@ -165,7 +187,7 @@ func (h *Hub) Stop() {
 		c.mu.Lock()
 		c.dead = true
 		c.mu.Unlock()
-		c.conn.Close()
+		_ = c.conn.Close()
 	}
 	h.mu.Unlock()
 	slog.Info("WebSocket hub stopped")
@@ -224,9 +246,14 @@ func (h *Hub) ServeWS(w http.ResponseWriter, r *http.Request) {
 	}
 
 	c := &client{
-		conn:   conn,
-		send:   make(chan []byte, 64),
-		info:   ClientInfo{UserID: claims.UserID, Username: claims.Username, Role: claims.Role},
+		conn: conn,
+		send: make(chan []byte, 64),
+		info: ClientInfo{
+			UserID:      claims.UserID,
+			Username:    claims.Username,
+			Role:        claims.Role,
+			Permissions: claims.Permissions,
+		},
 		closed: make(chan struct{}),
 	}
 
@@ -275,7 +302,7 @@ func (h *Hub) ServeWS(w http.ResponseWriter, r *http.Request) {
 		ticker := time.NewTicker(pingPeriod)
 		defer func() {
 			ticker.Stop()
-			conn.Close()
+			_ = conn.Close()
 			close(c.closed)
 			slog.Info("WebSocket client disconnected",
 				"user_id", c.info.UserID,

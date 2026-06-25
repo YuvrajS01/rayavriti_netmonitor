@@ -65,7 +65,7 @@ func (SNMPCollector) Collect(ctx context.Context, device *models.Device) (*Resul
 	if err := g.Connect(); err != nil {
 		return &Result{Status: "down", Details: map[string]any{"error": err.Error()}}, nil
 	}
-	defer g.Conn.Close()
+	defer func() { _ = g.Conn.Close() }()
 
 	type varbindResult struct {
 		pdus []gosnmp.SnmpPDU
@@ -309,7 +309,7 @@ func collectInterfaces(baseTable, xTable map[string]map[string]gosnmp.SnmpPDU) [
 
 	for idx, baseRow := range baseTable {
 		var i iface
-		fmt.Sscanf(idx, "%d", &i.index) //nolint:errcheck
+		fmt.Sscanf(idx, "%d", &i.index) //nolint:errcheck,gosec
 
 		// ifTable column 2 = ifDescr, column 5 = ifSpeed, column 8 = ifOperStatus, column 10 = ifInOctets, column 16 = ifOutOctets
 		if pdu, ok := baseRow["2"]; ok {
@@ -407,7 +407,7 @@ func NormalizeCounter(value any) int64 {
 	}
 	switch v := value.(type) {
 	case uint64:
-		return int64(v)
+		return int64(v) //nolint:gosec // Counter value from SNMP, bounded by uint64
 	case uint32:
 		return int64(v)
 	case int:

@@ -6,23 +6,43 @@ import type { RootState } from '../store';
 import { logout, getAlertCounts } from '../api/client';
 import { useSocket } from '../hooks/useSocket';
 
-const navItems = [
-  { to: '/', label: 'Overview', icon: 'dashboard' },
-  { to: '/devices', label: 'My Devices', icon: 'devices' },
-  { to: '/sensors', label: 'Monitors & Sensors', icon: 'sensors' },
-  { to: '/flows', label: 'Flow Analysis', icon: 'swap_horiz' },
-  { to: '/capture', label: 'Packet Capture', icon: 'network_check' },
-  { to: '/ai-health', label: 'AI Health', icon: 'psychology' },
-  { to: '/alerts', label: 'Alerts', icon: 'warning' },
-  { to: '/reports', label: 'Reports', icon: 'analytics' },
-  { to: '/settings', label: 'Settings', icon: 'settings' },
+interface NavItem {
+  to: string;
+  label: string;
+  icon: string;
+  permission?: string;
+  end?: boolean;
+}
+
+const navItems: NavItem[] = [
+  { to: '/', label: 'Overview', icon: 'dashboard', end: true },
+  { to: '/campus', label: 'Campus', icon: 'account_tree', permission: 'locations.read' },
+  { to: '/devices', label: 'My Devices', icon: 'devices', permission: 'devices.read' },
+  { to: '/sensors', label: 'Monitors & Sensors', icon: 'sensors', permission: 'devices.read' },
+  { to: '/incidents', label: 'Incidents', icon: 'crisis_alert', permission: 'incidents.read' },
+  { to: '/maintenance', label: 'Maintenance', icon: 'event_repeat', permission: 'maintenance.read' },
+  { to: '/discovery', label: 'Discovery', icon: 'travel_explore', permission: 'discovery.read' },
+  { to: '/service-templates', label: 'Service Templates', icon: 'widgets', permission: 'devices.write' },
+  { to: '/isp', label: 'ISP Links', icon: 'router', permission: 'isp.read' },
+  { to: '/flows', label: 'Flow Analysis', icon: 'swap_horiz', permission: 'flows.read' },
+  { to: '/capture', label: 'Packet Capture', icon: 'network_check', permission: 'capture.read' },
+  { to: '/ai-health', label: 'AI Health', icon: 'psychology', permission: 'insights.read' },
+  { to: '/alerts', label: 'Alerts', icon: 'warning', permission: 'alerts.read' },
+  { to: '/reports', label: 'Reports', icon: 'analytics', permission: 'reports.read', end: true },
+  { to: '/reports/builder', label: 'Report Builder', icon: 'summarize', permission: 'reports.write' },
+  { to: '/settings', label: 'Settings', icon: 'settings', end: true },
+  { to: '/settings/locations', label: 'Locations', icon: 'apartment', permission: 'locations.write' },
+  { to: '/settings/contacts', label: 'Contacts', icon: 'contacts', permission: 'contacts.write' },
+  { to: '/settings/status-page', label: 'Status Page', icon: 'public', permission: 'status_page.manage' },
+  { to: '/settings/users', label: 'Users & Roles', icon: 'manage_accounts', permission: 'users.manage' },
+  { to: '/import', label: 'Bulk Import', icon: 'upload_file', permission: 'devices.write' },
 ];
 
-const SidebarLink = memo(function SidebarLink({ to, label, icon, badge, onClick }: { to: string; label: string; icon: string; badge?: number; onClick?: () => void }) {
+const SidebarLink = memo(function SidebarLink({ to, label, icon, badge, end, onClick }: { to: string; label: string; icon: string; badge?: number; end?: boolean; onClick?: () => void }) {
   return (
     <NavLink
       to={to}
-      end={to === '/'}
+      end={end}
       onClick={onClick}
       className={({ isActive }) =>
         `group flex items-center gap-3 py-3 px-5 font-label font-medium text-sm tracking-wide transition-[color,background-color,border-color] duration-200 ${
@@ -50,6 +70,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const user = useSelector((s: RootState) => s.auth.user);
   const [sidebarOpen, setSidebarOpen] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 1024);
   const [activeAlertCount, setActiveAlertCount] = useState(0);
+
+  const visibleNavItems = navItems.filter((item) => {
+    if (!item.permission) return true;
+    if (user?.role === 'super_admin' || user?.role === 'admin') return true;
+    return user?.permissions?.includes(item.permission);
+  });
 
   const fetchAlertCount = () => {
     getAlertCounts()
@@ -87,7 +113,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         Skip to content
       </a>
       {/* Top Nav */}
-      <header className="bg-background text-on-surface font-body text-sm tracking-tight w-full h-16 border-b border-surface-container-high/30 flex justify-between items-center px-6 fixed top-0 z-50">
+      <header className="bg-background text-on-surface font-body text-sm tracking-tight w-full h-16 border-b border-surface-container-high/30 flex justify-between items-center px-6 fixed top-0 z-40">
         <div className="flex items-center gap-8">
           <button onClick={() => setSidebarOpen(!sidebarOpen)} className="material-symbols-outlined text-on-surface-variant hover:text-primary transition-colors" aria-label="Toggle sidebar">
             menu
@@ -96,11 +122,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             Rayavriti NetMonitor+
           </NavLink>
           <div className="hidden lg:flex items-center gap-6">
-            {navItems.slice(0, 3).map((item) => (
+            {visibleNavItems.slice(0, 3).map((item) => (
               <NavLink
                 key={item.to}
                 to={item.to}
-                end={item.to === '/'}
+                end={item.end}
                 className={({ isActive }) =>
                   `cursor-pointer transition-colors duration-300 ${
                     isActive ? 'text-primary border-b-2 border-primary' : 'text-on-surface-variant hover:text-primary'
@@ -143,8 +169,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             </span>
           </div>
 
-          <nav className="flex-1 space-y-1" aria-label="Sidebar navigation">
-            {navItems.map((item) => (
+          <nav className="flex-1 space-y-1 overflow-y-auto" aria-label="Sidebar navigation">
+            {visibleNavItems.map((item) => (
               <SidebarLink key={item.to} {...item} badge={item.to === '/alerts' ? activeAlertCount : undefined} />
             ))}
           </nav>
@@ -169,7 +195,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
       {/* Mobile Bottom Nav — only on small screens */}
       <nav className="lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-background border-t border-surface-container-high/30 flex justify-around items-center px-4 z-50" aria-label="Mobile navigation">
-        {[navItems[0], navItems[1], navItems[5], navItems[6]].map((item) => (
+        {[visibleNavItems[0], visibleNavItems[1], visibleNavItems.find(i => i.to === '/incidents') || visibleNavItems[2], visibleNavItems.find(i => i.to === '/alerts') || visibleNavItems[3]].filter(Boolean).map((item) => (
           <NavLink
             key={item.to}
             to={item.to}

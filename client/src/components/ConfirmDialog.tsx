@@ -62,17 +62,17 @@ export default function ConfirmDialog({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60" onClick={onCancel}>
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 pt-20 bg-black/60" onClick={onCancel}>
       <div
         ref={dialogRef}
         role="alertdialog"
         aria-modal="true"
         aria-labelledby="confirm-title"
         aria-describedby="confirm-message"
-        className="bg-surface-container-low border border-outline-variant/30 rounded-lg w-full max-w-md overflow-hidden "
+        className="bg-surface-container-low border border-outline-variant/30 rounded-lg w-full max-w-md max-h-[90vh] overflow-hidden flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="p-6">
+        <div className="p-6 shrink-0">
           <div className="flex items-center gap-3 mb-4">
             <span className={`material-symbols-outlined text-3xl ${danger ? 'text-error' : 'text-primary'}`}>
               {danger ? 'warning' : 'help'}
@@ -85,7 +85,7 @@ export default function ConfirmDialog({
             {message}
           </p>
         </div>
-        <div className="flex border-t border-outline-variant/20">
+        <div className="flex border-t border-outline-variant/20 shrink-0">
           <button
             onClick={onCancel}
             className="flex-1 py-3 text-xs font-headline font-bold uppercase tracking-wide text-on-surface-variant hover:bg-surface-container-high transition-[background-color]"
