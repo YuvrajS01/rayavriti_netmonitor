@@ -9,12 +9,17 @@ import (
 
 type Claims struct {
 	jwt.RegisteredClaims
-	UserID   int64  `json:"uid"`
-	Username string `json:"username"`
-	Role     string `json:"role"`
+	UserID      int64    `json:"uid"`
+	Username    string   `json:"username"`
+	Role        string   `json:"role"`
+	Permissions []string `json:"permissions,omitempty"`
 }
 
 func GenerateTokenPair(userID int64, username, role, secret string, accessExpiry, refreshExpiry time.Duration) (accessToken, refreshToken string, err error) {
+	return GenerateTokenPairWithPerms(userID, username, role, nil, secret, accessExpiry, refreshExpiry)
+}
+
+func GenerateTokenPairWithPerms(userID int64, username, role string, permissions []string, secret string, accessExpiry, refreshExpiry time.Duration) (accessToken, refreshToken string, err error) {
 	now := time.Now()
 	access := jwt.NewWithClaims(jwt.SigningMethodHS256, &Claims{
 		RegisteredClaims: jwt.RegisteredClaims{
@@ -22,9 +27,10 @@ func GenerateTokenPair(userID int64, username, role, secret string, accessExpiry
 			IssuedAt:  jwt.NewNumericDate(now),
 			Subject:   username,
 		},
-		UserID:   userID,
-		Username: username,
-		Role:     role,
+		UserID:      userID,
+		Username:    username,
+		Role:        role,
+		Permissions: permissions,
 	})
 	accessToken, err = access.SignedString([]byte(secret))
 	if err != nil {
@@ -36,9 +42,10 @@ func GenerateTokenPair(userID int64, username, role, secret string, accessExpiry
 			IssuedAt:  jwt.NewNumericDate(now),
 			Subject:   username,
 		},
-		UserID:   userID,
-		Username: username,
-		Role:     role,
+		UserID:      userID,
+		Username:    username,
+		Role:        role,
+		Permissions: permissions,
 	})
 	refreshToken, err = refresh.SignedString([]byte(secret))
 	return

@@ -18,6 +18,7 @@ import (
 	"github.com/rayavriti/netmonitor-backend/internal/database"
 	"github.com/rayavriti/netmonitor-backend/internal/engine"
 	"github.com/rayavriti/netmonitor-backend/internal/logging"
+	"github.com/rayavriti/netmonitor-backend/internal/reports"
 	"github.com/rayavriti/netmonitor-backend/internal/retention"
 	"github.com/rayavriti/netmonitor-backend/internal/scheduler"
 	"github.com/rayavriti/netmonitor-backend/internal/server"
@@ -44,8 +45,8 @@ func run() error {
 
 	// 3. Connect to database
 	dbCfg := &database.DatabaseConfig{
-		MaxConns:          int32(cfg.Database.MaxConns),
-		MinConns:          int32(cfg.Database.MinConns),
+		MaxConns:          int32(cfg.Database.MaxConns), //nolint:gosec // MaxConns is validated in config parsing
+		MinConns:          int32(cfg.Database.MinConns), //nolint:gosec // MinConns is validated in config parsing
 		MaxConnLifetime:   cfg.Database.MaxConnLifetime,
 		HealthCheckPeriod: cfg.Database.HealthCheckPeriod,
 	}
@@ -53,7 +54,7 @@ func run() error {
 	if err := db.Connect(context.Background()); err != nil {
 		return fmt.Errorf("database connect: %w", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	logger.Info("Database connected")
 
 	// 3.5 Connect to Redis (optional)
@@ -67,7 +68,7 @@ func run() error {
 		if err != nil {
 			logger.Warn("Redis connection failed, running without cache", "error", err)
 		} else {
-			defer rdb.Close()
+			defer func() { _ = rdb.Close() }()
 			logger.Info("Redis connected")
 			auth.SetDefaultStore(auth.NewRedisSessionStore(rdb))
 		}
@@ -202,6 +203,16 @@ func run() error {
 	retSched.Start(context.Background())
 	logger.Info("Retention scheduler started")
 
+	// 11.5 Initialize ISP collector and scheduled report runner
+	ispCollector := reports.NewISPCollector(db.Pool(), cfg.Phase2.ISPMonitorInterval)
+	ispCollector.Start(context.Background())
+	logger.Info("ISP collector started", "interval_sec", cfg.Phase2.ISPMonitorInterval)
+
+	reportGen := reports.NewGenerator(db.Pool(), cfg.Phase2.ReportOutputDir)
+	reportScheduler := reports.NewScheduledRunner(db.Pool(), reportGen, time.Minute)
+	reportScheduler.Start(context.Background())
+	logger.Info("Scheduled report runner started")
+
 	// 12. Initialize HTTP server
 	srv := server.New(cfg, appDB, hub, logger, server.WithRedis(rdb))
 
@@ -227,6 +238,8 @@ func run() error {
 	// 15. Graceful shutdown
 	logger.Info("Shutting down...")
 	sched.Stop()
+	ispCollector.Stop()
+	reportScheduler.Stop()
 	if metricBuf != nil {
 		metricBuf.Stop()
 	}

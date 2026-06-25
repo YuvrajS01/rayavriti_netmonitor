@@ -73,12 +73,12 @@ func (sm *SelfMonitor) collect(ctx context.Context) {
 	metrics := &SystemMetrics{
 		UptimeSeconds:   int64(time.Since(sm.startTime).Seconds()),
 		GoroutineCount:  runtime.NumGoroutine(),
-		HeapAllocBytes:  int64(m.HeapAlloc),
-		HeapSysBytes:    int64(m.HeapSys),
-		StackInUseBytes: int64(m.StackInuse),
-		GCPauseTotalNs:  int64(m.PauseTotalNs),
+		HeapAllocBytes:  int64(m.HeapAlloc),    //nolint:gosec // runtime.MemStats values are bounded by addressable memory
+		HeapSysBytes:    int64(m.HeapSys),      //nolint:gosec // runtime.MemStats values are bounded by addressable memory
+		StackInUseBytes: int64(m.StackInuse),   //nolint:gosec // runtime.MemStats values are bounded by addressable memory
+		GCPauseTotalNs:  int64(m.PauseTotalNs), //nolint:gosec // runtime.MemStats values are bounded by addressable memory
 		GCRuns:          int(m.NumGC),
-		GCLastPauseNs:   int64(m.PauseNs[(m.NumGC+255)%256]),
+		GCLastPauseNs:   int64(m.PauseNs[(m.NumGC+255)%256]), //nolint:gosec // runtime.MemStats values are bounded by addressable memory
 		NumCPU:          runtime.NumCPU(),
 		Timestamp:       time.Now(),
 	}

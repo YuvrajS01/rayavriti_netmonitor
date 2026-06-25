@@ -25,7 +25,7 @@ func (PortCollector) Collect(ctx context.Context, device *models.Device) (*Resul
 	if err != nil {
 		return &Result{Status: "down"}, nil //nolint:nilerr // intentional: return down status, not error
 	}
-	conn.Close()
+	_ = conn.Close()
 	rt := float64(dur.Milliseconds())
 	return &Result{Status: "up", ResponseTime: &rt}, nil
 }

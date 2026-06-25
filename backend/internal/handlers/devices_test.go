@@ -333,6 +333,9 @@ func TestDeviceCreate_DBError(t *testing.T) {
 
 func TestDeviceUpdate_Valid(t *testing.T) {
 	db := &mockDB{
+		getDeviceFn: func(ctx context.Context, id int64) (*models.Device, error) {
+			return &models.Device{ID: id, Name: "Original", IPAddress: "10.0.0.1", Protocol: "ping"}, nil
+		},
 		updateDeviceFn: func(ctx context.Context, id int64, d *models.Device) (*models.Device, error) {
 			d.ID = id
 			return d, nil
@@ -359,6 +362,9 @@ func TestDeviceUpdate_InvalidID(t *testing.T) {
 
 func TestDeviceUpdate_DBError(t *testing.T) {
 	db := &mockDB{
+		getDeviceFn: func(ctx context.Context, id int64) (*models.Device, error) {
+			return &models.Device{ID: id, Name: "Original", IPAddress: "10.0.0.1", Protocol: "ping"}, nil
+		},
 		updateDeviceFn: func(ctx context.Context, id int64, d *models.Device) (*models.Device, error) {
 			return nil, errors.New("db error")
 		},

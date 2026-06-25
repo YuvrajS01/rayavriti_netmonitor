@@ -37,7 +37,7 @@ func (c *NetFlowCollector) Listen(ctx context.Context) error {
 
 	go func() {
 		<-ctx.Done()
-		pc.Close()
+		_ = pc.Close()
 	}()
 
 	buf := make([]byte, 2048)
@@ -76,14 +76,14 @@ func parseNetFlowV5(data []byte) []models.Flow {
 	var flows []models.Flow
 	offset := 24
 	for i := 0; i < count && offset+48 <= len(data); i++ {
-		rec := data[offset : offset+48]
-		srcIP := net.IP(rec[0:4]).String()
-		dstIP := net.IP(rec[4:8]).String()
-		srcPort := int(binary.BigEndian.Uint16(rec[32:34]))
-		dstPort := int(binary.BigEndian.Uint16(rec[34:36]))
-		proto := int(rec[38])
-		bytes := int64(binary.BigEndian.Uint32(rec[20:24]))
-		packets := int64(binary.BigEndian.Uint32(rec[16:20]))
+		rec := data[offset : offset+48]                       //nolint:gosec // Bounds guaranteed by loop condition offset+48 <= len(data)
+		srcIP := net.IP(rec[0:4]).String()                    //nolint:gosec // Bounds guaranteed by loop condition offset+48 <= len(data)
+		dstIP := net.IP(rec[4:8]).String()                    //nolint:gosec // Bounds guaranteed by loop condition offset+48 <= len(data)
+		srcPort := int(binary.BigEndian.Uint16(rec[32:34]))   //nolint:gosec // Bounds guaranteed by loop condition offset+48 <= len(data)
+		dstPort := int(binary.BigEndian.Uint16(rec[34:36]))   //nolint:gosec // Bounds guaranteed by loop condition offset+48 <= len(data)
+		proto := int(rec[38])                                 //nolint:gosec // Bounds guaranteed by loop condition offset+48 <= len(data)
+		bytes := int64(binary.BigEndian.Uint32(rec[20:24]))   //nolint:gosec // Bounds guaranteed by loop condition offset+48 <= len(data)
+		packets := int64(binary.BigEndian.Uint32(rec[16:20])) //nolint:gosec // Bounds guaranteed by loop condition offset+48 <= len(data)
 		flows = append(flows, models.Flow{
 			Timestamp: now,
 			SrcIP:     srcIP,

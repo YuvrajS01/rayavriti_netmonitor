@@ -42,7 +42,7 @@ func (b *MetricBuffer) Push(ctx context.Context, m *models.Metric) error {
 func (b *MetricBuffer) Start(ctx context.Context) {
 	ctx, b.cancel = context.WithCancel(ctx)
 	b.wg.Add(1)
-	go b.flushLoop(ctx)
+	go b.flushLoop(ctx) //nolint:gosec // ctx is already derived from Start's parameter
 	slog.Info("Metric buffer started", "batch_size", b.batchSize, "flush_interval", b.flushInterval)
 }
 

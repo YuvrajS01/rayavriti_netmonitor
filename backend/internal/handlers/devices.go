@@ -149,15 +149,85 @@ func (h *DeviceHandler) Update(w http.ResponseWriter, r *http.Request) {
 		httputil.SendError(w, http.StatusBadRequest, "invalid id")
 		return
 	}
-	var d models.Device
-	if err := httputil.ParseJSON(r, &d); err != nil {
+	existing, err := h.db.GetDevice(r.Context(), id)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			httputil.SendError(w, http.StatusNotFound, "device not found")
+			return
+		}
+		httputil.SendError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	var patch models.Device
+	if err := httputil.ParseJSON(r, &patch); err != nil {
 		httputil.SendError(w, http.StatusBadRequest, "invalid body")
 		return
 	}
-	if d.IPAddress != "" {
-		d.IPAddress = normalizeHost(d.IPAddress)
+	if patch.Name != "" {
+		existing.Name = patch.Name
 	}
-	updated, err := h.db.UpdateDevice(r.Context(), id, &d)
+	if patch.IPAddress != "" {
+		existing.IPAddress = normalizeHost(patch.IPAddress)
+	}
+	if patch.Protocol != "" {
+		existing.Protocol = patch.Protocol
+	}
+	if patch.Port != 0 {
+		existing.Port = patch.Port
+	}
+	if patch.SNMPCommunity != "" {
+		existing.SNMPCommunity = patch.SNMPCommunity
+	}
+	if patch.SNMPVersion != "" {
+		existing.SNMPVersion = patch.SNMPVersion
+	}
+	if patch.SNMPPort != 0 {
+		existing.SNMPPort = patch.SNMPPort
+	}
+	if patch.HTTPPath != "" {
+		existing.HTTPPath = patch.HTTPPath
+	}
+	if patch.HTTPExpectedStatus != 0 {
+		existing.HTTPExpectedStatus = patch.HTTPExpectedStatus
+	}
+	if patch.Interval != 0 {
+		existing.Interval = patch.Interval
+	}
+	if patch.Tags != nil {
+		existing.Tags = patch.Tags
+	}
+	if patch.DeviceCategory != "" {
+		existing.DeviceCategory = patch.DeviceCategory
+	}
+	if patch.Manufacturer != "" {
+		existing.Manufacturer = patch.Manufacturer
+	}
+	if patch.Model != "" {
+		existing.Model = patch.Model
+	}
+	if patch.SerialNumber != "" {
+		existing.SerialNumber = patch.SerialNumber
+	}
+	if patch.MACAddress != "" {
+		existing.MACAddress = patch.MACAddress
+	}
+	if patch.Notes != "" {
+		existing.Notes = patch.Notes
+	}
+	if patch.ParentDeviceID != nil {
+		existing.ParentDeviceID = patch.ParentDeviceID
+	}
+	if patch.DependencyPort != "" {
+		existing.DependencyPort = patch.DependencyPort
+	}
+	if patch.RackPosition != "" {
+		existing.RackPosition = patch.RackPosition
+	}
+	if patch.AssetTag != "" {
+		existing.AssetTag = patch.AssetTag
+	}
+	existing.LocationID = patch.LocationID
+	updated, err := h.db.UpdateDevice(r.Context(), id, existing)
 	if err != nil {
 		httputil.SendError(w, http.StatusInternalServerError, err.Error())
 		return

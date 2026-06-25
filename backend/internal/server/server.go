@@ -13,8 +13,13 @@ import (
 	"github.com/rayavriti/netmonitor-backend/internal/cache"
 	"github.com/rayavriti/netmonitor-backend/internal/config"
 	"github.com/rayavriti/netmonitor-backend/internal/database"
+	"github.com/rayavriti/netmonitor-backend/internal/discovery"
 	"github.com/rayavriti/netmonitor-backend/internal/handlers"
+	"github.com/rayavriti/netmonitor-backend/internal/httputil"
 	"github.com/rayavriti/netmonitor-backend/internal/logging"
+	"github.com/rayavriti/netmonitor-backend/internal/models"
+	"github.com/rayavriti/netmonitor-backend/internal/rbac"
+	"github.com/rayavriti/netmonitor-backend/internal/servicetmpl"
 	"github.com/rayavriti/netmonitor-backend/internal/websocket"
 	"github.com/rs/cors"
 )
@@ -114,11 +119,70 @@ func (s *Server) Start() error {
 	alertRule := handlers.NewAlertRuleHandler(s.db)
 	notifChannel := handlers.NewNotificationChannelHandler(s.db)
 	system := handlers.NewSystemHandler()
+	phase2 := handlers.NewPhase2Handler(s.db)
+	campusH := handlers.NewCampusHandler(s.db)
+	contactH := handlers.NewContactHandler(s.db)
+	incidentH := handlers.NewIncidentHandler(s.db, s.hub)
+	statusPageH := handlers.NewStatusPageHandler(s.db)
+	ispH := handlers.NewISPHandler(s.db)
+	reportGenH := handlers.NewReportGenHandler(s.db, s.cfg.Phase2.ReportOutputDir)
+	discH := discovery.NewDiscoveryHandler(s.db)
+
+	var svcTmplH *servicetmpl.Handler
+	if pp, ok := s.db.(database.PoolProvider); ok && pp.Pool() != nil {
+		svcTmplH = servicetmpl.NewHandler(servicetmpl.NewService(pp.Pool()))
+	}
+
+	// WebSocket scope filter: only deliver events to users with matching scopes
+	if pp, ok := s.db.(database.PoolProvider); ok && pp.Pool() != nil {
+		pool := pp.Pool()
+		s.hub.SetScopeFilter(func(info websocket.ClientInfo, msg websocket.Message) bool {
+			if info.Role == "super_admin" || info.Role == "admin" {
+				return true
+			}
+			if len(info.Scopes) == 0 {
+				return true
+			}
+			switch msg.Type {
+			case websocket.EventMetricUpdate, websocket.EventAlertTriggered,
+				websocket.EventAlertUpdated, websocket.EventAlertResolved,
+				websocket.EventDeviceStatus:
+				data, ok := msg.Data.(map[string]any)
+				if !ok {
+					return true
+				}
+				deviceID, _ := data["device_id"].(float64)
+				if deviceID == 0 {
+					return true
+				}
+				var locationID int64
+				_ = pool.QueryRow(context.Background(),
+					"SELECT COALESCE(location_id, 0) FROM devices WHERE id = $1", int64(deviceID)).
+					Scan(&locationID)
+				if locationID == 0 {
+					return true
+				}
+				for _, scope := range info.Scopes {
+					if scope.ScopeType == "location" && scope.ScopeValue == fmt.Sprintf("%d", locationID) {
+						return true
+					}
+				}
+				return false
+			default:
+				return true
+			}
+		})
+	}
+
+	// Service templates
 
 	// Public routes
 	r.Get("/health", health.Health)
 	r.Get("/ws", s.hub.ServeWS)
 	r.Get("/api/v1/ws", s.hub.ServeWS)
+	r.Get("/status", phase2.PublicStatusHTML)
+	r.Get("/api/v1/public/status", statusPageH.PublicStatusJSON)
+	r.Get("/api/v1/public/incidents", phase2.List("status_page_incidents"))
 
 	// Auth routes
 	r.Post("/api/auth/login", authH.Login)
@@ -135,6 +199,9 @@ func (s *Server) Start() error {
 	r.Group(func(r chi.Router) {
 		r.Use(requireAuth)
 		r.Use(auth.UserRateLimiter(ctx, s.rdb))
+		if pp, ok := s.db.(database.PoolProvider); ok && pp.Pool() != nil {
+			r.Use(rbac.RequireScopeContext(pp.Pool()))
+		}
 		r.Get("/api/auth/me", authH.Me)
 		r.Get("/api/stats", health.Stats)
 
@@ -145,10 +212,7 @@ func (s *Server) Start() error {
 		r.Put("/api/devices/{id}", device.Update)
 		r.Delete("/api/devices/{id}", device.Delete)
 		r.Get("/api/v1/devices", device.List)
-		r.Post("/api/v1/devices", device.Create)
 		r.Get("/api/v1/devices/{id}", device.Get)
-		r.Put("/api/v1/devices/{id}", device.Update)
-		r.Delete("/api/v1/devices/{id}", device.Delete)
 
 		// Metrics
 		r.Get("/api/metrics/latest", metric.Latest)
@@ -253,6 +317,170 @@ func (s *Server) Start() error {
 
 		// System Info
 		r.Get("/api/v1/system/info", system.Info)
+
+		// Phase 2 summary
+		r.Get("/api/v1/phase2/summary", phase2.Summary)
+
+		// Location hierarchy and topology (typed campus handlers)
+		r.Get("/api/v1/locations", campusH.ListLocations)
+		r.Post("/api/v1/locations", campusH.CreateLocation)
+		r.Get("/api/v1/locations/{id}", campusH.GetLocation)
+		r.Get("/api/v1/locations/{id}/tree", campusH.GetLocationTree)
+		r.Get("/api/v1/locations/{id}/status", campusH.LocationStatus)
+		r.Get("/api/v1/locations/{id}/devices", campusH.LocationDevices)
+		r.Put("/api/v1/locations/{id}", campusH.UpdateLocation)
+		r.Delete("/api/v1/locations/{id}", campusH.DeleteLocation)
+		r.Post("/api/v1/locations/{id}/move", campusH.MoveLocation)
+		r.Get("/api/v1/subnets", phase2.List("subnets"))
+		r.Post("/api/v1/subnets", phase2.Create("subnets"))
+		r.Get("/api/v1/subnets/{id}", phase2.Get("subnets"))
+		r.Put("/api/v1/subnets/{id}", phase2.Update("subnets"))
+		r.Delete("/api/v1/subnets/{id}", phase2.Delete("subnets"))
+		r.Get("/api/v1/topology", campusH.DependencyTree)
+		r.Get("/api/v1/topology/map", campusH.DependencyTree)
+		r.Get("/api/v1/topology/dependency-tree", campusH.DependencyTree)
+		r.Get("/api/v1/alerts/suppressed", phase2.List("suppressed_alerts"))
+		r.Get("/api/v1/outages/root-cause", campusH.RootCauseOutages)
+		r.Put("/api/v1/devices/{id}/parent", device.Update)
+		r.Get("/api/v1/devices/{id}/dependencies", campusH.DeviceDependencies)
+
+		// Bulk import and discovery (typed import handlers)
+		r.Get("/api/v1/import/history", phase2.List("discovery_jobs"))
+		r.Get("/api/v1/import/template", campusH.ImportTemplate)
+		r.Post("/api/v1/import/devices", campusH.ImportPreview)
+		r.Post("/api/v1/import/devices/confirm", campusH.ImportExecute)
+		r.Post("/api/v1/discovery/scan", discH.StartScan)
+		r.Get("/api/v1/discovery/jobs", discH.ListJobs)
+		r.Get("/api/v1/discovery/jobs/{id}", discH.GetJob)
+		r.Get("/api/v1/discovery/jobs/{id}/results", discH.GetJobResults)
+		r.Post("/api/v1/discovery/results/{id}/approve", discH.ApproveResult)
+		r.Post("/api/v1/discovery/results/{id}/reject", discH.RejectResult)
+		r.Post("/api/v1/discovery/results/bulk-approve", discH.BulkApprove)
+
+		// Status page administration (typed)
+		r.Get("/api/v1/status-page/services", phase2.List("status_page_services"))
+		r.Post("/api/v1/status-page/services", phase2.Create("status_page_services"))
+		r.Get("/api/v1/status-page/services/{id}", phase2.Get("status_page_services"))
+		r.Put("/api/v1/status-page/services/{id}", phase2.Update("status_page_services"))
+		r.Delete("/api/v1/status-page/services/{id}", phase2.Delete("status_page_services"))
+		r.Post("/api/v1/status-page/services/{id}/devices", statusPageH.AddServiceDevice)
+		r.Delete("/api/v1/status-page/services/{id}/devices/{did}", statusPageH.RemoveServiceDevice)
+		r.Get("/api/v1/status-page/services/{id}/devices", statusPageH.ListServiceDevices)
+		r.Post("/api/v1/status-page/incidents", phase2.Create("status_page_incidents"))
+		r.Put("/api/v1/status-page/incidents/{id}", phase2.Update("status_page_incidents"))
+		r.Post("/api/v1/status-page/incidents/{id}/update", phase2.Create("status_page_incident_updates"))
+		r.Get("/api/v1/status-page/incidents/{id}/updates", statusPageH.ListIncidentUpdates)
+		r.Post("/api/v1/status-page/incidents/{id}/services", statusPageH.LinkIncidentServices)
+
+		// Maintenance, contacts, escalation, incidents, RBAC, reports, ISP
+		r.Get("/api/v1/maintenance", phase2.List("maintenance_windows"))
+		r.Get("/api/v1/maintenance/active", phase2.List("maintenance_windows"))
+		r.Get("/api/v1/maintenance/calendar", phase2.List("maintenance_windows"))
+		r.Post("/api/v1/maintenance", phase2.Create("maintenance_windows"))
+		r.Get("/api/v1/maintenance/{id}", phase2.Get("maintenance_windows"))
+		r.Put("/api/v1/maintenance/{id}", phase2.Update("maintenance_windows"))
+		r.Delete("/api/v1/maintenance/{id}", phase2.Delete("maintenance_windows"))
+		r.Post("/api/v1/maintenance/{id}/toggle", phase2.Update("maintenance_windows"))
+		r.Get("/api/v1/contacts", phase2.List("contacts"))
+		r.Post("/api/v1/contacts", phase2.Create("contacts"))
+		r.Get("/api/v1/contacts/{id}", phase2.Get("contacts"))
+		r.Put("/api/v1/contacts/{id}", phase2.Update("contacts"))
+		r.Delete("/api/v1/contacts/{id}", phase2.Delete("contacts"))
+		r.Get("/api/v1/contacts/{id}/devices", phase2.List("device_contacts"))
+		r.Post("/api/v1/devices/{id}/contacts", phase2.Create("device_contacts"))
+		r.Delete("/api/v1/devices/{id}/contacts/{cid}", phase2.Delete("device_contacts"))
+		r.Post("/api/v1/locations/{id}/contacts", phase2.Create("device_contacts"))
+		r.Get("/api/v1/escalation-policies", phase2.List("escalation_policies"))
+		r.Post("/api/v1/escalation-policies", phase2.Create("escalation_policies"))
+		r.Put("/api/v1/escalation-policies/{id}", phase2.Update("escalation_policies"))
+		r.Delete("/api/v1/escalation-policies/{id}", phase2.Delete("escalation_policies"))
+		r.Post("/api/v1/escalation-policies/{id}/steps", phase2.Create("escalation_steps"))
+		r.Get("/api/v1/escalation-policies/{id}/steps", phase2.List("escalation_steps"))
+
+		// Typed escalation and notification endpoints
+		r.Post("/api/v1/devices/{id}/resolve-contacts", contactH.ResolveContacts)
+		r.Post("/api/v1/alerts/{id}/escalate", contactH.EscalationStart)
+		r.Post("/api/v1/alerts/{id}/cancel-escalation", contactH.EscalationCancel)
+		r.Get("/api/v1/alerts/{id}/escalation-status", contactH.EscalationStatus)
+		r.Get("/api/v1/notification-log", contactH.NotificationLog)
+		r.Get("/api/v1/oncall", phase2.List("oncall_schedules"))
+		r.Get("/api/v1/oncall/schedule", phase2.List("oncall_schedules"))
+		r.Put("/api/v1/oncall/{id}/override", phase2.Update("oncall_schedules"))
+		r.Get("/api/v1/incidents", phase2.List("incidents"))
+		r.Post("/api/v1/incidents", incidentH.CreateIncident)
+		r.Get("/api/v1/incidents/stats", incidentH.GetIncidentStats)
+		r.Get("/api/v1/incidents/sla-report", incidentH.GetSLAReport)
+		r.Get("/api/v1/incidents/{id}", phase2.Get("incidents"))
+		r.Put("/api/v1/incidents/{id}", phase2.Update("incidents"))
+		r.Post("/api/v1/incidents/{id}/note", incidentH.AddTimelineEntry)
+		r.Post("/api/v1/incidents/{id}/assign", incidentH.AssignIncident)
+		r.Post("/api/v1/incidents/{id}/resolve", incidentH.ResolveIncident)
+		r.Post("/api/v1/incidents/{id}/close", incidentH.CloseIncident)
+		r.Post("/api/v1/incidents/{id}/acknowledge", incidentH.AcknowledgeIncident)
+		r.Get("/api/v1/incidents/{id}/timeline", incidentH.GetTimeline)
+		r.Get("/api/v1/incidents/{id}/devices", incidentH.GetIncidentDevices)
+		r.Get("/api/v1/sla", phase2.List("sla_definitions"))
+		r.Put("/api/v1/sla/{id}", phase2.Update("sla_definitions"))
+		r.Get("/api/v1/roles", phase2.List("roles"))
+		r.Post("/api/v1/roles", phase2.Create("roles"))
+		r.Put("/api/v1/roles/{id}", phase2.Update("roles"))
+		r.Delete("/api/v1/roles/{id}", phase2.Delete("roles"))
+		r.Get("/api/v1/users", phase2.List("users"))
+		r.Get("/api/v1/users/{id}", phase2.Get("users"))
+		r.Put("/api/v1/users/{id}", phase2.Update("users"))
+		r.Delete("/api/v1/users/{id}", phase2.Delete("users"))
+		r.Put("/api/v1/users/{id}/role", phase2.Update("users"))
+		r.Get("/api/v1/user-scopes", phase2.List("user_scopes"))
+		r.Put("/api/v1/users/{id}/scopes", phase2.Create("user_scopes"))
+		r.Delete("/api/v1/users/{id}/scopes/{sid}", phase2.Delete("user_scopes"))
+
+		// RBAC: permissions endpoint (returns the caller's own permissions)
+		r.Get("/api/v1/auth/permissions", func(w http.ResponseWriter, r *http.Request) {
+			claims := auth.GetClaims(r.Context())
+			if claims == nil {
+				httputil.SendError(w, http.StatusUnauthorized, "not authenticated")
+				return
+			}
+			httputil.SendOK(w, map[string]any{
+				"userId":      claims.UserID,
+				"role":        claims.Role,
+				"permissions": claims.Permissions,
+			})
+		})
+
+		// Device write routes require devices.write permission
+		r.With(rbac.RequirePermission(models.PermDevicesWrite)).Post("/api/v1/devices", device.Create)
+		r.With(rbac.RequirePermission(models.PermDevicesWrite)).Put("/api/v1/devices/{id}", device.Update)
+		r.With(rbac.RequirePermission(models.PermDevicesDelete)).Delete("/api/v1/devices/{id}", device.Delete)
+		r.Get("/api/v1/reports/generated", reportGenH.ListGenerated)
+		r.Get("/api/v1/reports/generated/{id}/download", reportGenH.DownloadReport)
+		r.Get("/api/v1/reports/scheduled", phase2.List("scheduled_reports"))
+		r.Post("/api/v1/reports/scheduled", phase2.Create("scheduled_reports"))
+		r.Put("/api/v1/reports/scheduled/{id}", phase2.Update("scheduled_reports"))
+		r.Delete("/api/v1/reports/scheduled/{id}", phase2.Delete("scheduled_reports"))
+		r.Post("/api/v1/reports/scheduled/{id}/run", reportGenH.RunScheduledReport)
+		r.Post("/api/v1/reports/generate", reportGenH.GenerateReport)
+		r.Get("/api/v1/reports/sla", phase2.List("sla_definitions"))
+		r.Get("/api/v1/reports/mttr", phase2.List("incidents"))
+		r.Get("/api/v1/reports/availability", report.Devices)
+		r.Get("/api/v1/reports/isp", phase2.List("isp_metrics"))
+		r.Get("/api/v1/reports/top-offenders", report.Devices)
+		r.Get("/api/v1/isp-links", phase2.List("isp_links"))
+		r.Post("/api/v1/isp-links", phase2.Create("isp_links"))
+		r.Get("/api/v1/isp-links/comparison", ispH.Comparison)
+		r.Get("/api/v1/isp-links/{id}", phase2.Get("isp_links"))
+		r.Put("/api/v1/isp-links/{id}", phase2.Update("isp_links"))
+		r.Delete("/api/v1/isp-links/{id}", phase2.Delete("isp_links"))
+		r.Get("/api/v1/isp-links/{id}/metrics", ispH.MetricsSummary)
+		r.Get("/api/v1/isp-links/{id}/metrics/timeseries", ispH.MetricsTimeSeries)
+		r.Get("/api/v1/isp-links/{id}/sla", ispH.LinkSLA)
+
+		// Service Templates
+		if svcTmplH != nil {
+			r.Get("/api/v1/service-templates", svcTmplH.ListTemplates)
+			r.Get("/api/v1/service-templates/{name}", svcTmplH.GetTemplate)
+			r.With(rbac.RequirePermission(models.PermDevicesWrite)).Post("/api/v1/service-templates/apply", svcTmplH.ApplyTemplate)
+		}
 
 		// Simulator (admin only)
 		r.Group(func(r chi.Router) {
