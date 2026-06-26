@@ -148,6 +148,7 @@
 }
 .animate-slide-down > * {
   overflow: hidden;
+  min-height: 0;
 }
 
 /* ── Toast Slide Up ──────────────────────────────────────── */

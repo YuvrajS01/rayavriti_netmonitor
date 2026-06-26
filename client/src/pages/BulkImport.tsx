@@ -3,6 +3,7 @@ import SectionHeader from '../components/ui/SectionHeader';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import { createPhase2 } from '../api/phase2';
+import { v1 } from '../api/client';
 import { useToast } from '../components/ui/useToast';
 
 // ─── CSV Parsing ────────────────────────────────────────────────
@@ -180,17 +181,30 @@ export default function BulkImport() {
     setExpandedRow(null);
   }, []);
 
+  const downloadTemplate = useCallback(async () => {
+    try {
+      const res = await v1.get('/import/template', { responseType: 'blob' });
+      const blob = new Blob([res.data as BlobPart]);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'device_import_template.csv';
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      addToast('Failed to download template', 'error');
+    }
+  }, [addToast]);
+
   return (
     <div className="space-y-6">
       <SectionHeader
         title="Bulk Device Import"
         subtitle="Upload a CSV file to import multiple devices at once. Download the template for the expected format."
         action={
-          <a href="/api/v1/import/template" download>
-            <Button variant="secondary" icon="download">
-              Download Template
-            </Button>
-          </a>
+          <Button variant="secondary" icon="download" onClick={downloadTemplate}>
+            Download Template
+          </Button>
         }
       />
 
