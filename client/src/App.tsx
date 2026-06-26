@@ -58,9 +58,10 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     api.get('/auth/me')
       .then(() => {
         sessionChecked = true;
-        return api.get('/auth/permissions');
+        return api.get('/auth/permissions').catch(() => null);
       })
       .then((res) => {
+        if (!res) return;
         const perms = (res.data as { data?: { permissions?: string[] } })?.data?.permissions;
         if (perms) dispatch(setPermissions(perms));
       })
