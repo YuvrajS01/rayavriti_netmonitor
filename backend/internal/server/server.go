@@ -30,6 +30,7 @@ type Server struct {
 	hub        *websocket.Hub
 	rdb        *cache.Redis
 	logger     *logging.Logger
+	alertEng   handlers.AlertProcessor
 	httpServer *http.Server
 	cancel     context.CancelFunc
 }
@@ -46,6 +47,10 @@ type ServerOption func(*Server)
 
 func WithRedis(rdb *cache.Redis) ServerOption {
 	return func(s *Server) { s.rdb = rdb }
+}
+
+func WithAlertEngine(ap handlers.AlertProcessor) ServerOption {
+	return func(s *Server) { s.alertEng = ap }
 }
 
 func (s *Server) Start() error {
@@ -105,7 +110,7 @@ func (s *Server) Start() error {
 	// Handlers
 	health := handlers.NewHealthHandler(s.db)
 	authH := handlers.NewAuthHandler(s.db, s.cfg)
-	device := handlers.NewDeviceHandler(s.db)
+	device := handlers.NewDeviceHandler(s.db).WithAlertEngine(s.alertEng)
 	metric := handlers.NewMetricHandler(s.db)
 	alert := handlers.NewAlertHandler(s.db)
 	flow := handlers.NewFlowHandler(s.db)

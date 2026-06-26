@@ -410,7 +410,7 @@ export default function AIHealth() {
             </span>
             <span className="text-xs uppercase tracking-wide font-bold">
               {networkTrend.trend}
-              {networkTrend.delta !== 0 && ` (${networkTrend.delta > 0 ? '+' : ''}${networkTrend.delta})`}
+              {networkTrend.delta !== 0 && ` (${networkTrend.delta > 0 ? '+' : ''}${Number(networkTrend.delta.toFixed(2))})`}
             </span>
           </div>
           <p className="text-[10px] text-on-surface-variant uppercase tracking-wide mt-2">

@@ -110,7 +110,7 @@ func evaluateStateChange(condition models.AlertRuleCondition, metric *models.Met
 		}
 
 	case "port_state":
-		result.ActualValue = 1
+		result.ActualValue = 0
 		result.Threshold = 0
 		if metric.Details != nil {
 			if changes, ok := metric.Details["port_changes"]; ok {

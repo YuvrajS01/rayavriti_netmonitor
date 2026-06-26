@@ -567,8 +567,8 @@ func TestDeviceScanPorts(t *testing.T) {
 		getDeviceFn: func(ctx context.Context, id int64) (*models.Device, error) {
 			return &models.Device{ID: 1, Name: "Server", IPAddress: "127.0.0.1"}, nil
 		},
-		upsertPortScanResultsFn: func(ctx context.Context, deviceID int64, results []models.PortScanResult) error {
-			return nil
+		upsertPortScanResultsFn: func(ctx context.Context, deviceID int64, results []models.PortScanResult) (int, error) {
+			return 0, nil
 		},
 	}
 	h := NewDeviceHandler(db)
@@ -608,8 +608,8 @@ func TestDeviceScanPorts_DefaultPorts(t *testing.T) {
 		getDeviceFn: func(ctx context.Context, id int64) (*models.Device, error) {
 			return &models.Device{ID: 1, Name: "Server", IPAddress: "127.0.0.1"}, nil
 		},
-		upsertPortScanResultsFn: func(ctx context.Context, deviceID int64, results []models.PortScanResult) error {
-			return nil
+		upsertPortScanResultsFn: func(ctx context.Context, deviceID int64, results []models.PortScanResult) (int, error) {
+			return 0, nil
 		},
 	}
 	h := NewDeviceHandler(db)
@@ -625,8 +625,8 @@ func TestDeviceScanPorts_EmptyBody(t *testing.T) {
 		getDeviceFn: func(ctx context.Context, id int64) (*models.Device, error) {
 			return &models.Device{ID: 1, Name: "Server", IPAddress: "127.0.0.1"}, nil
 		},
-		upsertPortScanResultsFn: func(ctx context.Context, deviceID int64, results []models.PortScanResult) error {
-			return nil
+		upsertPortScanResultsFn: func(ctx context.Context, deviceID int64, results []models.PortScanResult) (int, error) {
+			return 0, nil
 		},
 	}
 	h := NewDeviceHandler(db)

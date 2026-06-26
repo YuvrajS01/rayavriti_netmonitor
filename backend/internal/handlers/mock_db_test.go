@@ -91,7 +91,7 @@ type mockDB struct {
 	stopCaptureSessionFn        func(ctx context.Context, id int64, stats models.CaptureSessionStats) error
 	insertCapturePacketFn       func(ctx context.Context, sessionID int64, p *models.CapturePacket) error
 	getCapturePacketsFn         func(ctx context.Context, sessionID int64, limit, offset int) ([]models.CapturePacket, error)
-	upsertPortScanResultsFn     func(ctx context.Context, deviceID int64, results []models.PortScanResult) error
+	upsertPortScanResultsFn     func(ctx context.Context, deviceID int64, results []models.PortScanResult) (int, error)
 	getPortScanResultsFn        func(ctx context.Context, deviceID int64) ([]models.PortScanResult, error)
 	getDashboardsFn             func(ctx context.Context, userID int64) ([]models.Dashboard, error)
 	getDashboardFn              func(ctx context.Context, id int64) (*models.Dashboard, error)
@@ -673,11 +673,11 @@ func (m *mockDB) GetCapturePackets(ctx context.Context, sessionID int64, limit, 
 	return nil, nil
 }
 
-func (m *mockDB) UpsertPortScanResults(ctx context.Context, deviceID int64, results []models.PortScanResult) error {
+func (m *mockDB) UpsertPortScanResults(ctx context.Context, deviceID int64, results []models.PortScanResult) (int, error) {
 	if m.upsertPortScanResultsFn != nil {
 		return m.upsertPortScanResultsFn(ctx, deviceID, results)
 	}
-	return nil
+	return 0, nil
 }
 
 func (m *mockDB) GetPortScanResults(ctx context.Context, deviceID int64) ([]models.PortScanResult, error) {

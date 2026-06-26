@@ -163,7 +163,7 @@ type Database interface {
 	GetCapturePackets(ctx context.Context, sessionID int64, limit, offset int) ([]models.CapturePacket, error)
 
 	// Port Scans
-	UpsertPortScanResults(ctx context.Context, deviceID int64, results []models.PortScanResult) error
+	UpsertPortScanResults(ctx context.Context, deviceID int64, results []models.PortScanResult) (int, error)
 	GetPortScanResults(ctx context.Context, deviceID int64) ([]models.PortScanResult, error)
 
 	// Dashboards

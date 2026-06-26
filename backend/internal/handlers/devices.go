@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -16,7 +17,14 @@ import (
 	"github.com/rayavriti/netmonitor-backend/internal/scanner"
 )
 
-type DeviceHandler struct{ db database.Database }
+type AlertProcessor interface {
+	ProcessMetric(ctx context.Context, device *models.Device, metric *models.Metric, previousStatus string) error
+}
+
+type DeviceHandler struct {
+	db       database.Database
+	alertEng AlertProcessor
+}
 
 func normalizeHost(raw string) string {
 	h := strings.TrimSpace(raw)
@@ -30,6 +38,11 @@ func normalizeHost(raw string) string {
 }
 
 func NewDeviceHandler(db database.Database) *DeviceHandler { return &DeviceHandler{db: db} }
+
+func (h *DeviceHandler) WithAlertEngine(ap AlertProcessor) *DeviceHandler {
+	h.alertEng = ap
+	return h
+}
 
 func (h *DeviceHandler) List(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
@@ -323,8 +336,27 @@ func (h *DeviceHandler) ScanPorts(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	if err := h.db.UpsertPortScanResults(r.Context(), device.ID, modelResults); err != nil {
+	changes, err := h.db.UpsertPortScanResults(r.Context(), device.ID, modelResults)
+	if err != nil {
 		slog.Error("Failed to persist port scan results", "device_id", device.ID, "error", err)
+	}
+
+	if changes > 0 && h.alertEng != nil {
+		var previousStatus string
+		if latest, err := h.db.GetLatestMetricForDevice(r.Context(), device.ID); err == nil && latest != nil {
+			previousStatus = latest.Status
+		}
+		metric := &models.Metric{
+			DeviceID:   device.ID,
+			DeviceName: device.Name,
+			Protocol:   device.Protocol,
+			Timestamp:  time.Now(),
+			Status:     "ok",
+			Details:    map[string]any{"port_changes": float64(changes)},
+		}
+		if err := h.alertEng.ProcessMetric(r.Context(), device, metric, previousStatus); err != nil {
+			slog.Warn("Alert evaluation failed after port scan", "device_id", device.ID, "error", err)
+		}
 	}
 
 	httputil.SendOK(w, map[string]any{
@@ -334,7 +366,7 @@ func (h *DeviceHandler) ScanPorts(w http.ResponseWriter, r *http.Request) {
 		"scannedPorts": len(portsToScan),
 		"openPorts":    len(openPorts),
 		"results":      modelResults,
-		"changes":      []string{},
+		"changes":      changes,
 		"scannedAt":    time.Now().Format(time.RFC3339),
 	})
 }
