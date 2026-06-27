@@ -50,10 +50,13 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const isAuth = useSelector((s: RootState) => s.auth.isAuthenticated);
   const dispatch = useDispatch();
   const sessionCheckedRef = useRef(false);
-  const [checking, setChecking] = useState(!sessionCheckedRef.current);
+  const [checking, setChecking] = useState(true);
 
   useEffect(() => {
-    if (!isAuth || sessionCheckedRef.current) return;
+    if (!isAuth || sessionCheckedRef.current) {
+      setChecking(false);
+      return;
+    }
     api.get('/auth/me')
       .then(() => {
         sessionCheckedRef.current = true;

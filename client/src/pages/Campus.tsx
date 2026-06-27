@@ -41,6 +41,7 @@ export default function Campus() {
       }
       setLoading(false);
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Enrich locations with device counts and status from the device list.

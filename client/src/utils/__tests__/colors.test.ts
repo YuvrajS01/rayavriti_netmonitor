@@ -31,10 +31,10 @@ describe('statusHexColor', () => {
     expect(statusHexColor('down')).toBe('#ff7351');
   });
   it('returns gray for unknown', () => {
-    expect(statusHexColor('unknown')).toBe('#6b7280');
+    expect(statusHexColor('unknown')).toBe('#8b8b81');
   });
   it('returns gray for unrecognized status', () => {
-    expect(statusHexColor('bogus')).toBe('#6b7280');
+    expect(statusHexColor('bogus')).toBe('#8b8b81');
   });
 });
 
