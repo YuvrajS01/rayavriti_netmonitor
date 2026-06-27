@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState, useRef } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import ErrorBoundary from './components/ErrorBoundary';
 import { Provider, useSelector, useDispatch } from 'react-redux';
@@ -46,18 +46,17 @@ function PageLoader() {
   );
 }
 
-let sessionChecked = false;
-
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const isAuth = useSelector((s: RootState) => s.auth.isAuthenticated);
   const dispatch = useDispatch();
-  const [checking, setChecking] = useState(!sessionChecked);
+  const sessionCheckedRef = useRef(false);
+  const [checking, setChecking] = useState(!sessionCheckedRef.current);
 
   useEffect(() => {
-    if (!isAuth || sessionChecked) return;
+    if (!isAuth || sessionCheckedRef.current) return;
     api.get('/auth/me')
       .then(() => {
-        sessionChecked = true;
+        sessionCheckedRef.current = true;
         return api.get('/auth/permissions').catch(() => null);
       })
       .then((res) => {
@@ -66,7 +65,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
         if (perms) dispatch(setPermissions(perms));
       })
       .catch(() => {
-        sessionChecked = true;
+        sessionCheckedRef.current = true;
         dispatch(clearCredentials());
       })
       .finally(() => setChecking(false));

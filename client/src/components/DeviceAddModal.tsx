@@ -1,4 +1,4 @@
-import { useState, useEffect, type FormEvent } from 'react';
+import { useState, useEffect, useRef, type FormEvent } from 'react';
 import { addDevice } from '../api/client';
 import { listPhase2, type Phase2Row } from '../api/phase2';
 import Button from './ui/Button';
@@ -19,6 +19,37 @@ export default function DeviceAddModal({ open, onClose, onAdded }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [locations, setLocations] = useState<Phase2Row[]>([]);
+  const dialogRef = useRef<HTMLDivElement>(null);
+
+  // Focus trap
+  useEffect(() => {
+    if (!open || !dialogRef.current) return;
+    const dialog = dialogRef.current;
+    const focusableElements = dialog.querySelectorAll<HTMLElement>(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    );
+    const firstElement = focusableElements[0];
+    const lastElement = focusableElements[focusableElements.length - 1];
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab') return;
+      if (e.shiftKey) {
+        if (document.activeElement === firstElement) {
+          e.preventDefault();
+          lastElement.focus();
+        }
+      } else {
+        if (document.activeElement === lastElement) {
+          e.preventDefault();
+          firstElement.focus();
+        }
+      }
+    };
+
+    dialog.addEventListener('keydown', handleKeyDown);
+    firstElement?.focus();
+    return () => dialog.removeEventListener('keydown', handleKeyDown);
+  }, [open]);
 
   useEffect(() => {
     if (open) {
@@ -79,7 +110,7 @@ export default function DeviceAddModal({ open, onClose, onAdded }: Props) {
   return (
     <div className="fixed inset-0 z-[90] flex items-center justify-center p-4 pt-20" role="dialog" aria-modal="true" aria-label="Add new device">
       <div className="absolute inset-0 bg-black/60 " onClick={onClose} />
-      <div className="relative bg-surface-container-low rounded-lg border border-outline-variant/20 w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col">
+      <div ref={dialogRef} className="relative bg-surface-container-low rounded-lg border border-outline-variant/20 w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col">
         <div className="flex items-center justify-between p-6 border-b border-outline-variant/20 shrink-0">
           <div>
             <h2 className="font-headline text-xl font-bold text-on-surface uppercase tracking-wide">New Device</h2>
