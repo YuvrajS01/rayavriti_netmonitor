@@ -123,21 +123,22 @@ export default function DeviceAddModal({ open, onClose, onAdded }: Props) {
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4 flex-1 min-h-0 overflow-y-auto">
           <div>
-            <label className="block text-[10px] font-bold uppercase tracking-wide text-on-surface-variant mb-1.5">Device Name *</label>
-            <input name="name" required placeholder="e.g. Core Router 01" className={`${inputClass} w-full ${borderClass('name')}`} />
+            <label htmlFor="device-name" className="block text-[10px] font-bold uppercase tracking-wide text-on-surface-variant mb-1.5">Device Name *</label>
+            <input id="device-name" name="name" required placeholder="e.g. Core Router 01" className={`${inputClass} w-full ${borderClass('name')}`} />
             {errors.name && <p className="text-error text-[10px] mt-1">{errors.name}</p>}
           </div>
 
           <div>
-            <label className="block text-[10px] font-bold uppercase tracking-wide text-on-surface-variant mb-1.5">Host / IP Address *</label>
-            <input name="host" required placeholder="e.g. 192.168.1.1 or example.com" className={`${inputClass} w-full ${borderClass('host')}`} />
+            <label htmlFor="device-host" className="block text-[10px] font-bold uppercase tracking-wide text-on-surface-variant mb-1.5">Host / IP Address *</label>
+            <input id="device-host" name="host" required placeholder="e.g. 192.168.1.1 or example.com" className={`${inputClass} w-full ${borderClass('host')}`} />
             {errors.host && <p className="text-error text-[10px] mt-1">{errors.host}</p>}
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-[10px] font-bold uppercase tracking-wide text-on-surface-variant mb-1.5">Protocol</label>
+              <label htmlFor="device-protocol" className="block text-[10px] font-bold uppercase tracking-wide text-on-surface-variant mb-1.5">Protocol</label>
               <select
+                id="device-protocol"
                 name="protocol"
                 value={protocol}
                 onChange={(e) => {
@@ -160,10 +161,11 @@ export default function DeviceAddModal({ open, onClose, onAdded }: Props) {
               </select>
             </div>
             <div>
-              <label className="block text-[10px] font-bold uppercase tracking-wide text-on-surface-variant mb-1.5">Port</label>
+              <label htmlFor="device-port" className="block text-[10px] font-bold uppercase tracking-wide text-on-surface-variant mb-1.5">Port</label>
               {['https', 'http', 'snmp', 'port'].includes(protocol) ? (
                 <>
                   <input
+                    id="device-port"
                     name="port"
                     type="number"
                     min="1"
@@ -185,8 +187,9 @@ export default function DeviceAddModal({ open, onClose, onAdded }: Props) {
           {protocol === 'snmp' && (
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wide text-on-surface-variant mb-1.5">SNMP Community</label>
+                <label htmlFor="device-snmp-community" className="block text-[10px] font-bold uppercase tracking-wide text-on-surface-variant mb-1.5">SNMP Community</label>
                 <input
+                  id="device-snmp-community"
                   value={snmpCommunity}
                   onChange={(e) => setSnmpCommunity(e.target.value)}
                   placeholder="Community string"
@@ -194,8 +197,8 @@ export default function DeviceAddModal({ open, onClose, onAdded }: Props) {
                 />
               </div>
               <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wide text-on-surface-variant mb-1.5">SNMP Version</label>
-                <select value={snmpVersion} onChange={(e) => setSnmpVersion(e.target.value)} className={`${inputClass} w-full cursor-pointer`}>
+                <label htmlFor="device-snmp-version" className="block text-[10px] font-bold uppercase tracking-wide text-on-surface-variant mb-1.5">SNMP Version</label>
+                <select id="device-snmp-version" value={snmpVersion} onChange={(e) => setSnmpVersion(e.target.value)} className={`${inputClass} w-full cursor-pointer`}>
                   <option value="2c">v2c</option>
                   <option value="1">v1</option>
                 </select>
@@ -204,14 +207,14 @@ export default function DeviceAddModal({ open, onClose, onAdded }: Props) {
           )}
 
           <div>
-            <label className="block text-[10px] font-bold uppercase tracking-wide text-on-surface-variant mb-1.5">Check Interval (seconds)</label>
-            <input name="interval" type="number" min="10" defaultValue={60} className={`${inputClass} w-full`} />
+            <label htmlFor="device-interval" className="block text-[10px] font-bold uppercase tracking-wide text-on-surface-variant mb-1.5">Check Interval (seconds)</label>
+            <input id="device-interval" name="interval" type="number" min="10" defaultValue={60} className={`${inputClass} w-full`} />
           </div>
 
           {locations.length > 0 && (
             <div>
-              <label className="block text-[10px] font-bold uppercase tracking-wide text-on-surface-variant mb-1.5">Location</label>
-              <select name="locationId" defaultValue="" className={`${inputClass} w-full cursor-pointer`}>
+              <label htmlFor="device-location" className="block text-[10px] font-bold uppercase tracking-wide text-on-surface-variant mb-1.5">Location</label>
+              <select id="device-location" name="locationId" defaultValue="" className={`${inputClass} w-full cursor-pointer`}>
                 <option value="">Unassigned</option>
                 {locations.map((loc) => (
                   <option key={Number(loc.id)} value={String(loc.id)}>

@@ -16,14 +16,14 @@ function SmartInsightsInner({ insights }: Props) {
           {insights?.generatedAt ? new Date(insights.generatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Pending'}
         </span>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div role="list" className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {healthArray.slice(0, 4).map((item, idx) => {
           const isCritical = item.score < 40;
           const isWarn = item.score < 70;
           const color = isCritical ? 'text-error' : isWarn ? 'text-warning' : 'text-primary';
           const bg = isCritical ? 'bg-error/10 border-error/25' : isWarn ? 'bg-warning/10 border-warning/25' : 'bg-primary/10 border-primary/25';
           return (
-            <div key={`${item.deviceId}-${idx}`} className={`rounded-lg border ${bg} p-3 flex gap-3 min-h-24`}>
+            <div role="listitem" key={`${item.deviceId}-${idx}`} className={`rounded-lg border ${bg} p-3 flex gap-3 min-h-24`}>
               <span className={`material-symbols-outlined ${color} text-lg mt-0.5`}>{isCritical ? 'error' : isWarn ? 'warning' : 'tips_and_updates'}</span>
               <div className="min-w-0">
                 <p className={`text-xs font-bold uppercase tracking-wide ${color}`}>{item.deviceName}</p>

@@ -16,12 +16,12 @@ function AiHealthScoreInner({ networkHealth, insights }: Props) {
     <div className="bg-surface-container-high rounded-lg p-5 border border-outline-variant/20 flex flex-col items-center justify-center">
       <p className="text-xs text-on-surface-variant uppercase tracking-wide mb-3">AI Health Score</p>
       <div className="relative inline-flex items-center justify-center" style={{ width: 120, height: 120 }}>
-        <svg width={120} height={120} className="transform -rotate-90">
-          <circle cx={60} cy={60} r={52} fill="none" stroke="#26261d" strokeWidth={8} />
+        <svg width={120} height={120} className="transform -rotate-90" role="img" aria-label={`Health score: ${networkHealth.toFixed(0)}%`}>
+          <circle cx={60} cy={60} r={52} fill="none" stroke="var(--color-surface-container-highest)" strokeWidth={8} />
           <circle
             cx={60} cy={60} r={52}
             fill="none"
-            stroke={networkHealth < 55 ? '#ff7351' : networkHealth < 75 ? '#e5a910' : '#d9fd3a'}
+            stroke={networkHealth < 55 ? 'var(--color-error)' : networkHealth < 75 ? 'var(--color-warning)' : 'var(--color-primary)'}
             strokeWidth={8}
             strokeLinecap="round"
             strokeDasharray={2 * Math.PI * 52}

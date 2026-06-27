@@ -19,7 +19,10 @@ interface TrafficPoint {
 function parseMetricMessage(details?: Record<string, unknown> | null): MetricMessagePayload | null {
   if (!details) return null;
   try {
-    return details as unknown as MetricMessagePayload;
+    if (typeof details === 'object' && details !== null && 'interfaces' in details) {
+      return details as unknown as MetricMessagePayload;
+    }
+    return null;
   } catch {
     return null;
   }

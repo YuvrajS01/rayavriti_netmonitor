@@ -138,6 +138,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   });
 
   useEffect(() => {
+    const main = document.getElementById('main-content');
+    if (main) main.focus();
+  }, [location.pathname]);
+
+  useEffect(() => {
     const handleResize = () => {
       if (window.innerWidth < 1024) setSidebarOpen(false);
     };
@@ -207,6 +212,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           className={`bg-surface-container-low h-[calc(100vh-64px)] w-64 border-r border-surface-container-high/30 fixed left-0 top-16 flex flex-col z-40 transition-transform duration-300 ${
             sidebarOpen ? 'translate-x-0' : '-translate-x-full'
           }`}
+          aria-hidden={!sidebarOpen}
+          inert={!sidebarOpen || undefined}
         >
           <div className="px-5 py-4">
             <span className="font-headline text-primary font-bold text-base tracking-wide">

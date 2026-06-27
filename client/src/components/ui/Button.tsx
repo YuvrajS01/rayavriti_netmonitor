@@ -21,7 +21,7 @@ export default function Button({ variant = 'primary', children, icon, className 
   return (
     <button
       className={[
-        'font-headline font-bold text-sm uppercase tracking-wide rounded-md px-5 py-2.5 transition-[background-color,color,border-color]',
+        'font-headline font-bold text-sm uppercase tracking-wide rounded-md px-5 py-2.5 min-h-11 min-w-11 transition-[background-color,color,border-color]',
         VARIANT_CLASSES[variant],
         className,
       ].filter(Boolean).join(' ')}
