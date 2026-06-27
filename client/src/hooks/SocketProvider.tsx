@@ -103,7 +103,18 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     connect();
 
+    const handleBeforeUnload = () => {
+      isCleanClose.current = true;
+      clearTimers();
+      if (wsRef.current) {
+        wsRef.current.close(1000, 'beforeunload');
+        wsRef.current = null;
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
     return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
       isCleanClose.current = true;
       clearTimers();
       if (wsRef.current) {

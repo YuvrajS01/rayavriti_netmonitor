@@ -1,6 +1,7 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { v1, wrap } from '../api/http';
 import { useSocket } from '../hooks/useSocket';
+import { useAsyncEffect } from '../hooks/useAsyncEffect';
 import SectionHeader from '../components/ui/SectionHeader';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
@@ -45,26 +46,22 @@ export default function ISP() {
   const [deleteTarget, setDeleteTarget] = useState<ISPLink | null>(null);
   const [selectedLink, setSelectedLink] = useState<ISPLink | null>(null);
 
-  useEffect(() => {
-    let active = true;
-    (async () => {
-      setLoading(true);
-      try {
-        const [linksRes, compRes] = await Promise.all([
-          v1.get('/isp-links'),
-          v1.get('/isp-links/comparison').catch(() => ({ data: null })),
-        ]);
-        if (active) setLinks(wrap<ISPLink[]>(linksRes.data).data || []);
-        if (active && compRes.data) setComparison(wrap<ISPComparison>(compRes.data).data);
-      } catch {
-        if (active) {
-          setLinks([]);
-          setComparison(null);
-        }
+  useAsyncEffect(async (signal) => {
+    setLoading(true);
+    try {
+      const [linksRes, compRes] = await Promise.all([
+        v1.get('/isp-links'),
+        v1.get('/isp-links/comparison').catch(() => ({ data: null })),
+      ]);
+      if (!signal.aborted) setLinks(wrap<ISPLink[]>(linksRes.data).data || []);
+      if (!signal.aborted && compRes.data) setComparison(wrap<ISPComparison>(compRes.data).data);
+    } catch {
+      if (!signal.aborted) {
+        setLinks([]);
+        setComparison(null);
       }
-      if (active) setLoading(false);
-    })();
-    return () => { active = false; };
+    }
+    if (!signal.aborted) setLoading(false);
   }, []);
 
   const load = async () => {

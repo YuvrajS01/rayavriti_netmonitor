@@ -34,9 +34,9 @@ function buildDonutData(metrics: Metric[]): DonutSlice[] {
 
 function DonutCenter({ cx, cy, total }: { cx: number; cy: number; total: number }) {
   return (
-    <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle" fill="#f4f1e6">
+    <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle" fill="currentColor" className="text-on-surface">
       <tspan x={cx} dy="-0.4em" fontSize="22" fontWeight="bold" fontFamily="'Space Grotesk', sans-serif">{total}</tspan>
-      <tspan x={cx} dy="1.4em" fontSize="10" fill="#77766d" fontFamily="'Space Grotesk', sans-serif">DEVICES</tspan>
+      <tspan x={cx} dy="1.4em" fontSize="10" className="text-on-surface-variant" fontFamily="'Space Grotesk', sans-serif">DEVICES</tspan>
     </text>
   );
 }

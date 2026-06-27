@@ -234,8 +234,8 @@ func (m *mockDB) InsertCapturePacket(ctx context.Context, sessionID int64, p *mo
 func (m *mockDB) GetCapturePackets(ctx context.Context, sessionID int64, limit, offset int) ([]models.CapturePacket, error) {
 	return nil, nil
 }
-func (m *mockDB) UpsertPortScanResults(ctx context.Context, deviceID int64, results []models.PortScanResult) error {
-	return nil
+func (m *mockDB) UpsertPortScanResults(ctx context.Context, deviceID int64, results []models.PortScanResult) (int, error) {
+	return 0, nil
 }
 func (m *mockDB) GetPortScanResults(ctx context.Context, deviceID int64) ([]models.PortScanResult, error) {
 	return nil, nil

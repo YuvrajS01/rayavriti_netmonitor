@@ -123,7 +123,7 @@ function TreeItem({
   const devCount = showDeviceCount ? Number(node.device_count ?? 0) : 0;
 
   return (
-    <li>
+    <li role="treeitem" aria-expanded={hasChildren ? expanded : undefined} aria-selected={isSelected}>
       <div
         role="button"
         tabIndex={0}
@@ -198,7 +198,7 @@ function TreeItem({
             opacity: expanded ? 1 : 0,
           }}
         >
-          <ul>
+          <ul role="group">
             {node._children.map((child) => (
               <TreeItem
                 key={Number(child.id)}
@@ -290,7 +290,7 @@ export default function LocationTree({
           </p>
         </div>
       ) : (
-        <ul className="flex-1 overflow-y-auto space-y-0.5">
+        <ul role="tree" className="flex-1 overflow-y-auto space-y-0.5">
           {filtered.map((node) => (
             <TreeItem
               key={Number(node.id)}

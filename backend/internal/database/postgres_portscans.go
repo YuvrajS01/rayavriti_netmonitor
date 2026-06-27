@@ -2,6 +2,7 @@ package database
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/rayavriti/netmonitor-backend/internal/models"
@@ -9,9 +10,23 @@ import (
 
 // ── Port Scans ───────────────────────────────────────────────────────────────
 
-func (p *Postgres) UpsertPortScanResults(ctx context.Context, deviceID int64, results []models.PortScanResult) error {
+func (p *Postgres) UpsertPortScanResults(ctx context.Context, deviceID int64, results []models.PortScanResult) (int, error) {
 	if len(results) == 0 {
-		return nil
+		return 0, nil
+	}
+
+	// Fetch current states so we can count actual changes
+	oldStates := make(map[string]string)
+	rows, err := p.pool.Query(ctx, `SELECT port, protocol, state FROM port_scan_results WHERE device_id=$1`, deviceID)
+	if err == nil {
+		defer rows.Close()
+		for rows.Next() {
+			var port int
+			var protocol, state string
+			if err := rows.Scan(&port, &protocol, &state); err == nil {
+				oldStates[fmt.Sprintf("%d:%s", port, protocol)] = state
+			}
+		}
 	}
 
 	batch := &pgx.Batch{}
@@ -34,7 +49,19 @@ func (p *Postgres) UpsertPortScanResults(ctx context.Context, deviceID int64, re
 	}
 
 	br := p.pool.SendBatch(ctx, batch)
-	return br.Close()
+	if err := br.Close(); err != nil {
+		return 0, err
+	}
+
+	changes := 0
+	for _, r := range results {
+		key := fmt.Sprintf("%d:%s", r.Port, r.Protocol)
+		oldState, exists := oldStates[key]
+		if !exists || oldState != r.State {
+			changes++
+		}
+	}
+	return changes, nil
 }
 
 func (p *Postgres) GetPortScanResults(ctx context.Context, deviceID int64) ([]models.PortScanResult, error) {
