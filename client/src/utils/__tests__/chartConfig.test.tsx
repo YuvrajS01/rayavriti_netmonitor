@@ -23,7 +23,7 @@ describe('DEVICE_COLORS', () => {
     expect(DEVICE_COLORS.length).toBeGreaterThanOrEqual(6);
   });
   it('starts with primary', () => {
-    expect(DEVICE_COLORS[0]).toBe('var(--color-primary)');
+    expect(DEVICE_COLORS[0]).toBe('var(--color-chart-1)');
   });
 });
 
@@ -35,9 +35,9 @@ describe('CHART_COLORS', () => {
 
 describe('PROTOCOL_COLORS', () => {
   it('maps TCP, UDP, ICMP', () => {
-    expect(PROTOCOL_COLORS.TCP).toBe('var(--color-info)');
-    expect(PROTOCOL_COLORS.UDP).toBe('var(--color-primary)');
-    expect(PROTOCOL_COLORS.ICMP).toBe('var(--color-warning)');
+    expect(PROTOCOL_COLORS.TCP).toBe('var(--color-chart-2)');
+    expect(PROTOCOL_COLORS.UDP).toBe('var(--color-chart-1)');
+    expect(PROTOCOL_COLORS.ICMP).toBe('var(--color-chart-4)');
   });
 });
 

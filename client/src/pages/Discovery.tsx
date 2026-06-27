@@ -1,5 +1,6 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { v1, wrap } from '../api/http';
+import { useAsyncEffect } from '../hooks/useAsyncEffect';
 import SectionHeader from '../components/ui/SectionHeader';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
@@ -65,19 +66,15 @@ export default function Discovery() {
     setResults(wrap<DiscoveryResult[]>(res.data).data || []);
   };
 
-  useEffect(() => {
-    let active = true;
-    (async () => {
-      setLoading(true);
-      try {
-        const res = await v1.get('/discovery/jobs');
-        if (active) setJobs(wrap<DiscoveryJob[]>(res.data).data || []);
-      } catch {
-        if (active) setJobs([]);
-      }
-      if (active) setLoading(false);
-    })();
-    return () => { active = false; };
+  useAsyncEffect(async (signal) => {
+    setLoading(true);
+    try {
+      const res = await v1.get('/discovery/jobs');
+      if (!signal.aborted) setJobs(wrap<DiscoveryJob[]>(res.data).data || []);
+    } catch {
+      if (!signal.aborted) setJobs([]);
+    }
+    if (!signal.aborted) setLoading(false);
   }, []);
 
   const load = async () => {

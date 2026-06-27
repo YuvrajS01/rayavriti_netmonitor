@@ -1,20 +1,19 @@
-import { useState, useCallback, type ReactNode } from 'react';
+import { useState, useCallback, useRef, type ReactNode } from 'react';
 import { ToastContext, type ToastContextValue } from './useToast';
 import type { Toast } from './useToast';
 
 export type { Toast };
 
-let nextId = 0;
-
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const nextIdRef = useRef(0);
 
   const removeToast = useCallback((id: number) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
   const addToast = useCallback((message: string, type: Toast['type'] = 'info') => {
-    const id = ++nextId;
+    const id = ++nextIdRef.current;
     setToasts((prev) => [...prev, { id, message, type }]);
     setTimeout(() => removeToast(id), 4000);
   }, [removeToast]);
