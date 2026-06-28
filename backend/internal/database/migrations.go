@@ -930,4 +930,16 @@ var migrations = []string{
 	ALTER TABLE discovery_results ADD COLUMN IF NOT EXISTS snmp_sys_object_id TEXT;
 
 	UPDATE locations SET metadata = '{}' WHERE metadata IS NULL;`,
+
+	// V35: Add new RBAC permissions to system roles
+	`UPDATE roles SET permissions = '["*"]' WHERE name = 'super_admin' AND is_system = TRUE;
+
+	UPDATE roles SET permissions = '["devices.read","devices.write","devices.delete","alerts.read","alerts.create","alerts.acknowledge","alerts.resolve","alert_rules.write","incidents.write","maintenance.write","contacts.write","notifications.manage","reports.read","reports.write","import.execute","discovery.execute","capture.execute","status_page.manage","sla.manage","system.monitoring"]'
+	WHERE name = 'network_admin' AND is_system = TRUE;
+
+	UPDATE roles SET permissions = '["devices.read","alerts.read","alerts.create","alerts.acknowledge","incidents.write","reports.read"]'
+	WHERE name = 'dept_admin' AND is_system = TRUE;
+
+	UPDATE roles SET permissions = '["devices.read","alerts.read"]'
+	WHERE name = 'viewer' AND is_system = TRUE;`,
 }

@@ -237,31 +237,111 @@ func parseID(s string) (int64, error) {
 	return id, nil
 }
 
+func (h *AuthHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Username    string `json:"username"`
+		Password    string `json:"password"`
+		Role        string `json:"role"`
+		DisplayName string `json:"displayName"`
+		Email       string `json:"email"`
+		Phone       string `json:"phone"`
+		Enabled     *bool  `json:"enabled"`
+	}
+	if err := httputil.ParseJSON(r, &body); err != nil {
+		httputil.SendError(w, http.StatusBadRequest, "invalid body")
+		return
+	}
+	if body.Username == "" || body.Password == "" {
+		httputil.SendError(w, http.StatusBadRequest, "username and password are required")
+		return
+	}
+	existing, _ := h.db.GetUserByUsername(r.Context(), body.Username)
+	if existing != nil {
+		httputil.SendError(w, http.StatusConflict, "username already exists")
+		return
+	}
+	hash, err := auth.HashPassword(body.Password)
+	if err != nil {
+		httputil.SendError(w, http.StatusInternalServerError, "password hashing failed")
+		return
+	}
+	role := body.Role
+	if role == "" {
+		role = "viewer"
+	}
+	enabled := true
+	if body.Enabled != nil {
+		enabled = *body.Enabled
+	}
+	user, err := h.db.CreateUser(r.Context(), &models.User{
+		Username:     body.Username,
+		PasswordHash: hash,
+		Role:         role,
+		DisplayName:  body.DisplayName,
+		Email:        body.Email,
+		Phone:        body.Phone,
+		Enabled:      enabled,
+	})
+	if err != nil {
+		httputil.SendError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	httputil.SendCreated(w, user)
+}
+
+func (h *AuthHandler) DeleteUser(w http.ResponseWriter, r *http.Request) {
+	id, err := parseID(chi.URLParam(r, "id"))
+	if err != nil {
+		httputil.SendError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	claims := auth.GetClaims(r.Context())
+	if claims != nil && claims.UserID == id {
+		httputil.SendError(w, http.StatusBadRequest, "cannot delete your own account")
+		return
+	}
+	user, err := h.db.GetUserByID(r.Context(), id)
+	if err != nil {
+		httputil.SendError(w, http.StatusNotFound, "user not found")
+		return
+	}
+	if user.Role == "super_admin" {
+		httputil.SendError(w, http.StatusForbidden, "cannot delete super admin")
+		return
+	}
+	if err := h.db.DeleteUser(r.Context(), id); err != nil {
+		httputil.SendError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	httputil.SendOK(w, map[string]string{"message": "deleted"})
+}
+
 // permissionsForRole returns a default permission set for the legacy role string.
 func permissionsForRole(role string) []string {
 	switch role {
 	case "super_admin", "admin":
 		return []string{
 			"devices.read", "devices.write", "devices.delete",
-			"alerts.read", "alerts.acknowledge", "alerts.resolve",
+			"alerts.read", "alerts.create", "alerts.acknowledge", "alerts.resolve",
 			"alert_rules.write", "incidents.write", "maintenance.write",
-			"contacts.write", "reports.read", "settings.write",
-			"users.manage", "import.execute", "discovery.execute",
-			"capture.execute", "status_page.manage", "system.monitoring", "system.logs",
+			"contacts.write", "notifications.manage", "reports.read", "reports.write",
+			"settings.write", "users.manage", "import.execute", "discovery.execute",
+			"capture.execute", "status_page.manage", "sla.manage",
+			"system.monitoring", "system.logs",
 		}
 	case "network_admin":
 		return []string{
 			"devices.read", "devices.write", "devices.delete",
-			"alerts.read", "alerts.acknowledge", "alerts.resolve",
+			"alerts.read", "alerts.create", "alerts.acknowledge", "alerts.resolve",
 			"alert_rules.write", "incidents.write", "maintenance.write",
-			"contacts.write", "reports.read",
+			"contacts.write", "notifications.manage", "reports.read", "reports.write",
 			"import.execute", "discovery.execute", "capture.execute",
-			"status_page.manage", "system.monitoring",
+			"status_page.manage", "sla.manage", "system.monitoring",
 		}
 	case "dept_admin":
 		return []string{
-			"devices.read", "alerts.read", "alerts.acknowledge",
-			"reports.read",
+			"devices.read", "alerts.read", "alerts.create", "alerts.acknowledge",
+			"incidents.write", "reports.read",
 		}
 	case "viewer":
 		return []string{
