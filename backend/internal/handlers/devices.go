@@ -180,7 +180,18 @@ func (h *DeviceHandler) Update(w http.ResponseWriter, r *http.Request) {
 		existing.Name = patch.Name
 	}
 	if patch.IPAddress != "" {
-		existing.IPAddress = normalizeHost(patch.IPAddress)
+		// Auto-detect protocol from pasted URL before normalizing
+		origIP := strings.TrimSpace(patch.IPAddress)
+		if strings.HasPrefix(strings.ToLower(origIP), "https://") {
+			if patch.Protocol == "" || patch.Protocol == "ping" {
+				patch.Protocol = "https"
+			}
+		} else if strings.HasPrefix(strings.ToLower(origIP), "http://") {
+			if patch.Protocol == "" || patch.Protocol == "ping" {
+				patch.Protocol = "http"
+			}
+		}
+		existing.IPAddress = normalizeHost(origIP)
 	}
 	if patch.Protocol != "" {
 		existing.Protocol = patch.Protocol
