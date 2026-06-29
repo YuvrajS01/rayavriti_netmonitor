@@ -1,8 +1,13 @@
 package rbac
 
 import (
+	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
+
+	"github.com/rayavriti/netmonitor-backend/internal/auth"
 )
 
 func TestHasPermission(t *testing.T) {
@@ -55,12 +60,98 @@ func TestParsePermissions(t *testing.T) {
 }
 
 func TestRequirePermission_BypassesForAdmin(t *testing.T) {
-	// This tests that the logic correctly identifies admin roles
-	// The actual HTTP middleware test requires more setup, but this validates the logic
 	adminRoles := []string{"super_admin", "admin"}
 	for _, role := range adminRoles {
 		if role != "super_admin" && role != "admin" {
 			t.Errorf("expected %s to be admin role", role)
 		}
+	}
+}
+
+func TestRequirePermission_HTTP(t *testing.T) {
+	noopHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"success":true}`))
+	})
+
+	tests := []struct {
+		name       string
+		role       string
+		perms      []string
+		required   string
+		wantStatus int
+	}{
+		{"admin bypasses", "admin", nil, "devices.write", http.StatusOK},
+		{"super_admin bypasses", "super_admin", nil, "devices.write", http.StatusOK},
+		{"viewer with permission", "viewer", []string{"devices.read"}, "devices.read", http.StatusOK},
+		{"viewer missing permission", "viewer", []string{"devices.read"}, "devices.write", http.StatusForbidden},
+		{"viewer empty permissions", "viewer", nil, "devices.read", http.StatusForbidden},
+		{"no claims", "", nil, "devices.read", http.StatusUnauthorized},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, "/api/test", nil)
+			if tt.role != "" || tt.perms != nil {
+				ctx := context.WithValue(req.Context(), auth.ClaimsKey, &auth.Claims{
+					UserID:      1,
+					Username:    "testuser",
+					Role:        tt.role,
+					Permissions: tt.perms,
+				})
+				req = req.WithContext(ctx)
+			}
+
+			w := httptest.NewRecorder()
+			handler := RequirePermission(tt.required)(noopHandler)
+			handler.ServeHTTP(w, req)
+
+			if w.Code != tt.wantStatus {
+				t.Errorf("status = %d, want %d, body: %s", w.Code, tt.wantStatus, w.Body.String())
+			}
+		})
+	}
+}
+
+func TestRequireAnyPermission_HTTP(t *testing.T) {
+	noopHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	tests := []struct {
+		name       string
+		role       string
+		perms      []string
+		required   []string
+		wantStatus int
+	}{
+		{"admin bypasses", "admin", nil, []string{"devices.write", "alerts.create"}, http.StatusOK},
+		{"viewer has one", "viewer", []string{"devices.read"}, []string{"devices.read", "alerts.read"}, http.StatusOK},
+		{"viewer has none", "viewer", []string{"devices.read"}, []string{"devices.write", "alerts.create"}, http.StatusForbidden},
+		{"viewer empty perms", "viewer", nil, []string{"devices.read"}, http.StatusForbidden},
+		{"no claims", "", nil, []string{"devices.read"}, http.StatusUnauthorized},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, "/api/test", nil)
+			if tt.role != "" || tt.perms != nil {
+				ctx := context.WithValue(req.Context(), auth.ClaimsKey, &auth.Claims{
+					UserID:      1,
+					Username:    "testuser",
+					Role:        tt.role,
+					Permissions: tt.perms,
+				})
+				req = req.WithContext(ctx)
+			}
+
+			w := httptest.NewRecorder()
+			handler := RequireAnyPermission(tt.required...)(noopHandler)
+			handler.ServeHTTP(w, req)
+
+			if w.Code != tt.wantStatus {
+				t.Errorf("status = %d, want %d, body: %s", w.Code, tt.wantStatus, w.Body.String())
+			}
+		})
 	}
 }

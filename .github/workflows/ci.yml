@@ -91,6 +91,13 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -163,6 +170,14 @@ jobs:
 
       - name: Build production image
         run: docker build --target production -t rayavriti-netmonitor:ci .
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: rayavriti-netmonitor:ci
+          format: table
+          exit-code: '1'
+          severity: CRITICAL,HIGH
 
   release:
     name: Publish Docker image

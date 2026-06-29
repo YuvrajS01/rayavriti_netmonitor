@@ -93,6 +93,7 @@ func (s *Server) Start() error {
 	if s.cfg.App.AppEnv == "production" {
 		r.Use(RateLimiter(ctx, 100, 200, s.rdb))
 	}
+	auditLog := logging.NewAuditLogger(s.logger)
 
 	// Auth helper
 	requireAuth := auth.RequireAuth(s.cfg.Auth.JWTSecret, func(ctx context.Context, hash string) (*auth.Claims, error) {
@@ -211,6 +212,7 @@ func (s *Server) Start() error {
 	r.Group(func(r chi.Router) {
 		r.Use(requireAuth)
 		r.Use(auth.UserRateLimiter(ctx, s.rdb))
+		r.Use(AuditLog(auditLog))
 		if pp, ok := s.db.(database.PoolProvider); ok && pp.Pool() != nil {
 			r.Use(rbac.RequireScopeContext(pp.Pool()))
 		}
@@ -239,34 +241,21 @@ func (s *Server) Start() error {
 		r.With(rbac.RequirePermission(models.PermSystemMonitoring)).Get("/api/v1/phase2/summary", phase2.Summary)
 
 		// --- Devices (devices.read / devices.write / devices.delete) ---
-		r.With(rbac.RequirePermission(models.PermDevicesRead)).Get("/api/devices", device.List)
-		r.With(rbac.RequirePermission(models.PermDevicesRead)).Get("/api/devices/{id}", device.Get)
 		r.With(rbac.RequirePermission(models.PermDevicesRead)).Get("/api/v1/devices", device.List)
 		r.With(rbac.RequirePermission(models.PermDevicesRead)).Get("/api/v1/devices/{id}", device.Get)
-		r.With(rbac.RequirePermission(models.PermDevicesWrite)).Post("/api/devices", device.Create)
-		r.With(rbac.RequirePermission(models.PermDevicesWrite)).Put("/api/devices/{id}", device.Update)
+		r.With(rbac.RequirePermission(models.PermDevicesWrite)).Post("/api/v1/devices", device.Create)
+		r.With(rbac.RequirePermission(models.PermDevicesWrite)).Put("/api/v1/devices/{id}", device.Update)
 		r.With(rbac.RequirePermission(models.PermDevicesWrite)).Put("/api/v1/devices/{id}/parent", device.Update)
-		r.With(rbac.RequirePermission(models.PermDevicesDelete)).Delete("/api/devices/{id}", device.Delete)
-		r.With(rbac.RequirePermission(models.PermDevicesRead)).Get("/api/devices/{id}/ports", ports.ForDevice)
+		r.With(rbac.RequirePermission(models.PermDevicesDelete)).Delete("/api/v1/devices/{id}", device.Delete)
 		r.With(rbac.RequirePermission(models.PermDevicesRead)).Get("/api/v1/devices/{id}/ports", ports.ForDevice)
 		r.With(rbac.RequirePermission(models.PermDevicesRead)).Get("/api/v1/devices/{deviceId}/metrics", metric.ForDevice)
-		r.With(rbac.RequirePermission(models.PermDevicesWrite)).Post("/api/devices/{id}/scan-ports", device.ScanPorts)
+		r.With(rbac.RequirePermission(models.PermDevicesWrite)).Post("/api/v1/devices/{id}/scan-ports", device.ScanPorts)
 		r.With(rbac.RequirePermission(models.PermDevicesRead)).Get("/api/v1/devices/{id}/dependencies", campusH.DeviceDependencies)
 
 		// --- Metrics (devices.read) ---
-		r.With(rbac.RequirePermission(models.PermDevicesRead)).Get("/api/metrics/latest", metric.Latest)
-		r.With(rbac.RequirePermission(models.PermDevicesRead)).Get("/api/metrics/{deviceId}", metric.ForDevice)
 		r.With(rbac.RequirePermission(models.PermDevicesRead)).Get("/api/v1/metrics/query", metric.Query)
 
 		// --- Alerts (alerts.read / alerts.create / alerts.acknowledge / alerts.resolve) ---
-		r.With(rbac.RequirePermission(models.PermAlertsRead)).Get("/api/alerts", alert.List)
-		r.With(rbac.RequirePermission(models.PermAlertsRead)).Get("/api/alerts/counts", alert.Counts)
-		r.With(rbac.RequirePermission(models.PermAlertsRead)).Get("/api/alerts/grouped", alert.Grouped)
-		r.With(rbac.RequirePermission(models.PermAlertsRead)).Get("/api/alerts/{id}", alert.Get)
-		r.With(rbac.RequirePermission(models.PermAlertsCreate)).Post("/api/alerts", alert.Create)
-		r.With(rbac.RequirePermission(models.PermAlertsAcknowledge)).Post("/api/alerts/{id}/acknowledge", alert.Acknowledge)
-		r.With(rbac.RequirePermission(models.PermAlertsResolve)).Post("/api/alerts/{id}/resolve", alert.Resolve)
-		r.With(rbac.RequirePermission(models.PermAlertsRead)).Delete("/api/alerts/{id}", alert.Delete)
 		r.With(rbac.RequirePermission(models.PermAlertsRead)).Get("/api/v1/alerts", alert.List)
 		r.With(rbac.RequirePermission(models.PermAlertsRead)).Get("/api/v1/alerts/grouped", alert.Grouped)
 		r.With(rbac.RequirePermission(models.PermAlertsRead)).Get("/api/v1/alerts/{id}", alert.Get)
@@ -280,9 +269,8 @@ func (s *Server) Start() error {
 		r.With(rbac.RequirePermission(models.PermAlertsRead)).Get("/api/v1/alerts/suppressed", phase2.List("suppressed_alerts"))
 
 		// --- Insights (devices.read) ---
-		r.With(rbac.RequirePermission(models.PermDevicesRead)).Get("/api/insights", insight.Current)
-		r.With(rbac.RequirePermission(models.PermDevicesRead)).Get("/api/insights/current", insight.Current)
-		r.With(rbac.RequirePermission(models.PermDevicesRead)).Get("/api/insights/history", insight.History)
+		r.With(rbac.RequirePermission(models.PermDevicesRead)).Get("/api/v1/insights/current", insight.Current)
+		r.With(rbac.RequirePermission(models.PermDevicesRead)).Get("/api/v1/insights/history", insight.History)
 
 		// --- Flows (devices.read) ---
 		r.With(rbac.RequirePermission(models.PermDevicesRead)).Get("/api/v1/flows", flow.List)
@@ -331,11 +319,6 @@ func (s *Server) Start() error {
 		r.With(rbac.RequirePermission(models.PermNotificationsManage)).Post("/api/v1/notification-channels/{id}/test", notifChannel.Test)
 
 		// --- Reports (reports.read / reports.write) ---
-		r.With(rbac.RequirePermission(models.PermReportsRead)).Get("/api/reports/summary", report.Summary)
-		r.With(rbac.RequirePermission(models.PermReportsRead)).Get("/api/reports/timeseries", report.Timeseries)
-		r.With(rbac.RequirePermission(models.PermReportsRead)).Get("/api/reports/devices", report.Devices)
-		r.With(rbac.RequirePermission(models.PermReportsRead)).Get("/api/reports/alerts", report.Alerts)
-		r.With(rbac.RequirePermission(models.PermReportsRead)).Get("/api/reports/export", report.Export)
 		r.With(rbac.RequirePermission(models.PermReportsRead)).Get("/api/v1/reports", report.List)
 		r.With(rbac.RequirePermission(models.PermReportsRead)).Get("/api/v1/reports/generated", reportGenH.ListGenerated)
 		r.With(rbac.RequirePermission(models.PermReportsRead)).Get("/api/v1/reports/generated/{id}/download", reportGenH.DownloadReport)
@@ -489,11 +472,6 @@ func (s *Server) Start() error {
 			r.With(rbac.RequirePermission(models.PermDevicesRead)).Get("/api/v1/service-templates/{name}", svcTmplH.GetTemplate)
 			r.With(rbac.RequirePermission(models.PermDevicesWrite)).Post("/api/v1/service-templates/apply", svcTmplH.ApplyTemplate)
 		}
-
-		// --- Device write routes (legacy, kept for backward compat) ---
-		r.With(rbac.RequirePermission(models.PermDevicesWrite)).Post("/api/v1/devices", device.Create)
-		r.With(rbac.RequirePermission(models.PermDevicesWrite)).Put("/api/v1/devices/{id}", device.Update)
-		r.With(rbac.RequirePermission(models.PermDevicesDelete)).Delete("/api/v1/devices/{id}", device.Delete)
 
 		// --- Simulator (admin only) ---
 		r.Group(func(r chi.Router) {

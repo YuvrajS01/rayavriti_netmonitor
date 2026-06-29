@@ -16,7 +16,8 @@ import (
 
 type contextKey int
 
-const claimsKey contextKey = 0
+// ClaimsKey is the context key used to store authenticated claims.
+const ClaimsKey contextKey = 0
 
 // RequireAuth validates JWT from Authorization: Bearer or X-Api-Key header.
 // apiKeyLookup is called when an X-Api-Key header is present; it should return Claims or nil.
@@ -28,7 +29,7 @@ func RequireAuth(secret string, apiKeyLookup func(ctx context.Context, hash stri
 				hash := HashAPIKey(key)
 				claims, err := apiKeyLookup(r.Context(), hash)
 				if err == nil && claims != nil {
-					next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), claimsKey, claims)))
+					next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), ClaimsKey, claims)))
 					return
 				}
 			}
@@ -43,14 +44,14 @@ func RequireAuth(secret string, apiKeyLookup func(ctx context.Context, hash stri
 				sendUnauth(w, "invalid token")
 				return
 			}
-			next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), claimsKey, claims)))
+			next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), ClaimsKey, claims)))
 		})
 	}
 }
 
 // GetClaims retrieves Claims from context (set by RequireAuth).
 func GetClaims(ctx context.Context) *Claims {
-	c, _ := ctx.Value(claimsKey).(*Claims)
+	c, _ := ctx.Value(ClaimsKey).(*Claims)
 	return c
 }
 

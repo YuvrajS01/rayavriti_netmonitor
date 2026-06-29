@@ -749,7 +749,7 @@ func TestStart_LegacyDeviceRoutes_Unauthorized(t *testing.T) {
 	go func() { errCh <- srv.Start() }()
 	time.Sleep(200 * time.Millisecond)
 
-	resp, err := http.Get(fmt.Sprintf("http://127.0.0.1:%d/api/devices", port))
+	resp, err := http.Get(fmt.Sprintf("http://127.0.0.1:%d/api/v1/devices", port))
 	require.NoError(t, err)
 	resp.Body.Close()
 	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)

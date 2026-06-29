@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"html"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -47,12 +48,47 @@ func (h *Phase2Handler) List(resource string) http.HandlerFunc {
 		filters := map[string]string{}
 		for key, vals := range r.URL.Query() {
 			if len(vals) > 0 {
-				filters[toSnakeLocal(key)] = vals[0]
+				snake := toSnakeLocal(key)
+				if snake == "cursor" || snake == "limit" || snake == "format" {
+					continue
+				}
+				filters[snake] = vals[0]
 			}
 		}
 		if !h.requireStore(w) {
 			return
 		}
+
+		cursor := r.URL.Query().Get("cursor")
+		if cursor == "" {
+			cursor = r.URL.Query().Get("Cursor")
+		}
+		limit := 100
+		if l := r.URL.Query().Get("limit"); l != "" {
+			if parsed, err := strconv.Atoi(l); err == nil && parsed > 0 {
+				limit = parsed
+			}
+		}
+		if l := r.URL.Query().Get("Limit"); l != "" {
+			if parsed, err := strconv.Atoi(l); err == nil && parsed > 0 {
+				limit = parsed
+			}
+		}
+
+		if cursor != "" || r.URL.Query().Get("cursor") != "" || r.URL.Query().Get("Cursor") != "" {
+			rows, nextCursor, hasMore, err := h.phase2.ListPhase2Cursor(r.Context(), resource, filters, cursor, limit)
+			if err != nil {
+				httputil.SendError(w, http.StatusInternalServerError, err.Error())
+				return
+			}
+			httputil.SendOK(w, map[string]any{
+				"data":        rows,
+				"next_cursor": nextCursor,
+				"has_more":    hasMore,
+			})
+			return
+		}
+
 		rows, err := h.phase2.ListPhase2(r.Context(), resource, filters)
 		if err != nil {
 			httputil.SendError(w, http.StatusInternalServerError, err.Error())
