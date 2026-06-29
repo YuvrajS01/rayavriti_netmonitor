@@ -25,10 +25,19 @@ func wsCoverageToken(t *testing.T) string {
 
 func wsCoverageConnect(t *testing.T, url string, headers http.Header) *websocket.Conn {
 	t.Helper()
+	if headers == nil {
+		headers = http.Header{}
+	}
 	dialer := websocket.Dialer{}
 	conn, _, err := dialer.Dial(url, headers)
 	require.NoError(t, err)
 	return conn
+}
+
+func wsCoverageConnectWithToken(t *testing.T, url string, token string) *websocket.Conn {
+	t.Helper()
+	headers := http.Header{"Authorization": []string{"Bearer " + token}}
+	return wsCoverageConnect(t, url, headers)
 }
 
 func wsCoverageHubWithServer(t *testing.T) (*Hub, *httptest.Server, string) {
@@ -53,8 +62,8 @@ func TestHub_Coverage_BroadcastMultipleClients(t *testing.T) {
 	hub, _, wsURL := wsCoverageHubWithServer(t)
 	token := wsCoverageToken(t)
 
-	conn1 := wsCoverageConnect(t, wsURL+"?token="+token, nil)
-	conn2 := wsCoverageConnect(t, wsURL+"?token="+token, nil)
+	conn1 := wsCoverageConnectWithToken(t, wsURL, token)
+	conn2 := wsCoverageConnectWithToken(t, wsURL, token)
 	time.Sleep(20 * time.Millisecond)
 
 	msg := Message{Type: EventMetricUpdate, Data: map[string]any{"value": 42}}
@@ -79,8 +88,8 @@ func TestHub_Coverage_MixedDeadAlive(t *testing.T) {
 	hub, _, wsURL := wsCoverageHubWithServer(t)
 	token := wsCoverageToken(t)
 
-	conn1 := wsCoverageConnect(t, wsURL+"?token="+token, nil)
-	conn2 := wsCoverageConnect(t, wsURL+"?token="+token, nil)
+	conn1 := wsCoverageConnectWithToken(t, wsURL, token)
+	conn2 := wsCoverageConnectWithToken(t, wsURL, token)
 	time.Sleep(20 * time.Millisecond)
 
 	assert.Equal(t, 2, hub.ConnectionCount())
@@ -105,7 +114,7 @@ func TestHub_Coverage_SendToClientMatchingUser(t *testing.T) {
 	hub, _, wsURL := wsCoverageHubWithServer(t)
 	token := wsCoverageToken(t)
 
-	conn := wsCoverageConnect(t, wsURL+"?token="+token, nil)
+	conn := wsCoverageConnectWithToken(t, wsURL, token)
 	time.Sleep(20 * time.Millisecond)
 
 	hub.SendToClient(1, Message{Type: EventAlertTriggered, Data: "test"})
@@ -124,7 +133,7 @@ func TestHub_Coverage_SendToClientNoMatch(t *testing.T) {
 	hub, _, wsURL := wsCoverageHubWithServer(t)
 	token := wsCoverageToken(t)
 
-	conn := wsCoverageConnect(t, wsURL+"?token="+token, nil)
+	conn := wsCoverageConnectWithToken(t, wsURL, token)
 	time.Sleep(20 * time.Millisecond)
 
 	hub.SendToClient(99999, Message{Type: EventAlertTriggered, Data: "test"})
@@ -150,7 +159,7 @@ func TestHub_Coverage_StopClosesConnections(t *testing.T) {
 	wsURL := "ws" + strings.TrimPrefix(srv.URL, "http")
 	token := wsCoverageToken(t)
 
-	conn := wsCoverageConnect(t, wsURL+"?token="+token, nil)
+	conn := wsCoverageConnectWithToken(t, wsURL, token)
 	time.Sleep(20 * time.Millisecond)
 	assert.Equal(t, 1, hub.ConnectionCount())
 
@@ -168,7 +177,7 @@ func TestHub_Coverage_StopClosesConnections(t *testing.T) {
 func TestHub_Coverage_ExtractTokenPriorityOrder(t *testing.T) {
 	t.Parallel()
 	hub := NewHub(wsCoverageSecret, nil, nil)
-	req := httptest.NewRequest("GET", "/ws?token=qs", nil)
+	req := httptest.NewRequest("GET", "/ws", nil)
 	req.Header.Set("Authorization", "Bearer hdr")
 	req.Header.Set("Sec-WebSocket-Protocol", "proto")
 	token := hub.extractToken(req)
@@ -205,10 +214,10 @@ func TestHub_Coverage_ExtractTokenEmptyProtocol(t *testing.T) {
 func TestHub_Coverage_ExtractTokenProtocolFallsToQueryParam(t *testing.T) {
 	t.Parallel()
 	hub := NewHub(wsCoverageSecret, nil, nil)
-	req := httptest.NewRequest("GET", "/ws?token=qs-token", nil)
+	req := httptest.NewRequest("GET", "/ws", nil)
 	req.Header.Set("Sec-WebSocket-Protocol", "")
 	token := hub.extractToken(req)
-	assert.Equal(t, "qs-token", token)
+	assert.Equal(t, "", token)
 }
 
 // ── Hub.ConnectionCount ───────────────────────────────────────────────────────
@@ -218,7 +227,7 @@ func TestHub_Coverage_ConnectionCountWithData(t *testing.T) {
 	hub, _, wsURL := wsCoverageHubWithServer(t)
 	token := wsCoverageToken(t)
 
-	conn := wsCoverageConnect(t, wsURL+"?token="+token, nil)
+	conn := wsCoverageConnectWithToken(t, wsURL, token)
 	time.Sleep(20 * time.Millisecond)
 
 	assert.Equal(t, 1, hub.ConnectionCount())
@@ -232,7 +241,8 @@ func TestHub_Coverage_RunUnmarshalableMessage(t *testing.T) {
 	hub, _, wsURL := wsCoverageHubWithServer(t)
 	token := wsCoverageToken(t)
 
-	conn := wsCoverageConnect(t, wsURL+"?token="+token, nil)
+	headers := http.Header{"Authorization": []string{"Bearer " + token}}
+	conn := wsCoverageConnect(t, wsURL, headers)
 	time.Sleep(20 * time.Millisecond)
 
 	type badMsg struct{ Ch chan int }
@@ -249,13 +259,14 @@ func TestHub_Coverage_ConcurrentOperations(t *testing.T) {
 	hub, _, wsURL := wsCoverageHubWithServer(t)
 	token := wsCoverageToken(t)
 
+	headers := http.Header{"Authorization": []string{"Bearer " + token}}
 	conns := make([]*websocket.Conn, 5)
 	var wg sync.WaitGroup
 	for i := 0; i < 5; i++ {
 		wg.Add(1)
 		go func(idx int) {
 			defer wg.Done()
-			conns[idx] = wsCoverageConnect(t, wsURL+"?token="+token, nil)
+			conns[idx] = wsCoverageConnect(t, wsURL, headers)
 		}(i)
 	}
 	wg.Wait()
@@ -278,7 +289,8 @@ func TestHub_Coverage_BroadcastSkipsDeadClient(t *testing.T) {
 	hub, _, wsURL := wsCoverageHubWithServer(t)
 	token := wsCoverageToken(t)
 
-	conn := wsCoverageConnect(t, wsURL+"?token="+token, nil)
+	headers := http.Header{"Authorization": []string{"Bearer " + token}}
+	conn := wsCoverageConnect(t, wsURL, headers)
 	time.Sleep(20 * time.Millisecond)
 
 	conn.Close()
@@ -295,7 +307,8 @@ func TestHub_Coverage_SendToClientSkipsDeadClient(t *testing.T) {
 	hub, _, wsURL := wsCoverageHubWithServer(t)
 	token := wsCoverageToken(t)
 
-	conn := wsCoverageConnect(t, wsURL+"?token="+token, nil)
+	headers := http.Header{"Authorization": []string{"Bearer " + token}}
+	conn := wsCoverageConnect(t, wsURL, headers)
 	time.Sleep(20 * time.Millisecond)
 
 	conn.Close()

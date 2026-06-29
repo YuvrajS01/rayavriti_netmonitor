@@ -31,9 +31,13 @@ func TestSecurityHeaders(t *testing.T) {
 	assert.Equal(t, "nosniff", rec.Header().Get("X-Content-Type-Options"))
 	assert.Equal(t, "1; mode=block", rec.Header().Get("X-XSS-Protection"))
 	assert.Equal(t, "strict-origin-when-cross-origin", rec.Header().Get("Referrer-Policy"))
-	assert.Equal(t, "max-age=31536000; includeSubDomains", rec.Header().Get("Strict-Transport-Security"))
+	// HSTS is NOT set over plain HTTP (test requests are plain HTTP)
+	assert.Empty(t, rec.Header().Get("Strict-Transport-Security"))
 	assert.Contains(t, rec.Header().Get("Content-Security-Policy"), "default-src 'self'")
 	assert.Contains(t, rec.Header().Get("Permissions-Policy"), "camera=()")
+	assert.Equal(t, "same-origin", rec.Header().Get("Cross-Origin-Opener-Policy"))
+	assert.Equal(t, "same-origin", rec.Header().Get("Cross-Origin-Resource-Policy"))
+	assert.Equal(t, "credentialless", rec.Header().Get("Cross-Origin-Embedder-Policy"))
 }
 
 func TestSecurityHeaders_CallsNext(t *testing.T) {
@@ -237,18 +241,22 @@ func TestSecurityHeaders_Lengths(t *testing.T) {
 
 	handler.ServeHTTP(rec, req)
 
-	// All security header values should be non-empty
+	// All security header values should be non-empty (except HSTS which is conditional on TLS)
 	for _, header := range []string{
 		"X-Frame-Options",
 		"X-Content-Type-Options",
 		"X-XSS-Protection",
 		"Referrer-Policy",
-		"Strict-Transport-Security",
 		"Content-Security-Policy",
 		"Permissions-Policy",
+		"Cross-Origin-Opener-Policy",
+		"Cross-Origin-Resource-Policy",
+		"Cross-Origin-Embedder-Policy",
 	} {
 		assert.NotEmpty(t, rec.Header().Get(header), "header %s should be set", header)
 	}
+	// HSTS should NOT be set over plain HTTP
+	assert.Empty(t, rec.Header().Get("Strict-Transport-Security"))
 }
 
 func TestRateLimiter_Recovery(t *testing.T) {

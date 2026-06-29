@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rayavriti/netmonitor-backend/internal/auth"
 )
 
@@ -73,6 +74,7 @@ type Hub struct {
 	bootstrap   BootstrapFunc
 	publisher   func(ctx context.Context, msg Message)
 	scopeFilter ScopeFilterFunc
+	db          *pgxpool.Pool
 }
 
 // ScopeFilterFunc determines whether a client should receive a message.
@@ -107,6 +109,11 @@ func NewHub(jwtSecret string, bootstrap BootstrapFunc, allowedOrigins []string) 
 			},
 		},
 	}
+}
+
+// SetDB sets the database connection for loading user scopes on WebSocket connect.
+func (h *Hub) SetDB(db *pgxpool.Pool) {
+	h.db = db
 }
 
 func (h *Hub) Run() {
@@ -202,7 +209,8 @@ func (h *Hub) ConnectionCount() int {
 // extractToken tries to extract a JWT from the request using multiple methods:
 // 1. Authorization: Bearer <token> header
 // 2. Sec-WebSocket-Protocol: <token>
-// 3. ?token=<token> query parameter
+// NOTE: Query-string tokens are intentionally NOT supported to prevent
+// token leakage through logs, browser history, and proxy access logs.
 func (h *Hub) extractToken(r *http.Request) string {
 	// Method 1: Authorization header
 	if authHeader := r.Header.Get("Authorization"); authHeader != "" {
@@ -222,8 +230,7 @@ func (h *Hub) extractToken(r *http.Request) string {
 		}
 	}
 
-	// Method 3: query parameter
-	return r.URL.Query().Get("token")
+	return ""
 }
 
 func (h *Hub) ServeWS(w http.ResponseWriter, r *http.Request) {
@@ -255,6 +262,21 @@ func (h *Hub) ServeWS(w http.ResponseWriter, r *http.Request) {
 			Permissions: claims.Permissions,
 		},
 		closed: make(chan struct{}),
+	}
+
+	// Load user scopes from DB for non-admin users
+	if h.db != nil && claims.Role != "super_admin" && claims.Role != "admin" {
+		rows, err := h.db.Query(context.Background(),
+			"SELECT scope_type, scope_value FROM user_scopes WHERE user_id = $1", claims.UserID)
+		if err == nil {
+			defer rows.Close()
+			for rows.Next() {
+				var se ScopeEntry
+				if err := rows.Scan(&se.ScopeType, &se.ScopeValue); err == nil {
+					c.info.Scopes = append(c.info.Scopes, se)
+				}
+			}
+		}
 	}
 
 	h.mu.Lock()

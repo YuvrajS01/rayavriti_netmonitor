@@ -27,14 +27,17 @@ RUN cd backend && CGO_ENABLED=1 go build -tags pcap -ldflags="-s -w" -o /netmoni
 # ── Stage 3: Production image (default target) ──────────────────
 FROM alpine:3.21 AS production
 
-RUN apk add --no-cache ca-certificates libpcap tzdata wget tcpdump
+RUN apk add --no-cache ca-certificates libpcap tzdata wget
 
 COPY --from=go-builder /netmonitor /usr/local/bin/netmonitor
 COPY --from=client-builder /app/client/dist /app/public
 
 WORKDIR /app
 
-RUN mkdir -p /app/data/logs
+RUN mkdir -p /app/data/logs && \
+    addgroup -S netmonitor && \
+    adduser -S -G netmonitor netmonitor && \
+    chown -R netmonitor:netmonitor /app
 
 EXPOSE 3000
 EXPOSE 2055/udp
@@ -44,6 +47,8 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
 
 ENV APP_ENV=production
 ENV PORT=3000
+
+USER netmonitor
 
 ENTRYPOINT ["netmonitor"]
 

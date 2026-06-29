@@ -131,6 +131,9 @@ func run() error {
 		}, nil
 	}
 	hub := websocket.NewHub(cfg.Auth.JWTSecret, bootstrapFn, cfg.App.CORSOrigins)
+	if pp, ok := any(db).(database.PoolProvider); ok && pp.Pool() != nil {
+		hub.SetDB(pp.Pool())
+	}
 	go hub.Run()
 	logger.Info("WebSocket hub started")
 

@@ -13,13 +13,16 @@ services:
   redis:
     image: redis:7-alpine
     container_name: rayavriti-redis
-    ports:
-      - "6379:6379"
+    command: >
+      redis-server
+      --requirepass ${REDIS_PASSWORD:-CHANGEME_REDIS_PASSWORD}
+      --appendonly yes
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
     volumes:
       - redis_data:/data
-    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-CHANGEME_REDIS_PASSWORD}", "ping"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -29,7 +32,7 @@ services:
     image: timescale/timescaledb:latest-pg16
     container_name: rayavriti-timescaledb
     ports:
-      - "5433:5432"
+      - "127.0.0.1:5433:5432"
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-netmonitor}
       POSTGRES_USER: ${POSTGRES_USER:-netmonitor}
@@ -58,6 +61,7 @@ services:
     env_file: .env
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER:-netmonitor}:${POSTGRES_PASSWORD:-netmonitor}@localhost:5433/${POSTGRES_DB:-netmonitor}?sslmode=disable
+      REDIS_URL: redis://:${REDIS_PASSWORD:-CHANGEME_REDIS_PASSWORD}@localhost:6379/0
     depends_on:
       timescaledb:
         condition: service_healthy
@@ -67,6 +71,14 @@ services:
     cap_add:
       - NET_RAW              # Required for packet capture (libpcap/cap)
       - NET_ADMIN            # Required for interface access
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /app/data/logs
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3000/health"]
       interval: 30s

@@ -131,10 +131,35 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 		httputil.SendError(w, http.StatusUnauthorized, "refresh token revoked")
 		return
 	}
+
+	// Re-fetch user to check current state (enabled, role, permissions)
+	user, err := h.db.GetUserByID(r.Context(), claims.UserID)
+	if err != nil {
+		httputil.SendError(w, http.StatusUnauthorized, "user not found")
+		return
+	}
+	if !user.Enabled {
+		// Revoke the token and reject
+		_ = h.db.DeleteRefreshToken(r.Context(), tokenHash)
+		httputil.SendError(w, http.StatusForbidden, "account disabled")
+		return
+	}
+
+	// Reload current permissions from DB
+	var permissions []string
+	if user.RoleID != nil {
+		if perms, err := h.db.GetRolePermissions(r.Context(), *user.RoleID); err == nil {
+			permissions = perms
+		}
+	}
+	if len(permissions) == 0 {
+		permissions = permissionsForRole(user.Role)
+	}
+
 	// Delete old token (rotation)
 	_ = h.db.DeleteRefreshToken(r.Context(), tokenHash)
-	// Issue new pair
-	at, rt, err := auth.GenerateTokenPair(claims.UserID, claims.Username, claims.Role,
+	// Issue new pair from current user state (not stale claims)
+	at, rt, err := auth.GenerateTokenPairWithPerms(user.ID, user.Username, user.Role, permissions,
 		h.cfg.Auth.JWTSecret, h.cfg.Auth.AccessTokenExpiry, h.cfg.Auth.RefreshTokenExpiry)
 	if err != nil {
 		httputil.SendError(w, http.StatusInternalServerError, "token generation failed")
@@ -143,8 +168,17 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 	// Store new refresh token
 	newHash := auth.HashToken(rt)
 	expiresAt := time.Now().Add(h.cfg.Auth.RefreshTokenExpiry)
-	_ = h.db.CreateRefreshToken(r.Context(), newHash, claims.UserID, expiresAt)
-	httputil.SendOK(w, map[string]string{"accessToken": at, "refreshToken": rt})
+	_ = h.db.CreateRefreshToken(r.Context(), newHash, user.ID, expiresAt)
+	httputil.SendOK(w, map[string]any{
+		"accessToken":  at,
+		"refreshToken": rt,
+		"user": map[string]any{
+			"id":          user.ID,
+			"username":    user.Username,
+			"role":        user.Role,
+			"permissions": permissions,
+		},
+	})
 }
 
 func (h *AuthHandler) V1Login(w http.ResponseWriter, r *http.Request) {

@@ -79,7 +79,7 @@ func (s *Server) Start() error {
 			return false
 		},
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowedHeaders:   []string{"*"},
+		AllowedHeaders:   []string{"Authorization", "Content-Type", "X-Request-ID", "X-Api-Key"},
 		AllowCredentials: true,
 	})
 	r.Use(corsHandler.Handler)
@@ -104,7 +104,14 @@ func (s *Server) Start() error {
 		if err != nil {
 			return nil, err
 		}
-		return &auth.Claims{UserID: user.ID, Username: user.Username, Role: user.Role}, nil
+		// Load permissions for API key users, same as login
+		var permissions []string
+		if user.RoleID != nil {
+			if perms, err := s.db.GetRolePermissions(ctx, *user.RoleID); err == nil {
+				permissions = perms
+			}
+		}
+		return &auth.Claims{UserID: user.ID, Username: user.Username, Role: user.Role, Permissions: permissions}, nil
 	})
 
 	// Handlers
@@ -146,7 +153,7 @@ func (s *Server) Start() error {
 				return true
 			}
 			if len(info.Scopes) == 0 {
-				return true
+				return false
 			}
 			switch msg.Type {
 			case websocket.EventMetricUpdate, websocket.EventAlertTriggered,
@@ -154,18 +161,18 @@ func (s *Server) Start() error {
 				websocket.EventDeviceStatus:
 				data, ok := msg.Data.(map[string]any)
 				if !ok {
-					return true
+					return false
 				}
 				deviceID, _ := data["device_id"].(float64)
 				if deviceID == 0 {
-					return true
+					return false
 				}
 				var locationID int64
 				_ = pool.QueryRow(context.Background(),
 					"SELECT COALESCE(location_id, 0) FROM devices WHERE id = $1", int64(deviceID)).
 					Scan(&locationID)
 				if locationID == 0 {
-					return true
+					return false
 				}
 				for _, scope := range info.Scopes {
 					if scope.ScopeType == "location" && scope.ScopeValue == fmt.Sprintf("%d", locationID) {
