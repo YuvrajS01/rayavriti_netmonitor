@@ -219,6 +219,18 @@ func (s *Server) Start() error {
 
 		// --- Auth / Self-service (no special permission, just authenticated) ---
 		r.Get("/api/auth/me", authH.Me)
+		r.Get("/api/auth/permissions", func(w http.ResponseWriter, r *http.Request) {
+			claims := auth.GetClaims(r.Context())
+			if claims == nil {
+				httputil.SendError(w, http.StatusUnauthorized, "not authenticated")
+				return
+			}
+			httputil.SendOK(w, map[string]any{
+				"userId":      claims.UserID,
+				"role":        claims.Role,
+				"permissions": claims.Permissions,
+			})
+		})
 		r.Get("/api/v1/auth/permissions", func(w http.ResponseWriter, r *http.Request) {
 			claims := auth.GetClaims(r.Context())
 			if claims == nil {
@@ -252,8 +264,19 @@ func (s *Server) Start() error {
 		r.With(rbac.RequirePermission(models.PermDevicesWrite)).Post("/api/v1/devices/{id}/scan-ports", device.ScanPorts)
 		r.With(rbac.RequirePermission(models.PermDevicesRead)).Get("/api/v1/devices/{id}/dependencies", campusH.DeviceDependencies)
 
+		// --- Devices (legacy aliases) ---
+		r.With(rbac.RequirePermission(models.PermDevicesRead)).Get("/api/devices", device.List)
+		r.With(rbac.RequirePermission(models.PermDevicesRead)).Get("/api/devices/{id}", device.Get)
+		r.With(rbac.RequirePermission(models.PermDevicesWrite)).Post("/api/devices", device.Create)
+		r.With(rbac.RequirePermission(models.PermDevicesWrite)).Put("/api/devices/{id}", device.Update)
+		r.With(rbac.RequirePermission(models.PermDevicesDelete)).Delete("/api/devices/{id}", device.Delete)
+		r.With(rbac.RequirePermission(models.PermDevicesRead)).Get("/api/devices/{id}/ports", ports.ForDevice)
+		r.With(rbac.RequirePermission(models.PermDevicesWrite)).Post("/api/devices/{id}/scan-ports", device.ScanPorts)
+
 		// --- Metrics (devices.read) ---
 		r.With(rbac.RequirePermission(models.PermDevicesRead)).Get("/api/v1/metrics/query", metric.Query)
+		r.With(rbac.RequirePermission(models.PermDevicesRead)).Get("/api/metrics/latest", metric.Latest)
+		r.With(rbac.RequirePermission(models.PermDevicesRead)).Get("/api/metrics/{deviceId}", metric.ForDevice)
 
 		// --- Alerts (alerts.read / alerts.create / alerts.acknowledge / alerts.resolve) ---
 		r.With(rbac.RequirePermission(models.PermAlertsRead)).Get("/api/v1/alerts", alert.List)
@@ -268,9 +291,24 @@ func (s *Server) Start() error {
 		r.With(rbac.RequirePermission(models.PermAlertsRead)).Get("/api/v1/alert-stats", alert.AlertStats)
 		r.With(rbac.RequirePermission(models.PermAlertsRead)).Get("/api/v1/alerts/suppressed", phase2.List("suppressed_alerts"))
 
+		// --- Alerts (legacy aliases) ---
+		r.With(rbac.RequirePermission(models.PermAlertsRead)).Get("/api/alerts", alert.List)
+		r.With(rbac.RequirePermission(models.PermAlertsRead)).Get("/api/alerts/counts", alert.Counts)
+		r.With(rbac.RequirePermission(models.PermAlertsRead)).Get("/api/alerts/grouped", alert.Grouped)
+		r.With(rbac.RequirePermission(models.PermAlertsRead)).Get("/api/alerts/{id}", alert.Get)
+		r.With(rbac.RequirePermission(models.PermAlertsCreate)).Post("/api/alerts", alert.Create)
+		r.With(rbac.RequirePermission(models.PermAlertsRead)).Delete("/api/alerts/{id}", alert.Delete)
+		r.With(rbac.RequirePermission(models.PermAlertsAcknowledge)).Post("/api/alerts/{id}/acknowledge", alert.Acknowledge)
+		r.With(rbac.RequirePermission(models.PermAlertsResolve)).Post("/api/alerts/{id}/resolve", alert.Resolve)
+
 		// --- Insights (devices.read) ---
 		r.With(rbac.RequirePermission(models.PermDevicesRead)).Get("/api/v1/insights/current", insight.Current)
 		r.With(rbac.RequirePermission(models.PermDevicesRead)).Get("/api/v1/insights/history", insight.History)
+
+		// --- Insights (legacy aliases) ---
+		r.With(rbac.RequirePermission(models.PermDevicesRead)).Get("/api/insights", insight.Current)
+		r.With(rbac.RequirePermission(models.PermDevicesRead)).Get("/api/insights/current", insight.Current)
+		r.With(rbac.RequirePermission(models.PermDevicesRead)).Get("/api/insights/history", insight.History)
 
 		// --- Flows (devices.read) ---
 		r.With(rbac.RequirePermission(models.PermDevicesRead)).Get("/api/v1/flows", flow.List)
@@ -333,6 +371,13 @@ func (s *Server) Start() error {
 		r.With(rbac.RequirePermission(models.PermReportsWrite)).Delete("/api/v1/reports/scheduled/{id}", phase2.Delete("scheduled_reports"))
 		r.With(rbac.RequirePermission(models.PermReportsWrite)).Post("/api/v1/reports/scheduled/{id}/run", reportGenH.RunScheduledReport)
 		r.With(rbac.RequirePermission(models.PermReportsWrite)).Post("/api/v1/reports/generate", reportGenH.GenerateReport)
+
+		// --- Reports (legacy aliases) ---
+		r.With(rbac.RequirePermission(models.PermReportsRead)).Get("/api/reports/summary", report.Summary)
+		r.With(rbac.RequirePermission(models.PermReportsRead)).Get("/api/reports/timeseries", report.Timeseries)
+		r.With(rbac.RequirePermission(models.PermReportsRead)).Get("/api/reports/devices", report.Devices)
+		r.With(rbac.RequirePermission(models.PermReportsRead)).Get("/api/reports/alerts", report.Alerts)
+		r.With(rbac.RequirePermission(models.PermReportsRead)).Get("/api/reports/export", report.Export)
 
 		// --- Locations / Topology (settings.write / devices.read) ---
 		r.With(rbac.RequirePermission(models.PermDevicesRead)).Get("/api/v1/locations", campusH.ListLocations)
