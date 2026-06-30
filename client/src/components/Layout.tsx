@@ -25,6 +25,7 @@ const topItems: NavItem[] = [
   { to: '/alerts', label: 'Alerts', icon: 'warning', permission: 'alerts.read' },
   { to: '/incidents', label: 'Incidents', icon: 'crisis_alert', permission: 'incidents.read' },
   { to: '/ai-health', label: 'AI Health', icon: 'psychology', permission: 'insights.read' },
+  { to: '/logs', label: 'Logs', icon: 'receipt_long', permission: 'system.logs' },
 ];
 
 const navGroups: NavGroup[] = [

@@ -428,7 +428,7 @@ func permissionsForRole(role string) []string {
 			"alert_rules.write", "incidents.write", "maintenance.write",
 			"contacts.write", "notifications.manage", "reports.read", "reports.write",
 			"import.execute", "discovery.execute", "capture.execute",
-			"status_page.manage", "sla.manage", "system.monitoring",
+			"status_page.manage", "sla.manage", "system.monitoring", "system.logs",
 		}
 	case "dept_admin":
 		return []string{
