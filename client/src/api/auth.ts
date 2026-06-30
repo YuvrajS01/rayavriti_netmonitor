@@ -1,4 +1,4 @@
-import { api } from './http';
+import { v1 } from './http';
 
 interface LoginResponse {
   token: string;
@@ -7,7 +7,7 @@ interface LoginResponse {
 }
 
 export const login = (username: string, password: string) =>
-  api.post('/auth/login', { username, password }).then((r): { success: boolean; data: LoginResponse } => {
+  v1.post('/auth/login', { username, password }).then((r): { success: boolean; data: LoginResponse } => {
     const raw = r.data;
     const body = raw as Record<string, unknown>;
     const data = body?.data !== undefined ? body.data : body;
@@ -22,7 +22,7 @@ export const login = (username: string, password: string) =>
   });
 
 export const logout = () =>
-  api.post('/auth/logout').finally(() => {
+  v1.post('/auth/logout').finally(() => {
     localStorage.removeItem('netmonitor_token');
     localStorage.removeItem('netmonitor_refresh_token');
     localStorage.removeItem('netmonitor_user');

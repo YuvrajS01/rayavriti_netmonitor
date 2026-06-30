@@ -70,7 +70,8 @@ func TestHub_ServeWS_InvalidToken(t *testing.T) {
 	go hub.Run()
 	defer hub.Stop()
 
-	req := httptest.NewRequest("GET", "/ws?token=invalid.jwt.token", nil)
+	req := httptest.NewRequest("GET", "/ws", nil)
+	req.Header.Set("Authorization", "Bearer invalid.jwt.token")
 	w := httptest.NewRecorder()
 	hub.ServeWS(w, req)
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
@@ -83,7 +84,8 @@ func TestHub_ServeWS_QueryParam(t *testing.T) {
 	defer hub.Stop()
 
 	token := makeToken(t)
-	req := httptest.NewRequest("GET", "/ws?token="+token, nil)
+	req := httptest.NewRequest("GET", "/ws", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
 	w := httptest.NewRecorder()
 
 	done := make(chan struct{})
@@ -120,7 +122,7 @@ func TestHub_ExtractToken_QueryParam(t *testing.T) {
 	hub := NewHub(wsTestSecret, nil, nil)
 	req := httptest.NewRequest("GET", "/ws?token=mytoken123", nil)
 	extracted := hub.extractToken(req)
-	assert.Equal(t, "mytoken123", extracted)
+	assert.Equal(t, "", extracted)
 }
 
 func TestHub_ExtractToken_Empty(t *testing.T) {

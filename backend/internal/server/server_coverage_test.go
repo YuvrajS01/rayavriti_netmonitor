@@ -221,8 +221,8 @@ func (m *serverMockDB) InsertCapturePacket(ctx context.Context, sessionID int64,
 func (m *serverMockDB) GetCapturePackets(ctx context.Context, sessionID int64, limit, offset int) ([]models.CapturePacket, error) {
 	return nil, nil
 }
-func (m *serverMockDB) UpsertPortScanResults(ctx context.Context, deviceID int64, results []models.PortScanResult) error {
-	return nil
+func (m *serverMockDB) UpsertPortScanResults(ctx context.Context, deviceID int64, results []models.PortScanResult) (int, error) {
+	return 0, nil
 }
 func (m *serverMockDB) GetPortScanResults(ctx context.Context, deviceID int64) ([]models.PortScanResult, error) {
 	return nil, nil
@@ -686,7 +686,7 @@ func TestStart_V1AuthMe_Unauthorized(t *testing.T) {
 	go func() { errCh <- srv.Start() }()
 	time.Sleep(200 * time.Millisecond)
 
-	resp, err := http.Get(fmt.Sprintf("http://127.0.0.1:%d/api/auth/me", port))
+	resp, err := http.Get(fmt.Sprintf("http://127.0.0.1:%d/api/v1/auth/me", port))
 	require.NoError(t, err)
 	defer resp.Body.Close()
 	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
@@ -708,29 +708,29 @@ func TestStart_LegacyAuthRoutes(t *testing.T) {
 	go func() { errCh <- srv.Start() }()
 	time.Sleep(200 * time.Millisecond)
 
-	// Legacy auth login
+	// Legacy auth login — should now 404 (removed)
 	resp, err := http.Post(fmt.Sprintf("http://127.0.0.1:%d/api/auth/login", port), "application/json", nil)
 	require.NoError(t, err)
 	resp.Body.Close()
-	assert.NotEqual(t, http.StatusNotFound, resp.StatusCode)
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 
-	// Legacy auth logout
+	// Legacy auth logout — should now 404 (removed)
 	resp, err = http.Post(fmt.Sprintf("http://127.0.0.1:%d/api/auth/logout", port), "application/json", nil)
 	require.NoError(t, err)
 	resp.Body.Close()
-	assert.NotEqual(t, http.StatusNotFound, resp.StatusCode)
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 
-	// Legacy auth me (protected)
+	// Legacy auth me — should now 404 (removed)
 	resp, err = http.Get(fmt.Sprintf("http://127.0.0.1:%d/api/auth/me", port))
 	require.NoError(t, err)
 	resp.Body.Close()
-	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 
-	// Legacy stats (protected)
+	// Legacy stats — should now 404 (removed)
 	resp, err = http.Get(fmt.Sprintf("http://127.0.0.1:%d/api/stats", port))
 	require.NoError(t, err)
 	resp.Body.Close()
-	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 
 	_ = srv.Shutdown(context.Background())
 	<-errCh
@@ -749,7 +749,7 @@ func TestStart_LegacyDeviceRoutes_Unauthorized(t *testing.T) {
 	go func() { errCh <- srv.Start() }()
 	time.Sleep(200 * time.Millisecond)
 
-	resp, err := http.Get(fmt.Sprintf("http://127.0.0.1:%d/api/devices", port))
+	resp, err := http.Get(fmt.Sprintf("http://127.0.0.1:%d/api/v1/devices", port))
 	require.NoError(t, err)
 	resp.Body.Close()
 	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)

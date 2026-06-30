@@ -1,20 +1,20 @@
-import { api, wrap } from './http';
+import { v1, wrap } from './http';
 import type { ReportSummary, ReportTimeseriesPoint, DeviceBreakdown, ReportAlert } from './types';
 
 export const getReportSummary = (query = '') =>
-  api.get(`/reports/summary${query}`).then((r) => wrap<ReportSummary>(r.data));
+  v1.get(`/reports/summary${query}`).then((r) => wrap<ReportSummary>(r.data));
 
 export const getReportTimeseries = (query = '') =>
-  api.get(`/reports/timeseries${query}`).then((r) => wrap<ReportTimeseriesPoint[]>(r.data));
+  v1.get(`/reports/timeseries${query}`).then((r) => wrap<ReportTimeseriesPoint[]>(r.data));
 
 export const getReportDeviceBreakdown = (query = '') =>
-  api.get(`/reports/devices${query}`).then((r) => wrap<DeviceBreakdown[]>(r.data));
+  v1.get(`/reports/devices${query}`).then((r) => wrap<DeviceBreakdown[]>(r.data));
 
 export const getReportAlerts = (query = '') =>
-  api.get(`/reports/alerts${query}`).then((r) => wrap<ReportAlert[]>(r.data));
+  v1.get(`/reports/alerts${query}`).then((r) => wrap<ReportAlert[]>(r.data));
 
 export const downloadMetricsCsv = async (query = '') => {
-  const blob = await api.get(`/reports/export${query}`, { responseType: 'blob' }).then((r) => r.data);
+  const blob = await v1.get(`/reports/export${query}`, { responseType: 'blob' }).then((r) => r.data);
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;

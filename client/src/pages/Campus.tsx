@@ -6,6 +6,7 @@ import LocationTree from '../components/LocationTree';
 import { listPhase2, type Phase2Row } from '../api/phase2';
 import { getDevices } from '../api/client';
 import type { Device } from '../api/types';
+import { useToast } from '../components/ui/useToast';
 
 const statusColors: Record<string, string> = {
   up: 'bg-success',
@@ -17,6 +18,7 @@ const statusColors: Record<string, string> = {
 };
 
 export default function Campus() {
+  const { addToast } = useToast();
   const [locations, setLocations] = useState<Phase2Row[]>([]);
   const [devices, setDevices] = useState<Device[]>([]);
   const [selected, setSelected] = useState<Phase2Row | null>(null);
@@ -33,11 +35,13 @@ export default function Campus() {
         setLocations(locRes.data || []);
         setDevices(devRes.data || []);
       } catch {
+        addToast('Failed to load campus data', 'error');
         setLocations([]);
         setDevices([]);
       }
       setLoading(false);
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Enrich locations with device counts and status from the device list.

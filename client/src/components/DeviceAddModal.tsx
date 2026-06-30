@@ -1,4 +1,4 @@
-import { useState, useEffect, type FormEvent } from 'react';
+import { useState, useEffect, useRef, type FormEvent } from 'react';
 import { addDevice } from '../api/client';
 import { listPhase2, type Phase2Row } from '../api/phase2';
 import Button from './ui/Button';
@@ -19,6 +19,37 @@ export default function DeviceAddModal({ open, onClose, onAdded }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [locations, setLocations] = useState<Phase2Row[]>([]);
+  const dialogRef = useRef<HTMLDivElement>(null);
+
+  // Focus trap
+  useEffect(() => {
+    if (!open || !dialogRef.current) return;
+    const dialog = dialogRef.current;
+    const focusableElements = dialog.querySelectorAll<HTMLElement>(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    );
+    const firstElement = focusableElements[0];
+    const lastElement = focusableElements[focusableElements.length - 1];
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab') return;
+      if (e.shiftKey) {
+        if (document.activeElement === firstElement) {
+          e.preventDefault();
+          lastElement.focus();
+        }
+      } else {
+        if (document.activeElement === lastElement) {
+          e.preventDefault();
+          firstElement.focus();
+        }
+      }
+    };
+
+    dialog.addEventListener('keydown', handleKeyDown);
+    firstElement?.focus();
+    return () => dialog.removeEventListener('keydown', handleKeyDown);
+  }, [open]);
 
   useEffect(() => {
     if (open) {
@@ -79,7 +110,7 @@ export default function DeviceAddModal({ open, onClose, onAdded }: Props) {
   return (
     <div className="fixed inset-0 z-[90] flex items-center justify-center p-4 pt-20" role="dialog" aria-modal="true" aria-label="Add new device">
       <div className="absolute inset-0 bg-black/60 " onClick={onClose} />
-      <div className="relative bg-surface-container-low rounded-lg border border-outline-variant/20 w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col">
+      <div ref={dialogRef} className="relative bg-surface-container-low rounded-lg border border-outline-variant/20 w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col">
         <div className="flex items-center justify-between p-6 border-b border-outline-variant/20 shrink-0">
           <div>
             <h2 className="font-headline text-xl font-bold text-on-surface uppercase tracking-wide">New Device</h2>
@@ -92,21 +123,22 @@ export default function DeviceAddModal({ open, onClose, onAdded }: Props) {
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4 flex-1 min-h-0 overflow-y-auto">
           <div>
-            <label className="block text-[10px] font-bold uppercase tracking-wide text-on-surface-variant mb-1.5">Device Name *</label>
-            <input name="name" required placeholder="e.g. Core Router 01" className={`${inputClass} w-full ${borderClass('name')}`} />
+            <label htmlFor="device-name" className="block text-[10px] font-bold uppercase tracking-wide text-on-surface-variant mb-1.5">Device Name *</label>
+            <input id="device-name" name="name" required placeholder="e.g. Core Router 01" className={`${inputClass} w-full ${borderClass('name')}`} />
             {errors.name && <p className="text-error text-[10px] mt-1">{errors.name}</p>}
           </div>
 
           <div>
-            <label className="block text-[10px] font-bold uppercase tracking-wide text-on-surface-variant mb-1.5">Host / IP Address *</label>
-            <input name="host" required placeholder="e.g. 192.168.1.1 or example.com" className={`${inputClass} w-full ${borderClass('host')}`} />
+            <label htmlFor="device-host" className="block text-[10px] font-bold uppercase tracking-wide text-on-surface-variant mb-1.5">Host / IP Address *</label>
+            <input id="device-host" name="host" required placeholder="e.g. 192.168.1.1 or example.com" className={`${inputClass} w-full ${borderClass('host')}`} />
             {errors.host && <p className="text-error text-[10px] mt-1">{errors.host}</p>}
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-[10px] font-bold uppercase tracking-wide text-on-surface-variant mb-1.5">Protocol</label>
+              <label htmlFor="device-protocol" className="block text-[10px] font-bold uppercase tracking-wide text-on-surface-variant mb-1.5">Protocol</label>
               <select
+                id="device-protocol"
                 name="protocol"
                 value={protocol}
                 onChange={(e) => {
@@ -129,10 +161,11 @@ export default function DeviceAddModal({ open, onClose, onAdded }: Props) {
               </select>
             </div>
             <div>
-              <label className="block text-[10px] font-bold uppercase tracking-wide text-on-surface-variant mb-1.5">Port</label>
+              <label htmlFor="device-port" className="block text-[10px] font-bold uppercase tracking-wide text-on-surface-variant mb-1.5">Port</label>
               {['https', 'http', 'snmp', 'port'].includes(protocol) ? (
                 <>
                   <input
+                    id="device-port"
                     name="port"
                     type="number"
                     min="1"
@@ -154,8 +187,9 @@ export default function DeviceAddModal({ open, onClose, onAdded }: Props) {
           {protocol === 'snmp' && (
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wide text-on-surface-variant mb-1.5">SNMP Community</label>
+                <label htmlFor="device-snmp-community" className="block text-[10px] font-bold uppercase tracking-wide text-on-surface-variant mb-1.5">SNMP Community</label>
                 <input
+                  id="device-snmp-community"
                   value={snmpCommunity}
                   onChange={(e) => setSnmpCommunity(e.target.value)}
                   placeholder="Community string"
@@ -163,8 +197,8 @@ export default function DeviceAddModal({ open, onClose, onAdded }: Props) {
                 />
               </div>
               <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wide text-on-surface-variant mb-1.5">SNMP Version</label>
-                <select value={snmpVersion} onChange={(e) => setSnmpVersion(e.target.value)} className={`${inputClass} w-full cursor-pointer`}>
+                <label htmlFor="device-snmp-version" className="block text-[10px] font-bold uppercase tracking-wide text-on-surface-variant mb-1.5">SNMP Version</label>
+                <select id="device-snmp-version" value={snmpVersion} onChange={(e) => setSnmpVersion(e.target.value)} className={`${inputClass} w-full cursor-pointer`}>
                   <option value="2c">v2c</option>
                   <option value="1">v1</option>
                 </select>
@@ -173,14 +207,14 @@ export default function DeviceAddModal({ open, onClose, onAdded }: Props) {
           )}
 
           <div>
-            <label className="block text-[10px] font-bold uppercase tracking-wide text-on-surface-variant mb-1.5">Check Interval (seconds)</label>
-            <input name="interval" type="number" min="10" defaultValue={60} className={`${inputClass} w-full`} />
+            <label htmlFor="device-interval" className="block text-[10px] font-bold uppercase tracking-wide text-on-surface-variant mb-1.5">Check Interval (seconds)</label>
+            <input id="device-interval" name="interval" type="number" min="10" defaultValue={60} className={`${inputClass} w-full`} />
           </div>
 
           {locations.length > 0 && (
             <div>
-              <label className="block text-[10px] font-bold uppercase tracking-wide text-on-surface-variant mb-1.5">Location</label>
-              <select name="locationId" defaultValue="" className={`${inputClass} w-full cursor-pointer`}>
+              <label htmlFor="device-location" className="block text-[10px] font-bold uppercase tracking-wide text-on-surface-variant mb-1.5">Location</label>
+              <select id="device-location" name="locationId" defaultValue="" className={`${inputClass} w-full cursor-pointer`}>
                 <option value="">Unassigned</option>
                 {locations.map((loc) => (
                   <option key={Number(loc.id)} value={String(loc.id)}>

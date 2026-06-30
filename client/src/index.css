@@ -76,6 +76,7 @@
   }
 
   ::selection {
+    background-color: #d9fd3a4d;
     background-color: color-mix(in srgb, var(--color-primary) 30%, transparent);
     color: var(--color-primary);
   }
@@ -98,13 +99,18 @@
   vertical-align: middle;
 }
 
-::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: var(--color-background); }
-::-webkit-scrollbar-thumb { background: var(--color-surface-container-highest); }
+::-webkit-scrollbar-thumb { background: var(--color-surface-container-highest); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-outline); }
 
 * {
   scrollbar-width: thin;
   scrollbar-color: var(--color-surface-container-highest) var(--color-background);
+}
+
+*:focus-visible {
+  scrollbar-color: var(--color-outline) var(--color-background);
 }
 
 /* ── Radial Gauge Animation ──────────────────────────────── */
@@ -148,6 +154,7 @@
 }
 .animate-slide-down > * {
   overflow: hidden;
+  min-height: 0;
 }
 
 /* ── Toast Slide Up ──────────────────────────────────────── */
@@ -254,5 +261,24 @@
   /* Ensure tables print well */
   table { font-size: 10px !important; }
   tr { page-break-inside: avoid; }
+}
+
+/* Material Symbols icon class — aliases fontsource-variable font family */
+.material-symbols-outlined {
+  font-family: 'Material Symbols Outlined Variable';
+  font-weight: normal;
+  font-style: normal;
+  font-size: 24px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: "liga";
 }
 

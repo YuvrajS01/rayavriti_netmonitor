@@ -50,13 +50,16 @@ type AuthConfig struct {
 }
 
 type CollectorConfig struct {
-	NetflowPort          int
-	MetricsRetentionDays int
-	FlowRetentionDays    int
-	AlertsRetentionDays  int
-	PortDiscoveryEnabled bool
-	CaptureEnabled       bool
-	CollectorIntervalSec int
+	NetflowPort           int
+	MetricsRetentionDays  int
+	FlowRetentionDays     int
+	AlertsRetentionDays   int
+	PortDiscoveryEnabled  bool
+	CaptureEnabled        bool
+	CaptureMaxDurationSec int
+	CaptureMaxPackets     int
+	CaptureMaxBytes       int64
+	CollectorIntervalSec  int
 }
 
 type LoggingConfig struct {
@@ -147,13 +150,16 @@ func Load() (*Config, error) {
 			RefreshTokenExpiry: envDuration("REFRESH_TOKEN_EXPIRY", 7*24*time.Hour),
 		},
 		Collector: CollectorConfig{
-			NetflowPort:          envInt("NETFLOW_PORT", 2055),
-			MetricsRetentionDays: envInt("METRICS_RETENTION_DAYS", 30),
-			FlowRetentionDays:    envInt("FLOW_RETENTION_DAYS", 7),
-			AlertsRetentionDays:  envInt("ALERTS_RETENTION_DAYS", 90),
-			PortDiscoveryEnabled: envBool("PORT_DISCOVERY_ENABLED", true),
-			CaptureEnabled:       envBool("CAPTURE_ENABLED", true),
-			CollectorIntervalSec: envInt("COLLECTOR_INTERVAL_SEC", 60),
+			NetflowPort:           envInt("NETFLOW_PORT", 2055),
+			MetricsRetentionDays:  envInt("METRICS_RETENTION_DAYS", 30),
+			FlowRetentionDays:     envInt("FLOW_RETENTION_DAYS", 7),
+			AlertsRetentionDays:   envInt("ALERTS_RETENTION_DAYS", 90),
+			PortDiscoveryEnabled:  envBool("PORT_DISCOVERY_ENABLED", true),
+			CaptureEnabled:        envBool("CAPTURE_ENABLED", false),
+			CaptureMaxDurationSec: envInt("CAPTURE_MAX_DURATION_SEC", 300),
+			CaptureMaxPackets:     envInt("CAPTURE_MAX_PACKETS", 10000),
+			CaptureMaxBytes:       int64(envInt("CAPTURE_MAX_BYTES", 10*1024*1024)),
+			CollectorIntervalSec:  envInt("COLLECTOR_INTERVAL_SEC", 60),
 		},
 		Logging: LoggingConfig{
 			Level:          envStr("LOG_LEVEL", "info"),

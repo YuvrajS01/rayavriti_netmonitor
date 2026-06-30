@@ -131,6 +131,9 @@ func run() error {
 		}, nil
 	}
 	hub := websocket.NewHub(cfg.Auth.JWTSecret, bootstrapFn, cfg.App.CORSOrigins)
+	if pp, ok := any(db).(database.PoolProvider); ok && pp.Pool() != nil {
+		hub.SetDB(pp.Pool())
+	}
 	go hub.Run()
 	logger.Info("WebSocket hub started")
 
@@ -214,7 +217,7 @@ func run() error {
 	logger.Info("Scheduled report runner started")
 
 	// 12. Initialize HTTP server
-	srv := server.New(cfg, appDB, hub, logger, server.WithRedis(rdb))
+	srv := server.New(cfg, appDB, hub, logger, server.WithRedis(rdb), server.WithAlertEngine(alertEng))
 
 	// 13. Start server in goroutine
 	errChan := make(chan error, 1)

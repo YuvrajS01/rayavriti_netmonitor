@@ -2,9 +2,11 @@ package database
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
@@ -92,6 +94,86 @@ func (p *Postgres) ListPhase2(ctx context.Context, resource string, filters map[
 	}
 	defer rows.Close()
 	return rowsToMaps(rows)
+}
+
+// ListPhase2Cursor returns a paginated list using cursor-based pagination.
+// Returns (rows, nextCursor, hasMore, error). The cursor is a base64-encoded ID.
+func (p *Postgres) ListPhase2Cursor(ctx context.Context, resource string, filters map[string]string, cursor string, limit int) ([]map[string]any, string, bool, error) {
+	res, err := getPhase2Resource(resource)
+	if err != nil {
+		return nil, "", false, err
+	}
+	if limit <= 0 || limit > 500 {
+		limit = 100
+	}
+
+	args := []any{}
+	where := []string{}
+	i := 1
+	for key, val := range filters {
+		if !res.Cols[key] || val == "" {
+			continue
+		}
+		where = append(where, fmt.Sprintf("%s=$%d", key, i))
+		args = append(args, val)
+		i++
+	}
+
+	// Decode cursor to get the last ID seen
+	if cursor != "" {
+		decoded, err := base64.StdEncoding.DecodeString(cursor)
+		if err != nil {
+			return nil, "", false, fmt.Errorf("invalid cursor")
+		}
+		lastID, err := strconv.ParseInt(string(decoded), 10, 64)
+		if err != nil {
+			return nil, "", false, fmt.Errorf("invalid cursor")
+		}
+		where = append(where, fmt.Sprintf("id>$%d", i))
+		args = append(args, lastID)
+	}
+
+	selectCols := res.Select
+	if selectCols == "" {
+		selectCols = "*"
+	}
+	query := "SELECT " + selectCols + " FROM " + res.Table
+	if len(where) > 0 {
+		query += " WHERE " + strings.Join(where, " AND ")
+	}
+	query += " ORDER BY id ASC LIMIT " + strconv.Itoa(limit+1)
+
+	rows, err := p.pool.Query(ctx, query, args...)
+	if err != nil {
+		return nil, "", false, err
+	}
+	defer rows.Close()
+
+	allRows, err := rowsToMaps(rows)
+	if err != nil {
+		return nil, "", false, err
+	}
+
+	hasMore := len(allRows) > limit
+	if hasMore {
+		allRows = allRows[:limit]
+	}
+
+	var nextCursor string
+	if hasMore && len(allRows) > 0 {
+		lastID, ok := allRows[len(allRows)-1]["id"].(int64)
+		if !ok {
+			// Try float64 (JSON numeric)
+			if f, ok := allRows[len(allRows)-1]["id"].(float64); ok {
+				lastID = int64(f)
+			}
+		}
+		if lastID > 0 {
+			nextCursor = base64.StdEncoding.EncodeToString([]byte(strconv.FormatInt(lastID, 10)))
+		}
+	}
+
+	return allRows, nextCursor, hasMore, nil
 }
 
 func (p *Postgres) GetPhase2(ctx context.Context, resource string, id int64) (map[string]any, error) {

@@ -4,7 +4,7 @@ const STATUS_COLORS: Record<string, string> = {
   warning: '#e5a910',
   degraded: '#e5a910',
   down: '#ff7351',
-  unknown: '#6b7280',
+  unknown: '#8b8b81',
 };
 
 const STATUS_LABELS: Record<string, string> = {

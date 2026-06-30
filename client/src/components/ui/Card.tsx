@@ -16,6 +16,7 @@ export default function Card({ children, variant = 'high', hover = false, border
 
   return (
     <div
+      role="region"
       className={[
         bgMap[variant],
         'rounded-lg',

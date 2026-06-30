@@ -219,7 +219,7 @@ func TestCaptureStart_ValidInterface(t *testing.T) {
 	}
 	hub := websocket.NewHub("test-secret", nil, nil)
 	go hub.Run()
-	h := NewCaptureHandler(db, hub)
+	h := NewCaptureHandler(db, hub, CaptureConfig{Enabled: true})
 
 	w, req := authenticatedRequest("POST", "/api/v1/capture/start", `{"interface":"lo","filter":"port 80"}`)
 	h.Start(w, req)
@@ -250,7 +250,7 @@ func TestCaptureStart_DBError(t *testing.T) {
 	}
 	hub := websocket.NewHub("test-secret", nil, nil)
 	go hub.Run()
-	h := NewCaptureHandler(db, hub)
+	h := NewCaptureHandler(db, hub, CaptureConfig{Enabled: true})
 
 	w, req := authenticatedRequest("POST", "/api/v1/capture/start", `{"interface":"lo"}`)
 	h.Start(w, req)
@@ -272,7 +272,7 @@ func TestCaptureStart_NoFilter(t *testing.T) {
 	}
 	hub := websocket.NewHub("test-secret", nil, nil)
 	go hub.Run()
-	h := NewCaptureHandler(db, hub)
+	h := NewCaptureHandler(db, hub, CaptureConfig{Enabled: true})
 
 	w, req := authenticatedRequest("POST", "/api/v1/capture/start", `{"interface":"lo"}`)
 	h.Start(w, req)
@@ -304,7 +304,7 @@ func TestCaptureStop_WithActiveSession(t *testing.T) {
 	}
 	hub := websocket.NewHub("test-secret", nil, nil)
 	go hub.Run()
-	h := NewCaptureHandler(db, hub)
+	h := NewCaptureHandler(db, hub, CaptureConfig{Enabled: true})
 
 	// Simulate running state
 	h.running = 1
@@ -329,7 +329,7 @@ func TestCaptureStop_DBError(t *testing.T) {
 	}
 	hub := websocket.NewHub("test-secret", nil, nil)
 	go hub.Run()
-	h := NewCaptureHandler(db, hub)
+	h := NewCaptureHandler(db, hub, CaptureConfig{Enabled: true})
 
 	w, req := makeRequestWithParams("POST", "/api/v1/capture/sessions/1/stop", "", "id", "1")
 	h.Stop(w, req)
@@ -567,8 +567,8 @@ func TestDeviceScanPorts(t *testing.T) {
 		getDeviceFn: func(ctx context.Context, id int64) (*models.Device, error) {
 			return &models.Device{ID: 1, Name: "Server", IPAddress: "127.0.0.1"}, nil
 		},
-		upsertPortScanResultsFn: func(ctx context.Context, deviceID int64, results []models.PortScanResult) error {
-			return nil
+		upsertPortScanResultsFn: func(ctx context.Context, deviceID int64, results []models.PortScanResult) (int, error) {
+			return 0, nil
 		},
 	}
 	h := NewDeviceHandler(db)
@@ -608,8 +608,8 @@ func TestDeviceScanPorts_DefaultPorts(t *testing.T) {
 		getDeviceFn: func(ctx context.Context, id int64) (*models.Device, error) {
 			return &models.Device{ID: 1, Name: "Server", IPAddress: "127.0.0.1"}, nil
 		},
-		upsertPortScanResultsFn: func(ctx context.Context, deviceID int64, results []models.PortScanResult) error {
-			return nil
+		upsertPortScanResultsFn: func(ctx context.Context, deviceID int64, results []models.PortScanResult) (int, error) {
+			return 0, nil
 		},
 	}
 	h := NewDeviceHandler(db)
@@ -625,8 +625,8 @@ func TestDeviceScanPorts_EmptyBody(t *testing.T) {
 		getDeviceFn: func(ctx context.Context, id int64) (*models.Device, error) {
 			return &models.Device{ID: 1, Name: "Server", IPAddress: "127.0.0.1"}, nil
 		},
-		upsertPortScanResultsFn: func(ctx context.Context, deviceID int64, results []models.PortScanResult) error {
-			return nil
+		upsertPortScanResultsFn: func(ctx context.Context, deviceID int64, results []models.PortScanResult) (int, error) {
+			return 0, nil
 		},
 	}
 	h := NewDeviceHandler(db)

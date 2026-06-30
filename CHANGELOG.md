@@ -5,6 +5,76 @@ All notable changes to Rayavriti NetMonitor will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.0] - 2026-06-30
+
+Security hardening release implementing comprehensive review_codex.md recommendations. Adds request validation, typed service handlers, HttpOnly cookie auth, audit logging, RBAC boundary tests, CI security scanning, and frontend performance improvements.
+
+### Security
+
+- **Default password scrubbing** — Replaced weak defaults in `.env.example`, `.env.dev.example`, `.env.prod.example` with `CHANGEME_*` placeholders
+- **WebSocket scope isolation** — Non-admin users denied by default when connecting with empty scopes; scope resolution requires `pgxpool.Pool`; unresolvable `device_id` returns error; query-string token support removed for browsers
+- **Refresh token re-validation** — `Refresh()` re-fetches user from DB, checks `enabled` status, reloads role/permissions via `GetRolePermissions`, issues new token pair with fresh claims
+- **Docker production hardening** — `tcpdump` removed from prod image; non-root `netmonitor` user; Redis requires password; TimescaleDB bound to `127.0.0.1`; container gets `cap_drop: ALL`, `no-new-privileges`, `read_only: true`, `tmpfs`
+- **Capture disabled by default** — `CAPTURE_ENABLED=false`; quotas: max duration 300s, max packets 10k, max bytes 10MB; returns 403 when disabled
+- **Strict CSP** — Removed `'unsafe-inline'` from `script-src` and `style-src`
+- **Conditional HSTS** — Only set when `r.TLS != nil` or `X-Forwarded-Proto: https`
+- **Security headers** — Added COOP/COOR/COEP headers
+- **CORS hardening** — Wildcard `AllowedHeaders` replaced with explicit list
+- **Audit logging** — `AuditLog` middleware logs every POST/PUT/DELETE on protected routes with actor, IP, resource type, path
+- **Request validation** — `CreateUser` validates username (3-64 chars), password (min 8), role whitelist, email format, display name length; Device CRUD validates protocol whitelist, port range (0-65535), interval non-negative, name ≤255
+- **API key permissions** — API key auth loads role permissions via `GetRolePermissions()` and includes them in JWT Claims
+- **HttpOnly refresh cookie** — Login sets `HttpOnly + Secure + SameSite=Strict` cookie; frontend `v1` axios instance uses `withCredentials: true`; refresh interceptor sends empty body (cookie handles token); logout clears both cookies
+
+### Added — Backend
+
+- **Cursor-based pagination** — `ListPhase2Cursor` on `Phase2Store` interface; handler accepts `cursor` and `limit` params, returns `{data, next_cursor, has_more}` envelope
+- **Typed Role handler** — `RoleHandler` with List/Get/Create/Update/Delete; validates permission names against allowlist of 23 valid permissions; rejects duplicate role names (409); prevents modification/deletion of system roles (`is_system`); prevents deletion of roles assigned to users
+- **Typed UserScope handler** — `UserScopeHandler` with List/Create/Delete; validates `scope_type` against enum (`location`/`department`/`device`); rejects duplicate scope assignments (409)
+- **Validation helpers** — `IsValidEmail` (regex), `RequiredString`, `InRangeInt`, `ValidationError` type in `httputil/response.go`
+
+### Added — CI/CD
+
+- **gitleaks secret scanning** — `gitleaks/gitleaks-action@v2` with `fetch-depth: 0`
+- **Trivy container scanning** — `aquasecurity/trivy-action@master` after Docker build, fails on CRITICAL/HIGH
+- **Bundle budget check** — Warns on individual chunks >500KB JS / 100KB CSS; fails on total JS >1200KB
+- **golangci-lint v2** — Config migrated to v2 format; CI installs v2
+
+### Added — Tests
+
+- **RBAC boundary tests** — `TestRequirePermission_HTTP` (6 cases) and `TestRequireAnyPermission_HTTP` (5 cases)
+
+### Performance
+
+- **Material Symbols font replacement** — Switched from `material-symbols` (3.93MB) to `@fontsource-variable/material-symbols-outlined` (727KB, 81% reduction); Latin subset variable font
+
+### Changed
+
+- **API standardization** — All frontend API calls migrated from `/api/*` to `/api/v1/*`; legacy `/api/*` route aliases removed from backend; frontend `api` axios instance removed entirely
+- **golangci-lint config** — Migrated to v2 format; `gosimple` removed (merged into `staticcheck` in v2)
+- **CI lint install** — Updated to install golangci-lint v2
+
+### Fixed
+
+- **Double-protocol prefix** — HTTP device URLs no longer produce `http://http://...`
+- **Login redirect loop** — Prevents redirect on missing `/auth/permissions` endpoint
+- **Port state change detection** — Implemented with trend delta formatting to 2 decimal places
+- **Sidebar navigation** — Simplified with collapsible sections
+- **Scrollbar visibility** — Low-priority Safari fallback fixes
+- **Accessibility** — Critical, high, and medium priority accessibility, color token, and responsive fixes
+- **CSS var tokens** — Updated tests for CSS custom properties and WCAG AA color compliance
+- **Lint error** — Fixed App.tsx lint error
+
+### Dependencies
+
+- `golang.org/x/net` v0.54.0 → v0.56.0 (fixes 5 HIGH CVEs: CVE-2026-25680, CVE-2026-25681, CVE-2026-27136, CVE-2026-39821, CVE-2026-42502)
+
+### Removed
+
+- Redundant review spec (`documentation/review_codex.md`)
+- Legacy `api` axios instance from frontend
+- `tcpdump` from production Docker image
+- `coverage.out` and `coverage.html` from git tracking
+
 ## [3.0.0] - 2026-06-25
 
 Major release transforming Rayavriti NetMonitor from a generic network monitor into a purpose-built campus network monitoring platform. Adds 12 new backend features, 12 new frontend pages, and comprehensive testing.

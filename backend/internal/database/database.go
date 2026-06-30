@@ -47,6 +47,7 @@ type Phase2Summary struct {
 
 type Phase2Store interface {
 	ListPhase2(ctx context.Context, resource string, filters map[string]string) ([]map[string]any, error)
+	ListPhase2Cursor(ctx context.Context, resource string, filters map[string]string, cursor string, limit int) ([]map[string]any, string, bool, error)
 	GetPhase2(ctx context.Context, resource string, id int64) (map[string]any, error)
 	CreatePhase2(ctx context.Context, resource string, values map[string]any) (map[string]any, error)
 	UpdatePhase2(ctx context.Context, resource string, id int64, values map[string]any) (map[string]any, error)
@@ -163,7 +164,7 @@ type Database interface {
 	GetCapturePackets(ctx context.Context, sessionID int64, limit, offset int) ([]models.CapturePacket, error)
 
 	// Port Scans
-	UpsertPortScanResults(ctx context.Context, deviceID int64, results []models.PortScanResult) error
+	UpsertPortScanResults(ctx context.Context, deviceID int64, results []models.PortScanResult) (int, error)
 	GetPortScanResults(ctx context.Context, deviceID int64) ([]models.PortScanResult, error)
 
 	// Dashboards

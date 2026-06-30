@@ -30,6 +30,7 @@ type Server struct {
 	hub        *websocket.Hub
 	rdb        *cache.Redis
 	logger     *logging.Logger
+	alertEng   handlers.AlertProcessor
 	httpServer *http.Server
 	cancel     context.CancelFunc
 }
@@ -46,6 +47,10 @@ type ServerOption func(*Server)
 
 func WithRedis(rdb *cache.Redis) ServerOption {
 	return func(s *Server) { s.rdb = rdb }
+}
+
+func WithAlertEngine(ap handlers.AlertProcessor) ServerOption {
+	return func(s *Server) { s.alertEng = ap }
 }
 
 func (s *Server) Start() error {
@@ -74,7 +79,7 @@ func (s *Server) Start() error {
 			return false
 		},
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowedHeaders:   []string{"*"},
+		AllowedHeaders:   []string{"Authorization", "Content-Type", "X-Request-ID", "X-Api-Key"},
 		AllowCredentials: true,
 	})
 	r.Use(corsHandler.Handler)
@@ -88,6 +93,7 @@ func (s *Server) Start() error {
 	if s.cfg.App.AppEnv == "production" {
 		r.Use(RateLimiter(ctx, 100, 200, s.rdb))
 	}
+	auditLog := logging.NewAuditLogger(s.logger)
 
 	// Auth helper
 	requireAuth := auth.RequireAuth(s.cfg.Auth.JWTSecret, func(ctx context.Context, hash string) (*auth.Claims, error) {
@@ -99,19 +105,31 @@ func (s *Server) Start() error {
 		if err != nil {
 			return nil, err
 		}
-		return &auth.Claims{UserID: user.ID, Username: user.Username, Role: user.Role}, nil
+		// Load permissions for API key users, same as login
+		var permissions []string
+		if user.RoleID != nil {
+			if perms, err := s.db.GetRolePermissions(ctx, *user.RoleID); err == nil {
+				permissions = perms
+			}
+		}
+		return &auth.Claims{UserID: user.ID, Username: user.Username, Role: user.Role, Permissions: permissions}, nil
 	})
 
 	// Handlers
 	health := handlers.NewHealthHandler(s.db)
 	authH := handlers.NewAuthHandler(s.db, s.cfg)
-	device := handlers.NewDeviceHandler(s.db)
+	device := handlers.NewDeviceHandler(s.db).WithAlertEngine(s.alertEng)
 	metric := handlers.NewMetricHandler(s.db)
 	alert := handlers.NewAlertHandler(s.db)
 	flow := handlers.NewFlowHandler(s.db)
 	report := handlers.NewReportHandler(s.db)
 	insight := handlers.NewInsightHandler(s.db)
-	capture := handlers.NewCaptureHandler(s.db, s.hub)
+	capture := handlers.NewCaptureHandler(s.db, s.hub, handlers.CaptureConfig{
+		Enabled:        s.cfg.Collector.CaptureEnabled,
+		MaxDurationSec: s.cfg.Collector.CaptureMaxDurationSec,
+		MaxPackets:     s.cfg.Collector.CaptureMaxPackets,
+		MaxBytes:       s.cfg.Collector.CaptureMaxBytes,
+	})
 	ports := handlers.NewPortsHandler(s.db)
 	dashboard := handlers.NewDashboardHandler(s.db)
 	simulator := handlers.NewSimulatorHandler(s.db)
@@ -127,6 +145,8 @@ func (s *Server) Start() error {
 	ispH := handlers.NewISPHandler(s.db)
 	reportGenH := handlers.NewReportGenHandler(s.db, s.cfg.Phase2.ReportOutputDir)
 	discH := discovery.NewDiscoveryHandler(s.db)
+	roleH := handlers.NewRoleHandler(s.db)
+	userScopeH := handlers.NewUserScopeHandler(s.db)
 
 	var svcTmplH *servicetmpl.Handler
 	if pp, ok := s.db.(database.PoolProvider); ok && pp.Pool() != nil {
@@ -141,7 +161,7 @@ func (s *Server) Start() error {
 				return true
 			}
 			if len(info.Scopes) == 0 {
-				return true
+				return false
 			}
 			switch msg.Type {
 			case websocket.EventMetricUpdate, websocket.EventAlertTriggered,
@@ -149,18 +169,18 @@ func (s *Server) Start() error {
 				websocket.EventDeviceStatus:
 				data, ok := msg.Data.(map[string]any)
 				if !ok {
-					return true
+					return false
 				}
 				deviceID, _ := data["device_id"].(float64)
 				if deviceID == 0 {
-					return true
+					return false
 				}
 				var locationID int64
 				_ = pool.QueryRow(context.Background(),
 					"SELECT COALESCE(location_id, 0) FROM devices WHERE id = $1", int64(deviceID)).
 					Scan(&locationID)
 				if locationID == 0 {
-					return true
+					return false
 				}
 				for _, scope := range info.Scopes {
 					if scope.ScopeType == "location" && scope.ScopeValue == fmt.Sprintf("%d", locationID) {
@@ -184,12 +204,7 @@ func (s *Server) Start() error {
 	r.Get("/api/v1/public/status", statusPageH.PublicStatusJSON)
 	r.Get("/api/v1/public/incidents", phase2.List("status_page_incidents"))
 
-	// Auth routes
-	r.Post("/api/auth/login", authH.Login)
-	r.Post("/api/auth/logout", authH.Logout)
-	r.Post("/api/auth/refresh", authH.Refresh)
-
-	// V1 Auth (public)
+	// Auth routes (v1 only)
 	r.Post("/api/v1/auth/login", authH.V1Login)
 	r.Post("/api/v1/auth/refresh", authH.Refresh)
 	r.Post("/api/v1/auth/2fa/verify", authH.Verify2FA)
@@ -199,242 +214,13 @@ func (s *Server) Start() error {
 	r.Group(func(r chi.Router) {
 		r.Use(requireAuth)
 		r.Use(auth.UserRateLimiter(ctx, s.rdb))
+		r.Use(AuditLog(auditLog))
 		if pp, ok := s.db.(database.PoolProvider); ok && pp.Pool() != nil {
 			r.Use(rbac.RequireScopeContext(pp.Pool()))
 		}
-		r.Get("/api/auth/me", authH.Me)
-		r.Get("/api/stats", health.Stats)
 
-		// Devices (legacy + v1)
-		r.Get("/api/devices", device.List)
-		r.Post("/api/devices", device.Create)
-		r.Get("/api/devices/{id}", device.Get)
-		r.Put("/api/devices/{id}", device.Update)
-		r.Delete("/api/devices/{id}", device.Delete)
-		r.Get("/api/v1/devices", device.List)
-		r.Get("/api/v1/devices/{id}", device.Get)
-
-		// Metrics
-		r.Get("/api/metrics/latest", metric.Latest)
-		r.Get("/api/metrics/{deviceId}", metric.ForDevice)
-		r.Get("/api/v1/metrics/query", metric.Query)
-
-		// Devices
-		r.Get("/api/devices/{id}/ports", ports.ForDevice)
-		r.Post("/api/devices/{id}/scan-ports", device.ScanPorts)
-		r.Get("/api/v1/devices/{deviceId}/metrics", metric.ForDevice)
-
-		// Alerts
-		r.Get("/api/alerts", alert.List)
-		r.Post("/api/alerts", alert.Create)
-		r.Get("/api/alerts/counts", alert.Counts)
-		r.Get("/api/alerts/grouped", alert.Grouped)
-		r.Get("/api/alerts/{id}", alert.Get)
-		r.Post("/api/alerts/{id}/acknowledge", alert.Acknowledge)
-		r.Post("/api/alerts/{id}/resolve", alert.Resolve)
-		r.Delete("/api/alerts/{id}", alert.Delete)
-
-		// V1 Alerts
-		r.Get("/api/v1/alerts", alert.List)
-		r.Post("/api/v1/alerts", alert.Create)
-		r.Get("/api/v1/alerts/grouped", alert.Grouped)
-		r.Get("/api/v1/alerts/{id}", alert.Get)
-		r.Put("/api/v1/alerts/{id}", alert.Update)
-		r.Delete("/api/v1/alerts/{id}", alert.Delete)
-		r.Post("/api/v1/alerts/{id}/acknowledge", alert.Acknowledge)
-		r.Post("/api/v1/alerts/{id}/resolve", alert.Resolve)
-		r.Get("/api/v1/alerts/{id}/history", alert.History)
-		r.Get("/api/v1/alert-stats", alert.AlertStats)
-
-		// Reports
-		r.Get("/api/reports/summary", report.Summary)
-		r.Get("/api/reports/timeseries", report.Timeseries)
-		r.Get("/api/reports/devices", report.Devices)
-		r.Get("/api/reports/alerts", report.Alerts)
-		r.Get("/api/reports/export", report.Export)
-
-		// V1 Reports
-		r.Get("/api/v1/reports", report.List)
-
-		// Insights
-		r.Get("/api/insights", insight.Current)
-		r.Get("/api/insights/current", insight.Current)
-		r.Get("/api/insights/history", insight.History)
-
-		// Flows
-		r.Get("/api/v1/flows", flow.List)
-		r.Get("/api/v1/flows/top-talkers", flow.TopTalkers)
-		r.Get("/api/v1/flows/protocols", flow.Protocols)
-		r.Get("/api/v1/flows/timeseries", flow.Timeseries)
-		r.Get("/api/v1/flows/stats", flow.Stats)
-
-		// Capture
-		r.Get("/api/v1/capture/interfaces", capture.Interfaces)
-		r.Post("/api/v1/capture/start", capture.Start)
-		r.Post("/api/v1/capture/{id}/stop", capture.Stop)
-		r.Get("/api/v1/capture/{id}", capture.GetSession)
-		r.Get("/api/v1/capture/{id}/packets", capture.GetPackets)
-		r.Get("/api/v1/capture/sessions", capture.ListSessions)
-
-		// Ports
-		r.Get("/api/v1/devices/{id}/ports", ports.ForDevice)
-
-		// Sensors
-		r.Get("/api/v1/sensors", sensor.List)
-		r.Get("/api/v1/sensors/{id}", sensor.Get)
-		r.Post("/api/v1/sensors", sensor.Create)
-		r.Put("/api/v1/sensors/{id}", sensor.Update)
-		r.Delete("/api/v1/sensors/{id}", sensor.Delete)
-
-		// Dashboards
-		r.Get("/api/v1/dashboards", dashboard.List)
-		r.Post("/api/v1/dashboards", dashboard.Save)
-		r.Get("/api/v1/dashboards/{id}", dashboard.Get)
-		r.Put("/api/v1/dashboards/{id}", dashboard.Save)
-		r.Delete("/api/v1/dashboards/{id}", dashboard.Delete)
-
-		// Alert Rules
-		r.Get("/api/v1/alert-rules", alertRule.List)
-		r.Post("/api/v1/alert-rules", alertRule.Create)
-		r.Get("/api/v1/alert-rules/{id}", alertRule.Get)
-		r.Put("/api/v1/alert-rules/{id}", alertRule.Update)
-		r.Delete("/api/v1/alert-rules/{id}", alertRule.Delete)
-		r.Post("/api/v1/alert-rules/{id}/toggle", alertRule.Toggle)
-		r.Post("/api/v1/alert-rules/{id}/test", alertRule.Test)
-
-		// Notification Channels
-		r.Get("/api/v1/notification-channels", notifChannel.List)
-		r.Post("/api/v1/notification-channels", notifChannel.Create)
-		r.Get("/api/v1/notification-channels/{id}", notifChannel.Get)
-		r.Put("/api/v1/notification-channels/{id}", notifChannel.Update)
-		r.Delete("/api/v1/notification-channels/{id}", notifChannel.Delete)
-		r.Post("/api/v1/notification-channels/{id}/test", notifChannel.Test)
-
-		// API Keys
-		r.Get("/api/v1/auth/apikeys", authH.ListAPIKeys)
-		r.Post("/api/v1/auth/apikeys", authH.CreateAPIKey)
-		r.Delete("/api/v1/auth/apikeys/{id}", authH.DeleteAPIKey)
-
-		// System Info
-		r.Get("/api/v1/system/info", system.Info)
-
-		// Phase 2 summary
-		r.Get("/api/v1/phase2/summary", phase2.Summary)
-
-		// Location hierarchy and topology (typed campus handlers)
-		r.Get("/api/v1/locations", campusH.ListLocations)
-		r.Post("/api/v1/locations", campusH.CreateLocation)
-		r.Get("/api/v1/locations/{id}", campusH.GetLocation)
-		r.Get("/api/v1/locations/{id}/tree", campusH.GetLocationTree)
-		r.Get("/api/v1/locations/{id}/status", campusH.LocationStatus)
-		r.Get("/api/v1/locations/{id}/devices", campusH.LocationDevices)
-		r.Put("/api/v1/locations/{id}", campusH.UpdateLocation)
-		r.Delete("/api/v1/locations/{id}", campusH.DeleteLocation)
-		r.Post("/api/v1/locations/{id}/move", campusH.MoveLocation)
-		r.Get("/api/v1/subnets", phase2.List("subnets"))
-		r.Post("/api/v1/subnets", phase2.Create("subnets"))
-		r.Get("/api/v1/subnets/{id}", phase2.Get("subnets"))
-		r.Put("/api/v1/subnets/{id}", phase2.Update("subnets"))
-		r.Delete("/api/v1/subnets/{id}", phase2.Delete("subnets"))
-		r.Get("/api/v1/topology", campusH.DependencyTree)
-		r.Get("/api/v1/topology/map", campusH.DependencyTree)
-		r.Get("/api/v1/topology/dependency-tree", campusH.DependencyTree)
-		r.Get("/api/v1/alerts/suppressed", phase2.List("suppressed_alerts"))
-		r.Get("/api/v1/outages/root-cause", campusH.RootCauseOutages)
-		r.Put("/api/v1/devices/{id}/parent", device.Update)
-		r.Get("/api/v1/devices/{id}/dependencies", campusH.DeviceDependencies)
-
-		// Bulk import and discovery (typed import handlers)
-		r.Get("/api/v1/import/history", phase2.List("discovery_jobs"))
-		r.Get("/api/v1/import/template", campusH.ImportTemplate)
-		r.Post("/api/v1/import/devices", campusH.ImportPreview)
-		r.Post("/api/v1/import/devices/confirm", campusH.ImportExecute)
-		r.Post("/api/v1/discovery/scan", discH.StartScan)
-		r.Get("/api/v1/discovery/jobs", discH.ListJobs)
-		r.Get("/api/v1/discovery/jobs/{id}", discH.GetJob)
-		r.Get("/api/v1/discovery/jobs/{id}/results", discH.GetJobResults)
-		r.Post("/api/v1/discovery/results/{id}/approve", discH.ApproveResult)
-		r.Post("/api/v1/discovery/results/{id}/reject", discH.RejectResult)
-		r.Post("/api/v1/discovery/results/bulk-approve", discH.BulkApprove)
-
-		// Status page administration (typed)
-		r.Get("/api/v1/status-page/services", phase2.List("status_page_services"))
-		r.Post("/api/v1/status-page/services", phase2.Create("status_page_services"))
-		r.Get("/api/v1/status-page/services/{id}", phase2.Get("status_page_services"))
-		r.Put("/api/v1/status-page/services/{id}", phase2.Update("status_page_services"))
-		r.Delete("/api/v1/status-page/services/{id}", phase2.Delete("status_page_services"))
-		r.Post("/api/v1/status-page/services/{id}/devices", statusPageH.AddServiceDevice)
-		r.Delete("/api/v1/status-page/services/{id}/devices/{did}", statusPageH.RemoveServiceDevice)
-		r.Get("/api/v1/status-page/services/{id}/devices", statusPageH.ListServiceDevices)
-		r.Post("/api/v1/status-page/incidents", phase2.Create("status_page_incidents"))
-		r.Put("/api/v1/status-page/incidents/{id}", phase2.Update("status_page_incidents"))
-		r.Post("/api/v1/status-page/incidents/{id}/update", phase2.Create("status_page_incident_updates"))
-		r.Get("/api/v1/status-page/incidents/{id}/updates", statusPageH.ListIncidentUpdates)
-		r.Post("/api/v1/status-page/incidents/{id}/services", statusPageH.LinkIncidentServices)
-
-		// Maintenance, contacts, escalation, incidents, RBAC, reports, ISP
-		r.Get("/api/v1/maintenance", phase2.List("maintenance_windows"))
-		r.Get("/api/v1/maintenance/active", phase2.List("maintenance_windows"))
-		r.Get("/api/v1/maintenance/calendar", phase2.List("maintenance_windows"))
-		r.Post("/api/v1/maintenance", phase2.Create("maintenance_windows"))
-		r.Get("/api/v1/maintenance/{id}", phase2.Get("maintenance_windows"))
-		r.Put("/api/v1/maintenance/{id}", phase2.Update("maintenance_windows"))
-		r.Delete("/api/v1/maintenance/{id}", phase2.Delete("maintenance_windows"))
-		r.Post("/api/v1/maintenance/{id}/toggle", phase2.Update("maintenance_windows"))
-		r.Get("/api/v1/contacts", phase2.List("contacts"))
-		r.Post("/api/v1/contacts", phase2.Create("contacts"))
-		r.Get("/api/v1/contacts/{id}", phase2.Get("contacts"))
-		r.Put("/api/v1/contacts/{id}", phase2.Update("contacts"))
-		r.Delete("/api/v1/contacts/{id}", phase2.Delete("contacts"))
-		r.Get("/api/v1/contacts/{id}/devices", phase2.List("device_contacts"))
-		r.Post("/api/v1/devices/{id}/contacts", phase2.Create("device_contacts"))
-		r.Delete("/api/v1/devices/{id}/contacts/{cid}", phase2.Delete("device_contacts"))
-		r.Post("/api/v1/locations/{id}/contacts", phase2.Create("device_contacts"))
-		r.Get("/api/v1/escalation-policies", phase2.List("escalation_policies"))
-		r.Post("/api/v1/escalation-policies", phase2.Create("escalation_policies"))
-		r.Put("/api/v1/escalation-policies/{id}", phase2.Update("escalation_policies"))
-		r.Delete("/api/v1/escalation-policies/{id}", phase2.Delete("escalation_policies"))
-		r.Post("/api/v1/escalation-policies/{id}/steps", phase2.Create("escalation_steps"))
-		r.Get("/api/v1/escalation-policies/{id}/steps", phase2.List("escalation_steps"))
-
-		// Typed escalation and notification endpoints
-		r.Post("/api/v1/devices/{id}/resolve-contacts", contactH.ResolveContacts)
-		r.Post("/api/v1/alerts/{id}/escalate", contactH.EscalationStart)
-		r.Post("/api/v1/alerts/{id}/cancel-escalation", contactH.EscalationCancel)
-		r.Get("/api/v1/alerts/{id}/escalation-status", contactH.EscalationStatus)
-		r.Get("/api/v1/notification-log", contactH.NotificationLog)
-		r.Get("/api/v1/oncall", phase2.List("oncall_schedules"))
-		r.Get("/api/v1/oncall/schedule", phase2.List("oncall_schedules"))
-		r.Put("/api/v1/oncall/{id}/override", phase2.Update("oncall_schedules"))
-		r.Get("/api/v1/incidents", phase2.List("incidents"))
-		r.Post("/api/v1/incidents", incidentH.CreateIncident)
-		r.Get("/api/v1/incidents/stats", incidentH.GetIncidentStats)
-		r.Get("/api/v1/incidents/sla-report", incidentH.GetSLAReport)
-		r.Get("/api/v1/incidents/{id}", phase2.Get("incidents"))
-		r.Put("/api/v1/incidents/{id}", phase2.Update("incidents"))
-		r.Post("/api/v1/incidents/{id}/note", incidentH.AddTimelineEntry)
-		r.Post("/api/v1/incidents/{id}/assign", incidentH.AssignIncident)
-		r.Post("/api/v1/incidents/{id}/resolve", incidentH.ResolveIncident)
-		r.Post("/api/v1/incidents/{id}/close", incidentH.CloseIncident)
-		r.Post("/api/v1/incidents/{id}/acknowledge", incidentH.AcknowledgeIncident)
-		r.Get("/api/v1/incidents/{id}/timeline", incidentH.GetTimeline)
-		r.Get("/api/v1/incidents/{id}/devices", incidentH.GetIncidentDevices)
-		r.Get("/api/v1/sla", phase2.List("sla_definitions"))
-		r.Put("/api/v1/sla/{id}", phase2.Update("sla_definitions"))
-		r.Get("/api/v1/roles", phase2.List("roles"))
-		r.Post("/api/v1/roles", phase2.Create("roles"))
-		r.Put("/api/v1/roles/{id}", phase2.Update("roles"))
-		r.Delete("/api/v1/roles/{id}", phase2.Delete("roles"))
-		r.Get("/api/v1/users", phase2.List("users"))
-		r.Get("/api/v1/users/{id}", phase2.Get("users"))
-		r.Put("/api/v1/users/{id}", phase2.Update("users"))
-		r.Delete("/api/v1/users/{id}", phase2.Delete("users"))
-		r.Put("/api/v1/users/{id}/role", phase2.Update("users"))
-		r.Get("/api/v1/user-scopes", phase2.List("user_scopes"))
-		r.Put("/api/v1/users/{id}/scopes", phase2.Create("user_scopes"))
-		r.Delete("/api/v1/users/{id}/scopes/{sid}", phase2.Delete("user_scopes"))
-
-		// RBAC: permissions endpoint (returns the caller's own permissions)
+		// --- Auth / Self-service (no special permission, just authenticated) ---
+		r.Get("/api/v1/auth/me", authH.Me)
 		r.Get("/api/v1/auth/permissions", func(w http.ResponseWriter, r *http.Request) {
 			claims := auth.GetClaims(r.Context())
 			if claims == nil {
@@ -447,42 +233,260 @@ func (s *Server) Start() error {
 				"permissions": claims.Permissions,
 			})
 		})
+		r.Get("/api/v1/auth/apikeys", authH.ListAPIKeys)
+		r.Post("/api/v1/auth/apikeys", authH.CreateAPIKey)
+		r.Delete("/api/v1/auth/apikeys/{id}", authH.DeleteAPIKey)
 
-		// Device write routes require devices.write permission
+		// --- System (system.monitoring) ---
+		r.With(rbac.RequirePermission(models.PermSystemMonitoring)).Get("/api/v1/system/stats", health.Stats)
+		r.With(rbac.RequirePermission(models.PermSystemMonitoring)).Get("/api/v1/system/info", system.Info)
+		r.With(rbac.RequirePermission(models.PermSystemMonitoring)).Get("/api/v1/phase2/summary", phase2.Summary)
+
+		// --- Devices (devices.read / devices.write / devices.delete) ---
+		r.With(rbac.RequirePermission(models.PermDevicesRead)).Get("/api/v1/devices", device.List)
+		r.With(rbac.RequirePermission(models.PermDevicesRead)).Get("/api/v1/devices/{id}", device.Get)
 		r.With(rbac.RequirePermission(models.PermDevicesWrite)).Post("/api/v1/devices", device.Create)
 		r.With(rbac.RequirePermission(models.PermDevicesWrite)).Put("/api/v1/devices/{id}", device.Update)
+		r.With(rbac.RequirePermission(models.PermDevicesWrite)).Put("/api/v1/devices/{id}/parent", device.Update)
 		r.With(rbac.RequirePermission(models.PermDevicesDelete)).Delete("/api/v1/devices/{id}", device.Delete)
-		r.Get("/api/v1/reports/generated", reportGenH.ListGenerated)
-		r.Get("/api/v1/reports/generated/{id}/download", reportGenH.DownloadReport)
-		r.Get("/api/v1/reports/scheduled", phase2.List("scheduled_reports"))
-		r.Post("/api/v1/reports/scheduled", phase2.Create("scheduled_reports"))
-		r.Put("/api/v1/reports/scheduled/{id}", phase2.Update("scheduled_reports"))
-		r.Delete("/api/v1/reports/scheduled/{id}", phase2.Delete("scheduled_reports"))
-		r.Post("/api/v1/reports/scheduled/{id}/run", reportGenH.RunScheduledReport)
-		r.Post("/api/v1/reports/generate", reportGenH.GenerateReport)
-		r.Get("/api/v1/reports/sla", phase2.List("sla_definitions"))
-		r.Get("/api/v1/reports/mttr", phase2.List("incidents"))
-		r.Get("/api/v1/reports/availability", report.Devices)
-		r.Get("/api/v1/reports/isp", phase2.List("isp_metrics"))
-		r.Get("/api/v1/reports/top-offenders", report.Devices)
-		r.Get("/api/v1/isp-links", phase2.List("isp_links"))
-		r.Post("/api/v1/isp-links", phase2.Create("isp_links"))
-		r.Get("/api/v1/isp-links/comparison", ispH.Comparison)
-		r.Get("/api/v1/isp-links/{id}", phase2.Get("isp_links"))
-		r.Put("/api/v1/isp-links/{id}", phase2.Update("isp_links"))
-		r.Delete("/api/v1/isp-links/{id}", phase2.Delete("isp_links"))
-		r.Get("/api/v1/isp-links/{id}/metrics", ispH.MetricsSummary)
-		r.Get("/api/v1/isp-links/{id}/metrics/timeseries", ispH.MetricsTimeSeries)
-		r.Get("/api/v1/isp-links/{id}/sla", ispH.LinkSLA)
+		r.With(rbac.RequirePermission(models.PermDevicesRead)).Get("/api/v1/devices/{id}/ports", ports.ForDevice)
+		r.With(rbac.RequirePermission(models.PermDevicesRead)).Get("/api/v1/devices/{deviceId}/metrics", metric.ForDevice)
+		r.With(rbac.RequirePermission(models.PermDevicesWrite)).Post("/api/v1/devices/{id}/scan-ports", device.ScanPorts)
+		r.With(rbac.RequirePermission(models.PermDevicesRead)).Get("/api/v1/devices/{id}/dependencies", campusH.DeviceDependencies)
 
-		// Service Templates
+		// --- Metrics (devices.read) ---
+		r.With(rbac.RequirePermission(models.PermDevicesRead)).Get("/api/v1/metrics/query", metric.Query)
+		r.With(rbac.RequirePermission(models.PermDevicesRead)).Get("/api/v1/metrics/latest", metric.Latest)
+		r.With(rbac.RequirePermission(models.PermDevicesRead)).Get("/api/v1/metrics/{deviceId}", metric.ForDevice)
+
+		// --- Alerts (alerts.read / alerts.create / alerts.acknowledge / alerts.resolve) ---
+		r.With(rbac.RequirePermission(models.PermAlertsRead)).Get("/api/v1/alerts", alert.List)
+		r.With(rbac.RequirePermission(models.PermAlertsRead)).Get("/api/v1/alerts/grouped", alert.Grouped)
+		r.With(rbac.RequirePermission(models.PermAlertsRead)).Get("/api/v1/alerts/{id}", alert.Get)
+		r.With(rbac.RequirePermission(models.PermAlertsRead)).Get("/api/v1/alerts/{id}/history", alert.History)
+		r.With(rbac.RequirePermission(models.PermAlertsCreate)).Post("/api/v1/alerts", alert.Create)
+		r.With(rbac.RequirePermission(models.PermAlertsRead)).Put("/api/v1/alerts/{id}", alert.Update)
+		r.With(rbac.RequirePermission(models.PermAlertsRead)).Delete("/api/v1/alerts/{id}", alert.Delete)
+		r.With(rbac.RequirePermission(models.PermAlertsAcknowledge)).Post("/api/v1/alerts/{id}/acknowledge", alert.Acknowledge)
+		r.With(rbac.RequirePermission(models.PermAlertsResolve)).Post("/api/v1/alerts/{id}/resolve", alert.Resolve)
+		r.With(rbac.RequirePermission(models.PermAlertsRead)).Get("/api/v1/alert-stats", alert.AlertStats)
+		r.With(rbac.RequirePermission(models.PermAlertsRead)).Get("/api/v1/alerts/counts", alert.Counts)
+		r.With(rbac.RequirePermission(models.PermAlertsRead)).Get("/api/v1/alerts/suppressed", phase2.List("suppressed_alerts"))
+
+		// --- Insights (devices.read) ---
+		r.With(rbac.RequirePermission(models.PermDevicesRead)).Get("/api/v1/insights/current", insight.Current)
+		r.With(rbac.RequirePermission(models.PermDevicesRead)).Get("/api/v1/insights/history", insight.History)
+
+		// --- Flows (devices.read) ---
+		r.With(rbac.RequirePermission(models.PermDevicesRead)).Get("/api/v1/flows", flow.List)
+		r.With(rbac.RequirePermission(models.PermDevicesRead)).Get("/api/v1/flows/top-talkers", flow.TopTalkers)
+		r.With(rbac.RequirePermission(models.PermDevicesRead)).Get("/api/v1/flows/protocols", flow.Protocols)
+		r.With(rbac.RequirePermission(models.PermDevicesRead)).Get("/api/v1/flows/timeseries", flow.Timeseries)
+		r.With(rbac.RequirePermission(models.PermDevicesRead)).Get("/api/v1/flows/stats", flow.Stats)
+
+		// --- Capture (devices.read / capture.execute) ---
+		r.With(rbac.RequirePermission(models.PermDevicesRead)).Get("/api/v1/capture/interfaces", capture.Interfaces)
+		r.With(rbac.RequirePermission(models.PermDevicesRead)).Get("/api/v1/capture/{id}", capture.GetSession)
+		r.With(rbac.RequirePermission(models.PermDevicesRead)).Get("/api/v1/capture/{id}/packets", capture.GetPackets)
+		r.With(rbac.RequirePermission(models.PermDevicesRead)).Get("/api/v1/capture/sessions", capture.ListSessions)
+		r.With(rbac.RequirePermission(models.PermCaptureExecute)).Post("/api/v1/capture/start", capture.Start)
+		r.With(rbac.RequirePermission(models.PermCaptureExecute)).Post("/api/v1/capture/{id}/stop", capture.Stop)
+
+		// --- Sensors (devices.read / devices.write) ---
+		r.With(rbac.RequirePermission(models.PermDevicesRead)).Get("/api/v1/sensors", sensor.List)
+		r.With(rbac.RequirePermission(models.PermDevicesRead)).Get("/api/v1/sensors/{id}", sensor.Get)
+		r.With(rbac.RequirePermission(models.PermDevicesWrite)).Post("/api/v1/sensors", sensor.Create)
+		r.With(rbac.RequirePermission(models.PermDevicesWrite)).Put("/api/v1/sensors/{id}", sensor.Update)
+		r.With(rbac.RequirePermission(models.PermDevicesWrite)).Delete("/api/v1/sensors/{id}", sensor.Delete)
+
+		// --- Dashboards (devices.read / devices.write) ---
+		r.With(rbac.RequirePermission(models.PermDevicesRead)).Get("/api/v1/dashboards", dashboard.List)
+		r.With(rbac.RequirePermission(models.PermDevicesRead)).Get("/api/v1/dashboards/{id}", dashboard.Get)
+		r.With(rbac.RequirePermission(models.PermDevicesWrite)).Post("/api/v1/dashboards", dashboard.Save)
+		r.With(rbac.RequirePermission(models.PermDevicesWrite)).Put("/api/v1/dashboards/{id}", dashboard.Save)
+		r.With(rbac.RequirePermission(models.PermDevicesWrite)).Delete("/api/v1/dashboards/{id}", dashboard.Delete)
+
+		// --- Alert Rules (alert_rules.write) ---
+		r.With(rbac.RequirePermission(models.PermAlertRulesWrite)).Get("/api/v1/alert-rules", alertRule.List)
+		r.With(rbac.RequirePermission(models.PermAlertRulesWrite)).Get("/api/v1/alert-rules/{id}", alertRule.Get)
+		r.With(rbac.RequirePermission(models.PermAlertRulesWrite)).Post("/api/v1/alert-rules", alertRule.Create)
+		r.With(rbac.RequirePermission(models.PermAlertRulesWrite)).Put("/api/v1/alert-rules/{id}", alertRule.Update)
+		r.With(rbac.RequirePermission(models.PermAlertRulesWrite)).Delete("/api/v1/alert-rules/{id}", alertRule.Delete)
+		r.With(rbac.RequirePermission(models.PermAlertRulesWrite)).Post("/api/v1/alert-rules/{id}/toggle", alertRule.Toggle)
+		r.With(rbac.RequirePermission(models.PermAlertRulesWrite)).Post("/api/v1/alert-rules/{id}/test", alertRule.Test)
+
+		// --- Notification Channels (notifications.manage) ---
+		r.With(rbac.RequirePermission(models.PermNotificationsManage)).Get("/api/v1/notification-channels", notifChannel.List)
+		r.With(rbac.RequirePermission(models.PermNotificationsManage)).Get("/api/v1/notification-channels/{id}", notifChannel.Get)
+		r.With(rbac.RequirePermission(models.PermNotificationsManage)).Post("/api/v1/notification-channels", notifChannel.Create)
+		r.With(rbac.RequirePermission(models.PermNotificationsManage)).Put("/api/v1/notification-channels/{id}", notifChannel.Update)
+		r.With(rbac.RequirePermission(models.PermNotificationsManage)).Delete("/api/v1/notification-channels/{id}", notifChannel.Delete)
+		r.With(rbac.RequirePermission(models.PermNotificationsManage)).Post("/api/v1/notification-channels/{id}/test", notifChannel.Test)
+
+		// --- Reports (reports.read / reports.write) ---
+		r.With(rbac.RequirePermission(models.PermReportsRead)).Get("/api/v1/reports", report.List)
+		r.With(rbac.RequirePermission(models.PermReportsRead)).Get("/api/v1/reports/generated", reportGenH.ListGenerated)
+		r.With(rbac.RequirePermission(models.PermReportsRead)).Get("/api/v1/reports/generated/{id}/download", reportGenH.DownloadReport)
+		r.With(rbac.RequirePermission(models.PermReportsRead)).Get("/api/v1/reports/sla", phase2.List("sla_definitions"))
+		r.With(rbac.RequirePermission(models.PermReportsRead)).Get("/api/v1/reports/mttr", phase2.List("incidents"))
+		r.With(rbac.RequirePermission(models.PermReportsRead)).Get("/api/v1/reports/availability", report.Devices)
+		r.With(rbac.RequirePermission(models.PermReportsRead)).Get("/api/v1/reports/isp", phase2.List("isp_metrics"))
+		r.With(rbac.RequirePermission(models.PermReportsRead)).Get("/api/v1/reports/top-offenders", report.Devices)
+		r.With(rbac.RequirePermission(models.PermReportsWrite)).Get("/api/v1/reports/scheduled", phase2.List("scheduled_reports"))
+		r.With(rbac.RequirePermission(models.PermReportsWrite)).Post("/api/v1/reports/scheduled", phase2.Create("scheduled_reports"))
+		r.With(rbac.RequirePermission(models.PermReportsWrite)).Put("/api/v1/reports/scheduled/{id}", phase2.Update("scheduled_reports"))
+		r.With(rbac.RequirePermission(models.PermReportsWrite)).Delete("/api/v1/reports/scheduled/{id}", phase2.Delete("scheduled_reports"))
+		r.With(rbac.RequirePermission(models.PermReportsWrite)).Post("/api/v1/reports/scheduled/{id}/run", reportGenH.RunScheduledReport)
+		r.With(rbac.RequirePermission(models.PermReportsWrite)).Post("/api/v1/reports/generate", reportGenH.GenerateReport)
+
+		// --- Reports (v1 aliases for legacy frontend paths) ---
+		r.With(rbac.RequirePermission(models.PermReportsRead)).Get("/api/v1/reports/summary", report.Summary)
+		r.With(rbac.RequirePermission(models.PermReportsRead)).Get("/api/v1/reports/timeseries", report.Timeseries)
+		r.With(rbac.RequirePermission(models.PermReportsRead)).Get("/api/v1/reports/devices", report.Devices)
+		r.With(rbac.RequirePermission(models.PermReportsRead)).Get("/api/v1/reports/alerts", report.Alerts)
+		r.With(rbac.RequirePermission(models.PermReportsRead)).Get("/api/v1/reports/export", report.Export)
+
+		// --- Locations / Topology (settings.write / devices.read) ---
+		r.With(rbac.RequirePermission(models.PermDevicesRead)).Get("/api/v1/locations", campusH.ListLocations)
+		r.With(rbac.RequirePermission(models.PermDevicesRead)).Get("/api/v1/locations/{id}", campusH.GetLocation)
+		r.With(rbac.RequirePermission(models.PermDevicesRead)).Get("/api/v1/locations/{id}/tree", campusH.GetLocationTree)
+		r.With(rbac.RequirePermission(models.PermDevicesRead)).Get("/api/v1/locations/{id}/status", campusH.LocationStatus)
+		r.With(rbac.RequirePermission(models.PermDevicesRead)).Get("/api/v1/locations/{id}/devices", campusH.LocationDevices)
+		r.With(rbac.RequirePermission(models.PermSettingsWrite)).Post("/api/v1/locations", campusH.CreateLocation)
+		r.With(rbac.RequirePermission(models.PermSettingsWrite)).Put("/api/v1/locations/{id}", campusH.UpdateLocation)
+		r.With(rbac.RequirePermission(models.PermSettingsWrite)).Delete("/api/v1/locations/{id}", campusH.DeleteLocation)
+		r.With(rbac.RequirePermission(models.PermSettingsWrite)).Post("/api/v1/locations/{id}/move", campusH.MoveLocation)
+		r.With(rbac.RequirePermission(models.PermDevicesRead)).Get("/api/v1/topology", campusH.DependencyTree)
+		r.With(rbac.RequirePermission(models.PermDevicesRead)).Get("/api/v1/topology/map", campusH.DependencyTree)
+		r.With(rbac.RequirePermission(models.PermDevicesRead)).Get("/api/v1/topology/dependency-tree", campusH.DependencyTree)
+		r.With(rbac.RequirePermission(models.PermDevicesRead)).Get("/api/v1/outages/root-cause", campusH.RootCauseOutages)
+
+		// --- Subnets (settings.write) ---
+		r.With(rbac.RequirePermission(models.PermSettingsWrite)).Get("/api/v1/subnets", phase2.List("subnets"))
+		r.With(rbac.RequirePermission(models.PermSettingsWrite)).Post("/api/v1/subnets", phase2.Create("subnets"))
+		r.With(rbac.RequirePermission(models.PermSettingsWrite)).Get("/api/v1/subnets/{id}", phase2.Get("subnets"))
+		r.With(rbac.RequirePermission(models.PermSettingsWrite)).Put("/api/v1/subnets/{id}", phase2.Update("subnets"))
+		r.With(rbac.RequirePermission(models.PermSettingsWrite)).Delete("/api/v1/subnets/{id}", phase2.Delete("subnets"))
+
+		// --- Import (reports.read / import.execute) ---
+		r.With(rbac.RequirePermission(models.PermReportsRead)).Get("/api/v1/import/history", phase2.List("discovery_jobs"))
+		r.With(rbac.RequirePermission(models.PermReportsRead)).Get("/api/v1/import/template", campusH.ImportTemplate)
+		r.With(rbac.RequirePermission(models.PermImportExecute)).Post("/api/v1/import/devices", campusH.ImportPreview)
+		r.With(rbac.RequirePermission(models.PermImportExecute)).Post("/api/v1/import/devices/confirm", campusH.ImportExecute)
+
+		// --- Discovery (discovery.execute) ---
+		r.With(rbac.RequirePermission(models.PermDiscoveryExecute)).Post("/api/v1/discovery/scan", discH.StartScan)
+		r.With(rbac.RequirePermission(models.PermDiscoveryExecute)).Get("/api/v1/discovery/jobs", discH.ListJobs)
+		r.With(rbac.RequirePermission(models.PermDiscoveryExecute)).Get("/api/v1/discovery/jobs/{id}", discH.GetJob)
+		r.With(rbac.RequirePermission(models.PermDiscoveryExecute)).Get("/api/v1/discovery/jobs/{id}/results", discH.GetJobResults)
+		r.With(rbac.RequirePermission(models.PermDiscoveryExecute)).Post("/api/v1/discovery/results/{id}/approve", discH.ApproveResult)
+		r.With(rbac.RequirePermission(models.PermDiscoveryExecute)).Post("/api/v1/discovery/results/{id}/reject", discH.RejectResult)
+		r.With(rbac.RequirePermission(models.PermDiscoveryExecute)).Post("/api/v1/discovery/results/bulk-approve", discH.BulkApprove)
+
+		// --- Status Page (status_page.manage) ---
+		r.With(rbac.RequirePermission(models.PermStatusPageManage)).Get("/api/v1/status-page/services", phase2.List("status_page_services"))
+		r.With(rbac.RequirePermission(models.PermStatusPageManage)).Get("/api/v1/status-page/services/{id}", phase2.Get("status_page_services"))
+		r.With(rbac.RequirePermission(models.PermStatusPageManage)).Post("/api/v1/status-page/services", phase2.Create("status_page_services"))
+		r.With(rbac.RequirePermission(models.PermStatusPageManage)).Put("/api/v1/status-page/services/{id}", phase2.Update("status_page_services"))
+		r.With(rbac.RequirePermission(models.PermStatusPageManage)).Delete("/api/v1/status-page/services/{id}", phase2.Delete("status_page_services"))
+		r.With(rbac.RequirePermission(models.PermStatusPageManage)).Post("/api/v1/status-page/services/{id}/devices", statusPageH.AddServiceDevice)
+		r.With(rbac.RequirePermission(models.PermStatusPageManage)).Delete("/api/v1/status-page/services/{id}/devices/{did}", statusPageH.RemoveServiceDevice)
+		r.With(rbac.RequirePermission(models.PermStatusPageManage)).Get("/api/v1/status-page/services/{id}/devices", statusPageH.ListServiceDevices)
+		r.With(rbac.RequirePermission(models.PermStatusPageManage)).Post("/api/v1/status-page/incidents", phase2.Create("status_page_incidents"))
+		r.With(rbac.RequirePermission(models.PermStatusPageManage)).Put("/api/v1/status-page/incidents/{id}", phase2.Update("status_page_incidents"))
+		r.With(rbac.RequirePermission(models.PermStatusPageManage)).Post("/api/v1/status-page/incidents/{id}/update", phase2.Create("status_page_incident_updates"))
+		r.With(rbac.RequirePermission(models.PermStatusPageManage)).Get("/api/v1/status-page/incidents/{id}/updates", statusPageH.ListIncidentUpdates)
+		r.With(rbac.RequirePermission(models.PermStatusPageManage)).Post("/api/v1/status-page/incidents/{id}/services", statusPageH.LinkIncidentServices)
+
+		// --- Maintenance (maintenance.write) ---
+		r.With(rbac.RequirePermission(models.PermMaintenanceWrite)).Get("/api/v1/maintenance", phase2.List("maintenance_windows"))
+		r.With(rbac.RequirePermission(models.PermMaintenanceWrite)).Get("/api/v1/maintenance/active", phase2.List("maintenance_windows"))
+		r.With(rbac.RequirePermission(models.PermMaintenanceWrite)).Get("/api/v1/maintenance/calendar", phase2.List("maintenance_windows"))
+		r.With(rbac.RequirePermission(models.PermMaintenanceWrite)).Get("/api/v1/maintenance/{id}", phase2.Get("maintenance_windows"))
+		r.With(rbac.RequirePermission(models.PermMaintenanceWrite)).Post("/api/v1/maintenance", phase2.Create("maintenance_windows"))
+		r.With(rbac.RequirePermission(models.PermMaintenanceWrite)).Put("/api/v1/maintenance/{id}", phase2.Update("maintenance_windows"))
+		r.With(rbac.RequirePermission(models.PermMaintenanceWrite)).Delete("/api/v1/maintenance/{id}", phase2.Delete("maintenance_windows"))
+		r.With(rbac.RequirePermission(models.PermMaintenanceWrite)).Post("/api/v1/maintenance/{id}/toggle", phase2.Update("maintenance_windows"))
+
+		// --- Contacts & Escalation (contacts.write) ---
+		r.With(rbac.RequirePermission(models.PermContactsWrite)).Get("/api/v1/contacts", phase2.List("contacts"))
+		r.With(rbac.RequirePermission(models.PermContactsWrite)).Get("/api/v1/contacts/{id}", phase2.Get("contacts"))
+		r.With(rbac.RequirePermission(models.PermContactsWrite)).Post("/api/v1/contacts", phase2.Create("contacts"))
+		r.With(rbac.RequirePermission(models.PermContactsWrite)).Put("/api/v1/contacts/{id}", phase2.Update("contacts"))
+		r.With(rbac.RequirePermission(models.PermContactsWrite)).Delete("/api/v1/contacts/{id}", phase2.Delete("contacts"))
+		r.With(rbac.RequirePermission(models.PermContactsWrite)).Get("/api/v1/contacts/{id}/devices", phase2.List("device_contacts"))
+		r.With(rbac.RequirePermission(models.PermContactsWrite)).Post("/api/v1/devices/{id}/contacts", phase2.Create("device_contacts"))
+		r.With(rbac.RequirePermission(models.PermContactsWrite)).Delete("/api/v1/devices/{id}/contacts/{cid}", phase2.Delete("device_contacts"))
+		r.With(rbac.RequirePermission(models.PermContactsWrite)).Post("/api/v1/locations/{id}/contacts", phase2.Create("device_contacts"))
+		r.With(rbac.RequirePermission(models.PermContactsWrite)).Get("/api/v1/escalation-policies", phase2.List("escalation_policies"))
+		r.With(rbac.RequirePermission(models.PermContactsWrite)).Get("/api/v1/escalation-policies/{id}/steps", phase2.List("escalation_steps"))
+		r.With(rbac.RequirePermission(models.PermContactsWrite)).Post("/api/v1/escalation-policies", phase2.Create("escalation_policies"))
+		r.With(rbac.RequirePermission(models.PermContactsWrite)).Put("/api/v1/escalation-policies/{id}", phase2.Update("escalation_policies"))
+		r.With(rbac.RequirePermission(models.PermContactsWrite)).Delete("/api/v1/escalation-policies/{id}", phase2.Delete("escalation_policies"))
+		r.With(rbac.RequirePermission(models.PermContactsWrite)).Post("/api/v1/escalation-policies/{id}/steps", phase2.Create("escalation_steps"))
+		r.With(rbac.RequirePermission(models.PermContactsWrite)).Post("/api/v1/devices/{id}/resolve-contacts", contactH.ResolveContacts)
+		r.With(rbac.RequirePermission(models.PermContactsWrite)).Post("/api/v1/alerts/{id}/escalate", contactH.EscalationStart)
+		r.With(rbac.RequirePermission(models.PermContactsWrite)).Post("/api/v1/alerts/{id}/cancel-escalation", contactH.EscalationCancel)
+		r.With(rbac.RequirePermission(models.PermContactsWrite)).Get("/api/v1/alerts/{id}/escalation-status", contactH.EscalationStatus)
+		r.With(rbac.RequirePermission(models.PermContactsWrite)).Get("/api/v1/notification-log", contactH.NotificationLog)
+		r.With(rbac.RequirePermission(models.PermContactsWrite)).Get("/api/v1/oncall", phase2.List("oncall_schedules"))
+		r.With(rbac.RequirePermission(models.PermContactsWrite)).Get("/api/v1/oncall/schedule", phase2.List("oncall_schedules"))
+		r.With(rbac.RequirePermission(models.PermContactsWrite)).Put("/api/v1/oncall/{id}/override", phase2.Update("oncall_schedules"))
+
+		// --- Incidents (incidents.write) ---
+		r.With(rbac.RequirePermission(models.PermIncidentsWrite)).Get("/api/v1/incidents", phase2.List("incidents"))
+		r.With(rbac.RequirePermission(models.PermIncidentsWrite)).Get("/api/v1/incidents/stats", incidentH.GetIncidentStats)
+		r.With(rbac.RequirePermission(models.PermIncidentsWrite)).Get("/api/v1/incidents/sla-report", incidentH.GetSLAReport)
+		r.With(rbac.RequirePermission(models.PermIncidentsWrite)).Get("/api/v1/incidents/{id}", phase2.Get("incidents"))
+		r.With(rbac.RequirePermission(models.PermIncidentsWrite)).Post("/api/v1/incidents", incidentH.CreateIncident)
+		r.With(rbac.RequirePermission(models.PermIncidentsWrite)).Put("/api/v1/incidents/{id}", phase2.Update("incidents"))
+		r.With(rbac.RequirePermission(models.PermIncidentsWrite)).Post("/api/v1/incidents/{id}/note", incidentH.AddTimelineEntry)
+		r.With(rbac.RequirePermission(models.PermIncidentsWrite)).Post("/api/v1/incidents/{id}/assign", incidentH.AssignIncident)
+		r.With(rbac.RequirePermission(models.PermIncidentsWrite)).Post("/api/v1/incidents/{id}/resolve", incidentH.ResolveIncident)
+		r.With(rbac.RequirePermission(models.PermIncidentsWrite)).Post("/api/v1/incidents/{id}/close", incidentH.CloseIncident)
+		r.With(rbac.RequirePermission(models.PermIncidentsWrite)).Post("/api/v1/incidents/{id}/acknowledge", incidentH.AcknowledgeIncident)
+		r.With(rbac.RequirePermission(models.PermIncidentsWrite)).Get("/api/v1/incidents/{id}/timeline", incidentH.GetTimeline)
+		r.With(rbac.RequirePermission(models.PermIncidentsWrite)).Get("/api/v1/incidents/{id}/devices", incidentH.GetIncidentDevices)
+
+		// --- Roles & Users (users.manage) ---
+		r.With(rbac.RequirePermission(models.PermUsersManage)).Get("/api/v1/roles", roleH.List)
+		r.With(rbac.RequirePermission(models.PermUsersManage)).Get("/api/v1/roles/{id}", roleH.Get)
+		r.With(rbac.RequirePermission(models.PermUsersManage)).Post("/api/v1/roles", roleH.Create)
+		r.With(rbac.RequirePermission(models.PermUsersManage)).Put("/api/v1/roles/{id}", roleH.Update)
+		r.With(rbac.RequirePermission(models.PermUsersManage)).Delete("/api/v1/roles/{id}", roleH.Delete)
+		r.With(rbac.RequirePermission(models.PermUsersManage)).Get("/api/v1/users", phase2.List("users"))
+		r.With(rbac.RequirePermission(models.PermUsersManage)).Get("/api/v1/users/{id}", phase2.Get("users"))
+		r.With(rbac.RequirePermission(models.PermUsersManage)).Post("/api/v1/users", authH.CreateUser)
+		r.With(rbac.RequirePermission(models.PermUsersManage)).Put("/api/v1/users/{id}", phase2.Update("users"))
+		r.With(rbac.RequirePermission(models.PermUsersManage)).Delete("/api/v1/users/{id}", authH.DeleteUser)
+		r.With(rbac.RequirePermission(models.PermUsersManage)).Put("/api/v1/users/{id}/role", phase2.Update("users"))
+		r.With(rbac.RequirePermission(models.PermUsersManage)).Get("/api/v1/user-scopes", userScopeH.List)
+		r.With(rbac.RequirePermission(models.PermUsersManage)).Post("/api/v1/users/{id}/scopes", userScopeH.Create)
+		r.With(rbac.RequirePermission(models.PermUsersManage)).Delete("/api/v1/users/{id}/scopes/{sid}", userScopeH.Delete)
+
+		// --- ISP Links (settings.write) ---
+		r.With(rbac.RequirePermission(models.PermSettingsWrite)).Get("/api/v1/isp-links", phase2.List("isp_links"))
+		r.With(rbac.RequirePermission(models.PermSettingsWrite)).Get("/api/v1/isp-links/comparison", ispH.Comparison)
+		r.With(rbac.RequirePermission(models.PermSettingsWrite)).Get("/api/v1/isp-links/{id}", phase2.Get("isp_links"))
+		r.With(rbac.RequirePermission(models.PermSettingsWrite)).Get("/api/v1/isp-links/{id}/metrics", ispH.MetricsSummary)
+		r.With(rbac.RequirePermission(models.PermSettingsWrite)).Get("/api/v1/isp-links/{id}/metrics/timeseries", ispH.MetricsTimeSeries)
+		r.With(rbac.RequirePermission(models.PermSettingsWrite)).Get("/api/v1/isp-links/{id}/sla", ispH.LinkSLA)
+		r.With(rbac.RequirePermission(models.PermSettingsWrite)).Post("/api/v1/isp-links", phase2.Create("isp_links"))
+		r.With(rbac.RequirePermission(models.PermSettingsWrite)).Put("/api/v1/isp-links/{id}", phase2.Update("isp_links"))
+		r.With(rbac.RequirePermission(models.PermSettingsWrite)).Delete("/api/v1/isp-links/{id}", phase2.Delete("isp_links"))
+
+		// --- SLA (sla.manage) ---
+		r.With(rbac.RequirePermission(models.PermSLAManage)).Get("/api/v1/sla", phase2.List("sla_definitions"))
+		r.With(rbac.RequirePermission(models.PermSLAManage)).Put("/api/v1/sla/{id}", phase2.Update("sla_definitions"))
+
+		// --- Service Templates (devices.read / devices.write) ---
 		if svcTmplH != nil {
-			r.Get("/api/v1/service-templates", svcTmplH.ListTemplates)
-			r.Get("/api/v1/service-templates/{name}", svcTmplH.GetTemplate)
+			r.With(rbac.RequirePermission(models.PermDevicesRead)).Get("/api/v1/service-templates", svcTmplH.ListTemplates)
+			r.With(rbac.RequirePermission(models.PermDevicesRead)).Get("/api/v1/service-templates/{name}", svcTmplH.GetTemplate)
 			r.With(rbac.RequirePermission(models.PermDevicesWrite)).Post("/api/v1/service-templates/apply", svcTmplH.ApplyTemplate)
 		}
 
-		// Simulator (admin only)
+		// --- Simulator (admin only) ---
 		r.Group(func(r chi.Router) {
 			r.Use(auth.RequireRole("admin"))
 			r.Post("/api/simulator/metrics", simulator.Metrics)

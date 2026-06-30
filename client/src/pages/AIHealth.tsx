@@ -15,9 +15,9 @@ function scoreColor(score: number) {
 }
 
 function scoreBg(score: number) {
-  if (score < 40) return '#ff7351';
-  if (score < 70) return '#e5a910';
-  return '#d9fd3a';
+  if (score < 40) return 'var(--color-error)';
+  if (score < 70) return 'var(--color-warning)';
+  return 'var(--color-primary)';
 }
 
 function scoreGlow() {
@@ -410,7 +410,7 @@ export default function AIHealth() {
             </span>
             <span className="text-xs uppercase tracking-wide font-bold">
               {networkTrend.trend}
-              {networkTrend.delta !== 0 && ` (${networkTrend.delta > 0 ? '+' : ''}${networkTrend.delta})`}
+              {networkTrend.delta !== 0 && ` (${networkTrend.delta > 0 ? '+' : ''}${Number(networkTrend.delta.toFixed(2))})`}
             </span>
           </div>
           <p className="text-[10px] text-on-surface-variant uppercase tracking-wide mt-2">

@@ -14,7 +14,7 @@ import (
 // helper to inject claims into request context before middleware runs
 func reqWithClaims(claims *Claims) *http.Request {
 	req := httptest.NewRequest("GET", "/api/test", nil)
-	return req.WithContext(context.WithValue(req.Context(), claimsKey, claims))
+	return req.WithContext(context.WithValue(req.Context(), ClaimsKey, claims))
 }
 
 // ── UserRateLimiter ───────────────────────────────────────────────────────────

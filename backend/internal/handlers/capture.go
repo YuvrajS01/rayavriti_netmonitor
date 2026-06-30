@@ -28,6 +28,7 @@ type CaptureHandler struct {
 	running int32
 	db      database.Database
 	hub     *websocket.Hub
+	cfg     CaptureConfig
 
 	mu     sync.Mutex
 	cancel context.CancelFunc
@@ -40,11 +41,24 @@ type captureStats struct {
 	protocols    map[string]int64
 }
 
-func NewCaptureHandler(db database.Database, hub *websocket.Hub) *CaptureHandler {
-	return &CaptureHandler{db: db, hub: hub}
+// CaptureConfig holds quota and feature-flag settings for packet capture.
+type CaptureConfig struct {
+	Enabled        bool
+	MaxDurationSec int
+	MaxPackets     int
+	MaxBytes       int64
+}
+
+func NewCaptureHandler(db database.Database, hub *websocket.Hub, cfg CaptureConfig) *CaptureHandler {
+	return &CaptureHandler{db: db, hub: hub, cfg: cfg}
 }
 
 func (h *CaptureHandler) Start(w http.ResponseWriter, r *http.Request) {
+	if !h.cfg.Enabled {
+		httputil.SendError(w, http.StatusForbidden, "packet capture is disabled")
+		return
+	}
+
 	var body struct {
 		Interface string `json:"interface"`
 		Filter    string `json:"filter"`
@@ -230,11 +244,8 @@ func (h *CaptureHandler) GetPackets(w http.ResponseWriter, r *http.Request) {
 		httputil.SendError(w, 400, "invalid id")
 		return
 	}
-	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
-	offset, _ := strconv.Atoi(r.URL.Query().Get("offset"))
-	if limit <= 0 {
-		limit = 200
-	}
+	limit := httputil.QueryParamInt(r, "limit", 200, 1, 500)
+	offset := httputil.QueryParamInt(r, "offset", 0, 0, 0)
 	packets, err := h.db.GetCapturePackets(r.Context(), id, limit, offset)
 	if err != nil {
 		httputil.SendError(w, 500, err.Error())
@@ -244,10 +255,7 @@ func (h *CaptureHandler) GetPackets(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *CaptureHandler) ListSessions(w http.ResponseWriter, r *http.Request) {
-	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
-	if limit <= 0 {
-		limit = 50
-	}
+	limit := httputil.QueryParamInt(r, "limit", 50, 1, 200)
 	sessions, err := h.db.GetCaptureSessions(r.Context())
 	if err != nil {
 		httputil.SendError(w, 500, err.Error())
@@ -261,6 +269,13 @@ func (h *CaptureHandler) ListSessions(w http.ResponseWriter, r *http.Request) {
 
 // runCapture launches tcpdump and parses its output into packets.
 func (h *CaptureHandler) runCapture(ctx context.Context, sessionID int64, iface, filter string) {
+	// Apply duration quota
+	if h.cfg.MaxDurationSec > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, time.Duration(h.cfg.MaxDurationSec)*time.Second)
+		defer cancel()
+	}
+
 	args := []string{"-i", iface, "-nn", "-l", "-x"}
 	if filter != "" {
 		args = append(args, filter)
@@ -348,7 +363,16 @@ func (h *CaptureHandler) runCapture(ctx context.Context, sessionID int64, iface,
 			h.stats.totalPackets++
 			h.stats.totalBytes += int64(currentPkt.Length)
 			h.stats.protocols[currentPkt.Protocol]++
+			exceeded := false
+			if h.cfg.MaxBytes > 0 && h.stats.totalBytes >= h.cfg.MaxBytes {
+				exceeded = true
+			}
 			h.mu.Unlock()
+
+			if exceeded {
+				slog.Info("capture stopped: byte limit reached", "limit", h.cfg.MaxBytes)
+				return
+			}
 
 			batch = append(batch, *currentPkt)
 			currentPkt = nil
@@ -362,6 +386,17 @@ func (h *CaptureHandler) runCapture(ctx context.Context, sessionID int64, iface,
 		if isTcpdumpHeader(line) {
 			// New packet header: finalize previous packet
 			finalizePacket()
+
+			// Check packet quota
+			if h.cfg.MaxPackets > 0 {
+				h.mu.Lock()
+				exceeded := h.stats.totalPackets >= int64(h.cfg.MaxPackets)
+				h.mu.Unlock()
+				if exceeded {
+					slog.Info("capture stopped: packet limit reached", "limit", h.cfg.MaxPackets)
+					break
+				}
+			}
 
 			pkt := parseTcpdumpHeader(line)
 			if pkt == nil {
