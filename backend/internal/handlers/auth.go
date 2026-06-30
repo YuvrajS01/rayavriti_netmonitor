@@ -3,6 +3,7 @@ package handlers
 import (
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -285,10 +286,35 @@ func (h *AuthHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 		httputil.SendError(w, http.StatusBadRequest, "invalid body")
 		return
 	}
-	if body.Username == "" || body.Password == "" {
-		httputil.SendError(w, http.StatusBadRequest, "username and password are required")
+
+	var errs []string
+	if msg := httputil.RequiredString(body.Username, "username"); msg != "" {
+		errs = append(errs, msg)
+	} else if len(body.Username) < 3 || len(body.Username) > 64 {
+		errs = append(errs, "username must be 3-64 characters")
+	}
+	if msg := httputil.RequiredString(body.Password, "password"); msg != "" {
+		errs = append(errs, msg)
+	} else if len(body.Password) < 8 {
+		errs = append(errs, "password must be at least 8 characters")
+	}
+	if body.Role != "" {
+		validRoles := map[string]bool{"viewer": true, "dept_admin": true, "network_admin": true, "admin": true, "super_admin": true}
+		if !validRoles[body.Role] {
+			errs = append(errs, "role must be one of: viewer, dept_admin, network_admin, admin, super_admin")
+		}
+	}
+	if body.Email != "" && !httputil.IsValidEmail(body.Email) {
+		errs = append(errs, "invalid email format")
+	}
+	if len(body.DisplayName) > 128 {
+		errs = append(errs, "displayName must be at most 128 characters")
+	}
+	if len(errs) > 0 {
+		httputil.SendError(w, http.StatusBadRequest, strings.Join(errs, "; "))
 		return
 	}
+
 	existing, _ := h.db.GetUserByUsername(r.Context(), body.Username)
 	if existing != nil {
 		httputil.SendError(w, http.StatusConflict, "username already exists")

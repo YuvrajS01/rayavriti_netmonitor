@@ -3,6 +3,7 @@ package httputil
 import (
 	"encoding/json"
 	"net/http"
+	"regexp"
 	"strconv"
 )
 
@@ -92,6 +93,13 @@ func InRangeInt(v int, field string, min, max int) string {
 		return field + " must be between " + strconv.Itoa(min) + " and " + strconv.Itoa(max)
 	}
 	return ""
+}
+
+var emailRegex = regexp.MustCompile(`^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`)
+
+// IsValidEmail checks if the string is a valid email format.
+func IsValidEmail(s string) bool {
+	return emailRegex.MatchString(s)
 }
 
 func httpStatusToCode(status int) string {
