@@ -1,10 +1,5 @@
 import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios';
 
-export const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || '/api',
-  timeout: 30_000,
-});
-
 export const v1 = axios.create({
   baseURL: import.meta.env.VITE_API_V1_URL || '/api/v1',
   timeout: 30_000,
@@ -95,9 +90,7 @@ const handleTokenRefresh = async (error: AxiosError) => {
   }
 };
 
-api.interceptors.request.use(attachToken);
 v1.interceptors.request.use(attachToken);
-api.interceptors.response.use((res) => res, handleTokenRefresh);
 v1.interceptors.response.use((res) => res, handleTokenRefresh);
 
 export function unwrapGoResponse<T>(raw: unknown): T {

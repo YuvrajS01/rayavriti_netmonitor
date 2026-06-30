@@ -1,4 +1,4 @@
-import { api, v1, wrap } from './http';
+import { v1, wrap } from './http';
 import type { DashboardStats, SystemInfo } from './types';
 
 const SYSTEM_INFO_FALLBACK: SystemInfo = {
@@ -18,4 +18,4 @@ export const getSystemInfo = () =>
   }).catch(() => ({ data: SYSTEM_INFO_FALLBACK, success: false }));
 
 export const getStats = () =>
-  api.get('/stats').then((r) => wrap<DashboardStats>(r.data));
+  v1.get('/system/stats').then((r) => wrap<DashboardStats>(r.data));
