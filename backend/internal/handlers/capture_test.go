@@ -15,7 +15,12 @@ import (
 func newTestCaptureHandler(db *mockDB) *CaptureHandler {
 	hub := websocket.NewHub("test-secret", nil, nil)
 	go hub.Run()
-	return NewCaptureHandler(db, hub)
+	return NewCaptureHandler(db, hub, CaptureConfig{
+		Enabled:        true,
+		MaxDurationSec: 300,
+		MaxPackets:     10000,
+		MaxBytes:       10 * 1024 * 1024,
+	})
 }
 
 func TestCaptureStats_NotRunning(t *testing.T) {

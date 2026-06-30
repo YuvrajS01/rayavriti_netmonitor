@@ -124,7 +124,12 @@ func (s *Server) Start() error {
 	flow := handlers.NewFlowHandler(s.db)
 	report := handlers.NewReportHandler(s.db)
 	insight := handlers.NewInsightHandler(s.db)
-	capture := handlers.NewCaptureHandler(s.db, s.hub)
+	capture := handlers.NewCaptureHandler(s.db, s.hub, handlers.CaptureConfig{
+		Enabled:        s.cfg.Collector.CaptureEnabled,
+		MaxDurationSec: s.cfg.Collector.CaptureMaxDurationSec,
+		MaxPackets:     s.cfg.Collector.CaptureMaxPackets,
+		MaxBytes:       s.cfg.Collector.CaptureMaxBytes,
+	})
 	ports := handlers.NewPortsHandler(s.db)
 	dashboard := handlers.NewDashboardHandler(s.db)
 	simulator := handlers.NewSimulatorHandler(s.db)
