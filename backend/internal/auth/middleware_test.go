@@ -132,7 +132,7 @@ func TestRequireRole_Admin_AccessingAdmin(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
-	ctx := context.WithValue(context.Background(), claimsKey, &Claims{UserID: 1, Username: "admin", Role: "admin"})
+	ctx := context.WithValue(context.Background(), ClaimsKey, &Claims{UserID: 1, Username: "admin", Role: "admin"})
 	req := httptest.NewRequest("GET", "/api/test", nil).WithContext(ctx)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
@@ -148,7 +148,7 @@ func TestRequireRole_Viewer_AccessingAdmin(t *testing.T) {
 		nextCalled = true
 	}))
 
-	ctx := context.WithValue(context.Background(), claimsKey, &Claims{UserID: 1, Username: "viewer", Role: "viewer"})
+	ctx := context.WithValue(context.Background(), ClaimsKey, &Claims{UserID: 1, Username: "viewer", Role: "viewer"})
 	req := httptest.NewRequest("GET", "/api/test", nil).WithContext(ctx)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
@@ -197,7 +197,7 @@ func TestRequireRole_HierarchyCheck(t *testing.T) {
 				w.WriteHeader(http.StatusOK)
 			}))
 
-			ctx := context.WithValue(context.Background(), claimsKey, &Claims{UserID: 1, Role: tt.userRole})
+			ctx := context.WithValue(context.Background(), ClaimsKey, &Claims{UserID: 1, Role: tt.userRole})
 			req := httptest.NewRequest("GET", "/api/test", nil).WithContext(ctx)
 			w := httptest.NewRecorder()
 			handler.ServeHTTP(w, req)

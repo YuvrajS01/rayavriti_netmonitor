@@ -66,7 +66,7 @@ func seedDefaultDevices(ctx context.Context, pg *Postgres) error {
 	}{
 		{name: "Gateway", ip: "1.1.1.1", protocol: "ping", interval: 30, tags: []string{"network", "infrastructure"}},
 		{name: "Google DNS", ip: "8.8.8.8", protocol: "ping", interval: 30, tags: []string{"network", "dns"}},
-		{name: "Rayavriti Website", ip: "https://rayavriti.com", protocol: "http", interval: 60, tags: []string{"service", "web"}, httpPath: "/"},
+		{name: "Rayavriti Website", ip: "rayavriti.com", protocol: "https", interval: 60, tags: []string{"service", "web"}, httpPath: "/"},
 		{name: "Localhost API Port", ip: "127.0.0.1", protocol: "port", interval: 30, tags: []string{"service", "local"}},
 		{name: "Local System", ip: "localhost", protocol: "system", interval: 20, tags: []string{"server", "local"}},
 	}

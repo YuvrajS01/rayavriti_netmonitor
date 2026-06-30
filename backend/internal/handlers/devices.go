@@ -111,6 +111,10 @@ func (h *DeviceHandler) Create(w http.ResponseWriter, r *http.Request) {
 		httputil.SendError(w, http.StatusBadRequest, "name and ipAddress are required")
 		return
 	}
+	if len(d.Name) > 255 {
+		httputil.SendError(w, http.StatusBadRequest, "name must be at most 255 characters")
+		return
+	}
 	// Auto-detect protocol from pasted URL before normalizing
 	origIP := strings.TrimSpace(d.IPAddress)
 	if strings.HasPrefix(strings.ToLower(origIP), "https://") {
@@ -125,6 +129,11 @@ func (h *DeviceHandler) Create(w http.ResponseWriter, r *http.Request) {
 	d.IPAddress = normalizeHost(origIP)
 	if d.Protocol == "" {
 		d.Protocol = "ping"
+	}
+	validProtocols := map[string]bool{"ping": true, "http": true, "https": true, "snmp": true, "ssh": true, "port": true, "icmp": true}
+	if !validProtocols[d.Protocol] {
+		httputil.SendError(w, http.StatusBadRequest, "protocol must be one of: ping, http, https, snmp, ssh, port, icmp")
+		return
 	}
 	if d.Port == 0 {
 		switch d.Protocol {
@@ -142,6 +151,14 @@ func (h *DeviceHandler) Create(w http.ResponseWriter, r *http.Request) {
 		default:
 			d.Port = 0
 		}
+	}
+	if d.Port < 0 || d.Port > 65535 {
+		httputil.SendError(w, http.StatusBadRequest, "port must be between 0 and 65535")
+		return
+	}
+	if d.Interval < 0 {
+		httputil.SendError(w, http.StatusBadRequest, "interval must be non-negative")
+		return
 	}
 	if d.Interval == 0 {
 		d.Interval = 60
@@ -176,11 +193,41 @@ func (h *DeviceHandler) Update(w http.ResponseWriter, r *http.Request) {
 		httputil.SendError(w, http.StatusBadRequest, "invalid body")
 		return
 	}
+	if patch.Name != "" && len(patch.Name) > 255 {
+		httputil.SendError(w, http.StatusBadRequest, "name must be at most 255 characters")
+		return
+	}
+	if patch.Protocol != "" {
+		validProtocols := map[string]bool{"ping": true, "http": true, "https": true, "snmp": true, "ssh": true, "port": true, "icmp": true}
+		if !validProtocols[patch.Protocol] {
+			httputil.SendError(w, http.StatusBadRequest, "protocol must be one of: ping, http, https, snmp, ssh, port, icmp")
+			return
+		}
+	}
+	if patch.Port != 0 && (patch.Port < 0 || patch.Port > 65535) {
+		httputil.SendError(w, http.StatusBadRequest, "port must be between 0 and 65535")
+		return
+	}
+	if patch.Interval < 0 {
+		httputil.SendError(w, http.StatusBadRequest, "interval must be non-negative")
+		return
+	}
 	if patch.Name != "" {
 		existing.Name = patch.Name
 	}
 	if patch.IPAddress != "" {
-		existing.IPAddress = normalizeHost(patch.IPAddress)
+		// Auto-detect protocol from pasted URL before normalizing
+		origIP := strings.TrimSpace(patch.IPAddress)
+		if strings.HasPrefix(strings.ToLower(origIP), "https://") {
+			if patch.Protocol == "" || patch.Protocol == "ping" {
+				patch.Protocol = "https"
+			}
+		} else if strings.HasPrefix(strings.ToLower(origIP), "http://") {
+			if patch.Protocol == "" || patch.Protocol == "ping" {
+				patch.Protocol = "http"
+			}
+		}
+		existing.IPAddress = normalizeHost(origIP)
 	}
 	if patch.Protocol != "" {
 		existing.Protocol = patch.Protocol

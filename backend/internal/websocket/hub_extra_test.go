@@ -38,6 +38,12 @@ func wsExtraConnect(t *testing.T, url string, headers http.Header) *websocket.Co
 	return conn
 }
 
+func wsExtraConnectWithToken(t *testing.T, url string, token string) *websocket.Conn {
+	t.Helper()
+	headers := http.Header{"Authorization": []string{"Bearer " + token}}
+	return wsExtraConnect(t, url, headers)
+}
+
 func wsExtraHubWithServer(t *testing.T) (*Hub, string) {
 	t.Helper()
 	hub := NewHub(wsExtraSecret, nil, nil)
@@ -60,7 +66,7 @@ func TestHub_Extra_ServeWSValidToken(t *testing.T) {
 	hub, wsURL := wsExtraHubWithServer(t)
 	token := wsExtraToken(t)
 
-	conn := wsExtraConnect(t, wsURL+"?token="+token, nil)
+	conn := wsExtraConnectWithToken(t, wsURL, token)
 	time.Sleep(20 * time.Millisecond)
 	assert.Equal(t, 1, hub.ConnectionCount())
 	conn.Close()
@@ -88,7 +94,7 @@ func TestHub_Extra_BroadcastToRemovedClient(t *testing.T) {
 	hub, wsURL := wsExtraHubWithServer(t)
 	token := wsExtraToken(t)
 
-	conn := wsExtraConnect(t, wsURL+"?token="+token, nil)
+	conn := wsExtraConnectWithToken(t, wsURL, token)
 	time.Sleep(20 * time.Millisecond)
 	assert.Equal(t, 1, hub.ConnectionCount())
 
@@ -106,7 +112,7 @@ func TestHub_Extra_BroadcastToDeadClient(t *testing.T) {
 	hub, wsURL := wsExtraHubWithServer(t)
 	token := wsExtraToken(t)
 
-	conn := wsExtraConnect(t, wsURL+"?token="+token, nil)
+	conn := wsExtraConnectWithToken(t, wsURL, token)
 	time.Sleep(20 * time.Millisecond)
 
 	hub.mu.RLock()
@@ -131,7 +137,7 @@ func TestHub_Extra_SendToClientConcurrent(t *testing.T) {
 	hub, wsURL := wsExtraHubWithServer(t)
 	token := wsExtraToken(t)
 
-	conn := wsExtraConnect(t, wsURL+"?token="+token, nil)
+	conn := wsExtraConnectWithToken(t, wsURL, token)
 	time.Sleep(20 * time.Millisecond)
 
 	for i := 0; i < 10; i++ {
@@ -156,9 +162,9 @@ func TestHub_Extra_MultipleClientsConnectDisconnect(t *testing.T) {
 	token2 := wsExtraTokenForUser(t, 2, "user2")
 	token3 := wsExtraTokenForUser(t, 3, "user3")
 
-	conn1 := wsExtraConnect(t, wsURL+"?token="+token1, nil)
-	conn2 := wsExtraConnect(t, wsURL+"?token="+token2, nil)
-	conn3 := wsExtraConnect(t, wsURL+"?token="+token3, nil)
+	conn1 := wsExtraConnectWithToken(t, wsURL, token1)
+	conn2 := wsExtraConnectWithToken(t, wsURL, token2)
+	conn3 := wsExtraConnectWithToken(t, wsURL, token3)
 	time.Sleep(50 * time.Millisecond)
 
 	assert.Equal(t, 3, hub.ConnectionCount())
@@ -202,9 +208,9 @@ func TestHub_Extra_ExtractTokenEmptyAuthHeader(t *testing.T) {
 func TestHub_Extra_ExtractTokenOnlyQueryParam(t *testing.T) {
 	t.Parallel()
 	hub := NewHub(wsExtraSecret, nil, nil)
-	req := httptest.NewRequest("GET", "/ws?token=only-qs", nil)
+	req := httptest.NewRequest("GET", "/ws", nil)
 	token := hub.extractToken(req)
-	assert.Equal(t, "only-qs", token)
+	assert.Equal(t, "", token)
 }
 
 // ── extractToken: Bearer without space ───────────────────────────────────────
@@ -267,7 +273,7 @@ func TestHub_Extra_WithBootstrap(t *testing.T) {
 	wsURL := "ws" + strings.TrimPrefix(srv.URL, "http")
 	token := wsExtraToken(t)
 
-	conn := wsExtraConnect(t, wsURL+"?token="+token, nil)
+	conn := wsExtraConnectWithToken(t, wsURL, token)
 
 	conn.SetReadDeadline(time.Now().Add(2 * time.Second))
 	_, msg, err := conn.ReadMessage()
@@ -286,7 +292,7 @@ func TestHub_Extra_BroadcastSlowClient(t *testing.T) {
 	hub, wsURL := wsExtraHubWithServer(t)
 	token := wsExtraToken(t)
 
-	conn := wsExtraConnect(t, wsURL+"?token="+token, nil)
+	conn := wsExtraConnectWithToken(t, wsURL, token)
 	time.Sleep(20 * time.Millisecond)
 
 	for i := 0; i < 70; i++ {
@@ -304,7 +310,7 @@ func TestHub_Extra_SendToClientDeadClientInMap(t *testing.T) {
 	hub, wsURL := wsExtraHubWithServer(t)
 	token := wsExtraToken(t)
 
-	conn := wsExtraConnect(t, wsURL+"?token="+token, nil)
+	conn := wsExtraConnectWithToken(t, wsURL, token)
 	time.Sleep(20 * time.Millisecond)
 
 	conn.Close()
@@ -321,7 +327,7 @@ func TestHub_Extra_BroadcastCount(t *testing.T) {
 	hub, wsURL := wsExtraHubWithServer(t)
 	token := wsExtraToken(t)
 
-	conn := wsExtraConnect(t, wsURL+"?token="+token, nil)
+	conn := wsExtraConnectWithToken(t, wsURL, token)
 	time.Sleep(20 * time.Millisecond)
 
 	hub.Broadcast(Message{Type: EventAlertTriggered, Data: "alert"})

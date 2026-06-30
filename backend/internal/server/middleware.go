@@ -8,10 +8,13 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
+	"github.com/rayavriti/netmonitor-backend/internal/auth"
 	"github.com/rayavriti/netmonitor-backend/internal/cache"
+	"github.com/rayavriti/netmonitor-backend/internal/logging"
 	"golang.org/x/time/rate"
 )
 
@@ -49,9 +52,15 @@ func SecurityHeaders(next http.Handler) http.Handler {
 		h.Set("X-Content-Type-Options", "nosniff")
 		h.Set("X-XSS-Protection", "1; mode=block")
 		h.Set("Referrer-Policy", "strict-origin-when-cross-origin")
-		h.Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
-		h.Set("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ws: wss:")
+		// Only set HSTS when the request is over TLS (or via a known HTTPS proxy)
+		if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
+			h.Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+		}
+		h.Set("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' ws: wss:")
 		h.Set("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+		h.Set("Cross-Origin-Opener-Policy", "same-origin")
+		h.Set("Cross-Origin-Resource-Policy", "same-origin")
+		h.Set("Cross-Origin-Embedder-Policy", "credentialless")
 		next.ServeHTTP(w, r)
 	})
 }
@@ -153,4 +162,53 @@ func RequestSize(max int64) func(http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+// AuditLog returns middleware that logs write operations (POST, PUT, DELETE)
+// using the provided audit logger. Requires RequireAuth to have run first.
+func AuditLog(al *logging.AuditLogger) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			next.ServeHTTP(w, r)
+
+			if r.Method != http.MethodPost && r.Method != http.MethodPut && r.Method != http.MethodDelete {
+				return
+			}
+
+			claims := auth.GetClaims(r.Context())
+			actor := "system"
+			var userID int64
+			if claims != nil {
+				actor = "user:" + claims.Username
+				userID = claims.UserID
+			}
+
+			al.LogEvent(r.Context(), logging.AuditEvent{
+				EventType:    "api." + strings.ToLower(r.Method),
+				Severity:     "info",
+				Actor:        actor,
+				ActorIP:      r.RemoteAddr,
+				ResourceType: extractResourceType(r.URL.Path),
+				Description:  r.Method + " " + r.URL.Path,
+				Details: map[string]any{
+					"user_id": userID,
+					"method":  r.Method,
+					"path":    r.URL.Path,
+				},
+			})
+		})
+	}
+}
+
+func extractResourceType(path string) string {
+	parts := strings.Split(strings.Trim(path, "/"), "/")
+	for i, p := range parts {
+		if p == "v1" && i+1 < len(parts) {
+			return parts[i+1]
+		}
+	}
+	if len(parts) >= 2 {
+		return parts[1]
+	}
+	return "unknown"
 }

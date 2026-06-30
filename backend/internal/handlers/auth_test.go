@@ -178,6 +178,9 @@ func TestRefresh_Valid(t *testing.T) {
 		getRefreshTokenFn: func(ctx context.Context, tokenHash string) (*database.RefreshToken, error) {
 			return &database.RefreshToken{TokenHash: tokenHash, UserID: testUserID}, nil
 		},
+		getUserByIDFn: func(ctx context.Context, id int64) (*models.User, error) {
+			return &models.User{ID: id, Username: testUsername, Role: testUserRole, Enabled: true}, nil
+		},
 	}
 	h := NewAuthHandler(db, testConfig())
 	refreshToken, _, _ := auth.GenerateTokenPair(testUserID, testUsername, testUserRole, testJWTSecret, 15*time.Minute, 7*24*time.Hour)

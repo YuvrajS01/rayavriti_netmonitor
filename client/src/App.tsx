@@ -5,7 +5,7 @@ import { Provider, useSelector, useDispatch } from 'react-redux';
 import { store, type RootState } from './store';
 import { SocketProvider } from './hooks/useSocket';
 import { clearCredentials, setPermissions } from './store/authSlice';
-import { api } from './api/http';
+import { v1 } from './api/http';
 import { ToastProvider } from './components/ui/Toast';
 
 import Layout from './components/Layout';
@@ -57,12 +57,12 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
       setChecking(false);
       return;
     }
-    api.get('/auth/me')
+    v1.get('/auth/me')
       .then(() => {
         sessionCheckedRef.current = true;
-        return api.get('/auth/permissions').catch(() => null);
+        return v1.get('/auth/permissions').catch(() => null);
       })
-      .then((res) => {
+      .then((res: { data: unknown } | null) => {
         if (!res) return;
         const perms = (res.data as { data?: { permissions?: string[] } })?.data?.permissions;
         if (perms) dispatch(setPermissions(perms));

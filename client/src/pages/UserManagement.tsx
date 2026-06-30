@@ -45,6 +45,7 @@ const PERMISSION_GROUPS = [
     icon: 'warning',
     permissions: [
       { key: 'alerts.read', label: 'View alerts', desc: 'View active and historical alerts' },
+      { key: 'alerts.create', label: 'Create alerts', desc: 'Manually create alerts' },
       { key: 'alerts.acknowledge', label: 'Acknowledge alerts', desc: 'Mark alerts as acknowledged' },
       { key: 'alerts.resolve', label: 'Resolve alerts', desc: 'Mark alerts as resolved' },
       { key: 'alert_rules.write', label: 'Manage alert rules', desc: 'Create and edit alert rules' },
@@ -65,10 +66,11 @@ const PERMISSION_GROUPS = [
     ],
   },
   {
-    label: 'Contacts',
+    label: 'Contacts & Notifications',
     icon: 'contacts',
     permissions: [
       { key: 'contacts.write', label: 'Manage contacts', desc: 'Add and edit escalation contacts' },
+      { key: 'notifications.manage', label: 'Manage notifications', desc: 'Configure notification channels' },
     ],
   },
   {
@@ -76,6 +78,8 @@ const PERMISSION_GROUPS = [
     icon: 'analytics',
     permissions: [
       { key: 'reports.read', label: 'View reports', desc: 'Access reports and dashboards' },
+      { key: 'reports.write', label: 'Manage reports', desc: 'Create and schedule reports' },
+      { key: 'sla.manage', label: 'Manage SLA', desc: 'Configure SLA definitions' },
     ],
   },
   {
@@ -122,6 +126,9 @@ export default function UserManagement() {
   const [tab, setTab] = useState<'users' | 'roles'>('users');
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [userForm, setUserForm] = useState<Record<string, unknown>>({});
+  const [showUserForm, setShowUserForm] = useState(false);
+  const [userCreateForm, setUserCreateForm] = useState({ username: '', password: '', role: 'viewer', display_name: '', email: '', phone: '' });
+  const [deleteUserTarget, setDeleteUserTarget] = useState<User | null>(null);
   const [editingRole, setEditingRole] = useState<Role | null>(null);
   const [showRoleForm, setShowRoleForm] = useState(false);
   const [roleForm, setRoleForm] = useState({ name: '', display_name: '', description: '', permissions: [] as string[] });
@@ -274,12 +281,43 @@ export default function UserManagement() {
     }
   };
 
+  const handleCreateUser = async () => {
+    if (!userCreateForm.username || !userCreateForm.password) {
+      addToast('Username and password are required', 'error');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await v1.post('/users', userCreateForm);
+      addToast('User created', 'success');
+      setShowUserForm(false);
+      setUserCreateForm({ username: '', password: '', role: 'viewer', display_name: '', email: '', phone: '' });
+      await loadData();
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : 'Create failed', 'error');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDeleteUser = async () => {
+    if (!deleteUserTarget) return;
+    try {
+      await v1.delete(`/users/${deleteUserTarget.id}`);
+      addToast('User deleted', 'success');
+      setDeleteUserTarget(null);
+      await loadData();
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : 'Delete failed', 'error');
+    }
+  };
+
   return (
     <div className="space-y-8">
       <SectionHeader
         title="User Management"
         subtitle="Manage roles, permissions, and scoped access for operators."
-        action={tab === 'roles' ? <Button icon="add" onClick={openCreateRole}>New Role</Button> : undefined}
+        action={tab === 'roles' ? <Button icon="add" onClick={openCreateRole}>New Role</Button> : <Button icon="person_add" onClick={() => { setUserCreateForm({ username: '', password: '', role: 'viewer', display_name: '', email: '', phone: '' }); setShowUserForm(true); }}>New User</Button>}
       />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -344,6 +382,9 @@ export default function UserManagement() {
                       </div>
                       <div className="flex items-end gap-2">
                         <button onClick={() => openEditUser(u)} className="text-xs font-bold text-primary hover:bg-primary/10 px-3 py-1 rounded transition-colors">Edit</button>
+                        {u.role !== 'super_admin' && (
+                          <button onClick={() => setDeleteUserTarget(u)} className="text-xs font-bold text-error hover:bg-error/10 px-3 py-1 rounded transition-colors">Delete</button>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -513,6 +554,49 @@ export default function UserManagement() {
           </div>
         </div>
       )}
+
+      {showUserForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pt-20 bg-black/60" onClick={() => setShowUserForm(false)}>
+          <div className="bg-surface-container-low border border-outline-variant/30 rounded-lg w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="p-6 border-b border-outline-variant/20 shrink-0"><h2 className="font-headline text-lg font-bold">Create User</h2></div>
+            <div className="p-6 space-y-4 flex-1 min-h-0 overflow-y-auto">
+              <div>
+                <label className="text-[10px] text-on-surface-variant uppercase tracking-wide block mb-1">Username *</label>
+                <input value={userCreateForm.username} onChange={(e) => setUserCreateForm({ ...userCreateForm, username: e.target.value })} className="w-full bg-surface-container-highest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary outline-none" placeholder="john.doe" />
+              </div>
+              <div>
+                <label className="text-[10px] text-on-surface-variant uppercase tracking-wide block mb-1">Password *</label>
+                <input type="password" value={userCreateForm.password} onChange={(e) => setUserCreateForm({ ...userCreateForm, password: e.target.value })} className="w-full bg-surface-container-highest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary outline-none" placeholder="Minimum 6 characters" />
+              </div>
+              <div>
+                <label className="text-[10px] text-on-surface-variant uppercase tracking-wide block mb-1">Role</label>
+                <select value={userCreateForm.role} onChange={(e) => setUserCreateForm({ ...userCreateForm, role: e.target.value })} className="w-full bg-surface-container-highest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary">
+                  {roles.map((r) => <option key={r.id} value={r.name}>{r.display_name || r.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-[10px] text-on-surface-variant uppercase tracking-wide block mb-1">Display Name</label>
+                <input value={userCreateForm.display_name} onChange={(e) => setUserCreateForm({ ...userCreateForm, display_name: e.target.value })} className="w-full bg-surface-container-highest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary outline-none" placeholder="John Doe" />
+              </div>
+              <div>
+                <label className="text-[10px] text-on-surface-variant uppercase tracking-wide block mb-1">Email</label>
+                <input type="email" value={userCreateForm.email} onChange={(e) => setUserCreateForm({ ...userCreateForm, email: e.target.value })} className="w-full bg-surface-container-highest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary outline-none" placeholder="john@example.com" />
+              </div>
+              <div>
+                <label className="text-[10px] text-on-surface-variant uppercase tracking-wide block mb-1">Phone</label>
+                <input value={userCreateForm.phone} onChange={(e) => setUserCreateForm({ ...userCreateForm, phone: e.target.value })} className="w-full bg-surface-container-highest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary outline-none" placeholder="+1 555 123 4567" />
+              </div>
+            </div>
+            <div className="flex border-t border-outline-variant/20 shrink-0">
+              <button onClick={() => setShowUserForm(false)} className="flex-1 py-3 text-xs font-headline font-bold uppercase tracking-wide text-on-surface-variant hover:bg-surface-container-high transition-colors">Cancel</button>
+              <div className="w-px bg-outline-variant/20" />
+              <button onClick={handleCreateUser} disabled={submitting || !userCreateForm.username || !userCreateForm.password} className="flex-1 py-3 text-xs font-headline font-bold uppercase tracking-wide text-primary hover:bg-primary/10 transition-colors disabled:opacity-50">{submitting ? 'Creating...' : 'Create User'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <ConfirmDialog open={!!deleteUserTarget} title="Delete User" message={`Delete user "${deleteUserTarget?.username}"? This action cannot be undone.`} confirmLabel="Delete" danger onConfirm={handleDeleteUser} onCancel={() => setDeleteUserTarget(null)} />
 
       <ConfirmDialog open={!!deleteTarget} title="Delete Role" message={`Delete "${deleteTarget?.display_name || deleteTarget?.name}"? Users with this role will lose its permissions.`} confirmLabel="Delete" danger onConfirm={handleDeleteRole} onCancel={() => setDeleteTarget(null)} />
     </div>

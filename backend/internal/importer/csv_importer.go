@@ -214,6 +214,25 @@ func (s *ImportService) validateRow(ctx context.Context, row *ImportRow, seen ma
 		rv.Warnings = append(rv.Warnings, fmt.Sprintf("host %q may not be a valid IP address, hostname, or URL", row.Host))
 	}
 
+	// --- Normalize host and auto-detect protocol from URL ---
+	if row.Host != "" {
+		// Auto-detect protocol from URL scheme before stripping it
+		lower := strings.ToLower(strings.TrimSpace(row.Host))
+		if strings.HasPrefix(lower, "https://") {
+			if row.Protocol == "" || row.Protocol == "ping" {
+				row.Protocol = "https"
+				rv.Row.Protocol = row.Protocol
+			}
+		} else if strings.HasPrefix(lower, "http://") {
+			if row.Protocol == "" || row.Protocol == "ping" {
+				row.Protocol = "http"
+				rv.Row.Protocol = row.Protocol
+			}
+		}
+		row.Host = normalizeHost(row.Host)
+		rv.Row.Host = row.Host
+	}
+
 	// --- Protocol default ---
 	if row.Protocol == "" {
 		row.Protocol = "ping"
@@ -293,6 +312,19 @@ func (s *ImportService) validateRow(ctx context.Context, row *ImportRow, seen ma
 
 // isValidHost returns true if s is a valid IPv4 address, IPv6 address,
 // hostname, or URL.
+// normalizeHost strips any scheme prefix from the host field, in case
+// the user pasted a full URL like "https://example.com" as the host.
+func normalizeHost(raw string) string {
+	h := strings.TrimSpace(raw)
+	for _, prefix := range []string{"https://", "http://"} {
+		if strings.HasPrefix(strings.ToLower(h), prefix) {
+			h = h[len(prefix):]
+			break
+		}
+	}
+	return strings.TrimRight(h, "/")
+}
+
 func isValidHost(s string) bool {
 	// Try IP first (covers both v4 and v6).
 	if net.ParseIP(s) != nil {

@@ -9,6 +9,12 @@ dist-ssr/
 tmp/
 backend/bin/
 
+# Coverage artifacts
+coverage.out
+coverage.html
+coverage/
+*.coverprofile
+
 # Logs
 logs/
 *.log

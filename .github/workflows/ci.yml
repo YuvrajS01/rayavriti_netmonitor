@@ -46,7 +46,7 @@ jobs:
         working-directory: backend
 
       - name: Install golangci-lint
-        run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+        run: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
 
       - name: golangci-lint
         run: golangci-lint run ./...
@@ -91,6 +91,13 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -158,11 +165,50 @@ jobs:
       - name: Build client
         run: npm run build -w client
 
+      - name: Check bundle budgets
+        run: |
+          echo "=== Bundle Size Report ==="
+          MAX_JS_CHUNK_KB=500
+          MAX_CSS_KB=100
+          MAX_TOTAL_JS_KB=1200
+          dist="client/dist"
+          for f in "$dist"/assets/*.js; do
+            size_kb=$(($(stat -c%s "$f") / 1024))
+            name=$(basename "$f")
+            echo "  JS: $name — ${size_kb}KB"
+            if [ "$size_kb" -gt "$MAX_JS_CHUNK_KB" ]; then
+              echo "  WARNING: $name exceeds ${MAX_JS_CHUNK_KB}KB budget"
+            fi
+          done
+          for f in "$dist"/assets/*.css; do
+            size_kb=$(($(stat -c%s "$f") / 1024))
+            name=$(basename "$f")
+            echo "  CSS: $name — ${size_kb}KB"
+            if [ "$size_kb" -gt "$MAX_CSS_KB" ]; then
+              echo "  WARNING: $name exceeds ${MAX_CSS_KB}KB budget"
+            fi
+          done
+          total_js=$(cat "$dist"/assets/*.js | wc -c)
+          total_kb=$((total_js / 1024))
+          echo "  Total JS: ${total_kb}KB"
+          if [ "$total_kb" -gt "$MAX_TOTAL_JS_KB" ]; then
+            echo "  ERROR: Total JS exceeds ${MAX_TOTAL_JS_KB}KB — investigate bundle bloat"
+            exit 1
+          fi
+
       - name: Build development image
         run: docker build --target development -t rayavriti-netmonitor:dev .
 
       - name: Build production image
         run: docker build --target production -t rayavriti-netmonitor:ci .
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: rayavriti-netmonitor:ci
+          format: table
+          exit-code: '1'
+          severity: CRITICAL,HIGH
 
   release:
     name: Publish Docker image
