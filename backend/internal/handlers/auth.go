@@ -79,6 +79,12 @@ func (h *AuthHandler) authenticate(w http.ResponseWriter, r *http.Request, inclu
 	if includeExpires {
 		resp["expiresIn"] = int(h.cfg.Auth.AccessTokenExpiry.Seconds())
 	}
+
+	// Set HttpOnly cookies for browser clients
+	secure := h.cfg.App.AppEnv == "production"
+	auth.SetAccessCookie(w, at, h.cfg.Auth.AccessTokenExpiry, secure)
+	auth.SetRefreshCookie(w, rt, h.cfg.Auth.RefreshTokenExpiry, secure)
+
 	httputil.SendOK(w, resp)
 }
 
@@ -116,17 +122,25 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		RefreshToken string `json:"refreshToken"`
 	}
-	if err := httputil.ParseJSON(r, &body); err != nil {
-		httputil.SendError(w, http.StatusBadRequest, "invalid body")
+	_ = httputil.ParseJSON(r, &body)
+
+	// Accept refresh token from body or cookie
+	rt := body.RefreshToken
+	if rt == "" {
+		rt = auth.GetRefreshTokenFromCookie(r)
+	}
+	if rt == "" {
+		httputil.SendError(w, http.StatusUnauthorized, "missing refresh token")
 		return
 	}
-	claims, err := auth.ValidateToken(body.RefreshToken, h.cfg.Auth.JWTSecret)
+
+	claims, err := auth.ValidateToken(rt, h.cfg.Auth.JWTSecret)
 	if err != nil {
 		httputil.SendError(w, http.StatusUnauthorized, "invalid refresh token")
 		return
 	}
 	// Verify token exists in DB (prevents reuse after revocation)
-	tokenHash := auth.HashToken(body.RefreshToken)
+	tokenHash := auth.HashToken(rt)
 	existing, err := h.db.GetRefreshToken(r.Context(), tokenHash)
 	if err != nil || existing == nil {
 		httputil.SendError(w, http.StatusUnauthorized, "refresh token revoked")
@@ -170,6 +184,12 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 	newHash := auth.HashToken(rt)
 	expiresAt := time.Now().Add(h.cfg.Auth.RefreshTokenExpiry)
 	_ = h.db.CreateRefreshToken(r.Context(), newHash, user.ID, expiresAt)
+
+	// Set HttpOnly cookies for browser clients
+	secure := h.cfg.App.AppEnv == "production"
+	auth.SetAccessCookie(w, at, h.cfg.Auth.AccessTokenExpiry, secure)
+	auth.SetRefreshCookie(w, rt, h.cfg.Auth.RefreshTokenExpiry, secure)
+
 	httputil.SendOK(w, map[string]any{
 		"accessToken":  at,
 		"refreshToken": rt,
@@ -191,14 +211,26 @@ func (h *AuthHandler) Verify2FA(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AuthHandler) V1Logout(w http.ResponseWriter, r *http.Request) {
+	// Revoke refresh token from body or cookie
 	var body struct {
 		RefreshToken string `json:"refreshToken"`
 	}
 	_ = httputil.ParseJSON(r, &body)
-	if body.RefreshToken != "" {
-		tokenHash := auth.HashToken(body.RefreshToken)
+	rt := body.RefreshToken
+	if rt == "" {
+		rt = auth.GetRefreshTokenFromCookie(r)
+	}
+	if rt != "" {
+		tokenHash := auth.HashToken(rt)
 		_ = h.db.DeleteRefreshToken(r.Context(), tokenHash)
 	}
+	// Clear cookies
+	secure := h.cfg.App.AppEnv == "production"
+	auth.ClearRefreshCookie(w)
+	if secure {
+		w.Header().Set("Access-Control-Allow-Credentials", "true")
+	}
+	auth.ClearAccessCookie(w)
 	httputil.SendOK(w, map[string]bool{"loggedOut": true})
 }
 

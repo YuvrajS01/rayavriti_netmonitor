@@ -3,6 +3,7 @@ import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios';
 export const v1 = axios.create({
   baseURL: import.meta.env.VITE_API_V1_URL || '/api/v1',
   timeout: 30_000,
+  withCredentials: true,
 });
 
 const attachToken = (config: InternalAxiosRequestConfig) => {
@@ -17,6 +18,12 @@ export const clearCredentials = () => {
   localStorage.removeItem('netmonitor_token');
   localStorage.removeItem('netmonitor_refresh_token');
   localStorage.removeItem('netmonitor_user');
+  // Clear cookies via logout endpoint (best-effort)
+  axios.post(
+    `${import.meta.env.VITE_API_V1_URL || '/api/v1'}/auth/logout`,
+    {},
+    { withCredentials: true, timeout: 5_000 }
+  ).catch(() => {});
 };
 
 let isRefreshing = false;
@@ -64,8 +71,8 @@ const handleTokenRefresh = async (error: AxiosError) => {
 
     const { data: raw } = await axios.post(
       `${import.meta.env.VITE_API_V1_URL || '/api/v1'}/auth/refresh`,
-      { refreshToken },
-      { timeout: 10_000 }
+      {},
+      { timeout: 10_000, withCredentials: true }
     );
 
     const body = raw as Record<string, unknown>;
