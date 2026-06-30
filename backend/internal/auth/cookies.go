@@ -11,6 +11,8 @@ const (
 )
 
 // SetRefreshCookie sets an HttpOnly, Secure, SameSite cookie for the refresh token.
+//
+//nolint:gosec // Secure is set by caller; gosec cannot verify parameterized values.
 func SetRefreshCookie(w http.ResponseWriter, token string, expiry time.Duration, secure bool) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     RefreshCookieName,
@@ -26,6 +28,8 @@ func SetRefreshCookie(w http.ResponseWriter, token string, expiry time.Duration,
 // SetAccessCookie sets a short-lived cookie for the access token.
 // The access token is still sent via Authorization header for API key compat,
 // but this cookie provides a fallback for same-origin browser requests.
+//
+//nolint:gosec // Secure is set by caller; gosec cannot verify parameterized values.
 func SetAccessCookie(w http.ResponseWriter, token string, expiry time.Duration, secure bool) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     AccessCookieName,
@@ -46,6 +50,7 @@ func ClearRefreshCookie(w http.ResponseWriter) {
 		Path:     "/api/v1/auth",
 		MaxAge:   -1,
 		HttpOnly: true,
+		Secure:   true,
 		SameSite: http.SameSiteStrictMode,
 	})
 }
@@ -58,6 +63,7 @@ func ClearAccessCookie(w http.ResponseWriter) {
 		Path:     "/",
 		MaxAge:   -1,
 		HttpOnly: true,
+		Secure:   true,
 		SameSite: http.SameSiteStrictMode,
 	})
 }

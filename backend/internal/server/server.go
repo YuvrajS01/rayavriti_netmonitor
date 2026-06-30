@@ -145,6 +145,8 @@ func (s *Server) Start() error {
 	ispH := handlers.NewISPHandler(s.db)
 	reportGenH := handlers.NewReportGenHandler(s.db, s.cfg.Phase2.ReportOutputDir)
 	discH := discovery.NewDiscoveryHandler(s.db)
+	roleH := handlers.NewRoleHandler(s.db)
+	userScopeH := handlers.NewUserScopeHandler(s.db)
 
 	var svcTmplH *servicetmpl.Handler
 	if pp, ok := s.db.(database.PoolProvider); ok && pp.Pool() != nil {
@@ -447,19 +449,20 @@ func (s *Server) Start() error {
 		r.With(rbac.RequirePermission(models.PermIncidentsWrite)).Get("/api/v1/incidents/{id}/devices", incidentH.GetIncidentDevices)
 
 		// --- Roles & Users (users.manage) ---
-		r.With(rbac.RequirePermission(models.PermUsersManage)).Get("/api/v1/roles", phase2.List("roles"))
-		r.With(rbac.RequirePermission(models.PermUsersManage)).Post("/api/v1/roles", phase2.Create("roles"))
-		r.With(rbac.RequirePermission(models.PermUsersManage)).Put("/api/v1/roles/{id}", phase2.Update("roles"))
-		r.With(rbac.RequirePermission(models.PermUsersManage)).Delete("/api/v1/roles/{id}", phase2.Delete("roles"))
+		r.With(rbac.RequirePermission(models.PermUsersManage)).Get("/api/v1/roles", roleH.List)
+		r.With(rbac.RequirePermission(models.PermUsersManage)).Get("/api/v1/roles/{id}", roleH.Get)
+		r.With(rbac.RequirePermission(models.PermUsersManage)).Post("/api/v1/roles", roleH.Create)
+		r.With(rbac.RequirePermission(models.PermUsersManage)).Put("/api/v1/roles/{id}", roleH.Update)
+		r.With(rbac.RequirePermission(models.PermUsersManage)).Delete("/api/v1/roles/{id}", roleH.Delete)
 		r.With(rbac.RequirePermission(models.PermUsersManage)).Get("/api/v1/users", phase2.List("users"))
 		r.With(rbac.RequirePermission(models.PermUsersManage)).Get("/api/v1/users/{id}", phase2.Get("users"))
 		r.With(rbac.RequirePermission(models.PermUsersManage)).Post("/api/v1/users", authH.CreateUser)
 		r.With(rbac.RequirePermission(models.PermUsersManage)).Put("/api/v1/users/{id}", phase2.Update("users"))
 		r.With(rbac.RequirePermission(models.PermUsersManage)).Delete("/api/v1/users/{id}", authH.DeleteUser)
 		r.With(rbac.RequirePermission(models.PermUsersManage)).Put("/api/v1/users/{id}/role", phase2.Update("users"))
-		r.With(rbac.RequirePermission(models.PermUsersManage)).Get("/api/v1/user-scopes", phase2.List("user_scopes"))
-		r.With(rbac.RequirePermission(models.PermUsersManage)).Put("/api/v1/users/{id}/scopes", phase2.Create("user_scopes"))
-		r.With(rbac.RequirePermission(models.PermUsersManage)).Delete("/api/v1/users/{id}/scopes/{sid}", phase2.Delete("user_scopes"))
+		r.With(rbac.RequirePermission(models.PermUsersManage)).Get("/api/v1/user-scopes", userScopeH.List)
+		r.With(rbac.RequirePermission(models.PermUsersManage)).Post("/api/v1/users/{id}/scopes", userScopeH.Create)
+		r.With(rbac.RequirePermission(models.PermUsersManage)).Delete("/api/v1/users/{id}/scopes/{sid}", userScopeH.Delete)
 
 		// --- ISP Links (settings.write) ---
 		r.With(rbac.RequirePermission(models.PermSettingsWrite)).Get("/api/v1/isp-links", phase2.List("isp_links"))

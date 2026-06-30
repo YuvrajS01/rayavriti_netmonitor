@@ -8,8 +8,23 @@ import (
 )
 
 type APIError struct {
-	Code    string `json:"code"`
+	Code    string `json:"code,omitempty"`
+	Field   string `json:"field,omitempty"`
 	Message string `json:"message"`
+}
+
+func (e *APIError) Error() string {
+	return e.Message
+}
+
+// ValidationError represents a field-level validation failure.
+type ValidationError struct {
+	Field   string
+	Message string
+}
+
+func (e *ValidationError) Error() string {
+	return e.Field + ": " + e.Message
 }
 
 type ResponseMeta struct {
