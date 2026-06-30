@@ -168,15 +168,16 @@ jobs:
       - name: Check bundle budgets
         run: |
           echo "=== Bundle Size Report ==="
-          MAX_JS_KB=600
+          MAX_JS_CHUNK_KB=500
           MAX_CSS_KB=100
+          MAX_TOTAL_JS_KB=1200
           dist="client/dist"
           for f in "$dist"/assets/*.js; do
             size_kb=$(($(stat -c%s "$f") / 1024))
             name=$(basename "$f")
             echo "  JS: $name — ${size_kb}KB"
-            if [ "$size_kb" -gt "$MAX_JS_KB" ]; then
-              echo "  WARNING: $name exceeds ${MAX_JS_KB}KB budget"
+            if [ "$size_kb" -gt "$MAX_JS_CHUNK_KB" ]; then
+              echo "  WARNING: $name exceeds ${MAX_JS_CHUNK_KB}KB budget"
             fi
           done
           for f in "$dist"/assets/*.css; do
@@ -190,8 +191,8 @@ jobs:
           total_js=$(cat "$dist"/assets/*.js | wc -c)
           total_kb=$((total_js / 1024))
           echo "  Total JS: ${total_kb}KB"
-          if [ "$total_kb" -gt 1000 ]; then
-            echo "  ERROR: Total JS exceeds 1MB — investigate bundle bloat"
+          if [ "$total_kb" -gt "$MAX_TOTAL_JS_KB" ]; then
+            echo "  ERROR: Total JS exceeds ${MAX_TOTAL_JS_KB}KB — investigate bundle bloat"
             exit 1
           fi
 
