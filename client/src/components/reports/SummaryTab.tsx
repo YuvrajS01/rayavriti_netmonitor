@@ -8,12 +8,12 @@ const TT = { background: 'var(--color-surface-container)', border: '1px solid va
 
 function KpiCard({ icon, label, value, sub, color = 'text-primary' }: { icon: string; label: string; value: string | number; sub?: string; color?: string }) {
   return (
-    <div className="bg-surface-container-high rounded-lg p-5 border border-outline-variant/20 flex flex-col gap-2 hover:border-primary/30 transition-[border-color]">
+    <div className="bg-surface-container-low rounded-lg p-5 border border-outline-variant/20 flex flex-col gap-2 hover:border-outline/30 transition-colors duration-200">
       <div className="flex items-center gap-2">
         <span className="material-symbols-outlined text-lg opacity-60">{icon}</span>
-        <span className="text-[10px] text-on-surface-variant uppercase tracking-wide font-bold">{label}</span>
+        <span className="text-[10px] text-on-surface-variant uppercase tracking-wide font-semibold">{label}</span>
       </div>
-      <p className={`font-headline text-3xl font-bold ${color}`}>{value}</p>
+      <p className={`font-headline text-3xl font-semibold ${color}`}>{value}</p>
       {sub && <p className="text-[11px] text-on-surface-variant">{sub}</p>}
     </div>
   );
@@ -55,8 +55,8 @@ export default function SummaryTab({ summary, series }: { summary: ReportSummary
       )}
 
       {/* Combined Chart */}
-      <div className="bg-surface-container-high rounded-lg p-5 border border-outline-variant/20">
-        <h3 className="text-sm font-headline font-bold mb-1 uppercase tracking-wide">Availability & Response Time</h3>
+      <div className="bg-surface-container-low rounded-lg p-5 border border-outline-variant/20">
+        <h3 className="text-sm font-headline font-semibold mb-1 uppercase tracking-wide">Availability & Response Time</h3>
         <p className="text-[11px] text-on-surface-variant mb-3">Availability % (left) · Avg response ms (right)</p>
         {chartSeries.length === 0 ? <p className="text-xs text-on-surface-variant text-center py-16">No data for selected range</p> : (
           <ResponsiveContainer width="100%" height={280}>
@@ -81,8 +81,8 @@ export default function SummaryTab({ summary, series }: { summary: ReportSummary
       </div>
 
       {/* Sample Distribution */}
-      <div className="bg-surface-container-high rounded-lg p-5 border border-outline-variant/20">
-        <h3 className="text-sm font-headline font-bold mb-1 uppercase tracking-wide">Sample Distribution</h3>
+      <div className="bg-surface-container-low rounded-lg p-5 border border-outline-variant/20">
+        <h3 className="text-sm font-headline font-semibold mb-1 uppercase tracking-wide">Sample Distribution</h3>
         <p className="text-[11px] text-on-surface-variant mb-3">Count of healthy / down checks per time bucket</p>
         {chartSeries.length === 0 ? <p className="text-xs text-on-surface-variant text-center py-12">No data</p> : (
           <ResponsiveContainer width="100%" height={200}>

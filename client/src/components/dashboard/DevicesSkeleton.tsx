@@ -5,15 +5,15 @@ function DevicesSkeletonInner() {
   return (
     <div>
       {/* Header */}
-      <div className="mb-8">
+      <div className="mb-6">
         <Skeleton className="h-10 w-48 mb-2" />
         <Skeleton className="h-4 w-80" />
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
         {Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className="bg-surface-container-high rounded-lg p-5 border border-outline-variant/20">
+          <div key={i} className="bg-surface-container-low rounded-lg p-5 border border-outline-variant/20">
             <Skeleton className="h-3 w-24 mb-3" />
             <Skeleton className="h-8 w-12" />
           </div>
@@ -43,7 +43,7 @@ function DevicesSkeletonInner() {
                 <Skeleton className="h-3 w-2/3" />
               </div>
             </div>
-            <div className="bg-surface-container-high p-4 flex justify-between items-center">
+            <div className="bg-surface-container p-4 flex justify-between items-center">
               <Skeleton className="h-3 w-20" />
               <Skeleton className="h-6 w-14" />
             </div>

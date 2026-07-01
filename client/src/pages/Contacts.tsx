@@ -144,7 +144,7 @@ export default function Contacts() {
               <span className="material-symbols-outlined">contacts</span>
             </div>
             <div>
-              <h2 className="font-headline font-bold text-lg">Contacts</h2>
+              <h2 className="font-headline font-semibold text-lg">Contacts</h2>
               <p className="text-xs text-on-surface-variant uppercase tracking-wide">{filtered.length} contacts</p>
             </div>
           </div>
@@ -152,7 +152,7 @@ export default function Contacts() {
             <select
               value={channelFilter}
               onChange={(e) => setChannelFilter(e.target.value)}
-              className="bg-surface-container-highest border border-outline-variant/20 rounded-lg px-3 py-2.5 text-xs text-on-surface outline-none focus:ring-1 focus:ring-primary"
+              className="bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-3 py-2.5 text-xs text-on-surface outline-none focus:ring-1 focus:ring-primary"
             >
               <option value="all">All channels</option>
               {CHANNELS.map((ch) => <option key={ch} value={ch}>{ch.charAt(0).toUpperCase() + ch.slice(1)}</option>)}
@@ -161,7 +161,7 @@ export default function Contacts() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search contacts..."
-              className="bg-surface-container-highest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary outline-none md:w-64"
+              className="bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary outline-none md:w-64"
             />
           </div>
         </div>
@@ -173,14 +173,14 @@ export default function Contacts() {
         ) : (
           <div className="divide-y divide-outline-variant/20">
             {filtered.map((c) => (
-              <article key={c.id} className="p-5 hover:bg-surface-container-high/50 transition-colors">
+              <article key={c.id} className="p-5 hover:bg-surface-container-low/50 transition-colors">
                 <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
                   <div className="flex items-start gap-4 min-w-0">
-                    <div className="w-10 h-10 rounded-full bg-surface-container-highest flex items-center justify-center flex-shrink-0">
+                    <div className="w-10 h-10 rounded-full bg-surface-container-lowest flex items-center justify-center flex-shrink-0">
                       <span className="material-symbols-outlined text-primary text-xl">{channelIcon(c.preferred_channel)}</span>
                     </div>
                     <div className="min-w-0">
-                      <h3 className="font-headline font-bold text-lg truncate">{c.name}</h3>
+                      <h3 className="font-headline font-semibold text-lg truncate">{c.name}</h3>
                       <p className="text-xs text-on-surface-variant mt-0.5">
                         {c.designation || 'No designation'} {c.department ? `· ${c.department}` : ''}
                       </p>
@@ -227,8 +227,8 @@ export default function Contacts() {
                   </div>
                 </div>
                 <div className="flex gap-2 mt-3 pt-3 border-t border-outline-variant/10">
-                  <button onClick={() => openEdit(c)} className="text-xs font-bold text-primary hover:bg-primary/10 px-3 py-1 rounded transition-colors">Edit</button>
-                  <button onClick={() => setDeleteTarget(c)} className="text-xs font-bold text-error hover:bg-error/10 px-3 py-1 rounded transition-colors">Delete</button>
+                  <button onClick={() => openEdit(c)} className="text-xs font-semibold text-primary hover:bg-primary/10 px-3 py-1 rounded transition-colors">Edit</button>
+                  <button onClick={() => setDeleteTarget(c)} className="text-xs font-semibold text-error hover:bg-error/10 px-3 py-1 rounded transition-colors">Delete</button>
                 </div>
               </article>
             ))}
@@ -240,7 +240,7 @@ export default function Contacts() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pt-20 bg-black/60" onClick={() => setShowForm(false)}>
           <div className="bg-surface-container-low border border-outline-variant/30 rounded-lg w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
             <div className="p-6 border-b border-outline-variant/20 shrink-0">
-              <h2 className="font-headline text-lg font-bold">{editing ? 'Edit Contact' : 'New Contact'}</h2>
+              <h2 className="font-headline text-lg font-semibold">{editing ? 'Edit Contact' : 'New Contact'}</h2>
             </div>
             <div className="p-6 space-y-4 flex-1 min-h-0 overflow-y-auto">
               {(['name', 'designation', 'department', 'email', 'phone'] as const).map((f) => (
@@ -249,7 +249,7 @@ export default function Contacts() {
                   <input
                     value={String(form[f] ?? '')}
                     onChange={(e) => setForm({ ...form, [f]: e.target.value })}
-                    className="w-full bg-surface-container-highest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary outline-none"
+                    className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary outline-none"
                   />
                 </div>
               ))}
@@ -258,7 +258,7 @@ export default function Contacts() {
                 <select
                   value={String(form.preferred_channel ?? 'email')}
                   onChange={(e) => setForm({ ...form, preferred_channel: e.target.value })}
-                  className="w-full bg-surface-container-highest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary"
+                  className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary"
                 >
                   {CHANNELS.map((ch) => <option key={ch} value={ch}>{ch.charAt(0).toUpperCase() + ch.slice(1)}</option>)}
                 </select>
@@ -285,9 +285,9 @@ export default function Contacts() {
               </div>
             </div>
             <div className="flex border-t border-outline-variant/20 shrink-0">
-              <button onClick={() => setShowForm(false)} className="flex-1 py-3 text-xs font-headline font-bold uppercase tracking-wide text-on-surface-variant hover:bg-surface-container-high transition-colors">Cancel</button>
+              <button onClick={() => setShowForm(false)} className="flex-1 py-3 text-xs font-headline font-semibold uppercase tracking-wide text-on-surface-variant hover:bg-surface-container-low transition-colors">Cancel</button>
               <div className="w-px bg-outline-variant/20" />
-              <button onClick={handleSubmit} disabled={submitting} className="flex-1 py-3 text-xs font-headline font-bold uppercase tracking-wide text-primary hover:bg-primary/10 transition-colors disabled:opacity-50">
+              <button onClick={handleSubmit} disabled={submitting} className="flex-1 py-3 text-xs font-headline font-semibold uppercase tracking-wide text-primary hover:bg-primary/10 transition-colors disabled:opacity-50">
                 {submitting ? 'Saving...' : editing ? 'Update' : 'Create'}
               </button>
             </div>

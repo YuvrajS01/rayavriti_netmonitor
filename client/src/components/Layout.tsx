@@ -5,6 +5,7 @@ import { clearCredentials } from '../store/authSlice';
 import type { RootState } from '../store';
 import { logout, getAlertCounts } from '../api/client';
 import { useSocket } from '../hooks/useSocket';
+import IconColor from '../assets/brand/Icon-color.svg';
 
 interface NavItem {
   to: string;
@@ -74,17 +75,17 @@ const SidebarLink = memo(function SidebarLink({ to, label, icon, badge, end, onC
       end={end}
       onClick={onClick}
       className={({ isActive }) =>
-        `group flex items-center gap-3 py-2.5 px-5 font-label font-medium text-sm tracking-wide transition-[color,background-color,border-color] duration-200 ${
+        `group flex items-center gap-3 py-2 px-5 font-body font-medium text-sm transition-colors duration-200 ${
           isActive
-            ? 'bg-primary/8 text-primary border-l-2 border-primary'
-            : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high border-l-2 border-transparent'
+            ? 'bg-surface-container text-on-surface border-l-2 border-primary'
+            : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low border-l-2 border-transparent'
         }`
       }
     >
       <span className="material-symbols-outlined text-[18px]">{icon}</span>
       <span>{label}</span>
       {badge != null && badge > 0 && (
-        <span className="ml-auto bg-error/20 text-error px-2 py-0.5 rounded-full text-[10px] font-bold min-w-[20px] text-center">
+        <span className="ml-auto bg-error/15 text-error px-2 py-0.5 rounded-full text-[10px] font-semibold min-w-[20px] text-center">
           {badge > 99 ? '99+' : badge}
         </span>
       )}
@@ -164,13 +165,14 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         Skip to content
       </a>
       {/* Top Nav */}
-      <header className="bg-background text-on-surface font-body text-sm tracking-tight w-full h-16 border-b border-surface-container-high/30 flex justify-between items-center px-6 fixed top-0 z-40">
-        <div className="flex items-center gap-8">
-          <button onClick={() => setSidebarOpen(!sidebarOpen)} className="material-symbols-outlined text-on-surface-variant hover:text-primary transition-colors" aria-label="Toggle sidebar">
+      <header className="bg-background text-on-surface font-body text-sm w-full h-16 border-b border-outline-variant/30 flex justify-between items-center px-6 fixed top-0 z-40">
+        <div className="flex items-center gap-6">
+          <button onClick={() => setSidebarOpen(!sidebarOpen)} className="material-symbols-outlined text-on-surface-variant hover:text-on-surface transition-colors duration-200" aria-label="Toggle sidebar">
             menu
           </button>
-          <NavLink to="/" className="font-headline font-bold tracking-wide text-primary text-xl uppercase">
-            Rayavriti NetMonitor+
+          <NavLink to="/" className="flex items-center gap-2.5">
+            <img src={IconColor} alt="" className="w-7 h-7" aria-hidden="true" />
+            <span className="font-headline font-semibold text-on-surface text-lg">rayavriti</span>
           </NavLink>
           <div className="hidden lg:flex items-center gap-6">
             {visibleTopItems.slice(0, 3).map((item) => (
@@ -179,8 +181,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 to={item.to}
                 end={item.end}
                 className={({ isActive }) =>
-                  `cursor-pointer transition-colors duration-300 ${
-                    isActive ? 'text-primary border-b-2 border-primary' : 'text-on-surface-variant hover:text-primary'
+                  `cursor-pointer transition-colors duration-200 text-sm ${
+                    isActive ? 'text-on-surface border-b-2 border-primary' : 'text-on-surface-variant hover:text-on-surface'
                   }`
                 }
               >
@@ -190,18 +192,18 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           </div>
         </div>
         <div className="flex items-center gap-4">
-          <NavLink to="/alerts" className="material-symbols-outlined cursor-pointer hover:text-primary p-2 text-on-surface-variant relative" aria-label="Alerts">
+          <NavLink to="/alerts" className="material-symbols-outlined cursor-pointer hover:text-on-surface p-2 text-on-surface-variant transition-colors duration-200 relative" aria-label="Alerts">
             notifications
             {activeAlertCount > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 bg-error text-on-error text-[8px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
+              <span className="absolute -top-0.5 -right-0.5 bg-error text-on-error text-[8px] font-semibold rounded-full w-4 h-4 flex items-center justify-center">
                 {activeAlertCount > 9 ? '9+' : activeAlertCount}
               </span>
             )}
           </NavLink>
-          <NavLink to="/settings" className="material-symbols-outlined cursor-pointer hover:text-primary p-2 text-on-surface-variant" aria-label="Settings">
+          <NavLink to="/settings" className="material-symbols-outlined cursor-pointer hover:text-on-surface p-2 text-on-surface-variant transition-colors duration-200" aria-label="Settings">
             settings
           </NavLink>
-          <div className="w-8 h-8 rounded-full bg-surface-container-highest border border-primary/20 flex items-center justify-center text-xs font-bold text-primary">
+          <div className="w-8 h-8 rounded-full bg-surface-container-highest border border-outline-variant/30 flex items-center justify-center text-xs font-semibold text-on-surface">
             {user?.username?.charAt(0).toUpperCase() || 'A'}
           </div>
         </div>
@@ -210,16 +212,18 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       <div className="flex pt-16">
         {/* Sidebar */}
         <aside
-          className={`bg-surface-container-low h-[calc(100vh-64px)] w-64 border-r border-surface-container-high/30 fixed left-0 top-16 flex flex-col z-40 transition-transform duration-300 ${
+          className={`bg-surface-dim h-[calc(100vh-64px)] w-[220px] border-r border-outline-variant/30 fixed left-0 top-16 flex flex-col z-40 transition-transform duration-300 ${
             sidebarOpen ? 'translate-x-0' : '-translate-x-full'
           }`}
           aria-hidden={!sidebarOpen}
           inert={!sidebarOpen || undefined}
         >
-          <div className="px-5 py-4">
-            <span className="font-headline text-primary font-bold text-base tracking-wide">
-              {user?.username || 'Admin'}
-            </span>
+          <div className="px-5 py-4 border-b border-outline-variant/20">
+            <div className="flex items-center gap-2">
+              <img src={IconColor} alt="" className="w-6 h-6" aria-hidden="true" />
+              <span className="font-headline text-on-surface font-semibold text-base">rayavriti</span>
+            </div>
+            <span className="text-[10px] uppercase tracking-[0.08em] text-on-surface-variant font-medium ml-8">NetMonitor</span>
           </div>
 
           <nav className="flex-1 space-y-1 overflow-y-auto" aria-label="Sidebar navigation">
@@ -235,8 +239,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                   <div key={group.label}>
                     <button
                       onClick={() => toggleGroup(group.label)}
-                      className={`w-full flex items-center gap-3 py-2.5 px-5 font-label font-medium text-xs uppercase tracking-widest transition-colors ${
-                        active ? 'text-primary' : 'text-on-surface-variant hover:text-on-surface'
+                      className={`w-full flex items-center gap-3 py-2 px-5 font-label font-medium text-xs uppercase tracking-wide transition-colors duration-200 ${
+                        active ? 'text-on-surface' : 'text-on-surface-variant hover:text-on-surface'
                       }`}
                     >
                       <span className="material-symbols-outlined text-[16px]">
@@ -244,7 +248,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                       </span>
                       {group.label}
                       {group.label === 'Settings' && activeAlertCount > 0 && group.items.some((i) => i.to === '/alerts') && (
-                        <span className="ml-auto bg-error/20 text-error px-2 py-0.5 rounded-full text-[10px] font-bold">
+                        <span className="ml-auto bg-error/15 text-error px-2 py-0.5 rounded-full text-[10px] font-semibold">
                           {activeAlertCount > 99 ? '99+' : activeAlertCount}
                         </span>
                       )}
@@ -262,10 +266,19 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             </div>
           </nav>
 
-          <div className="p-5">
+          <div className="p-5 mt-auto border-t border-outline-variant/20">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-8 h-8 rounded-full bg-surface-container-highest flex items-center justify-center text-xs font-semibold text-on-surface">
+                {user?.username?.charAt(0).toUpperCase() || 'A'}
+              </div>
+              <div>
+                <div className="text-sm font-medium text-on-surface">{user?.username || 'Admin'}</div>
+                <div className="text-xs text-outline">{user?.role || 'admin'}</div>
+              </div>
+            </div>
             <button
               onClick={handleLogout}
-              className="w-full bg-surface-container-highest text-error border border-error/20 py-2.5 font-headline font-bold text-sm tracking-wide rounded-md hover:bg-error hover:text-on-error transition-[background-color,color] uppercase"
+              className="w-full text-error border border-error/20 py-2 font-body font-medium text-sm rounded-md hover:bg-error hover:text-on-error transition-colors duration-200"
             >
               Sign Out
             </button>
@@ -273,7 +286,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </aside>
 
         {/* Main Content */}
-        <main id="main-content" className={`flex-1 p-8 bg-surface min-h-[calc(100vh-64px)] transition-[margin-left] duration-300 ${sidebarOpen ? 'ml-64' : 'ml-0'}`}>
+        <main id="main-content" className={`flex-1 p-6 bg-surface min-h-[calc(100vh-64px)] transition-[margin-left] duration-300 ${sidebarOpen ? 'ml-[220px]' : 'ml-0'}`}>
           <div key={location.pathname} className="page-enter">
             {children}
           </div>
@@ -281,18 +294,18 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       </div>
 
       {/* Mobile Bottom Nav — only on small screens */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-background border-t border-surface-container-high/30 flex justify-around items-center px-4 z-50" aria-label="Mobile navigation">
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-background border-t border-outline-variant/30 flex justify-around items-center px-4 z-50" aria-label="Mobile navigation">
         {[visibleTopItems[0], visibleTopItems[1], visibleTopItems.find(i => i.to === '/incidents') || visibleTopItems[2], visibleTopItems.find(i => i.to === '/alerts') || visibleTopItems[3]].filter(Boolean).map((item) => (
           <NavLink
             key={item.to}
             to={item.to}
             end={item.to === '/'}
             className={({ isActive }) =>
-              `flex flex-col items-center gap-1 ${isActive ? 'text-primary' : 'text-on-surface-variant'}`
+              `flex flex-col items-center gap-1 transition-colors duration-200 ${isActive ? 'text-on-surface' : 'text-on-surface-variant'}`
             }
           >
-            <span className="material-symbols-outlined">{item.icon}</span>
-            <span className="text-[11px] uppercase font-bold">{item.label.split(' ')[0]}</span>
+            <span className="material-symbols-outlined text-[20px]">{item.icon}</span>
+            <span className="text-[10px] font-medium">{item.label.split(' ')[0]}</span>
           </NavLink>
         ))}
       </nav>

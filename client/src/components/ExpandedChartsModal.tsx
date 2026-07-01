@@ -67,15 +67,15 @@ export default function ExpandedChartsModal({ metrics, onClose }: ExpandedCharts
         className="bg-surface-container-low border border-outline-variant/30 rounded-lg w-full max-w-7xl h-[90vh] overflow-hidden flex flex-col outline-none"
         onClick={e => e.stopPropagation()}
       >
-        <div className="p-6 border-b border-outline-variant/20 flex justify-between items-center bg-surface-container-high shrink-0">
+        <div className="p-6 border-b border-outline-variant/20 flex justify-between items-center bg-surface-container-low shrink-0">
           <div className="flex items-center gap-3">
             <span className="material-symbols-outlined text-primary text-3xl">query_stats</span>
             <div>
-              <h2 className="font-headline text-2xl font-bold text-on-surface uppercase tracking-tight">Detailed Response Times</h2>
-              <p className="text-on-surface-variant text-xs font-mono uppercase tracking-wide">Individual node performance telemetry</p>
+              <h2 className="font-headline text-2xl font-semibold text-on-surface uppercase tracking-tight">Detailed Response Times</h2>
+              <p className="text-on-surface-variant text-xs font-data uppercase tracking-wide">Individual node performance telemetry</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-surface-container-highest rounded-full transition-[background-color]" aria-label="Close dialog">
+          <button onClick={onClose} className="p-2 hover:bg-surface-container-lowest rounded-full transition-colors" aria-label="Close dialog">
             <span className="material-symbols-outlined text-outline hover:text-on-surface">close</span>
           </button>
         </div>
@@ -99,15 +99,15 @@ export default function ExpandedChartsModal({ metrics, onClose }: ExpandedCharts
                 const color = DEVICE_COLORS[i % DEVICE_COLORS.length];
 
                 return (
-                  <div key={dev} className="bg-surface-container-high rounded-lg p-5 border border-outline-variant/20 flex flex-col">
+                  <div key={dev} className="bg-surface-container-low rounded-lg p-5 border border-outline-variant/20 flex flex-col">
                     <div className="flex justify-between items-start mb-4">
                       <div>
-                        <h3 className="font-headline text-lg font-bold text-on-surface truncate pr-2">{dev}</h3>
-                        <p className="text-[10px] text-on-surface-variant uppercase tracking-wide font-mono mt-1">
+                        <h3 className="font-headline text-lg font-semibold text-on-surface truncate pr-2">{dev}</h3>
+                        <p className="text-[10px] text-on-surface-variant uppercase tracking-wide font-data mt-1">
                           Latest: <span style={{ color }}>{latest?.response ?? '-'}ms</span>
                         </p>
                       </div>
-                      <div className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wide border
+                      <div className={`px-2 py-0.5 rounded-full text-[9px] font-semibold uppercase tracking-wide border
                         ${latest?.status === 'down' ? 'border-error text-error bg-error/10' :
                           (latest?.status === 'warning' || latest?.status === 'degraded' ? 'border-warning text-warning bg-warning/10' :
                           'border-primary text-primary bg-primary/10')}`}>

@@ -162,7 +162,7 @@ export default function LocationManager() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
         {/* Left: Tree */}
         <Card variant="low" className="lg:col-span-4 xl:col-span-3 p-4 max-h-[75vh] overflow-hidden flex flex-col">
-          <h2 className="font-headline font-bold text-sm uppercase tracking-wide text-on-surface-variant mb-3">
+          <h2 className="font-headline font-semibold text-sm uppercase tracking-wide text-on-surface-variant mb-3">
             Hierarchy
           </h2>
           {locations.length === 0 ? (
@@ -185,7 +185,7 @@ export default function LocationManager() {
           {isCreating || isEditing ? (
             <div className="p-6">
               <div className="flex items-center justify-between mb-6">
-                <h2 className="font-headline font-bold text-lg">
+                <h2 className="font-headline font-semibold text-lg">
                   {isCreating ? 'New Location' : `Edit: ${String(selected?.name)}`}
                 </h2>
                 {isEditing && (
@@ -198,26 +198,26 @@ export default function LocationManager() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 {/* Name */}
                 <div>
-                  <label className="block text-[10px] uppercase tracking-wide text-on-surface-variant font-bold mb-1.5">
+                  <label className="block text-[10px] uppercase tracking-wide text-on-surface-variant font-semibold mb-1.5">
                     Name *
                   </label>
                   <input
                     value={form.name}
                     onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
                     placeholder="e.g. Admin Block"
-                    className="w-full bg-surface-container-highest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary outline-none"
+                    className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary outline-none"
                   />
                 </div>
 
                 {/* Type */}
                 <div>
-                  <label className="block text-[10px] uppercase tracking-wide text-on-surface-variant font-bold mb-1.5">
+                  <label className="block text-[10px] uppercase tracking-wide text-on-surface-variant font-semibold mb-1.5">
                     Type
                   </label>
                   <select
                     value={form.type}
                     onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))}
-                    className="w-full bg-surface-container-highest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface focus:ring-1 focus:ring-primary outline-none appearance-none"
+                    className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface focus:ring-1 focus:ring-primary outline-none appearance-none"
                   >
                     {locationTypes.map((t) => (
                       <option key={t} value={t}>
@@ -229,26 +229,26 @@ export default function LocationManager() {
 
                 {/* Code */}
                 <div>
-                  <label className="block text-[10px] uppercase tracking-wide text-on-surface-variant font-bold mb-1.5">
+                  <label className="block text-[10px] uppercase tracking-wide text-on-surface-variant font-semibold mb-1.5">
                     Code
                   </label>
                   <input
                     value={form.code}
                     onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))}
                     placeholder="e.g. AB-GF-101"
-                    className="w-full bg-surface-container-highest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary outline-none"
+                    className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary outline-none"
                   />
                 </div>
 
                 {/* Parent */}
                 <div>
-                  <label className="block text-[10px] uppercase tracking-wide text-on-surface-variant font-bold mb-1.5">
+                  <label className="block text-[10px] uppercase tracking-wide text-on-surface-variant font-semibold mb-1.5">
                     Parent Location
                   </label>
                   <select
                     value={form.parent_id}
                     onChange={(e) => setForm((f) => ({ ...f, parent_id: e.target.value }))}
-                    className="w-full bg-surface-container-highest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface focus:ring-1 focus:ring-primary outline-none appearance-none"
+                    className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface focus:ring-1 focus:ring-primary outline-none appearance-none"
                   >
                     <option value="">None (root)</option>
                     {parentOptions.map((l) => (
@@ -262,7 +262,7 @@ export default function LocationManager() {
                 {/* Floor Number (only for floor type) */}
                 {form.type === 'floor' && (
                   <div>
-                    <label className="block text-[10px] uppercase tracking-wide text-on-surface-variant font-bold mb-1.5">
+                    <label className="block text-[10px] uppercase tracking-wide text-on-surface-variant font-semibold mb-1.5">
                       Floor Number
                     </label>
                     <input
@@ -270,14 +270,14 @@ export default function LocationManager() {
                       value={form.floor_number}
                       onChange={(e) => setForm((f) => ({ ...f, floor_number: e.target.value }))}
                       placeholder="0"
-                      className="w-full bg-surface-container-highest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary outline-none"
+                      className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary outline-none"
                     />
                   </div>
                 )}
 
                 {/* Description — full width */}
                 <div className="md:col-span-2">
-                  <label className="block text-[10px] uppercase tracking-wide text-on-surface-variant font-bold mb-1.5">
+                  <label className="block text-[10px] uppercase tracking-wide text-on-surface-variant font-semibold mb-1.5">
                     Description
                   </label>
                   <textarea
@@ -285,7 +285,7 @@ export default function LocationManager() {
                     onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
                     placeholder="Optional description..."
                     rows={3}
-                    className="w-full bg-surface-container-highest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary outline-none resize-none"
+                    className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary outline-none resize-none"
                   />
                 </div>
 
@@ -335,7 +335,7 @@ export default function LocationManager() {
               {/* Assigned Devices */}
               {isEditing && (
                 <div className="mt-6 pt-5 border-t border-outline-variant/20">
-                  <h3 className="font-headline font-bold text-sm uppercase tracking-wide text-on-surface-variant mb-3">
+                  <h3 className="font-headline font-semibold text-sm uppercase tracking-wide text-on-surface-variant mb-3">
                     Devices at this Location
                   </h3>
                   {devices.length === 0 ? (
@@ -343,15 +343,15 @@ export default function LocationManager() {
                   ) : (
                     <div className="space-y-2">
                       {devices.map((dev) => (
-                        <div key={dev.id} className="flex items-center justify-between bg-surface-container-highest rounded-lg px-4 py-2.5 border border-outline-variant/15">
+                        <div key={dev.id} className="flex items-center justify-between bg-surface-container-lowest rounded-lg px-4 py-2.5 border border-outline-variant/15">
                           <div className="flex items-center gap-3 min-w-0">
                             <span className={`w-2 h-2 rounded-full shrink-0 ${dev.status === 'up' ? 'bg-primary' : dev.status === 'down' ? 'bg-error' : 'bg-warning'}`} />
                             <div className="min-w-0">
-                              <p className="text-sm font-bold text-on-surface truncate">{dev.name}</p>
-                              <p className="text-[10px] text-on-surface-variant font-mono">{dev.ipAddress}</p>
+                              <p className="text-sm font-semibold text-on-surface truncate">{dev.name}</p>
+                              <p className="text-[10px] text-on-surface-variant font-data">{dev.ipAddress}</p>
                             </div>
                           </div>
-                          <span className="text-[10px] font-bold uppercase tracking-wide text-on-surface-variant shrink-0 ml-3">{dev.protocol}</span>
+                          <span className="text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant shrink-0 ml-3">{dev.protocol}</span>
                         </div>
                       ))}
                     </div>
@@ -362,7 +362,7 @@ export default function LocationManager() {
           ) : (
             <div className="flex flex-col items-center justify-center min-h-[400px] text-on-surface-variant">
               <span className="material-symbols-outlined text-5xl mb-3 text-outline">edit_location_alt</span>
-              <p className="font-headline font-bold">Select or create a location</p>
+              <p className="font-headline font-semibold">Select or create a location</p>
               <p className="text-xs mt-1">Choose from the tree or click "Add Location" to get started.</p>
             </div>
           )}

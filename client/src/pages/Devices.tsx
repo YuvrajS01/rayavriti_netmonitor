@@ -111,7 +111,7 @@ export default function Devices() {
       />
 
       {/* Stats Row */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
         <StatCard label="Total" value={total} />
         <StatCard label="Online" value={up} />
         <StatCard label="Down" value={down} color="text-error" />
@@ -121,9 +121,9 @@ export default function Devices() {
       {/* Filters */}
       <div className="flex flex-wrap gap-4 mb-6">
         <div className="flex-1 min-w-48">
-          <input value={search} onChange={(e) => setSearch(e.target.value)} className="w-full bg-surface-container-highest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary outline-none" placeholder="Search devices..." />
+          <input value={search} onChange={(e) => setSearch(e.target.value)} className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary outline-none" placeholder="Search devices..." />
         </div>
-        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="bg-surface-container-highest border border-outline-variant/20 rounded-lg px-3 py-2.5 text-xs text-on-surface outline-none focus:ring-1 focus:ring-primary">
+        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-3 py-2.5 text-xs text-on-surface outline-none focus:ring-1 focus:ring-primary">
           <option value="all">All statuses</option>
           <option value="up">Up</option>
           <option value="warning">Warning</option>
@@ -137,39 +137,39 @@ export default function Devices() {
         {filtered.map((device) => {
           const status = statusOf(device, metricsMap);
           const metric = metricsMap.get(device.id);
-          const hoverText = STATUS_GROUP_HOVER_TEXT[status] || 'group-hover:text-primary';
+          const hoverText = STATUS_GROUP_HOVER_TEXT[status] || 'group-hover:text-on-surface';
           return (
             <div 
               key={device.id} 
               role="button"
               tabIndex={0}
               onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedDevice(device); } }}
-              className={`bg-surface-container-low rounded-lg group overflow-hidden border border-outline-variant/20 hover:border-primary/30 transition-[border-color] duration-300 flex flex-col cursor-pointer`}
+              className={`bg-surface-container-low rounded-lg group overflow-hidden border border-outline-variant/20 hover:border-outline/30 transition-colors duration-200 duration-300 flex flex-col cursor-pointer`}
               onClick={() => setSelectedDevice(device)}
             >
               <div className="p-6">
                 <div className="flex justify-between items-start mb-6">
-                  <div className={`bg-surface-container-highest p-3 rounded-lg ${statusTextColor(status)}`}>
+                  <div className={`bg-surface-container-lowest p-3 rounded-lg ${statusTextColor(status)}`}>
                     <span className="material-symbols-outlined text-3xl">{iconForProtocol(device.protocol)}</span>
                   </div>
                   <div className={`flex items-center gap-2 px-3 py-1 rounded-full ${statusBgColor(status)}/10`}>
                     {(status === 'up' || status === 'ok') && <span className={`w-1.5 h-1.5 rounded-full ${statusBgColor(status)}`} />}
-                    <span className={`text-xs font-bold uppercase tracking-wide ${statusTextColor(status)}`}>{status.toUpperCase()}</span>
+                    <span className={`text-xs font-semibold uppercase tracking-wide ${statusTextColor(status)}`}>{status.toUpperCase()}</span>
                   </div>
                 </div>
-                <h3 className={`font-headline text-xl font-bold mb-1 ${hoverText} transition-colors`}>{device.name}</h3>
+                <h3 className={`font-headline text-xl font-semibold mb-1 ${hoverText} transition-colors`}>{device.name}</h3>
                 <code className="text-on-surface-variant text-xs mb-4 block">{device.protocol === 'http' || device.protocol === 'https' ? `${device.protocol}://${device.ipAddress}` : device.ipAddress}{device.port > 0 && !['http','https'].includes(device.protocol) ? `:${device.port}` : ''}</code>
                 <div className="space-y-2 text-xs">
-                  <div className="flex justify-between"><span className="text-on-surface-variant uppercase tracking-wide">Protocol</span><span className="font-bold">{device.protocol.toUpperCase()}</span></div>
-                  <div className="flex justify-between"><span className="text-on-surface-variant uppercase tracking-wide">Interval</span><span className="font-bold">{device.interval}s</span></div>
-                  {metric && <div className="flex justify-between"><span className="text-on-surface-variant uppercase tracking-wide">Response</span><span className="font-bold">{metric.responseTime ?? '-'}ms</span></div>}
+                  <div className="flex justify-between"><span className="text-on-surface-variant uppercase tracking-wide">Protocol</span><span className="font-semibold">{device.protocol.toUpperCase()}</span></div>
+                  <div className="flex justify-between"><span className="text-on-surface-variant uppercase tracking-wide">Interval</span><span className="font-semibold">{device.interval}s</span></div>
+                  {metric && <div className="flex justify-between"><span className="text-on-surface-variant uppercase tracking-wide">Response</span><span className="font-semibold">{metric.responseTime ?? '-'}ms</span></div>}
                 </div>
               </div>
-              <div className="mt-auto bg-surface-container-high p-4 flex justify-between items-center">
+              <div className="mt-auto bg-surface-container-low p-4 flex justify-between items-center">
                 <span className="text-[10px] text-on-surface-variant uppercase">{metric ? new Date(metric.timestamp || metric.createdAt).toLocaleTimeString() : 'No data'}</span>
                 <button 
                   onClick={(e) => { e.stopPropagation(); handleDelete(device); }} 
-                  className="text-error text-[10px] font-bold uppercase tracking-wide hover:bg-error/10 px-2 py-1 rounded transition-colors"
+                  className="text-error text-[10px] font-semibold uppercase tracking-wide hover:bg-error/10 px-2 py-1 rounded transition-colors"
                 >
                   Delete
                 </button>
@@ -179,11 +179,11 @@ export default function Devices() {
         })}
 
         {/* Add New Card */}
-        <div onClick={() => setShowForm(true)} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setShowForm(true); } }} className="bg-surface-container-low rounded-lg border-2 border-dashed border-outline-variant/30 hover:border-primary/50 transition-[border-color] duration-300 flex flex-col items-center justify-center p-12 text-center group cursor-pointer min-h-[200px]">
-          <div className="w-16 h-16 rounded-full bg-surface-container-high flex items-center justify-center mb-4 group-hover:bg-primary/10 transition-colors">
-            <span className="material-symbols-outlined text-3xl text-outline group-hover:text-primary">add</span>
+        <div onClick={() => setShowForm(true)} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setShowForm(true); } }} className="bg-surface-container-low rounded-lg border-2 border-dashed border-outline-variant/30 hover:border-outline/50 transition-colors duration-200 duration-300 flex flex-col items-center justify-center p-12 text-center group cursor-pointer min-h-[200px]">
+          <div className="w-16 h-16 rounded-full bg-surface-container-low flex items-center justify-center mb-4 group-hover:bg-primary/10 transition-colors">
+            <span className="material-symbols-outlined text-3xl text-outline group-hover:text-on-surface">add</span>
           </div>
-          <h3 className="font-headline text-lg font-bold text-outline group-hover:text-on-surface tracking-wide">Add Device</h3>
+          <h3 className="font-headline text-lg font-semibold text-outline group-hover:text-on-surface tracking-wide">Add Device</h3>
           <p className="text-on-surface-variant text-xs max-w-[120px] mx-auto mt-2">Deploy a new probe or add an existing node</p>
         </div>
       </div>

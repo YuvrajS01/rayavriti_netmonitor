@@ -104,7 +104,7 @@ export default function DeviceAddModal({ open, onClose, onAdded }: Props) {
     }
   };
 
-  const inputClass = 'bg-surface-container-highest border rounded-lg px-3 py-2.5 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary transition-colors';
+  const inputClass = 'bg-surface-container-lowest border rounded-lg px-3 py-2.5 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary transition-colors';
   const borderClass = (field: string) => errors[field] ? 'border-error/50' : 'border-outline-variant/20';
 
   return (
@@ -113,7 +113,7 @@ export default function DeviceAddModal({ open, onClose, onAdded }: Props) {
       <div ref={dialogRef} className="relative bg-surface-container-low rounded-lg border border-outline-variant/20 w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col">
         <div className="flex items-center justify-between p-6 border-b border-outline-variant/20 shrink-0">
           <div>
-            <h2 className="font-headline text-xl font-bold text-on-surface uppercase tracking-wide">New Device</h2>
+            <h2 className="font-headline text-xl font-semibold text-on-surface uppercase tracking-wide">New Device</h2>
             <p className="text-xs text-on-surface-variant mt-1">Add a node to your monitoring network</p>
           </div>
           <button onClick={onClose} className="material-symbols-outlined text-on-surface-variant hover:text-on-surface transition-colors" aria-label="Close">
@@ -123,20 +123,20 @@ export default function DeviceAddModal({ open, onClose, onAdded }: Props) {
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4 flex-1 min-h-0 overflow-y-auto">
           <div>
-            <label htmlFor="device-name" className="block text-[10px] font-bold uppercase tracking-wide text-on-surface-variant mb-1.5">Device Name *</label>
+            <label htmlFor="device-name" className="block text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant mb-1.5">Device Name *</label>
             <input id="device-name" name="name" required placeholder="e.g. Core Router 01" className={`${inputClass} w-full ${borderClass('name')}`} />
             {errors.name && <p className="text-error text-[10px] mt-1">{errors.name}</p>}
           </div>
 
           <div>
-            <label htmlFor="device-host" className="block text-[10px] font-bold uppercase tracking-wide text-on-surface-variant mb-1.5">Host / IP Address *</label>
+            <label htmlFor="device-host" className="block text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant mb-1.5">Host / IP Address *</label>
             <input id="device-host" name="host" required placeholder="e.g. 192.168.1.1 or example.com" className={`${inputClass} w-full ${borderClass('host')}`} />
             {errors.host && <p className="text-error text-[10px] mt-1">{errors.host}</p>}
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label htmlFor="device-protocol" className="block text-[10px] font-bold uppercase tracking-wide text-on-surface-variant mb-1.5">Protocol</label>
+              <label htmlFor="device-protocol" className="block text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant mb-1.5">Protocol</label>
               <select
                 id="device-protocol"
                 name="protocol"
@@ -161,7 +161,7 @@ export default function DeviceAddModal({ open, onClose, onAdded }: Props) {
               </select>
             </div>
             <div>
-              <label htmlFor="device-port" className="block text-[10px] font-bold uppercase tracking-wide text-on-surface-variant mb-1.5">Port</label>
+              <label htmlFor="device-port" className="block text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant mb-1.5">Port</label>
               {['https', 'http', 'snmp', 'port'].includes(protocol) ? (
                 <>
                   <input
@@ -187,7 +187,7 @@ export default function DeviceAddModal({ open, onClose, onAdded }: Props) {
           {protocol === 'snmp' && (
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label htmlFor="device-snmp-community" className="block text-[10px] font-bold uppercase tracking-wide text-on-surface-variant mb-1.5">SNMP Community</label>
+                <label htmlFor="device-snmp-community" className="block text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant mb-1.5">SNMP Community</label>
                 <input
                   id="device-snmp-community"
                   value={snmpCommunity}
@@ -197,7 +197,7 @@ export default function DeviceAddModal({ open, onClose, onAdded }: Props) {
                 />
               </div>
               <div>
-                <label htmlFor="device-snmp-version" className="block text-[10px] font-bold uppercase tracking-wide text-on-surface-variant mb-1.5">SNMP Version</label>
+                <label htmlFor="device-snmp-version" className="block text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant mb-1.5">SNMP Version</label>
                 <select id="device-snmp-version" value={snmpVersion} onChange={(e) => setSnmpVersion(e.target.value)} className={`${inputClass} w-full cursor-pointer`}>
                   <option value="2c">v2c</option>
                   <option value="1">v1</option>
@@ -207,13 +207,13 @@ export default function DeviceAddModal({ open, onClose, onAdded }: Props) {
           )}
 
           <div>
-            <label htmlFor="device-interval" className="block text-[10px] font-bold uppercase tracking-wide text-on-surface-variant mb-1.5">Check Interval (seconds)</label>
+            <label htmlFor="device-interval" className="block text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant mb-1.5">Check Interval (seconds)</label>
             <input id="device-interval" name="interval" type="number" min="10" defaultValue={60} className={`${inputClass} w-full`} />
           </div>
 
           {locations.length > 0 && (
             <div>
-              <label htmlFor="device-location" className="block text-[10px] font-bold uppercase tracking-wide text-on-surface-variant mb-1.5">Location</label>
+              <label htmlFor="device-location" className="block text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant mb-1.5">Location</label>
               <select id="device-location" name="locationId" defaultValue="" className={`${inputClass} w-full cursor-pointer`}>
                 <option value="">Unassigned</option>
                 {locations.map((loc) => (

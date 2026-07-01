@@ -29,7 +29,7 @@ function levelClass(level: string) {
   if (level === 'error' || level === 'fatal') return 'bg-error/15 text-error';
   if (level === 'warn') return 'bg-tertiary/15 text-tertiary';
   if (level === 'debug' || level === 'trace') return 'bg-primary/12 text-primary';
-  return 'bg-surface-container-highest text-on-surface-variant';
+  return 'bg-surface-container-lowest text-on-surface-variant';
 }
 
 export default function Logs() {
@@ -139,7 +139,7 @@ export default function Logs() {
             <Button variant={autoRefresh ? 'primary' : 'secondary'} icon="sync" onClick={() => setAutoRefresh((v) => !v)}>
               {autoRefresh ? 'Live' : 'Manual'}
             </Button>
-            <a href={logsExportUrl(query)} className="font-headline font-bold text-sm uppercase tracking-wide rounded-md px-5 py-2.5 min-h-11 inline-flex items-center gap-2 bg-surface-container-highest text-on-surface border border-outline-variant/30 hover:bg-surface-container-high">
+            <a href={logsExportUrl(query)} className="font-headline font-semibold text-sm uppercase tracking-wide rounded-md px-5 py-2.5 min-h-11 inline-flex items-center gap-2 bg-surface-container-lowest text-on-surface border border-outline-variant/30 hover:bg-surface-container-low">
               <span className="material-symbols-outlined text-lg">download</span>
               Export
             </a>
@@ -149,17 +149,17 @@ export default function Logs() {
 
       <Card variant="low" className="p-4">
         <div className="grid grid-cols-1 md:grid-cols-7 gap-3">
-          <input type="datetime-local" value={filters.from} onChange={(e) => setFilters((f) => ({ ...f, from: e.target.value }))} className="bg-surface-container-highest rounded-md px-3 py-2 text-sm" />
-          <input type="datetime-local" value={filters.to} onChange={(e) => setFilters((f) => ({ ...f, to: e.target.value }))} className="bg-surface-container-highest rounded-md px-3 py-2 text-sm" />
-          <select value={filters.level} onChange={(e) => setFilters((f) => ({ ...f, level: e.target.value }))} className="bg-surface-container-highest rounded-md px-3 py-2 text-sm">
+          <input type="datetime-local" value={filters.from} onChange={(e) => setFilters((f) => ({ ...f, from: e.target.value }))} className="bg-surface-container-lowest rounded-md px-3 py-2 text-sm" />
+          <input type="datetime-local" value={filters.to} onChange={(e) => setFilters((f) => ({ ...f, to: e.target.value }))} className="bg-surface-container-lowest rounded-md px-3 py-2 text-sm" />
+          <select value={filters.level} onChange={(e) => setFilters((f) => ({ ...f, level: e.target.value }))} className="bg-surface-container-lowest rounded-md px-3 py-2 text-sm">
             {LEVELS.map((l) => <option key={l} value={l}>{l || 'All levels'}</option>)}
           </select>
-          <select value={filters.component} onChange={(e) => setFilters((f) => ({ ...f, component: e.target.value }))} className="bg-surface-container-highest rounded-md px-3 py-2 text-sm">
+          <select value={filters.component} onChange={(e) => setFilters((f) => ({ ...f, component: e.target.value }))} className="bg-surface-container-lowest rounded-md px-3 py-2 text-sm">
             {COMPONENTS.map((c) => <option key={c} value={c}>{c || 'All components'}</option>)}
           </select>
-          <input placeholder="Request ID" value={filters.request_id} onChange={(e) => setFilters((f) => ({ ...f, request_id: e.target.value }))} className="bg-surface-container-highest rounded-md px-3 py-2 text-sm" />
-          <input placeholder="Device ID" value={filters.device_id} onChange={(e) => setFilters((f) => ({ ...f, device_id: e.target.value }))} className="bg-surface-container-highest rounded-md px-3 py-2 text-sm" />
-          <input placeholder="Search" value={filters.q} onChange={(e) => setFilters((f) => ({ ...f, q: e.target.value }))} className="bg-surface-container-highest rounded-md px-3 py-2 text-sm" />
+          <input placeholder="Request ID" value={filters.request_id} onChange={(e) => setFilters((f) => ({ ...f, request_id: e.target.value }))} className="bg-surface-container-lowest rounded-md px-3 py-2 text-sm" />
+          <input placeholder="Device ID" value={filters.device_id} onChange={(e) => setFilters((f) => ({ ...f, device_id: e.target.value }))} className="bg-surface-container-lowest rounded-md px-3 py-2 text-sm" />
+          <input placeholder="Search" value={filters.q} onChange={(e) => setFilters((f) => ({ ...f, q: e.target.value }))} className="bg-surface-container-lowest rounded-md px-3 py-2 text-sm" />
         </div>
       </Card>
 
@@ -175,7 +175,7 @@ export default function Logs() {
             ].map(([label, value]) => (
               <Card key={label} variant="high" className="p-4">
                 <p className="text-xs text-on-surface-variant uppercase tracking-wide">{label}</p>
-                <p className="font-headline text-2xl font-bold mt-1">{value}</p>
+                <p className="font-headline text-2xl font-semibold mt-1">{value}</p>
               </Card>
             ))}
           </div>
@@ -188,7 +188,7 @@ export default function Logs() {
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead className="bg-surface-container-high text-xs uppercase tracking-wide text-on-surface-variant">
+                  <thead className="bg-surface-container-low text-xs uppercase tracking-wide text-on-surface-variant">
                     <tr>
                       <th className="text-left p-3">Time</th>
                       <th className="text-left p-3">Level</th>
@@ -199,9 +199,9 @@ export default function Logs() {
                   </thead>
                   <tbody>
                     {events.map((e) => (
-                      <tr key={`${e.id}-${e.timestamp}`} onClick={() => setSelected(e)} className="border-t border-outline-variant/15 hover:bg-surface-container-high cursor-pointer">
+                      <tr key={`${e.id}-${e.timestamp}`} onClick={() => setSelected(e)} className="border-t border-outline-variant/15 hover:bg-surface-container-low cursor-pointer">
                         <td className="p-3 whitespace-nowrap text-on-surface-variant">{fmtTime(e.timestamp)}</td>
-                        <td className="p-3"><span className={`px-2 py-1 rounded text-xs font-bold uppercase ${levelClass(e.level)}`}>{e.level}</span></td>
+                        <td className="p-3"><span className={`px-2 py-1 rounded text-xs font-semibold uppercase ${levelClass(e.level)}`}>{e.level}</span></td>
                         <td className="p-3 font-medium">{e.component}</td>
                         <td className="p-3 max-w-[420px] truncate">{e.message}</td>
                         <td className="p-3 text-xs text-on-surface-variant">{e.path || e.requestId || (e.deviceId ? `device ${e.deviceId}` : e.eventType)}</td>
@@ -216,29 +216,29 @@ export default function Logs() {
 
         <aside className="xl:col-span-3 space-y-4">
           <Card variant="low" className="p-5 space-y-3">
-            <h2 className="font-headline font-bold flex items-center gap-2"><span className="material-symbols-outlined text-primary">tune</span>Verbose</h2>
+            <h2 className="font-headline font-semibold flex items-center gap-2"><span className="material-symbols-outlined text-primary">tune</span>Verbose</h2>
             <div className="grid grid-cols-2 gap-2">
-              <select value={verbose.level} onChange={(e) => setVerbose((v) => ({ ...v, level: e.target.value as 'debug' | 'trace' }))} className="bg-surface-container-highest rounded-md px-3 py-2 text-sm">
+              <select value={verbose.level} onChange={(e) => setVerbose((v) => ({ ...v, level: e.target.value as 'debug' | 'trace' }))} className="bg-surface-container-lowest rounded-md px-3 py-2 text-sm">
                 <option value="debug">Debug</option>
                 <option value="trace">Trace</option>
               </select>
-              <input type="number" min={1} max={240} value={verbose.durationMinutes} onChange={(e) => setVerbose((v) => ({ ...v, durationMinutes: Number(e.target.value) }))} className="bg-surface-container-highest rounded-md px-3 py-2 text-sm" />
+              <input type="number" min={1} max={240} value={verbose.durationMinutes} onChange={(e) => setVerbose((v) => ({ ...v, durationMinutes: Number(e.target.value) }))} className="bg-surface-container-lowest rounded-md px-3 py-2 text-sm" />
             </div>
-            <select value={verbose.component} onChange={(e) => setVerbose((v) => ({ ...v, component: e.target.value }))} className="w-full bg-surface-container-highest rounded-md px-3 py-2 text-sm">
+            <select value={verbose.component} onChange={(e) => setVerbose((v) => ({ ...v, component: e.target.value }))} className="w-full bg-surface-container-lowest rounded-md px-3 py-2 text-sm">
               {COMPONENTS.filter(Boolean).map((c) => <option key={c} value={c}>{c}</option>)}
             </select>
-            <input placeholder="Device IDs, comma separated" value={verbose.deviceIds} onChange={(e) => setVerbose((v) => ({ ...v, deviceIds: e.target.value }))} className="w-full bg-surface-container-highest rounded-md px-3 py-2 text-sm" />
-            <input placeholder="User IDs, comma separated" value={verbose.userIds} onChange={(e) => setVerbose((v) => ({ ...v, userIds: e.target.value }))} className="w-full bg-surface-container-highest rounded-md px-3 py-2 text-sm" />
-            <textarea placeholder="Reason" value={verbose.reason} onChange={(e) => setVerbose((v) => ({ ...v, reason: e.target.value }))} className="w-full bg-surface-container-highest rounded-md px-3 py-2 text-sm min-h-20" />
+            <input placeholder="Device IDs, comma separated" value={verbose.deviceIds} onChange={(e) => setVerbose((v) => ({ ...v, deviceIds: e.target.value }))} className="w-full bg-surface-container-lowest rounded-md px-3 py-2 text-sm" />
+            <input placeholder="User IDs, comma separated" value={verbose.userIds} onChange={(e) => setVerbose((v) => ({ ...v, userIds: e.target.value }))} className="w-full bg-surface-container-lowest rounded-md px-3 py-2 text-sm" />
+            <textarea placeholder="Reason" value={verbose.reason} onChange={(e) => setVerbose((v) => ({ ...v, reason: e.target.value }))} className="w-full bg-surface-container-lowest rounded-md px-3 py-2 text-sm min-h-20" />
             <Button className="w-full" icon="play_arrow" onClick={createSession}>Enable</Button>
           </Card>
 
           <Card variant="low" className="p-5 space-y-3">
-            <h2 className="font-headline font-bold">Active Sessions</h2>
+            <h2 className="font-headline font-semibold">Active Sessions</h2>
             {sessions.length === 0 ? <p className="text-sm text-on-surface-variant">None active.</p> : sessions.map((s) => (
               <div key={s.id} className="border border-outline-variant/20 rounded-md p-3 space-y-2">
                 <div className="flex items-center justify-between gap-2">
-                  <span className={`px-2 py-1 rounded text-xs font-bold uppercase ${levelClass(s.level)}`}>{s.level}</span>
+                  <span className={`px-2 py-1 rounded text-xs font-semibold uppercase ${levelClass(s.level)}`}>{s.level}</span>
                   <button onClick={() => stopSession(s.id)} className="material-symbols-outlined text-error text-lg" aria-label="Stop verbose session">stop_circle</button>
                 </div>
                 <p className="text-xs text-on-surface-variant">{s.components.join(', ') || 'all components'}</p>
@@ -253,8 +253,8 @@ export default function Logs() {
         <Card variant="highest" className="fixed right-6 top-24 bottom-6 w-[min(520px,calc(100vw-48px))] z-50 p-5 overflow-auto shadow-xl">
           <div className="flex items-start justify-between gap-4 mb-4">
             <div>
-              <p className={`inline-block px-2 py-1 rounded text-xs font-bold uppercase ${levelClass(selected.level)}`}>{selected.level}</p>
-              <h2 className="font-headline text-lg font-bold mt-3">{selected.component}</h2>
+              <p className={`inline-block px-2 py-1 rounded text-xs font-semibold uppercase ${levelClass(selected.level)}`}>{selected.level}</p>
+              <h2 className="font-headline text-lg font-semibold mt-3">{selected.component}</h2>
               <p className="text-xs text-on-surface-variant">{fmtTime(selected.timestamp)}</p>
             </div>
             <button onClick={() => setSelected(null)} className="material-symbols-outlined text-on-surface-variant hover:text-on-surface" aria-label="Close details">close</button>

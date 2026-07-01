@@ -103,12 +103,12 @@ export default function Campus() {
         ].map((s) => (
           <Card key={s.label} variant="low" className="p-4">
             <div className="flex items-center justify-between">
-              <span className="text-[10px] uppercase tracking-wide text-on-surface-variant font-bold">
+              <span className="text-[10px] uppercase tracking-wide text-on-surface-variant font-semibold">
                 {s.label}
               </span>
               <span className={`material-symbols-outlined text-base ${s.color}`}>{s.icon}</span>
             </div>
-            <div className="font-headline text-2xl font-bold mt-1">{s.value}</div>
+            <div className="font-headline text-2xl font-semibold mt-1">{s.value}</div>
           </Card>
         ))}
       </div>
@@ -125,7 +125,7 @@ export default function Campus() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
           {/* Left Panel — Tree */}
           <Card variant="low" className="lg:col-span-4 xl:col-span-3 p-4 max-h-[75vh] overflow-hidden flex flex-col">
-            <h2 className="font-headline font-bold text-sm uppercase tracking-wide text-on-surface-variant mb-3 flex items-center gap-2">
+            <h2 className="font-headline font-semibold text-sm uppercase tracking-wide text-on-surface-variant mb-3 flex items-center gap-2">
               <span className="material-symbols-outlined text-base text-primary">account_tree</span>
               Location Tree
             </h2>
@@ -146,7 +146,7 @@ export default function Campus() {
                 <div className="p-5 border-b border-outline-variant/20">
                   <div className="flex items-start justify-between gap-4">
                     <div>
-                      <h2 className="font-headline font-bold text-xl">{String(selected.name)}</h2>
+                      <h2 className="font-headline font-semibold text-xl">{String(selected.name)}</h2>
                       <p className="text-xs text-on-surface-variant uppercase tracking-wide mt-1">
                         {String(selected.type)} {selected.code ? `· ${selected.code}` : ''}
                       </p>
@@ -162,19 +162,19 @@ export default function Campus() {
                         return (
                           <>
                             {st.up > 0 && (
-                              <span className="flex items-center gap-1 bg-success/10 text-success px-2 py-1 rounded-md text-xs font-bold">
+                              <span className="flex items-center gap-1 bg-success/10 text-success px-2 py-1 rounded-md text-xs font-semibold">
                                 <span className="w-2 h-2 rounded-full bg-success" />
                                 {st.up} Up
                               </span>
                             )}
                             {st.down > 0 && (
-                              <span className="flex items-center gap-1 bg-error/10 text-error px-2 py-1 rounded-md text-xs font-bold">
+                              <span className="flex items-center gap-1 bg-error/10 text-error px-2 py-1 rounded-md text-xs font-semibold">
                                 <span className="w-2 h-2 rounded-full bg-error" />
                                 {st.down} Down
                               </span>
                             )}
                             {st.warning > 0 && (
-                              <span className="flex items-center gap-1 bg-warning/10 text-warning px-2 py-1 rounded-md text-xs font-bold">
+                              <span className="flex items-center gap-1 bg-warning/10 text-warning px-2 py-1 rounded-md text-xs font-semibold">
                                 <span className="w-2 h-2 rounded-full bg-warning" />
                                 {st.warning} Warn
                               </span>
@@ -188,7 +188,7 @@ export default function Campus() {
 
                 {/* Device table */}
                 <div className="p-5">
-                  <h3 className="font-headline font-bold text-sm uppercase tracking-wide text-on-surface-variant mb-3">
+                  <h3 className="font-headline font-semibold text-sm uppercase tracking-wide text-on-surface-variant mb-3">
                     Devices at this location ({selectedDevices.length})
                   </h3>
                   {selectedDevices.length === 0 ? (
@@ -201,18 +201,18 @@ export default function Campus() {
                       <table className="w-full text-sm">
                         <thead>
                           <tr className="border-b border-outline-variant/20 text-left">
-                            <th className="pb-2 text-[10px] uppercase tracking-wide text-on-surface-variant font-bold">Status</th>
-                            <th className="pb-2 text-[10px] uppercase tracking-wide text-on-surface-variant font-bold">Name</th>
-                            <th className="pb-2 text-[10px] uppercase tracking-wide text-on-surface-variant font-bold">IP Address</th>
-                            <th className="pb-2 text-[10px] uppercase tracking-wide text-on-surface-variant font-bold">Protocol</th>
-                            <th className="pb-2 text-[10px] uppercase tracking-wide text-on-surface-variant font-bold">Category</th>
+                            <th className="pb-2 text-[10px] uppercase tracking-wide text-on-surface-variant font-semibold">Status</th>
+                            <th className="pb-2 text-[10px] uppercase tracking-wide text-on-surface-variant font-semibold">Name</th>
+                            <th className="pb-2 text-[10px] uppercase tracking-wide text-on-surface-variant font-semibold">IP Address</th>
+                            <th className="pb-2 text-[10px] uppercase tracking-wide text-on-surface-variant font-semibold">Protocol</th>
+                            <th className="pb-2 text-[10px] uppercase tracking-wide text-on-surface-variant font-semibold">Category</th>
                           </tr>
                         </thead>
                         <tbody>
                           {selectedDevices.map((d) => (
                             <tr
                               key={d.id}
-                              className="border-b border-outline-variant/10 hover:bg-surface-container-high/60 transition-colors"
+                              className="border-b border-outline-variant/10 hover:bg-surface-container-low/60 transition-colors"
                             >
                               <td className="py-2.5 pr-3">
                                 <span
@@ -221,7 +221,7 @@ export default function Campus() {
                                 />
                               </td>
                               <td className="py-2.5 pr-3 font-medium">{d.name}</td>
-                              <td className="py-2.5 pr-3 text-on-surface-variant font-mono text-xs">
+                              <td className="py-2.5 pr-3 text-on-surface-variant font-data text-xs">
                                 {d.ipAddress}
                               </td>
                               <td className="py-2.5 pr-3 text-on-surface-variant uppercase text-xs">
@@ -241,7 +241,7 @@ export default function Campus() {
             ) : (
               <div className="flex flex-col items-center justify-center min-h-[400px] text-on-surface-variant">
                 <span className="material-symbols-outlined text-5xl mb-3 text-outline">touch_app</span>
-                <p className="font-headline font-bold">Select a location</p>
+                <p className="font-headline font-semibold">Select a location</p>
                 <p className="text-xs mt-1">Choose a location from the tree to see its devices and status.</p>
               </div>
             )}

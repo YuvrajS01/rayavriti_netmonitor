@@ -25,17 +25,17 @@ export default function DeviceTab({ devices, onSelectDevice }: { devices: Device
   });
 
   const hdr = (label: string, key: SortKey, align = 'text-left') => (
-    <th className={`pb-3 font-medium cursor-pointer select-none hover:text-primary transition-colors ${align}`} onClick={() => toggle(key)}>
+    <th className={`pb-3 font-medium cursor-pointer select-none hover:text-on-surface transition-colors ${align}`} onClick={() => toggle(key)}>
       {label} {sortKey === key ? (sortDesc ? '↓' : '↑') : ''}
     </th>
   );
 
   return (
     <div className="report-section">
-      <div className="bg-surface-container-high rounded-lg p-6 border border-outline-variant/20">
+      <div className="bg-surface-container-low rounded-lg p-6 border border-outline-variant/20">
         <div className="flex items-center gap-2 mb-6">
           <span className="material-symbols-outlined text-primary text-xl">devices</span>
-          <h3 className="text-sm font-headline font-bold uppercase tracking-wide">Per-Device Performance</h3>
+          <h3 className="text-sm font-headline font-semibold uppercase tracking-wide">Per-Device Performance</h3>
           <span className="ml-auto text-[10px] text-on-surface-variant uppercase tracking-wide">{devices.length} devices</span>
         </div>
         {devices.length === 0 ? (
@@ -54,24 +54,24 @@ export default function DeviceTab({ devices, onSelectDevice }: { devices: Device
               </thead>
               <tbody className="text-sm">
                 {sorted.map((d) => (
-                  <tr key={d.deviceId} className="border-b border-outline-variant/10 hover:bg-surface-container-highest/50 transition-colors cursor-pointer group" onClick={() => onSelectDevice(d.deviceId)}>
+                  <tr key={d.deviceId} className="border-b border-outline-variant/10 hover:bg-surface-container-lowest/50 transition-colors cursor-pointer group" onClick={() => onSelectDevice(d.deviceId)}>
                     <td className="py-3">
                       <div className="flex items-center gap-2">
                         <span className="material-symbols-outlined text-sm opacity-60">
                           {d.protocol === 'ping' ? 'router' : d.protocol === 'http' || d.protocol === 'https' ? 'public' : d.protocol === 'system' ? 'memory' : d.protocol === 'snmp' ? 'settings_input_antenna' : 'hub'}
                         </span>
-                        <span className="font-headline font-semibold group-hover:text-primary transition-colors">{d.deviceName}</span>
+                        <span className="font-headline font-semibold group-hover:text-on-surface transition-colors">{d.deviceName}</span>
                         <span className="text-[10px] text-on-surface-variant uppercase">{d.protocol}</span>
                       </div>
                     </td>
                     <td className="py-3 text-center">
-                      <span className={`inline-flex px-2.5 py-1 rounded-full border text-[11px] font-bold ${badge(d.availabilityPercent ?? 100 - (d.sampleCount > 0 ? (d.downCount / d.sampleCount) * 100 : 0))}`}>
+                      <span className={`inline-flex px-2.5 py-1 rounded-full border text-[11px] font-semibold ${badge(d.availabilityPercent ?? 100 - (d.sampleCount > 0 ? (d.downCount / d.sampleCount) * 100 : 0))}`}>
                         {d.availabilityPercent ?? (d.sampleCount > 0 ? (100 - (d.downCount / d.sampleCount) * 100).toFixed(1) : '100')}%
                       </span>
                     </td>
-                    <td className="py-3 text-right font-mono">{d.avgResponse}ms</td>
-                    <td className="py-3 text-right font-mono text-on-surface-variant">{d.sampleCount}</td>
-                    <td className="py-3 text-right font-mono text-error">{d.downCount || '—'}</td>
+                    <td className="py-3 text-right font-data">{d.avgResponse}ms</td>
+                    <td className="py-3 text-right font-data text-on-surface-variant">{d.sampleCount}</td>
+                    <td className="py-3 text-right font-data text-error">{d.downCount || '—'}</td>
                   </tr>
                 ))}
               </tbody>
