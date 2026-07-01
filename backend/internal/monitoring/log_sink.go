@@ -29,7 +29,7 @@ func (s *AsyncLogSink) Start(ctx context.Context) {
 			case <-ctx.Done():
 				return
 			case evt := <-s.ch:
-				_ = s.store.RecordLogEvent(context.Background(), evt)
+				_ = s.store.RecordLogEvent(ctx, evt)
 			}
 		}
 	}()
