@@ -149,17 +149,17 @@ export default function Logs() {
 
       <Card variant="low" className="p-4">
         <div className="grid grid-cols-1 md:grid-cols-7 gap-3">
-          <input type="datetime-local" value={filters.from} onChange={(e) => setFilters((f) => ({ ...f, from: e.target.value }))} className="bg-surface-container-lowest rounded-md px-3 py-2 text-sm" />
-          <input type="datetime-local" value={filters.to} onChange={(e) => setFilters((f) => ({ ...f, to: e.target.value }))} className="bg-surface-container-lowest rounded-md px-3 py-2 text-sm" />
-          <select value={filters.level} onChange={(e) => setFilters((f) => ({ ...f, level: e.target.value }))} className="bg-surface-container-lowest rounded-md px-3 py-2 text-sm">
+          <input type="datetime-local" value={filters.from} onChange={(e) => setFilters((f) => ({ ...f, from: e.target.value }))} className="bg-surface-container rounded-lg px-3 py-2.5 text-sm text-on-surface border border-outline-variant/20 outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 [color-scheme:dark]" />
+          <input type="datetime-local" value={filters.to} onChange={(e) => setFilters((f) => ({ ...f, to: e.target.value }))} className="bg-surface-container rounded-lg px-3 py-2.5 text-sm text-on-surface border border-outline-variant/20 outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 [color-scheme:dark]" />
+          <select value={filters.level} onChange={(e) => setFilters((f) => ({ ...f, level: e.target.value }))} className="bg-surface-container rounded-lg px-3 py-2.5 text-sm text-on-surface border border-outline-variant/20 outline-none focus:border-primary focus:ring-1 focus:ring-primary/30">
             {LEVELS.map((l) => <option key={l} value={l}>{l || 'All levels'}</option>)}
           </select>
-          <select value={filters.component} onChange={(e) => setFilters((f) => ({ ...f, component: e.target.value }))} className="bg-surface-container-lowest rounded-md px-3 py-2 text-sm">
+          <select value={filters.component} onChange={(e) => setFilters((f) => ({ ...f, component: e.target.value }))} className="bg-surface-container rounded-lg px-3 py-2.5 text-sm text-on-surface border border-outline-variant/20 outline-none focus:border-primary focus:ring-1 focus:ring-primary/30">
             {COMPONENTS.map((c) => <option key={c} value={c}>{c || 'All components'}</option>)}
           </select>
-          <input placeholder="Request ID" value={filters.request_id} onChange={(e) => setFilters((f) => ({ ...f, request_id: e.target.value }))} className="bg-surface-container-lowest rounded-md px-3 py-2 text-sm" />
-          <input placeholder="Device ID" value={filters.device_id} onChange={(e) => setFilters((f) => ({ ...f, device_id: e.target.value }))} className="bg-surface-container-lowest rounded-md px-3 py-2 text-sm" />
-          <input placeholder="Search" value={filters.q} onChange={(e) => setFilters((f) => ({ ...f, q: e.target.value }))} className="bg-surface-container-lowest rounded-md px-3 py-2 text-sm" />
+          <input placeholder="Request ID" value={filters.request_id} onChange={(e) => setFilters((f) => ({ ...f, request_id: e.target.value }))} className="bg-surface-container rounded-lg px-3 py-2.5 text-sm text-on-surface border border-outline-variant/20 outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 placeholder:text-outline" />
+          <input placeholder="Device ID" value={filters.device_id} onChange={(e) => setFilters((f) => ({ ...f, device_id: e.target.value }))} className="bg-surface-container rounded-lg px-3 py-2.5 text-sm text-on-surface border border-outline-variant/20 outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 placeholder:text-outline" />
+          <input placeholder="Search" value={filters.q} onChange={(e) => setFilters((f) => ({ ...f, q: e.target.value }))} className="bg-surface-container rounded-lg px-3 py-2.5 text-sm text-on-surface border border-outline-variant/20 outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 placeholder:text-outline" />
         </div>
       </Card>
 
