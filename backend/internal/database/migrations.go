@@ -942,4 +942,62 @@ var migrations = []string{
 
 	UPDATE roles SET permissions = '["devices.read","alerts.read"]'
 	WHERE name = 'viewer' AND is_system = TRUE;`,
+
+	// V36: Queryable operational logs and temporary verbose logging sessions
+	`CREATE TABLE IF NOT EXISTS system_log_events (
+		id                 BIGSERIAL,
+		timestamp          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+		level              TEXT NOT NULL,
+		component          TEXT NOT NULL,
+		event_type         TEXT,
+		message            TEXT NOT NULL,
+		request_id         TEXT,
+		trace_id           TEXT,
+		user_id            TEXT,
+		actor              TEXT,
+		remote_addr        TEXT,
+		device_id          BIGINT,
+		sensor_id          BIGINT,
+		protocol           TEXT,
+		method             TEXT,
+		path               TEXT,
+		status_code        INT,
+		duration_ms        DOUBLE PRECISION,
+		error              TEXT,
+		hostname           TEXT,
+		pid                INT,
+		version            TEXT,
+		verbose_session_id BIGINT,
+		attrs              JSONB NOT NULL DEFAULT '{}',
+		PRIMARY KEY (id, timestamp)
+	);
+	SELECT create_hypertable('system_log_events', 'timestamp', if_not_exists => TRUE);
+	CREATE INDEX IF NOT EXISTS idx_system_logs_time      ON system_log_events(timestamp DESC);
+	CREATE INDEX IF NOT EXISTS idx_system_logs_level     ON system_log_events(level, timestamp DESC);
+	CREATE INDEX IF NOT EXISTS idx_system_logs_component ON system_log_events(component, timestamp DESC);
+	CREATE INDEX IF NOT EXISTS idx_system_logs_request   ON system_log_events(request_id);
+	CREATE INDEX IF NOT EXISTS idx_system_logs_device    ON system_log_events(device_id, timestamp DESC);
+	CREATE INDEX IF NOT EXISTS idx_system_logs_attrs     ON system_log_events USING GIN(attrs);
+
+	CREATE TABLE IF NOT EXISTS verbose_log_sessions (
+		id          BIGSERIAL PRIMARY KEY,
+		level       TEXT NOT NULL CHECK (level IN ('debug','trace')),
+		components  TEXT[] NOT NULL DEFAULT '{}',
+		device_ids  BIGINT[] NOT NULL DEFAULT '{}',
+		user_ids    TEXT[] NOT NULL DEFAULT '{}',
+		reason      TEXT NOT NULL,
+		started_by  BIGINT REFERENCES users(id) ON DELETE SET NULL,
+		created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+		expires_at  TIMESTAMPTZ NOT NULL,
+		ended_at    TIMESTAMPTZ
+	);
+	CREATE INDEX IF NOT EXISTS idx_verbose_log_sessions_active ON verbose_log_sessions(expires_at, ended_at);
+
+	UPDATE roles SET permissions = '["*"]' WHERE name = 'super_admin' AND is_system = TRUE;
+	UPDATE roles
+	SET permissions = (
+		SELECT jsonb_agg(DISTINCT value)
+		FROM jsonb_array_elements_text(permissions || '["system.logs"]'::jsonb) AS t(value)
+	)
+	WHERE name = 'network_admin' AND is_system = TRUE;`,
 }

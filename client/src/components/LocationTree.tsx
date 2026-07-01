@@ -66,19 +66,19 @@ function StatusDots({ status }: { status: Record<string, unknown> }) {
   return (
     <span className="flex items-center gap-1 ml-auto shrink-0">
       {down > 0 && (
-        <span className="flex items-center gap-0.5 text-[10px] font-bold text-error">
+        <span className="flex items-center gap-0.5 text-[10px] font-semibold text-error">
           <span className="w-2 h-2 rounded-full bg-error inline-block" />
           {down}
         </span>
       )}
       {warning > 0 && (
-        <span className="flex items-center gap-0.5 text-[10px] font-bold text-warning">
+        <span className="flex items-center gap-0.5 text-[10px] font-semibold text-warning">
           <span className="w-2 h-2 rounded-full bg-warning inline-block" />
           {warning}
         </span>
       )}
       {up > 0 && (
-        <span className="flex items-center gap-0.5 text-[10px] font-bold text-success">
+        <span className="flex items-center gap-0.5 text-[10px] font-semibold text-success">
           <span className="w-2 h-2 rounded-full bg-success inline-block" />
           {up}
         </span>
@@ -133,7 +133,7 @@ function TreeItem({
           'flex items-center gap-2 px-3 py-2 rounded-md cursor-pointer transition-all duration-150 group',
           isSelected
             ? 'bg-primary/15 text-primary ring-1 ring-primary/30'
-            : 'hover:bg-surface-container-high/80 text-on-surface',
+            : 'hover:bg-surface-container-low/80 text-on-surface',
         ].join(' ')}
         style={{ paddingLeft: `${node._depth * 20 + 8}px` }}
       >
@@ -160,7 +160,7 @@ function TreeItem({
         <span
           className={[
             'material-symbols-outlined text-base shrink-0',
-            isSelected ? 'text-primary' : 'text-on-surface-variant group-hover:text-primary',
+            isSelected ? 'text-primary' : 'text-on-surface-variant group-hover:text-on-surface',
           ].join(' ')}
         >
           {icon}
@@ -168,7 +168,7 @@ function TreeItem({
 
         {/* Name and code */}
         <div className="min-w-0 flex-1">
-          <span className="font-headline font-bold text-sm truncate block">
+          <span className="font-headline font-semibold text-sm truncate block">
             {String(node.name)}
           </span>
           {node.code ? (
@@ -180,7 +180,7 @@ function TreeItem({
 
         {/* Device count badge */}
         {showDeviceCount && devCount > 0 && (
-          <span className="text-[10px] bg-surface-container-highest text-on-surface-variant px-1.5 py-0.5 rounded-full font-bold shrink-0">
+          <span className="text-[10px] bg-surface-container-lowest text-on-surface-variant px-1.5 py-0.5 rounded-full font-semibold shrink-0">
             {devCount}
           </span>
         )}
@@ -269,12 +269,12 @@ export default function LocationTree({
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search locations..."
-          className="w-full bg-surface-container-highest border border-outline-variant/20 rounded-lg pl-9 pr-8 py-2 text-sm text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary outline-none transition-[box-shadow]"
+          className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg pl-9 pr-8 py-2 text-sm text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary outline-none transition-[box-shadow]"
         />
         {search && (
           <button
             onClick={handleClear}
-            className="absolute right-2 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-primary"
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface"
           >
             <span className="material-symbols-outlined text-base">close</span>
           </button>

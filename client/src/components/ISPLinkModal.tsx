@@ -121,10 +121,10 @@ export default function ISPLinkModal({ link, onClose }: { link: ISPLink; onClose
       >
         <div className="p-6 border-b border-outline-variant/20 flex justify-between items-start shrink-0">
           <div>
-            <h2 className="font-headline text-3xl font-bold text-on-surface uppercase tracking-tight">{link.name}</h2>
-            <p className="text-on-surface-variant text-sm font-mono mt-0.5">{link.provider} · {link.gateway_ip} · #{link.id}</p>
+            <h2 className="font-headline text-3xl font-semibold text-on-surface uppercase tracking-tight">{link.name}</h2>
+            <p className="text-on-surface-variant text-sm font-data mt-0.5">{link.provider} · {link.gateway_ip} · #{link.id}</p>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-surface-container-highest rounded-full transition-colors" aria-label="Close dialog">
+          <button onClick={onClose} className="p-2 hover:bg-surface-container-lowest rounded-full transition-colors" aria-label="Close dialog">
             <span className="material-symbols-outlined text-outline hover:text-on-surface">close</span>
           </button>
         </div>
@@ -141,47 +141,47 @@ export default function ISPLinkModal({ link, onClose }: { link: ISPLink; onClose
           ) : (
             <>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                <div className="bg-surface-container-high p-4 rounded-lg">
+                <div className="bg-surface-container-low p-4 rounded-lg">
                   <p className="text-[10px] text-on-surface-variant uppercase tracking-wide mb-1">Status</p>
-                  <p className={`font-bold uppercase ${statusColor(sla?.latestStatus || 'unknown')}`}>{sla?.latestStatus || 'UNKNOWN'}</p>
+                  <p className={`font-semibold uppercase ${statusColor(sla?.latestStatus || 'unknown')}`}>{sla?.latestStatus || 'UNKNOWN'}</p>
                 </div>
-                <div className="bg-surface-container-high p-4 rounded-lg">
+                <div className="bg-surface-container-low p-4 rounded-lg">
                   <p className="text-[10px] text-on-surface-variant uppercase tracking-wide mb-1">Uptime</p>
-                  <p className={`font-bold ${slaColor}`}>{sla?.actualUptime != null ? `${sla.actualUptime.toFixed(2)}%` : '-'}</p>
+                  <p className={`font-semibold ${slaColor}`}>{sla?.actualUptime != null ? `${sla.actualUptime.toFixed(2)}%` : '-'}</p>
                 </div>
-                <div className="bg-surface-container-high p-4 rounded-lg">
+                <div className="bg-surface-container-low p-4 rounded-lg">
                   <p className="text-[10px] text-on-surface-variant uppercase tracking-wide mb-1">Latency</p>
-                  <p className="font-bold text-on-surface">{sla?.avgLatencyMs != null ? `${sla.avgLatencyMs.toFixed(1)}ms` : '-'}</p>
+                  <p className="font-semibold text-on-surface">{sla?.avgLatencyMs != null ? `${sla.avgLatencyMs.toFixed(1)}ms` : '-'}</p>
                 </div>
-                <div className="bg-surface-container-high p-4 rounded-lg">
+                <div className="bg-surface-container-low p-4 rounded-lg">
                   <p className="text-[10px] text-on-surface-variant uppercase tracking-wide mb-1">Packet Loss</p>
-                  <p className={`font-bold ${sla && sla.avgPacketLoss > 1 ? 'text-error' : 'text-success'}`}>{sla?.avgPacketLoss != null ? `${sla.avgPacketLoss.toFixed(2)}%` : '-'}</p>
+                  <p className={`font-semibold ${sla && sla.avgPacketLoss > 1 ? 'text-error' : 'text-success'}`}>{sla?.avgPacketLoss != null ? `${sla.avgPacketLoss.toFixed(2)}%` : '-'}</p>
                 </div>
               </div>
 
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                <div className="bg-surface-container-high p-4 rounded-lg">
+                <div className="bg-surface-container-low p-4 rounded-lg">
                   <p className="text-[10px] text-on-surface-variant uppercase tracking-wide mb-1">Bandwidth</p>
-                  <p className="font-bold text-on-surface">{link.bandwidth_mbps} Mbps</p>
+                  <p className="font-semibold text-on-surface">{link.bandwidth_mbps} Mbps</p>
                 </div>
-                <div className="bg-surface-container-high p-4 rounded-lg">
+                <div className="bg-surface-container-low p-4 rounded-lg">
                   <p className="text-[10px] text-on-surface-variant uppercase tracking-wide mb-1">SLA Target</p>
-                  <p className="font-bold text-on-surface">{link.sla_uptime_percent || 99.5}%</p>
+                  <p className="font-semibold text-on-surface">{link.sla_uptime_percent || 99.5}%</p>
                 </div>
-                <div className="bg-surface-container-high p-4 rounded-lg">
+                <div className="bg-surface-container-low p-4 rounded-lg">
                   <p className="text-[10px] text-on-surface-variant uppercase tracking-wide mb-1">Jitter</p>
-                  <p className="font-bold text-on-surface">{sla?.avgJitterMs != null ? `${sla.avgJitterMs.toFixed(1)}ms` : '-'}</p>
+                  <p className="font-semibold text-on-surface">{sla?.avgJitterMs != null ? `${sla.avgJitterMs.toFixed(1)}ms` : '-'}</p>
                 </div>
-                <div className="bg-surface-container-high p-4 rounded-lg">
+                <div className="bg-surface-container-low p-4 rounded-lg">
                   <p className="text-[10px] text-on-surface-variant uppercase tracking-wide mb-1">Total Probes</p>
-                  <p className="font-bold text-on-surface">{sla?.totalProbes ?? 0}</p>
+                  <p className="font-semibold text-on-surface">{sla?.totalProbes ?? 0}</p>
                 </div>
               </div>
 
-              <div className="bg-surface-container-high rounded-lg p-4 border border-outline-variant/20 mb-6">
+              <div className="bg-surface-container-low rounded-lg p-4 border border-outline-variant/20 mb-6">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-sm font-headline font-bold uppercase tracking-wide">Latency & Jitter</h3>
-                  <span className={`text-xs font-bold uppercase px-2 py-0.5 rounded-full ${slaMet === true ? 'bg-success/10 text-success' : slaMet === false ? 'bg-error/10 text-error' : 'bg-surface-container-highest text-outline'}`}>
+                  <h3 className="text-sm font-headline font-semibold uppercase tracking-wide">Latency & Jitter</h3>
+                  <span className={`text-xs font-semibold uppercase px-2 py-0.5 rounded-full ${slaMet === true ? 'bg-success/10 text-success' : slaMet === false ? 'bg-error/10 text-error' : 'bg-surface-container-lowest text-outline'}`}>
                     {slaMet === true ? 'SLA Met' : slaMet === false ? 'SLA Breached' : 'No SLA'}
                   </span>
                 </div>
@@ -201,8 +201,8 @@ export default function ISPLinkModal({ link, onClose }: { link: ISPLink; onClose
                 )}
               </div>
 
-              <div className="bg-surface-container-high rounded-lg p-4 border border-outline-variant/20 mb-6">
-                <h3 className="text-sm font-headline font-bold mb-4 uppercase tracking-wide">Packet Loss</h3>
+              <div className="bg-surface-container-low rounded-lg p-4 border border-outline-variant/20 mb-6">
+                <h3 className="text-sm font-headline font-semibold mb-4 uppercase tracking-wide">Packet Loss</h3>
                 {chartData.length === 0 ? (
                   <div className="h-40 flex items-center justify-center text-on-surface-variant text-sm">No data</div>
                 ) : (
@@ -218,8 +218,8 @@ export default function ISPLinkModal({ link, onClose }: { link: ISPLink; onClose
               </div>
 
               {link.bandwidth_mbps > 0 && (
-                <div className="bg-surface-container-high rounded-lg p-4 border border-outline-variant/20 mb-6">
-                  <h3 className="text-sm font-headline font-bold mb-4 uppercase tracking-wide">Throughput</h3>
+                <div className="bg-surface-container-low rounded-lg p-4 border border-outline-variant/20 mb-6">
+                  <h3 className="text-sm font-headline font-semibold mb-4 uppercase tracking-wide">Throughput</h3>
                   {chartData.length === 0 ? (
                     <div className="h-40 flex items-center justify-center text-on-surface-variant text-sm">No data</div>
                   ) : (
@@ -238,26 +238,26 @@ export default function ISPLinkModal({ link, onClose }: { link: ISPLink; onClose
               )}
 
               {sla && sla.slaTarget != null && (
-                <div className="bg-surface-container-high rounded-lg p-4 border border-outline-variant/20">
-                  <h3 className="text-sm font-headline font-bold mb-3 uppercase tracking-wide">SLA Compliance</h3>
+                <div className="bg-surface-container-low rounded-lg p-4 border border-outline-variant/20">
+                  <h3 className="text-sm font-headline font-semibold mb-3 uppercase tracking-wide">SLA Compliance</h3>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <p className="text-[10px] text-on-surface-variant uppercase tracking-wide">Target Uptime</p>
-                      <p className="text-lg font-bold text-on-surface">{sla.slaTarget}%</p>
+                      <p className="text-lg font-semibold text-on-surface">{sla.slaTarget}%</p>
                     </div>
                     <div>
                       <p className="text-[10px] text-on-surface-variant uppercase tracking-wide">Actual Uptime</p>
-                      <p className={`text-lg font-bold ${slaColor}`}>{sla.actualUptime.toFixed(2)}%</p>
+                      <p className={`text-lg font-semibold ${slaColor}`}>{sla.actualUptime.toFixed(2)}%</p>
                     </div>
                     {sla.slaGap != null && (
                       <>
                         <div>
                           <p className="text-[10px] text-on-surface-variant uppercase tracking-wide">Gap</p>
-                          <p className={`text-lg font-bold ${sla.slaGap >= 0 ? 'text-success' : 'text-error'}`}>{sla.slaGap >= 0 ? '+' : ''}{sla.slaGap.toFixed(2)}%</p>
+                          <p className={`text-lg font-semibold ${sla.slaGap >= 0 ? 'text-success' : 'text-error'}`}>{sla.slaGap >= 0 ? '+' : ''}{sla.slaGap.toFixed(2)}%</p>
                         </div>
                         <div>
                           <p className="text-[10px] text-on-surface-variant uppercase tracking-wide">Monthly Cost</p>
-                          <p className="text-lg font-bold text-on-surface">{link.cost_monthly > 0 ? `₹${link.cost_monthly.toLocaleString()}` : '-'}</p>
+                          <p className="text-lg font-semibold text-on-surface">{link.cost_monthly > 0 ? `₹${link.cost_monthly.toLocaleString()}` : '-'}</p>
                         </div>
                       </>
                     )}

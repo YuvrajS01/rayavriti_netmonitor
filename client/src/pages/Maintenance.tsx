@@ -146,17 +146,17 @@ export default function Maintenance() {
               <span className="material-symbols-outlined">event_repeat</span>
             </div>
             <div>
-              <h2 className="font-headline font-bold text-lg">Maintenance Windows</h2>
+              <h2 className="font-headline font-semibold text-lg">Maintenance Windows</h2>
               <p className="text-xs text-on-surface-variant uppercase tracking-wide">{filtered.length} windows</p>
             </div>
           </div>
           <div className="flex gap-3">
-            <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="bg-surface-container-highest border border-outline-variant/20 rounded-lg px-3 py-2.5 text-xs text-on-surface outline-none focus:ring-1 focus:ring-primary">
+            <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-3 py-2.5 text-xs text-on-surface outline-none focus:ring-1 focus:ring-primary">
               <option value="all">All types</option>
               <option value="one_time">One-time</option>
               <option value="recurring">Recurring</option>
             </select>
-            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search..." className="bg-surface-container-highest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary outline-none md:w-56" />
+            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search..." className="bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary outline-none md:w-56" />
           </div>
         </div>
 
@@ -169,17 +169,17 @@ export default function Maintenance() {
             {filtered.map((w) => {
               const isActive = nowInRange(w.start_time, w.end_time);
               return (
-                <article key={w.id} className="p-5 hover:bg-surface-container-high/50 transition-colors">
+                <article key={w.id} className="p-5 hover:bg-surface-container-low/50 transition-colors">
                   <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
                     <div className="flex items-start gap-4 min-w-0">
-                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${isActive ? 'bg-warning/10' : 'bg-surface-container-highest'}`}>
+                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${isActive ? 'bg-warning/10' : 'bg-surface-container-lowest'}`}>
                         <span className={`material-symbols-outlined text-xl ${isActive ? 'text-warning' : 'text-on-surface-variant'}`}>{w.schedule_type === 'recurring' ? 'repeat' : 'event'}</span>
                       </div>
                       <div className="min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <h3 className="font-headline font-bold text-lg truncate">{w.name}</h3>
-                          {isActive && <span className="text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full bg-warning/10 text-warning">Active Now</span>}
-                          {!w.enabled && <span className="text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full bg-outline/10 text-outline">Disabled</span>}
+                          <h3 className="font-headline font-semibold text-lg truncate">{w.name}</h3>
+                          {isActive && <span className="text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-warning/10 text-warning">Active Now</span>}
+                          {!w.enabled && <span className="text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-outline/10 text-outline">Disabled</span>}
                         </div>
                         <p className="text-xs text-on-surface-variant mt-0.5 capitalize">{w.schedule_type?.replace('_', ' ')} · {w.scope_type}: {w.scope_value}</p>
                         {w.description && <p className="text-sm text-on-surface-variant mt-1 line-clamp-1">{w.description}</p>}
@@ -197,15 +197,15 @@ export default function Maintenance() {
                       <div>
                         <div className="text-[10px] text-on-surface-variant uppercase tracking-wide">Suppress</div>
                         <div className="flex gap-2 mt-0.5">
-                          {w.suppress_alerts && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-warning/10 text-warning">Alerts</span>}
-                          {w.suppress_notifications && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-info/10 text-info">Notifs</span>}
+                          {w.suppress_alerts && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-warning/10 text-warning">Alerts</span>}
+                          {w.suppress_notifications && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-info/10 text-info">Notifs</span>}
                         </div>
                       </div>
                     </div>
                   </div>
                   <div className="flex gap-2 mt-3 pt-3 border-t border-outline-variant/10">
-                    <button onClick={() => openEdit(w)} className="text-xs font-bold text-primary hover:bg-primary/10 px-3 py-1 rounded transition-colors">Edit</button>
-                    <button onClick={() => setDeleteTarget(w)} className="text-xs font-bold text-error hover:bg-error/10 px-3 py-1 rounded transition-colors">Delete</button>
+                    <button onClick={() => openEdit(w)} className="text-xs font-semibold text-primary hover:bg-primary/10 px-3 py-1 rounded transition-colors">Edit</button>
+                    <button onClick={() => setDeleteTarget(w)} className="text-xs font-semibold text-error hover:bg-error/10 px-3 py-1 rounded transition-colors">Delete</button>
                   </div>
                 </article>
               );
@@ -217,23 +217,23 @@ export default function Maintenance() {
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pt-20 bg-black/60" onClick={() => setShowForm(false)}>
           <div className="bg-surface-container-low border border-outline-variant/30 rounded-lg w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
-            <div className="p-6 border-b border-outline-variant/20 shrink-0"><h2 className="font-headline text-lg font-bold">{editing ? 'Edit Window' : 'New Maintenance Window'}</h2></div>
+            <div className="p-6 border-b border-outline-variant/20 shrink-0"><h2 className="font-headline text-lg font-semibold">{editing ? 'Edit Window' : 'New Maintenance Window'}</h2></div>
             <div className="p-6 space-y-4 flex-1 min-h-0 overflow-y-auto">
               <div>
                 <label className="text-[10px] text-on-surface-variant uppercase tracking-wide block mb-1">Name</label>
-                <input value={String(form.name ?? '')} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full bg-surface-container-highest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary outline-none" placeholder="e.g. Sunday Lab Shutdown" />
+                <input value={String(form.name ?? '')} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary outline-none" placeholder="e.g. Sunday Lab Shutdown" />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-[10px] text-on-surface-variant uppercase tracking-wide block mb-1">Schedule Type</label>
-                  <select value={String(form.schedule_type ?? 'one_time')} onChange={(e) => setForm({ ...form, schedule_type: e.target.value })} className="w-full bg-surface-container-highest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary">
+                  <select value={String(form.schedule_type ?? 'one_time')} onChange={(e) => setForm({ ...form, schedule_type: e.target.value })} className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary">
                     <option value="one_time">One-time</option>
                     <option value="recurring">Recurring</option>
                   </select>
                 </div>
                 <div>
                   <label className="text-[10px] text-on-surface-variant uppercase tracking-wide block mb-1">Scope</label>
-                  <select value={String(form.scope_type ?? 'global')} onChange={(e) => setForm({ ...form, scope_type: e.target.value })} className="w-full bg-surface-container-highest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary">
+                  <select value={String(form.scope_type ?? 'global')} onChange={(e) => setForm({ ...form, scope_type: e.target.value })} className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary">
                     <option value="global">Global</option>
                     <option value="device">Device</option>
                     <option value="location">Location</option>
@@ -243,17 +243,17 @@ export default function Maintenance() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-[10px] text-on-surface-variant uppercase tracking-wide block mb-1">Start</label>
-                  <input type="datetime-local" value={String(form.start_time ?? '').slice(0, 16)} onChange={(e) => setForm({ ...form, start_time: e.target.value ? new Date(e.target.value).toISOString() : '' })} className="w-full bg-surface-container-highest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary" />
+                  <input type="datetime-local" value={String(form.start_time ?? '').slice(0, 16)} onChange={(e) => setForm({ ...form, start_time: e.target.value ? new Date(e.target.value).toISOString() : '' })} className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary" />
                 </div>
                 <div>
                   <label className="text-[10px] text-on-surface-variant uppercase tracking-wide block mb-1">End</label>
-                  <input type="datetime-local" value={String(form.end_time ?? '').slice(0, 16)} onChange={(e) => setForm({ ...form, end_time: e.target.value ? new Date(e.target.value).toISOString() : '' })} className="w-full bg-surface-container-highest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary" />
+                  <input type="datetime-local" value={String(form.end_time ?? '').slice(0, 16)} onChange={(e) => setForm({ ...form, end_time: e.target.value ? new Date(e.target.value).toISOString() : '' })} className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary" />
                 </div>
               </div>
               {form.schedule_type === 'recurring' && (
                 <div>
                   <label className="text-[10px] text-on-surface-variant uppercase tracking-wide block mb-1">Recurrence Rule (iCal)</label>
-                  <input value={String(form.recurrence_rule ?? '')} onChange={(e) => setForm({ ...form, recurrence_rule: e.target.value })} className="w-full bg-surface-container-highest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary outline-none" placeholder="FREQ=WEEKLY;BYDAY=SA" />
+                  <input value={String(form.recurrence_rule ?? '')} onChange={(e) => setForm({ ...form, recurrence_rule: e.target.value })} className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary outline-none" placeholder="FREQ=WEEKLY;BYDAY=SA" />
                 </div>
               )}
               <div className="space-y-2">
@@ -272,9 +272,9 @@ export default function Maintenance() {
               </div>
             </div>
             <div className="flex border-t border-outline-variant/20 shrink-0">
-              <button onClick={() => setShowForm(false)} className="flex-1 py-3 text-xs font-headline font-bold uppercase tracking-wide text-on-surface-variant hover:bg-surface-container-high transition-colors">Cancel</button>
+              <button onClick={() => setShowForm(false)} className="flex-1 py-3 text-xs font-headline font-semibold uppercase tracking-wide text-on-surface-variant hover:bg-surface-container-low transition-colors">Cancel</button>
               <div className="w-px bg-outline-variant/20" />
-              <button onClick={handleSubmit} disabled={submitting || !form.name} className="flex-1 py-3 text-xs font-headline font-bold uppercase tracking-wide text-primary hover:bg-primary/10 transition-colors disabled:opacity-50">{submitting ? 'Saving...' : editing ? 'Update' : 'Create'}</button>
+              <button onClick={handleSubmit} disabled={submitting || !form.name} className="flex-1 py-3 text-xs font-headline font-semibold uppercase tracking-wide text-primary hover:bg-primary/10 transition-colors disabled:opacity-50">{submitting ? 'Saving...' : editing ? 'Update' : 'Create'}</button>
             </div>
           </div>
         </div>
