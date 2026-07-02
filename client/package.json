@@ -13,7 +13,10 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@fontsource-variable/instrument-sans": "^5.2.8",
+    "@fontsource-variable/jetbrains-mono": "^5.2.8",
     "@fontsource-variable/material-symbols-outlined": "^5.2.45",
+    "@fontsource-variable/plus-jakarta-sans": "^5.2.8",
     "@reduxjs/toolkit": "^2.11.2",
     "axios": "^1.15.2",
     "react": "^19.2.5",

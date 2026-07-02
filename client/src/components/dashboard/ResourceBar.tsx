@@ -13,7 +13,7 @@ function ResourceBarInner({ label, value, color }: ResourceBarProps) {
         <span>{label}</span>
         <span>{value}%</span>
       </div>
-      <div className="h-2 bg-surface-container-highest rounded">
+      <div className="h-2 bg-surface-container rounded">
         <div className="h-2 rounded transition-[width] duration-500" style={{ width: `${Math.min(100, value)}%`, background: color }} />
       </div>
     </div>

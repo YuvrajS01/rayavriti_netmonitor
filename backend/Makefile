@@ -13,7 +13,7 @@ test:
 	go test ./... -v -count=1
 
 lint:
-	golangci-lint run ./...
+	$(shell go env GOPATH)/bin/golangci-lint run ./...
 
 clean:
 	rm -rf bin/

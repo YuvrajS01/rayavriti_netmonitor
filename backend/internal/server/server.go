@@ -18,6 +18,7 @@ import (
 	"github.com/rayavriti/netmonitor-backend/internal/httputil"
 	"github.com/rayavriti/netmonitor-backend/internal/logging"
 	"github.com/rayavriti/netmonitor-backend/internal/models"
+	"github.com/rayavriti/netmonitor-backend/internal/monitoring"
 	"github.com/rayavriti/netmonitor-backend/internal/rbac"
 	"github.com/rayavriti/netmonitor-backend/internal/servicetmpl"
 	"github.com/rayavriti/netmonitor-backend/internal/websocket"
@@ -147,6 +148,26 @@ func (s *Server) Start() error {
 	discH := discovery.NewDiscoveryHandler(s.db)
 	roleH := handlers.NewRoleHandler(s.db)
 	userScopeH := handlers.NewUserScopeHandler(s.db)
+	var monitoringH *monitoring.MonitoringHandler
+	if pp, ok := s.db.(database.PoolProvider); ok && pp.Pool() != nil {
+		logStore := monitoring.NewStore(pp.Pool())
+		logSink := monitoring.NewAsyncLogSink(logStore, s.cfg.Logging.DBQueueSize)
+		logSink.Start(ctx)
+		s.logger.RuntimeControls().SetPersistFunc(logSink.Persist)
+		if sessions, err := logStore.LoadActiveVerboseSessions(ctx); err == nil {
+			for _, session := range sessions {
+				s.logger.RuntimeControls().UpsertVerboseSession(logging.VerboseSession{
+					ID:         session.ID,
+					Level:      session.Level,
+					Components: session.Components,
+					DeviceIDs:  session.DeviceIDs,
+					UserIDs:    session.UserIDs,
+					ExpiresAt:  session.ExpiresAt,
+				})
+			}
+		}
+		monitoringH = monitoring.NewMonitoringHandler(logStore, s.logger.RuntimeControls())
+	}
 
 	var svcTmplH *servicetmpl.Handler
 	if pp, ok := s.db.(database.PoolProvider); ok && pp.Pool() != nil {
@@ -241,6 +262,14 @@ func (s *Server) Start() error {
 		r.With(rbac.RequirePermission(models.PermSystemMonitoring)).Get("/api/v1/system/stats", health.Stats)
 		r.With(rbac.RequirePermission(models.PermSystemMonitoring)).Get("/api/v1/system/info", system.Info)
 		r.With(rbac.RequirePermission(models.PermSystemMonitoring)).Get("/api/v1/phase2/summary", phase2.Summary)
+		if monitoringH != nil {
+			r.With(rbac.RequirePermission(models.PermSystemLogs)).Get("/api/v1/system/logs", monitoringH.SystemLogs)
+			r.With(rbac.RequirePermission(models.PermSystemLogs)).Get("/api/v1/system/logs/stats", monitoringH.SystemLogsStats)
+			r.With(rbac.RequirePermission(models.PermSystemLogs)).Get("/api/v1/system/logs/export", monitoringH.ExportLogs)
+			r.With(rbac.RequirePermission(models.PermSystemLogs)).Get("/api/v1/system/logging/verbose-sessions", monitoringH.ListVerboseSessions)
+			r.With(rbac.RequirePermission(models.PermSystemLogs)).Post("/api/v1/system/logging/verbose-sessions", monitoringH.CreateVerboseSession)
+			r.With(rbac.RequirePermission(models.PermSystemLogs)).Post("/api/v1/system/logging/verbose-sessions/{id}/stop", monitoringH.StopVerboseSession)
+		}
 
 		// --- Devices (devices.read / devices.write / devices.delete) ---
 		r.With(rbac.RequirePermission(models.PermDevicesRead)).Get("/api/v1/devices", device.List)

@@ -54,15 +54,15 @@ export default function ResourceLoadModal({ systemInfo, onClose }: ResourceLoadM
         className="bg-surface-container-low border border-outline-variant/30 rounded-lg w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col outline-none"
         onClick={e => e.stopPropagation()}
       >
-        <div className="p-6 border-b border-outline-variant/20 flex justify-between items-center bg-surface-container-high shrink-0">
+        <div className="p-6 border-b border-outline-variant/20 flex justify-between items-center bg-surface-container-low shrink-0">
           <div className="flex items-center gap-3">
             <span className="material-symbols-outlined text-primary text-3xl">memory</span>
             <div>
-              <h2 className="font-headline text-2xl font-bold text-on-surface uppercase tracking-tight">System Resource Analytics</h2>
-              <p className="text-on-surface-variant text-xs font-mono uppercase tracking-wide">Server node performance telemetry</p>
+              <h2 className="font-headline text-2xl font-semibold text-on-surface uppercase tracking-tight">System Resource Analytics</h2>
+              <p className="text-on-surface-variant text-xs font-data uppercase tracking-wide">Server node performance telemetry</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-surface-container-highest rounded-full transition-[background-color]" aria-label="Close dialog">
+          <button onClick={onClose} className="p-2 hover:bg-surface-container-lowest rounded-full transition-colors" aria-label="Close dialog">
             <span className="material-symbols-outlined text-outline hover:text-on-surface">close</span>
           </button>
         </div>
@@ -78,70 +78,70 @@ export default function ResourceLoadModal({ systemInfo, onClose }: ResourceLoadM
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="bg-surface-container-high rounded-lg p-5 border border-outline-variant/20">
+              <div className="bg-surface-container-low rounded-lg p-5 border border-outline-variant/20">
                 <div className="flex items-center gap-2 mb-4">
                   <span className="material-symbols-outlined text-primary">developer_board</span>
-                  <h3 className="font-headline font-bold uppercase tracking-wide text-sm">Processor (CPU)</h3>
+                  <h3 className="font-headline font-semibold uppercase tracking-wide text-sm">Processor (CPU)</h3>
                 </div>
                 <div className="flex items-end justify-between mb-2">
-                  <span className="text-4xl font-headline font-bold text-on-surface">{raw.cpu.usage}%</span>
-                  <span className="text-xs font-mono text-on-surface-variant pb-1">{raw.cpu.cores} Cores</span>
+                  <span className="text-4xl font-headline font-semibold text-on-surface">{raw.cpu.usage}%</span>
+                  <span className="text-xs font-data text-on-surface-variant pb-1">{raw.cpu.cores} Cores</span>
                 </div>
-                <div className="h-2 bg-surface-container-highest rounded w-full mb-4">
+                <div className="h-2 bg-surface-container-lowest rounded w-full mb-4">
                   <div className="h-2 rounded transition-[width] duration-500 bg-primary" style={{ width: `${Math.min(100, raw.cpu.usage)}%` }} />
                 </div>
-                <div className="text-[10px] uppercase font-mono tracking-wider text-on-surface-variant bg-surface-container-highest/50 px-3 py-2 rounded-lg truncate">
+                <div className="text-[10px] uppercase font-data tracking-wider text-on-surface-variant bg-surface-container-lowest/50 px-3 py-2 rounded-lg truncate">
                   {raw.cpu.model}
                 </div>
               </div>
 
-              <div className="bg-surface-container-high rounded-lg p-5 border border-outline-variant/20">
+              <div className="bg-surface-container-low rounded-lg p-5 border border-outline-variant/20">
                 <div className="flex items-center gap-2 mb-4">
                   <span className="material-symbols-outlined text-primary-dim">memory_alt</span>
-                  <h3 className="font-headline font-bold uppercase tracking-wide text-sm">System Memory (RAM)</h3>
+                  <h3 className="font-headline font-semibold uppercase tracking-wide text-sm">System Memory (RAM)</h3>
                 </div>
                 <div className="flex items-end justify-between mb-2">
-                  <span className="text-4xl font-headline font-bold text-on-surface">{raw.memory.percent}%</span>
-                  <span className="text-xs font-mono text-on-surface-variant pb-1">{(raw.memory.used || 0).toFixed(1)}GB / {(raw.memory.total || 0).toFixed(1)}GB</span>
+                  <span className="text-4xl font-headline font-semibold text-on-surface">{raw.memory.percent}%</span>
+                  <span className="text-xs font-data text-on-surface-variant pb-1">{(raw.memory.used || 0).toFixed(1)}GB / {(raw.memory.total || 0).toFixed(1)}GB</span>
                 </div>
-                <div className="h-2 bg-surface-container-highest rounded w-full mb-4">
+                <div className="h-2 bg-surface-container-lowest rounded w-full mb-4">
                   <div className="h-2 rounded transition-[width] duration-500 bg-primary-dim" style={{ width: `${Math.min(100, raw.memory.percent)}%` }} />
                 </div>
               </div>
 
               {raw.disk && (
-                <div className="bg-surface-container-high rounded-lg p-5 border border-outline-variant/20">
+                <div className="bg-surface-container-low rounded-lg p-5 border border-outline-variant/20">
                   <div className="flex items-center gap-2 mb-4">
                     <span className="material-symbols-outlined text-secondary">hard_drive</span>
-                    <h3 className="font-headline font-bold uppercase tracking-wide text-sm">Storage (Disk)</h3>
+                    <h3 className="font-headline font-semibold uppercase tracking-wide text-sm">Storage (Disk)</h3>
                   </div>
                   <div className="flex items-end justify-between mb-2">
-                    <span className="text-4xl font-headline font-bold text-on-surface">{raw.disk.percent}%</span>
-                    <span className="text-xs font-mono text-on-surface-variant pb-1">{(raw.disk.used || 0).toFixed(1)}GB / {(raw.disk.total || 0).toFixed(1)}GB</span>
+                    <span className="text-4xl font-headline font-semibold text-on-surface">{raw.disk.percent}%</span>
+                    <span className="text-xs font-data text-on-surface-variant pb-1">{(raw.disk.used || 0).toFixed(1)}GB / {(raw.disk.total || 0).toFixed(1)}GB</span>
                   </div>
-                  <div className="h-2 bg-surface-container-highest rounded w-full mb-4">
+                  <div className="h-2 bg-surface-container-lowest rounded w-full mb-4">
                     <div className="h-2 rounded transition-[width] duration-500 bg-secondary" style={{ width: `${Math.min(100, raw.disk.percent)}%` }} />
                   </div>
                 </div>
               )}
 
-              <div className="bg-surface-container-high rounded-lg p-5 border border-outline-variant/20 flex flex-col justify-center">
+              <div className="bg-surface-container-low rounded-lg p-5 border border-outline-variant/20 flex flex-col justify-center">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <div className="flex items-center gap-2 mb-2">
                       <span className="material-symbols-outlined text-on-surface-variant text-sm">schedule</span>
-                      <h3 className="font-headline font-bold uppercase tracking-wide text-xs text-on-surface-variant">System Uptime</h3>
+                      <h3 className="font-headline font-semibold uppercase tracking-wide text-xs text-on-surface-variant">System Uptime</h3>
                     </div>
-                    <div className="font-mono text-lg text-on-surface">
+                    <div className="font-data text-lg text-on-surface">
                       {Math.floor((raw.uptime || 0) / 86400)}d {Math.floor(((raw.uptime || 0) % 86400) / 3600)}h {Math.floor(((raw.uptime || 0) % 3600) / 60)}m
                     </div>
                   </div>
                   <div>
                     <div className="flex items-center gap-2 mb-2">
                       <span className="material-symbols-outlined text-on-surface-variant text-sm">analytics</span>
-                      <h3 className="font-headline font-bold uppercase tracking-wide text-xs text-on-surface-variant">Load Average</h3>
+                      <h3 className="font-headline font-semibold uppercase tracking-wide text-xs text-on-surface-variant">Load Average</h3>
                     </div>
-                    <div className="font-mono text-sm text-on-surface mt-1">
+                    <div className="font-data text-sm text-on-surface mt-1">
                       {raw.loadAvg ? raw.loadAvg.map((l: number) => l.toFixed(2)).join('  ') : '-'}
                     </div>
                   </div>

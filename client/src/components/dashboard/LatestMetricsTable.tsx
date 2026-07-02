@@ -8,10 +8,10 @@ interface Props {
 
 function LatestMetricsTableInner({ metrics }: Props) {
   return (
-    <div className="bg-surface-container-high rounded-lg p-6 border border-outline-variant/20 flex flex-col">
-      <div className="flex items-center gap-2 mb-6">
-        <span className="material-symbols-outlined text-primary text-xl">speed</span>
-        <h3 className="text-sm font-headline font-bold uppercase tracking-wide text-on-surface">Latest Metrics</h3>
+    <div className="bg-surface-container-low rounded-lg p-5 border border-outline-variant/20 flex flex-col">
+      <div className="flex items-center gap-2 mb-4">
+        <span className="material-symbols-outlined text-on-surface-variant text-xl">speed</span>
+        <h3 className="text-sm font-headline font-semibold text-on-surface">Latest Metrics</h3>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-left border-collapse">
@@ -28,12 +28,12 @@ function LatestMetricsTableInner({ metrics }: Props) {
             {metrics.slice(0, 15).map((m, i) => {
               const isDown = m.status === 'down';
               const isWarn = m.status === 'warning' || m.status === 'degraded';
-              const sc = isDown ? 'text-error bg-error/10 border-error/20' : isWarn ? 'text-warning bg-warning/10 border-warning/20' : 'text-primary bg-primary/10 border-primary/20';
+              const sc = isDown ? 'text-error bg-error/10 border-error/20' : isWarn ? 'text-warning bg-warning/10 border-warning/20' : 'text-success bg-success/10 border-success/20';
               const statusIcon = isDown ? 'cancel' : isWarn ? 'warning' : 'check_circle';
 
               return (
-                <tr key={m.id || i} className="border-b border-outline-variant/10 hover:bg-surface-container-highest/50 transition-[background-color] group">
-                  <td className="py-3 font-headline font-semibold text-on-surface group-hover:text-primary transition-[color]">{m.deviceName}</td>
+                <tr key={m.id || i} className="border-b border-outline-variant/10 hover:bg-surface-container/50 transition-colors group">
+                  <td className="py-3 font-body font-medium text-on-surface">{m.deviceName}</td>
                   <td className="py-3 text-on-surface-variant text-xs uppercase tracking-wider">
                     <div className="flex items-center gap-1.5">
                       <span className="material-symbols-outlined text-[14px] opacity-70">
@@ -43,13 +43,13 @@ function LatestMetricsTableInner({ metrics }: Props) {
                     </div>
                   </td>
                   <td className="py-3">
-                    <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border ${sc} text-xs font-bold uppercase tracking-wide`}>
+                    <div className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border ${sc} text-xs font-medium uppercase tracking-wide`}>
                       <span className="material-symbols-outlined text-[14px]">{statusIcon}</span>
                       {m.status}
                     </div>
                   </td>
-                  <td className="py-3 text-right font-mono text-on-surface">{m.responseTime ?? '-'}ms</td>
-                  <td className="py-3 text-right text-xs text-on-surface-variant font-mono">{new Date(m.timestamp || m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</td>
+                  <td className="py-3 text-right font-data text-on-surface">{m.responseTime ?? '-'}ms</td>
+                  <td className="py-3 text-right text-xs text-on-surface-variant font-data">{new Date(m.timestamp || m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</td>
                 </tr>
               );
             })}

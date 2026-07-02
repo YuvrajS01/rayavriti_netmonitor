@@ -123,7 +123,7 @@ export default function Phase2Page({ config }: { config: Phase2PageConfig }) {
                 <span className="text-xs uppercase tracking-wide text-on-surface-variant">{label}</span>
                 <span className="material-symbols-outlined text-[18px] text-primary">{icon}</span>
               </div>
-              <div className="font-headline text-2xl font-bold mt-2">{summary[key] ?? 0}</div>
+              <div className="font-headline text-2xl font-semibold mt-2">{summary[key] ?? 0}</div>
             </Card>
           ))}
         </div>
@@ -136,7 +136,7 @@ export default function Phase2Page({ config }: { config: Phase2PageConfig }) {
               <span className="material-symbols-outlined">{config.icon}</span>
             </div>
             <div>
-              <h2 className="font-headline font-bold text-lg">{config.title}</h2>
+              <h2 className="font-headline font-semibold text-lg">{config.title}</h2>
               <p className="text-xs text-on-surface-variant uppercase tracking-wide">{filtered.length} records</p>
             </div>
           </div>
@@ -144,7 +144,7 @@ export default function Phase2Page({ config }: { config: Phase2PageConfig }) {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search records..."
-            className="bg-surface-container-highest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary outline-none md:w-72"
+            className="bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary outline-none md:w-72"
           />
         </div>
 
@@ -153,16 +153,16 @@ export default function Phase2Page({ config }: { config: Phase2PageConfig }) {
         ) : filtered.length === 0 ? (
           <div className="p-10 text-center">
             <span className="material-symbols-outlined text-4xl text-outline">{config.icon}</span>
-            <h3 className="font-headline font-bold text-lg mt-3">No records yet</h3>
+            <h3 className="font-headline font-semibold text-lg mt-3">No records yet</h3>
             <p className="text-sm text-on-surface-variant mt-1">Create records through the API or use Quick Add where available.</p>
           </div>
         ) : (
           <div className="divide-y divide-outline-variant/20">
             {filtered.map((row, index) => (
-              <article key={valueText(row.id) + index} className="p-5 hover:bg-surface-container-high/50 transition-colors">
+              <article key={valueText(row.id) + index} className="p-5 hover:bg-surface-container-low/50 transition-colors">
                 <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
                   <div>
-                    <h3 className="font-headline font-bold text-lg">
+                    <h3 className="font-headline font-semibold text-lg">
                       {valueText(row.name || row.title || row.ip_address || row.subnet || `Record ${index + 1}`)}
                     </h3>
                     <p className="text-xs text-on-surface-variant uppercase tracking-wide mt-1">

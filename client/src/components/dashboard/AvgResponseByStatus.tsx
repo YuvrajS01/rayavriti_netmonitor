@@ -26,8 +26,8 @@ function AvgResponseByStatusInner({ metrics }: Props) {
   }, [metrics]);
 
   return (
-    <div className="bg-surface-container-high rounded-lg p-4 border border-outline-variant/20">
-      <h3 className="text-sm font-headline font-bold mb-3 uppercase tracking-wide">Avg Response by Status</h3>
+    <div className="bg-surface-container-low rounded-lg p-4 border border-outline-variant/20">
+      <h3 className="text-sm font-headline font-semibold text-on-surface mb-3">Avg Response by Status</h3>
       <div className="space-y-3 mt-2">
         {rows.map((r) => (
           <div key={r.key}>
@@ -35,7 +35,7 @@ function AvgResponseByStatusInner({ metrics }: Props) {
               <span style={{ color: r.color }}>{r.label} ({r.count} device{r.count !== 1 ? 's' : ''})</span>
               <span className="text-on-surface-variant">{r.avg}ms</span>
             </div>
-            <div className="h-2 bg-surface-container-highest rounded">
+            <div className="h-2 bg-surface-container rounded">
               <div className="h-2 rounded transition-[width] duration-500" style={{ width: `${r.barWidth}%`, background: r.color }} />
             </div>
           </div>

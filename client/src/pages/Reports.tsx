@@ -105,17 +105,17 @@ export default function Reports() {
 
   return (
     <div>
-      <header className="mb-8 print-header">
+      <header className="mb-6 print-header">
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-2">
           <div>
-            <h1 className="font-headline text-2xl font-bold text-on-surface mb-1">Reports</h1>
+            <h1 className="font-headline text-2xl font-semibold text-on-surface mb-1">Reports</h1>
             <p className="text-on-surface-variant font-body max-w-xl text-sm">Historical analytics, SLA compliance, and performance reports across all monitored nodes.</p>
           </div>
           <div className="flex items-center gap-2 no-print">
-            <button onClick={() => downloadMetricsCsv(toQuery(from, to, selectedDevice))} className="px-4 py-2 rounded-lg text-sm border border-primary/40 text-primary font-bold uppercase hover:bg-primary/5 transition-colors flex items-center gap-1.5">
+            <button onClick={() => downloadMetricsCsv(toQuery(from, to, selectedDevice))} className="px-4 py-2 rounded-lg text-sm border border-primary/40 text-primary font-semibold uppercase hover:bg-primary/5 transition-colors flex items-center gap-1.5">
               <span className="material-symbols-outlined text-sm">download</span> CSV
             </button>
-            <button onClick={handlePrint} className="px-4 py-2 rounded-lg text-sm border border-outline-variant/30 text-on-surface-variant font-bold uppercase hover:text-primary hover:border-primary/40 transition-colors flex items-center gap-1.5">
+            <button onClick={handlePrint} className="px-4 py-2 rounded-lg text-sm border border-outline-variant/30 text-on-surface-variant font-semibold uppercase hover:text-on-surface hover:border-outline/40 transition-colors flex items-center gap-1.5">
               <span className="material-symbols-outlined text-sm">print</span> Print
             </button>
           </div>
@@ -127,21 +127,21 @@ export default function Reports() {
           <div className="flex flex-wrap items-center gap-2">
             {RANGES.map(r => (
               <button key={r.hours} onClick={() => setRange(r.hours)}
-                className={`px-3 py-2 rounded-lg text-xs border font-bold transition-[border-color,color,background-color] ${activeRange === r.hours ? 'border-primary/40 text-primary bg-primary/5' : 'border-outline-variant/20 text-on-surface-variant hover:text-primary'}`}>
+                className={`px-3 py-2 rounded-lg text-xs border font-semibold transition-[border-color,color,background-color] ${activeRange === r.hours ? 'border-primary/40 text-primary bg-primary/5' : 'border-outline-variant/20 text-on-surface-variant hover:text-on-surface'}`}>
                 {r.label}
               </button>
             ))}
             <div className="h-5 w-px bg-outline-variant/30 mx-1" />
             <select value={selectedDevice ?? ''} onChange={e => setSelectedDevice(e.target.value ? Number(e.target.value) : undefined)}
-              className="bg-surface-container-highest border border-outline-variant/20 rounded-lg px-3 py-2 text-xs text-on-surface outline-none cursor-pointer min-w-[140px]">
+              className="bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-3 py-2 text-xs text-on-surface outline-none cursor-pointer min-w-[140px]">
               <option value="">All Devices</option>
               {allDevices.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
             </select>
           </div>
           <div className="flex flex-wrap gap-2">
-            <input type="datetime-local" value={from} onChange={e => setFrom(e.target.value)} className="bg-surface-container-highest border border-outline-variant/20 rounded-lg px-3 py-2 text-xs text-on-surface outline-none" />
-            <input type="datetime-local" value={to} onChange={e => setTo(e.target.value)} className="bg-surface-container-highest border border-outline-variant/20 rounded-lg px-3 py-2 text-xs text-on-surface outline-none" />
-            <button onClick={refresh} disabled={loading} className="px-4 py-2 rounded-lg text-sm bg-primary text-on-primary font-bold uppercase hover:bg-primary/90 transition-[background-color] flex items-center gap-1.5 disabled:opacity-50">
+            <input type="datetime-local" value={from} onChange={e => setFrom(e.target.value)} className="bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-3 py-2 text-xs text-on-surface outline-none" />
+            <input type="datetime-local" value={to} onChange={e => setTo(e.target.value)} className="bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-3 py-2 text-xs text-on-surface outline-none" />
+            <button onClick={refresh} disabled={loading} className="px-4 py-2 rounded-lg text-sm bg-primary text-on-primary font-semibold uppercase hover:bg-primary/90 transition-colors flex items-center gap-1.5 disabled:opacity-50">
               {loading ? <span className="material-symbols-outlined text-sm animate-spin">refresh</span> : <span className="material-symbols-outlined text-sm">play_arrow</span>}
               Run
             </button>
@@ -152,7 +152,7 @@ export default function Reports() {
       {selectedDevice && (
         <div className="flex items-center gap-2 mb-4 no-print">
           <span className="text-[10px] text-on-surface-variant uppercase tracking-wide">Filtered:</span>
-          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary/10 border border-primary/30 text-primary text-xs font-bold">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary/10 border border-primary/30 text-primary text-xs font-semibold">
             {allDevices.find(d => d.id === selectedDevice)?.name || `Device ${selectedDevice}`}
             <button onClick={() => setSelectedDevice(undefined)} className="hover:text-on-surface transition-colors">
               <span className="material-symbols-outlined text-sm">close</span>
@@ -164,7 +164,7 @@ export default function Reports() {
       <div className="flex gap-1 mb-6 overflow-x-auto no-print border-b border-outline-variant/20 pb-px">
         {TABS.map(tab => (
           <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-2 px-4 py-3 text-xs font-bold uppercase tracking-wide transition-[color,border-color,background-color] rounded-t-lg whitespace-nowrap ${activeTab === tab.id ? 'text-primary border-b-2 border-primary bg-primary/5' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest/50'}`}>
+            className={`flex items-center gap-2 px-4 py-3 text-xs font-semibold uppercase tracking-wide transition-[color,border-color,background-color] rounded-t-lg whitespace-nowrap ${activeTab === tab.id ? 'text-primary border-b-2 border-primary bg-primary/5' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-lowest/50'}`}>
             <span className="material-symbols-outlined text-sm">{tab.icon}</span>
             {tab.label}
           </button>
@@ -181,8 +181,8 @@ export default function Reports() {
       {error && !loading && (
         <div className="bg-error/10 border border-error/30 rounded-lg p-6 text-center">
           <span className="material-symbols-outlined text-error text-3xl mb-2">error</span>
-          <p className="text-sm text-error font-bold">{error}</p>
-          <button onClick={refresh} className="mt-3 text-xs text-on-surface-variant hover:text-primary transition-colors underline">
+          <p className="text-sm text-error font-semibold">{error}</p>
+          <button onClick={refresh} className="mt-3 text-xs text-on-surface-variant hover:text-on-surface transition-colors underline">
             Retry
           </button>
         </div>
