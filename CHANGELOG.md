@@ -75,6 +75,52 @@ Security hardening release implementing comprehensive review_codex.md recommenda
 - `tcpdump` from production Docker image
 - `coverage.out` and `coverage.html` from git tracking
 
+## [3.5.0] - 2026-07-02
+
+Frontend redesign with new sage-charcoal dark theme, operational logs system with verbose sessions, and security dependency fix.
+
+### Added — Frontend
+
+#### Complete UI Redesign
+- **Sage-charcoal dark theme** — New color palette with sage greens and charcoal backgrounds replacing previous dark theme
+- **Redesigned components** — Updated Button, Card, Modal, Toast, EmptyState, ErrorState, LoadingState, SectionHeader, and StatCard styling
+- **New brand assets** — Added SVG logo lockups and icons (color and invert variants)
+- **Fontsource variable fonts** — Replaced Material Symbols font (3.93MB) with fontsource-variable (727KB) for reduced bundle size
+
+#### Logs Page (`/logs`)
+- **Queryable log viewer** — Search operational events with filters for time range, level, component, request ID, device ID, and free-text search
+- **Log statistics dashboard** — Event counts, error counts, slow API/DB request metrics, and active verbose session counts
+- **Verbose session management** — Enable scoped debug/trace logging per component, device, and user with configurable duration
+- **Live auto-refresh** — Toggle between manual and 10-second auto-refresh polling
+- **Log export** — Download filtered log data as CSV
+- **Detail panel** — Slide-out panel showing full event context, attributes, and error traces
+
+### Added — Backend
+
+#### Operational Logs System
+- **Structured log storage** — `LogStore` with PostgreSQL-backed queryable log events (level, component, message, context, attributes)
+- **Async log sink** — `AsyncLogSink` for non-blocking log ingestion with request context propagation
+- **Verbose session API** — CRUD endpoints for creating, listing, and stopping verbose logging sessions with expiry
+- **Log query API** — `GET /api/v1/logs` with filters for level, component, time range, request ID, device ID, and text search
+- **Log statistics API** — Aggregated stats by level, component, and error counts
+- **Database migration** — `operational_logs` and `verbose_log_sessions` tables
+
+### Changed
+- **Frontend color tokens** — Complete palette overhaul: surface, primary, tertiary, error, outline, and chart colors updated across all 25+ pages
+- **Login page redesign** — Updated to match new sage-charcoal theme
+- **Dashboard widgets** — Active alerts, AI health score, response time charts, and resource load cards restyled
+
+### Fixed
+- **AsyncLogSink context** — Uses request context instead of `context.Background()` for proper trace propagation
+- **golangci-lint v2 path** — Resolved linter configuration path issue
+
+### Security
+- **golang.org/x/net upgrade** — Updated v0.54.0 → v0.56.0 to fix 5 HIGH CVEs
+
+### Removed
+- Redundant design spec document (`documentation/frontend_spec.md`)
+- Previous Material Symbols font dependency
+
 ## [3.0.0] - 2026-06-25
 
 Major release transforming Rayavriti NetMonitor from a generic network monitor into a purpose-built campus network monitoring platform. Adds 12 new backend features, 12 new frontend pages, and comprehensive testing.
