@@ -10,8 +10,8 @@ export default function SectionHeader({ title, subtitle, action }: SectionHeader
   return (
     <header className="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-6">
       <div>
-        <h1 className="font-headline text-2xl font-bold text-on-surface mb-2">{title}</h1>
-        {subtitle && <p className="text-on-surface-variant font-body max-w-xl">{subtitle}</p>}
+        <h1 className="font-headline text-2xl font-semibold text-on-surface tracking-tight mb-2">{title}</h1>
+        {subtitle && <p className="text-on-surface-variant font-body text-sm max-w-xl">{subtitle}</p>}
       </div>
       {action && <div className="flex items-center gap-4">{action}</div>}
     </header>

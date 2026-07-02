@@ -1,83 +1,116 @@
 @import "tailwindcss";
 
 @theme {
-  --font-headline: "League Spartan", sans-serif;
-  --font-body: "Space Grotesk", sans-serif;
-  --font-label: "Space Grotesk", sans-serif;
+  /* ── Typography ──────────────────────────────────────── */
+  --font-headline: "Instrument Sans", system-ui, sans-serif;
+  --font-body: "Plus Jakarta Sans", system-ui, sans-serif;
+  --font-label: "Plus Jakarta Sans", system-ui, sans-serif;
+  --font-data: "JetBrains Mono", ui-monospace, "Cascadia Code", monospace;
 
-  --color-surface-container-highest: #26261d;
-  --color-surface-variant: #26261d;
-  --color-on-surface: #f4f1e6;
-  --color-surface-bright: #2d2d23;
-  --color-tertiary: #ff716a;
-  --color-surface-tint: #d9fd3a;
-  --color-secondary: #e5e2d8;
-  --color-on-secondary: #53524a;
-  --color-secondary-container: #484740;
-  --color-surface-container-high: #202018;
-  --color-surface-container-lowest: #000000;
-  --color-outline-variant: #494840;
-  --color-error-container: #b92902;
-  --color-tertiary-dim: #ff716a;
-  --color-outline: #77766d;
-  --color-primary-fixed: #d6fa37;
-  --color-secondary-dim: #d7d4cb;
-  --color-error: #ff7351;
-  --color-surface-container-low: #14140d;
-  --color-surface-container: #1a1a13;
-  --color-surface: #0e0e09;
-  --color-inverse-primary: #556600;
-  --color-primary: #d9fd3a;
-  --color-surface-dim: #0e0e09;
-  --color-primary-dim: #cbee29;
-  --color-on-tertiary: #490005;
-  --color-on-primary-container: #3f4d00;
-  --color-primary-container: #bde012;
-  --color-on-error: #450900;
-  --color-error-dim: #d53d18;
-  --color-background: #0e0e09;
-  --color-on-error-container: #ffd2c8;
-  --color-tertiary-container: #fd4e4d;
-  --color-on-primary: #4f5f00;
-  --color-on-secondary-container: #d3d0c7;
-  --color-on-surface-variant: #adaba1;
-  --color-on-background: #f4f1e6;
-  --color-inverse-surface: #fdf9ee;
-  --color-inverse-on-surface: #56554d;
+  /* ── Surfaces (Sage Charcoal — never pure black) ──── */
+  --color-surface: oklch(10% 0.01 150);
+  --color-surface-dim: oklch(8% 0.008 150);
+  --color-surface-container-lowest: oklch(6% 0.005 150);
+  --color-surface-container-low: oklch(13% 0.012 150);
+  --color-surface-container: oklch(16% 0.014 150);
+  --color-surface-container-high: oklch(19% 0.015 150);
+  --color-surface-container-highest: oklch(22% 0.016 150);
+  --color-surface-variant: oklch(22% 0.016 150);
+  --color-surface-bright: oklch(25% 0.016 150);
+  --color-surface-tint: oklch(90% 0.04 85);
+  --color-background: oklch(10% 0.01 150);
 
-  /* Semantic status colors */
-  --color-warning: #e5a910;
-  --color-on-warning: #3d2e00;
-  --color-success: #8cc63f;
-  --color-on-success: #1a2e00;
-  --color-info: #6bb8c9;
-  --color-on-info: #003540;
+  /* ── Text ────────────────────────────────────────────── */
+  --color-on-surface: oklch(92% 0.01 150);
+  --color-on-surface-variant: oklch(68% 0.02 150);
+  --color-on-background: oklch(92% 0.01 150);
+  --color-outline: oklch(45% 0.02 150);
+  --color-outline-variant: oklch(30% 0.015 150);
 
-  /* Chart accent palette */
-  --color-chart-1: #d9fd3a;
-  --color-chart-2: #6bb8c9;
-  --color-chart-3: #c084fc;
-  --color-chart-4: #e5a910;
-  --color-chart-5: #8cc63f;
-  --color-chart-6: #f0856a;
-  --color-chart-7: #f472b6;
-  --color-chart-8: #fb923c;
+  /* ── Primary (Warm Ivory) ────────────────────────────── */
+  --color-primary: oklch(90% 0.04 85);
+  --color-primary-dim: oklch(78% 0.04 85);
+  --color-primary-fixed: oklch(90% 0.04 85);
+  --color-primary-container: oklch(25% 0.03 85);
+  --color-on-primary: oklch(15% 0.02 85);
+  --color-on-primary-container: oklch(85% 0.04 85);
+  --color-inverse-primary: oklch(45% 0.06 85);
 
-  --radius-DEFAULT: 0.25rem;
+  /* ── Secondary ───────────────────────────────────────── */
+  --color-secondary: oklch(75% 0.02 150);
+  --color-secondary-dim: oklch(65% 0.02 150);
+  --color-on-secondary: oklch(20% 0.01 150);
+  --color-secondary-container: oklch(22% 0.015 150);
+  --color-on-secondary-container: oklch(80% 0.02 150);
+
+  /* ── Error / Tertiary ────────────────────────────────── */
+  --color-error: oklch(62% 0.22 25);
+  --color-error-dim: oklch(52% 0.18 25);
+  --color-error-container: oklch(30% 0.12 25);
+  --color-on-error: oklch(95% 0.02 25);
+  --color-on-error-container: oklch(85% 0.08 25);
+  --color-tertiary: oklch(62% 0.22 25);
+  --color-tertiary-dim: oklch(52% 0.18 25);
+  --color-tertiary-container: oklch(30% 0.12 25);
+  --color-on-tertiary: oklch(95% 0.02 25);
+
+  /* ── Semantic Status ─────────────────────────────────── */
+  --color-warning: oklch(78% 0.16 75);
+  --color-on-warning: oklch(18% 0.05 75);
+  --color-success: oklch(72% 0.19 155);
+  --color-on-success: oklch(15% 0.05 155);
+  --color-info: oklch(70% 0.12 240);
+  --color-on-info: oklch(15% 0.04 240);
+
+  /* ── Chart Accent Palette ────────────────────────────── */
+  --color-chart-1: oklch(75% 0.12 240);
+  --color-chart-2: oklch(72% 0.19 155);
+  --color-chart-3: oklch(70% 0.15 310);
+  --color-chart-4: oklch(78% 0.16 75);
+  --color-chart-5: oklch(70% 0.14 20);
+  --color-chart-6: oklch(75% 0.10 180);
+  --color-chart-7: oklch(68% 0.14 340);
+  --color-chart-8: oklch(80% 0.12 95);
+
+  /* ── Inverse ─────────────────────────────────────────── */
+  --color-inverse-surface: oklch(95% 0.01 150);
+  --color-inverse-on-surface: oklch(25% 0.01 150);
+
+  /* ── Border Radius ───────────────────────────────────── */
+  --radius-sm: 0.25rem;
+  --radius-DEFAULT: 0.375rem;
   --radius-lg: 0.5rem;
   --radius-xl: 0.75rem;
+
+  /* ── Motion Tokens ───────────────────────────────────── */
+  --duration-instant: 100ms;
+  --duration-fast: 200ms;
+  --duration-normal: 300ms;
+  --duration-slow: 500ms;
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in: cubic-bezier(0.7, 0, 0.84, 0);
 }
 
 @layer base {
+  html {
+    color-scheme: dark;
+  }
+
   body {
     font-family: var(--font-body);
+    font-weight: 380;
+    letter-spacing: 0.005em;
+    line-height: 1.6;
     background-color: var(--color-background);
     color: var(--color-on-surface);
+    font-kerning: normal;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
   ::selection {
-    background-color: #d9fd3a4d;
-    background-color: color-mix(in srgb, var(--color-primary) 30%, transparent);
+    background-color: color-mix(in oklch, var(--color-primary) 30%, transparent);
     color: var(--color-primary);
   }
 
@@ -87,43 +120,62 @@
   }
 
   [role="button"]:focus-visible,
+  button:focus-visible,
   a:focus-visible {
     outline: 2px solid var(--color-primary);
     outline-offset: 2px;
     border-radius: 4px;
   }
+
+  /* Tabular numbers for data alignment */
+  table, .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
 }
 
+/* ── Material Symbols ──────────────────────────────────── */
 .material-symbols-outlined {
+  font-family: 'Material Symbols Outlined Variable';
+  font-weight: normal;
+  font-style: normal;
+  font-size: 24px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: "liga";
   font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
   vertical-align: middle;
 }
 
-::-webkit-scrollbar { width: 5px; height: 5px; }
-::-webkit-scrollbar-track { background: var(--color-background); }
-::-webkit-scrollbar-thumb { background: var(--color-surface-container-highest); border-radius: 4px; }
+/* ── Scrollbar ─────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--color-outline-variant); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--color-outline); }
 
 * {
   scrollbar-width: thin;
-  scrollbar-color: var(--color-surface-container-highest) var(--color-background);
+  scrollbar-color: var(--color-outline-variant) transparent;
 }
 
-*:focus-visible {
-  scrollbar-color: var(--color-outline) var(--color-background);
-}
-
-/* ── Radial Gauge Animation ──────────────────────────────── */
+/* ── Radial Gauge Animation ────────────────────────────── */
 @keyframes gauge-fill {
   from { stroke-dashoffset: var(--gauge-circumference, 440); }
   to   { stroke-dashoffset: var(--gauge-offset, 440); }
 }
 
 .gauge-ring {
-  animation: gauge-fill 1.2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  animation: gauge-fill 1.2s var(--ease-out-quart) forwards;
 }
 
-/* ── Trend Pulse ─────────────────────────────────────────── */
+/* ── Trend Pulse ───────────────────────────────────────── */
 @keyframes trend-pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.5; }
@@ -132,21 +184,21 @@
   animation: trend-pulse 2s ease-in-out infinite;
 }
 
-/* ── Factor Bar Animation ────────────────────────────────── */
+/* ── Factor Bar Animation ──────────────────────────────── */
 @keyframes factor-fill {
   from { transform: scaleX(0); }
   to   { transform: scaleX(1); }
 }
 .factor-bar-fill {
   transform-origin: left;
-  animation: factor-fill 0.8s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  animation: factor-fill 0.8s var(--ease-out-quart) forwards;
 }
 
-/* ── Slide Down Accordion ────────────────────────────────── */
+/* ── Slide Down Accordion ──────────────────────────────── */
 .animate-slide-down {
   display: grid;
   grid-template-rows: 0fr;
-  transition: grid-template-rows 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: grid-template-rows var(--duration-normal) var(--ease-out-quart);
   will-change: grid-template-rows;
 }
 .animate-slide-down[data-open="true"] {
@@ -157,49 +209,69 @@
   min-height: 0;
 }
 
-/* ── Toast Slide Up ──────────────────────────────────────── */
+/* ── Toast Slide Up ────────────────────────────────────── */
 @keyframes slide-up {
   from { opacity: 0; transform: translateY(12px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 .animate-slide-up {
-  animation: slide-up 0.25s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  animation: slide-up 250ms var(--ease-out-quart) forwards;
 }
 
-/* ── GPU-Accelerated Utilities ───────────────────────────── */
+/* ── Page Entrance ─────────────────────────────────────── */
+@keyframes page-enter {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.page-enter {
+  animation: page-enter var(--duration-normal) var(--ease-out-quart) forwards;
+}
+
+/* ── Card Stagger Entry ────────────────────────────────── */
+@keyframes card-enter {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.card-stagger {
+  animation: card-enter var(--duration-normal) var(--ease-out-quart) backwards;
+  animation-delay: calc(var(--i, 0) * 50ms);
+}
+
+/* ── GPU-Accelerated Utilities ─────────────────────────── */
 .gpu-accelerate {
   transform: translateZ(0);
   will-change: transform;
 }
 
 .fade-in-up {
-  animation: report-fade 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  animation: report-fade var(--duration-normal) var(--ease-out-quart) forwards;
 }
 
-@keyframes page-enter {
-  from { opacity: 0; }
-  to   { opacity: 1; }
-}
-.page-enter {
-  animation: page-enter 0.2s ease-out forwards;
-}
-
-/* ── Content Visibility (skip off-screen rendering) ──────── */
+/* ── Content Visibility (skip off-screen rendering) ────── */
 .content-visibility-auto {
   content-visibility: auto;
   contain-intrinsic-size: auto 400px;
 }
 
-/* ── Report Tab Fade-In ─────────────────────────────────────── */
+/* ── Report Tab Fade-In ────────────────────────────────── */
 @keyframes report-fade {
   from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 .report-tab-content > * {
-  animation: report-fade 0.3s ease-out forwards;
+  animation: report-fade var(--duration-normal) ease-out forwards;
 }
 
-/* ── Print Styles ────────────────────────────────────────────── */
+/* ── Reduced Motion ────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ── Print Styles ──────────────────────────────────────── */
 @media print {
   body {
     background: #fff !important;
@@ -262,23 +334,3 @@
   table { font-size: 10px !important; }
   tr { page-break-inside: avoid; }
 }
-
-/* Material Symbols icon class — aliases fontsource-variable font family */
-.material-symbols-outlined {
-  font-family: 'Material Symbols Outlined Variable';
-  font-weight: normal;
-  font-style: normal;
-  font-size: 24px;
-  line-height: 1;
-  letter-spacing: normal;
-  text-transform: none;
-  display: inline-block;
-  white-space: nowrap;
-  word-wrap: normal;
-  direction: ltr;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  text-rendering: optimizeLegibility;
-  font-feature-settings: "liga";
-}
-

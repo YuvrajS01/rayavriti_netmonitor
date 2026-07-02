@@ -15,26 +15,26 @@ import {
 } from '../colors';
 
 describe('statusHexColor', () => {
-  it('returns lime for up', () => {
-    expect(statusHexColor('up')).toBe('#d9fd3a');
+  it('returns green for up', () => {
+    expect(statusHexColor('up')).toBe('#6ec96e');
   });
-  it('returns lime for ok', () => {
-    expect(statusHexColor('ok')).toBe('#d9fd3a');
+  it('returns green for ok', () => {
+    expect(statusHexColor('ok')).toBe('#6ec96e');
   });
   it('returns warning color for warning', () => {
-    expect(statusHexColor('warning')).toBe('#e5a910');
+    expect(statusHexColor('warning')).toBe('#cca040');
   });
   it('returns warning color for degraded', () => {
-    expect(statusHexColor('degraded')).toBe('#e5a910');
+    expect(statusHexColor('degraded')).toBe('#cca040');
   });
   it('returns error color for down', () => {
-    expect(statusHexColor('down')).toBe('#ff7351');
+    expect(statusHexColor('down')).toBe('#d85050');
   });
   it('returns gray for unknown', () => {
-    expect(statusHexColor('unknown')).toBe('#8b8b81');
+    expect(statusHexColor('unknown')).toBe('#707070');
   });
   it('returns gray for unrecognized status', () => {
-    expect(statusHexColor('bogus')).toBe('#8b8b81');
+    expect(statusHexColor('bogus')).toBe('#707070');
   });
 });
 
@@ -72,8 +72,8 @@ describe('statusTextColor', () => {
   it('returns text-outline for unknown', () => {
     expect(statusTextColor('unknown')).toBe('text-outline');
   });
-  it('returns text-primary for up', () => {
-    expect(statusTextColor('up')).toBe('text-primary');
+  it('returns text-success for up', () => {
+    expect(statusTextColor('up')).toBe('text-success');
   });
 });
 
@@ -84,8 +84,8 @@ describe('statusBgColor', () => {
   it('returns bg-warning for warning', () => {
     expect(statusBgColor('warning')).toBe('bg-warning');
   });
-  it('returns bg-primary for up', () => {
-    expect(statusBgColor('up')).toBe('bg-primary');
+  it('returns bg-success for up', () => {
+    expect(statusBgColor('up')).toBe('bg-success');
   });
 });
 
@@ -99,8 +99,8 @@ describe('statusBorderColor', () => {
   it('returns border-outline-variant for unknown', () => {
     expect(statusBorderColor('unknown')).toBe('border-outline-variant');
   });
-  it('returns border-primary for up', () => {
-    expect(statusBorderColor('up')).toBe('border-primary');
+  it('returns border-success for up', () => {
+    expect(statusBorderColor('up')).toBe('border-success');
   });
 });
 
@@ -138,8 +138,8 @@ describe('severityTextColor', () => {
   it('returns text-warning for warning', () => {
     expect(severityTextColor('warning')).toBe('text-warning');
   });
-  it('returns text-primary for minor', () => {
-    expect(severityTextColor('minor')).toBe('text-primary');
+  it('returns text-info for minor', () => {
+    expect(severityTextColor('minor')).toBe('text-info');
   });
 });
 
@@ -150,8 +150,8 @@ describe('severityBgColor', () => {
   it('returns bg-warning/10 for warning', () => {
     expect(severityBgColor('warning')).toBe('bg-warning/10');
   });
-  it('returns bg-primary/10 for minor', () => {
-    expect(severityBgColor('minor')).toBe('bg-primary/10');
+  it('returns bg-info/10 for minor', () => {
+    expect(severityBgColor('minor')).toBe('bg-info/10');
   });
 });
 
@@ -162,15 +162,15 @@ describe('severityBorderColor', () => {
   it('returns border-warning for warning', () => {
     expect(severityBorderColor('warning')).toBe('border-warning');
   });
-  it('returns border-primary for minor', () => {
-    expect(severityBorderColor('minor')).toBe('border-primary');
+  it('returns border-info for minor', () => {
+    expect(severityBorderColor('minor')).toBe('border-info');
   });
 });
 
 describe('STATUS_COLORS', () => {
   it('exports status color map', () => {
-    expect(STATUS_COLORS.up).toBe('#d9fd3a');
-    expect(STATUS_COLORS.down).toBe('#ff7351');
+    expect(STATUS_COLORS.up).toBe('#6ec96e');
+    expect(STATUS_COLORS.down).toBe('#d85050');
   });
 });
 

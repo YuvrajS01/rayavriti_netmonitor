@@ -1,10 +1,10 @@
 const STATUS_COLORS: Record<string, string> = {
-  up: '#d9fd3a',
-  ok: '#d9fd3a',
-  warning: '#e5a910',
-  degraded: '#e5a910',
-  down: '#ff7351',
-  unknown: '#8b8b81',
+  up: '#6ec96e',
+  ok: '#6ec96e',
+  warning: '#cca040',
+  degraded: '#cca040',
+  down: '#d85050',
+  unknown: '#707070',
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -30,21 +30,21 @@ export function statusTextColor(status: string): string {
   if (status === 'down') return 'text-error';
   if (status === 'warning' || status === 'degraded') return 'text-warning';
   if (status === 'unknown') return 'text-outline';
-  return 'text-primary';
+  return 'text-success';
 }
 
 export function statusBgColor(status: string): string {
   if (status === 'down') return 'bg-error';
   if (status === 'warning' || status === 'degraded') return 'bg-warning';
   if (status === 'unknown') return 'bg-outline';
-  return 'bg-primary';
+  return 'bg-success';
 }
 
 export function statusBorderColor(status: string): string {
   if (status === 'down') return 'border-error';
   if (status === 'warning' || status === 'degraded') return 'border-warning';
   if (status === 'unknown') return 'border-outline-variant';
-  return 'border-primary';
+  return 'border-success';
 }
 
 export function statusIcon(status: string): string {
@@ -62,19 +62,19 @@ export function severityIcon(severity: string): string {
 export function severityTextColor(severity: string): string {
   if (severity === 'critical') return 'text-error';
   if (severity === 'warning') return 'text-warning';
-  return 'text-primary';
+  return 'text-info';
 }
 
 export function severityBgColor(severity: string): string {
   if (severity === 'critical') return 'bg-error/10';
   if (severity === 'warning') return 'bg-warning/10';
-  return 'bg-primary/10';
+  return 'bg-info/10';
 }
 
 export function severityBorderColor(severity: string): string {
   if (severity === 'critical') return 'border-error';
   if (severity === 'warning') return 'border-warning';
-  return 'border-primary';
+  return 'border-info';
 }
 
 export { STATUS_COLORS, STATUS_LABELS };

@@ -35,8 +35,8 @@ function buildDonutData(metrics: Metric[]): DonutSlice[] {
 function DonutCenter({ cx, cy, total }: { cx: number; cy: number; total: number }) {
   return (
     <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle" fill="currentColor" className="text-on-surface">
-      <tspan x={cx} dy="-0.4em" fontSize="22" fontWeight="bold" fontFamily="'Space Grotesk', sans-serif">{total}</tspan>
-      <tspan x={cx} dy="1.4em" fontSize="10" className="text-on-surface-variant" fontFamily="'Space Grotesk', sans-serif">DEVICES</tspan>
+      <tspan x={cx} dy="-0.4em" fontSize="22" fontWeight="600" fontFamily="'Instrument Sans Variable', sans-serif">{total}</tspan>
+      <tspan x={cx} dy="1.4em" fontSize="10" className="text-on-surface-variant" fontFamily="'Plus Jakarta Sans Variable', sans-serif">DEVICES</tspan>
     </text>
   );
 }
@@ -46,8 +46,8 @@ function StatusDistributionInner({ metrics }: Props) {
   const donutTotal = useMemo(() => donutData.reduce((s, d) => s + d.value, 0), [donutData]);
 
   return (
-    <div className="bg-surface-container-high rounded-lg p-4 border border-outline-variant/20 flex flex-col">
-      <h3 className="text-sm font-headline font-bold mb-3 uppercase tracking-wide">Status Distribution</h3>
+    <div className="bg-surface-container-low rounded-lg p-4 border border-outline-variant/20 flex flex-col">
+      <h3 className="text-sm font-headline font-semibold text-on-surface mb-3">Status Distribution</h3>
       {donutTotal === 0 ? (
         <p className="text-xs text-on-surface-variant text-center my-auto py-8">No data yet</p>
       ) : (
@@ -77,7 +77,7 @@ function StatusDistributionInner({ metrics }: Props) {
               <div key={d.name} className="flex items-center gap-1.5 text-xs">
                 <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: d.color }} />
                 <span className="text-on-surface-variant">{d.name}</span>
-                <span className="font-bold text-on-surface">{d.value}</span>
+                <span className="font-semibold text-on-surface">{d.value}</span>
               </div>
             ))}
           </div>
