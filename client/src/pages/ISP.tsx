@@ -159,11 +159,11 @@ export default function ISP() {
               <span className="material-symbols-outlined">router</span>
             </div>
             <div>
-              <h2 className="font-headline font-bold text-lg">ISP Links</h2>
+              <h2 className="font-headline font-semibold text-lg">ISP Links</h2>
               <p className="text-xs text-on-surface-variant uppercase tracking-wide">{filtered.length} links</p>
             </div>
           </div>
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search links..." className="bg-surface-container-highest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary outline-none md:w-64" />
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search links..." className="bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary outline-none md:w-64" />
         </div>
 
         {loading ? (
@@ -175,16 +175,16 @@ export default function ISP() {
             {filtered.map((link) => {
               const comp = compMap.get(link.id);
               return (
-                <article key={link.id} className="p-5 hover:bg-surface-container-high/50 transition-colors cursor-pointer" onClick={() => setSelectedLink(link)}>
+                <article key={link.id} className="p-5 hover:bg-surface-container-low/50 transition-colors cursor-pointer" onClick={() => setSelectedLink(link)}>
                   <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
                     <div className="flex items-start gap-4 min-w-0">
-                      <div className="w-10 h-10 rounded-lg bg-surface-container-highest flex items-center justify-center flex-shrink-0">
+                      <div className="w-10 h-10 rounded-lg bg-surface-container-lowest flex items-center justify-center flex-shrink-0">
                         <span className="material-symbols-outlined text-primary text-xl">cell_tower</span>
                       </div>
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">
-                          <h3 className="font-headline font-bold text-lg truncate">{link.name}</h3>
-                          {comp && <span className={`text-xs font-bold uppercase px-2 py-0.5 rounded-full ${comp.status === 'up' ? 'bg-success/10 text-success' : comp.status === 'degraded' ? 'bg-warning/10 text-warning' : 'bg-error/10 text-error'}`}>{comp.status}</span>}
+                          <h3 className="font-headline font-semibold text-lg truncate">{link.name}</h3>
+                          {comp && <span className={`text-xs font-semibold uppercase px-2 py-0.5 rounded-full ${comp.status === 'up' ? 'bg-success/10 text-success' : comp.status === 'degraded' ? 'bg-warning/10 text-warning' : 'bg-error/10 text-error'}`}>{comp.status}</span>}
                         </div>
                         <p className="text-xs text-on-surface-variant mt-0.5">{link.provider} · {link.gateway_ip} · #{link.id}</p>
                       </div>
@@ -211,8 +211,8 @@ export default function ISP() {
                     </div>
                   </div>
                   <div className="flex gap-2 mt-3 pt-3 border-t border-outline-variant/10" onClick={(e) => e.stopPropagation()}>
-                    <button onClick={() => openEdit(link)} className="text-xs font-bold text-primary hover:bg-primary/10 px-3 py-1 rounded transition-colors">Edit</button>
-                    <button onClick={() => setDeleteTarget(link)} className="text-xs font-bold text-error hover:bg-error/10 px-3 py-1 rounded transition-colors">Delete</button>
+                    <button onClick={() => openEdit(link)} className="text-xs font-semibold text-primary hover:bg-primary/10 px-3 py-1 rounded transition-colors">Edit</button>
+                    <button onClick={() => setDeleteTarget(link)} className="text-xs font-semibold text-error hover:bg-error/10 px-3 py-1 rounded transition-colors">Delete</button>
                   </div>
                 </article>
               );
@@ -224,7 +224,7 @@ export default function ISP() {
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pt-20 bg-black/60" onClick={() => setShowForm(false)}>
           <div className="bg-surface-container-low border border-outline-variant/30 rounded-lg w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
-            <div className="p-6 border-b border-outline-variant/20 shrink-0"><h2 className="font-headline text-lg font-bold">{editing ? 'Edit Link' : 'New ISP Link'}</h2></div>
+            <div className="p-6 border-b border-outline-variant/20 shrink-0"><h2 className="font-headline text-lg font-semibold">{editing ? 'Edit Link' : 'New ISP Link'}</h2></div>
             <div className="p-6 space-y-4 flex-1 min-h-0 overflow-y-auto">
               {([
                 { key: 'name', label: 'Name', type: 'text' },
@@ -236,7 +236,7 @@ export default function ISP() {
               ] as const).map(({ key, label, type }) => (
                 <div key={key}>
                   <label className="text-[10px] text-on-surface-variant uppercase tracking-wide block mb-1">{label}</label>
-                  <input type={type} value={String(form[key] ?? '')} onChange={(e) => setForm({ ...form, [key]: type === 'number' ? Number(e.target.value) : e.target.value })} className="w-full bg-surface-container-highest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary outline-none" />
+                  <input type={type} value={String(form[key] ?? '')} onChange={(e) => setForm({ ...form, [key]: type === 'number' ? Number(e.target.value) : e.target.value })} className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary outline-none" />
                 </div>
               ))}
               <div className="flex items-center gap-3">
@@ -245,9 +245,9 @@ export default function ISP() {
               </div>
             </div>
             <div className="flex border-t border-outline-variant/20 shrink-0">
-              <button onClick={() => setShowForm(false)} className="flex-1 py-3 text-xs font-headline font-bold uppercase tracking-wide text-on-surface-variant hover:bg-surface-container-high transition-colors">Cancel</button>
+              <button onClick={() => setShowForm(false)} className="flex-1 py-3 text-xs font-headline font-semibold uppercase tracking-wide text-on-surface-variant hover:bg-surface-container-low transition-colors">Cancel</button>
               <div className="w-px bg-outline-variant/20" />
-              <button onClick={handleSubmit} disabled={submitting || !form.name} className="flex-1 py-3 text-xs font-headline font-bold uppercase tracking-wide text-primary hover:bg-primary/10 transition-colors disabled:opacity-50">{submitting ? 'Saving...' : editing ? 'Update' : 'Create'}</button>
+              <button onClick={handleSubmit} disabled={submitting || !form.name} className="flex-1 py-3 text-xs font-headline font-semibold uppercase tracking-wide text-primary hover:bg-primary/10 transition-colors disabled:opacity-50">{submitting ? 'Saving...' : editing ? 'Update' : 'Create'}</button>
             </div>
           </div>
         </div>

@@ -87,23 +87,23 @@ export default function Alerts() {
       />
 
       {/* Status Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
         <StatCard label="Active" value={counts.active} color="text-error" icon="error" />
         <StatCard label="Acknowledged" value={counts.acknowledged} color="text-warning" icon="check_circle" />
         <StatCard label="Resolved" value={counts.resolved} color="text-primary" icon="done_all" />
       </div>
 
       {/* Tabs + View Toggle */}
-      <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
+      <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
         <div className="flex flex-wrap gap-2">
           {tabs.map((tab) => (
             <button
               key={tab.key}
               onClick={() => setCurrentTab(tab.key)}
-              className={`px-4 py-2 text-xs rounded-md border font-bold uppercase tracking-wide transition-[border-color,color,background-color] ${
+              className={`px-4 py-2 text-xs rounded-md border font-semibold uppercase tracking-wide transition-[border-color,color,background-color] ${
                 currentTab === tab.key
                   ? 'border-primary/40 text-primary bg-primary/5'
-                  : 'border-outline-variant/20 text-on-surface-variant hover:text-primary'
+                  : 'border-outline-variant/20 text-on-surface-variant hover:text-on-surface'
               }`}
             >
               {tab.label} ({tab.count})
@@ -113,10 +113,10 @@ export default function Alerts() {
         <div className="flex items-center gap-3">
           <span className="text-xs text-on-surface-variant">Live alerts feed</span>
           {currentTab === 'active' && (
-            <div className="flex gap-1 bg-surface-container-highest rounded-lg p-0.5">
+            <div className="flex gap-1 bg-surface-container-lowest rounded-lg p-0.5">
               <button
                 onClick={() => setViewMode('grouped')}
-                className={`px-3 py-1 text-xs rounded-md font-bold uppercase tracking-wide transition-colors ${
+                className={`px-3 py-1 text-xs rounded-md font-semibold uppercase tracking-wide transition-colors ${
                   viewMode === 'grouped' ? 'bg-primary/10 text-primary' : 'text-on-surface-variant hover:text-on-surface'
                 }`}
               >
@@ -124,7 +124,7 @@ export default function Alerts() {
               </button>
               <button
                 onClick={() => setViewMode('list')}
-                className={`px-3 py-1 text-xs rounded-md font-bold uppercase tracking-wide transition-colors ${
+                className={`px-3 py-1 text-xs rounded-md font-semibold uppercase tracking-wide transition-colors ${
                   viewMode === 'list' ? 'bg-primary/10 text-primary' : 'text-on-surface-variant hover:text-on-surface'
                 }`}
               >
@@ -160,7 +160,7 @@ export default function Alerts() {
             <>
               <div className="flex items-center gap-4 py-4">
                 <span className="h-px flex-1 bg-error/20" />
-                <span className="font-headline text-error font-bold tracking-wide text-sm">Critical</span>
+                <span className="font-headline text-error font-semibold tracking-wide text-sm">Critical</span>
                 <span className="h-px flex-1 bg-error/20" />
               </div>
               {critical.map((alert) => <AlertItem key={alert.id} alert={alert} onAck={handleAck} onResolve={handleResolve} />)}
@@ -171,7 +171,7 @@ export default function Alerts() {
             <>
               <div className="flex items-center gap-4 py-4">
                 <span className="h-px flex-1 bg-warning/20" />
-                <span className="font-headline text-warning font-bold tracking-wide text-sm">Warning</span>
+                <span className="font-headline text-warning font-semibold tracking-wide text-sm">Warning</span>
                 <span className="h-px flex-1 bg-warning/20" />
               </div>
               {warnings.map((alert) => <AlertItem key={alert.id} alert={alert} onAck={handleAck} onResolve={handleResolve} />)}
@@ -182,7 +182,7 @@ export default function Alerts() {
             <>
               <div className="flex items-center gap-4 py-4">
                 <span className="h-px flex-1 bg-primary/20" />
-                <span className="font-headline text-primary font-bold tracking-wide text-sm">Information</span>
+                <span className="font-headline text-primary font-semibold tracking-wide text-sm">Information</span>
                 <span className="h-px flex-1 bg-primary/20" />
               </div>
               {info.map((alert) => <AlertItem key={alert.id} alert={alert} onAck={handleAck} onResolve={handleResolve} />)}
@@ -211,10 +211,10 @@ function AlertGroupCard({ group, onAck, onResolve }: { group: AlertGroup; onAck:
   const severity = firstAlert.severity;
 
   return (
-    <div className={`bg-surface-container-low rounded-lg border ${sc.border} overflow-hidden transition-[background-color]`}>
+    <div className={`bg-surface-container-low rounded-lg border ${sc.border} overflow-hidden transition-colors`}>
       <button
         onClick={() => setExpanded(!expanded)}
-        className="w-full p-5 flex items-center justify-between hover:bg-surface-container-high transition-colors"
+        className="w-full p-5 flex items-center justify-between hover:bg-surface-container-low transition-colors"
       >
         <div className="flex items-center gap-4">
           <div className={`${sc.bg} p-3 rounded-lg`}>
@@ -224,8 +224,8 @@ function AlertGroupCard({ group, onAck, onResolve }: { group: AlertGroup; onAck:
           </div>
           <div className="text-left">
             <div className="flex items-center gap-3">
-              <h3 className="font-headline font-bold text-on-surface tracking-tight">{firstAlert.message.split(':')[0]}</h3>
-              <span className={`text-xs ${sc.bg} ${sc.text} px-2 py-0.5 font-bold rounded`}>
+              <h3 className="font-headline font-semibold text-on-surface tracking-tight">{firstAlert.message.split(':')[0]}</h3>
+              <span className={`text-xs ${sc.bg} ${sc.text} px-2 py-0.5 font-semibold rounded`}>
                 {severity}
               </span>
             </div>
@@ -251,7 +251,7 @@ function AlertItem({ alert, onAck, onResolve }: { alert: Alert; onAck: (id: numb
   const deviceName = alert.deviceName || `Device ${alert.deviceId}`;
 
   return (
-    <div className={`group bg-surface-container-low rounded-lg border ${severityColors(alert.severity).border} p-5 flex flex-col md:flex-row md:items-center justify-between gap-6 transition-[background-color,border-color] hover:bg-surface-container-high`}>
+    <div className={`group bg-surface-container-low rounded-lg border ${severityColors(alert.severity).border} p-5 flex flex-col md:flex-row md:items-center justify-between gap-6 transition-[background-color,border-color] hover:bg-surface-container-low`}>
       <div className="flex items-start gap-4">
         <div className={`${severityColors(alert.severity).bg} p-3 rounded-lg`}>
           <span className={`material-symbols-outlined ${severityColors(alert.severity).text}`} style={{ fontVariationSettings: "'FILL' 1" }}>
@@ -260,30 +260,30 @@ function AlertItem({ alert, onAck, onResolve }: { alert: Alert; onAck: (id: numb
         </div>
         <div>
           <div className="flex items-center gap-3 mb-1 flex-wrap">
-            <h3 className="font-headline font-bold text-on-surface tracking-tight">{alert.message}</h3>
-            <span className={`text-xs ${severityColors(alert.severity).bg} ${severityColors(alert.severity).text} px-2 py-0.5 font-bold rounded`}>
+            <h3 className="font-headline font-semibold text-on-surface tracking-tight">{alert.message}</h3>
+            <span className={`text-xs ${severityColors(alert.severity).bg} ${severityColors(alert.severity).text} px-2 py-0.5 font-semibold rounded`}>
               {alert.severity}
             </span>
           </div>
           <p className="text-sm text-on-surface-variant">{deviceName}</p>
-          <span className="text-xs font-mono text-on-surface-variant mt-2 block">
+          <span className="text-xs font-data text-on-surface-variant mt-2 block">
             {new Date(alert.createdAt).toLocaleString()} • {alert.status}
           </span>
         </div>
       </div>
       <div className="flex items-center gap-4">
         {alert.status === 'active' && (
-          <button onClick={() => onAck(alert.id)} className={`px-5 py-2.5 border ${severityColors(alert.severity).border} ${severityColors(alert.severity).text} font-headline font-bold text-sm rounded-md hover:bg-surface-container-highest transition-[background-color,color]`}>
+          <button onClick={() => onAck(alert.id)} className={`px-5 py-2.5 border ${severityColors(alert.severity).border} ${severityColors(alert.severity).text} font-headline font-semibold text-sm rounded-md hover:bg-surface-container-lowest transition-[background-color,color]`}>
             Acknowledge
           </button>
         )}
         {alert.status === 'acknowledged' && (
-          <button onClick={() => onResolve(alert.id)} className="px-5 py-2.5 border border-primary text-primary font-headline font-bold text-sm rounded-md hover:bg-primary hover:text-on-primary transition-[background-color,color]">
+          <button onClick={() => onResolve(alert.id)} className="px-5 py-2.5 border border-primary text-primary font-headline font-semibold text-sm rounded-md hover:bg-primary hover:text-on-primary transition-[background-color,color]">
             Resolve
           </button>
         )}
         {alert.status === 'resolved' && (
-          <span className="text-xs font-bold tracking-wide text-on-surface-variant">Resolved</span>
+          <span className="text-xs font-semibold tracking-wide text-on-surface-variant">Resolved</span>
         )}
       </div>
     </div>

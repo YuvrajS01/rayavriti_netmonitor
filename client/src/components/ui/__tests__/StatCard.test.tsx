@@ -18,10 +18,10 @@ describe('StatCard', () => {
     expect(screen.getByText('All Clear')).toBeInTheDocument();
   });
 
-  it('applies default text-primary color', () => {
+  it('applies default text-on-surface color', () => {
     render(<StatCard label="Test" value="Val" />);
     const valueEl = screen.getByText('Val');
-    expect(valueEl.className).toContain('text-primary');
+    expect(valueEl.className).toContain('text-on-surface');
   });
 
   it('applies custom color', () => {

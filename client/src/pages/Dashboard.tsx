@@ -216,11 +216,11 @@ export default function Dashboard() {
         title="Network Overview"
         subtitle="Real-time monitoring dashboard for all connected devices."
         action={
-          <span className="text-primary font-mono text-xs">{lastUpdated}</span>
+          <span className="text-on-surface-variant font-data text-xs">{lastUpdated}</span>
         }
       />
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 mb-8" aria-live="polite" aria-label="Device statistics">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6" aria-live="polite" aria-label="Device statistics">
         <StatCard label="Total Devices" value={stats.totalDevices} />
         <StatCard label="Online" value={stats.onlineDevices} />
         <StatCard label="Uptime" value={`${stats.uptimePercent ?? 100}%`} />

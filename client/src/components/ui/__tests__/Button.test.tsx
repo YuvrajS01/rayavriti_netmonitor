@@ -77,11 +77,10 @@ describe('Button', () => {
     expect(screen.getByRole('button').className).toContain('extra-class');
   });
 
-  it('applies font-headline, uppercase, tracking-wide', () => {
+  it('applies font-body, font-medium base classes', () => {
     render(<Button>Styled</Button>);
     const btn = screen.getByRole('button');
-    expect(btn.className).toContain('font-headline');
-    expect(btn.className).toContain('uppercase');
-    expect(btn.className).toContain('tracking-wide');
+    expect(btn.className).toContain('font-body');
+    expect(btn.className).toContain('font-medium');
   });
 });

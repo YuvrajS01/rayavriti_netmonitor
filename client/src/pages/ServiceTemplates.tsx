@@ -91,8 +91,8 @@ export default function ServiceTemplates() {
         <EmptyState icon="widgets" title="No templates" description="No service templates are available" />
       ) : (
         categories.map((cat) => (
-          <div key={cat} className="mb-8">
-            <h2 className="font-headline text-sm font-bold uppercase tracking-wide text-on-surface-variant mb-4">{cat}</h2>
+          <div key={cat} className="mb-6">
+            <h2 className="font-headline text-sm font-semibold uppercase tracking-wide text-on-surface-variant mb-4">{cat}</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
               {templates.filter((t) => t.category === cat).map((tmpl) => (
                 <Card key={tmpl.name} hover onClick={() => setSelected(tmpl)} className="p-5 cursor-pointer">
@@ -101,7 +101,7 @@ export default function ServiceTemplates() {
                       <span className="material-symbols-outlined">widgets</span>
                     </div>
                     <div className="min-w-0">
-                      <h3 className="font-headline font-bold text-base">{tmpl.name}</h3>
+                      <h3 className="font-headline font-semibold text-base">{tmpl.name}</h3>
                       <p className="text-xs text-on-surface-variant mt-0.5 line-clamp-2">{tmpl.description}</p>
                     </div>
                   </div>
@@ -122,7 +122,7 @@ export default function ServiceTemplates() {
           <div className="bg-surface-container-low border border-outline-variant/30 rounded-lg w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
             <div className="p-6 border-b border-outline-variant/20 shrink-0">
               <div className="flex items-center justify-between">
-                <h2 className="font-headline text-lg font-bold">{selected.name}</h2>
+                <h2 className="font-headline text-lg font-semibold">{selected.name}</h2>
                 <button onClick={() => setSelected(null)} className="text-on-surface-variant hover:text-on-surface p-1">
                   <span className="material-symbols-outlined">close</span>
                 </button>
@@ -132,7 +132,7 @@ export default function ServiceTemplates() {
 
             <div className="p-6 space-y-4 flex-1 min-h-0 overflow-y-auto">
               <div>
-                <h3 className="text-xs font-bold uppercase tracking-wide text-on-surface-variant mb-2">Checks ({selected.checks.length})</h3>
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant mb-2">Checks ({selected.checks.length})</h3>
                 <div className="space-y-2">
                   {selected.checks.map((chk) => (
                     <div key={chk.name} className="flex items-center gap-3 text-sm">
@@ -145,7 +145,7 @@ export default function ServiceTemplates() {
               </div>
 
               <div>
-                <h3 className="text-xs font-bold uppercase tracking-wide text-on-surface-variant mb-2">Alert Rules ({selected.alerts.length})</h3>
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant mb-2">Alert Rules ({selected.alerts.length})</h3>
                 <div className="space-y-2">
                   {selected.alerts.map((alert) => (
                     <div key={alert.name} className="flex items-center gap-3 text-sm">
@@ -160,28 +160,28 @@ export default function ServiceTemplates() {
               </div>
 
               <div className="border-t border-outline-variant/20 pt-4">
-                <h3 className="text-xs font-bold uppercase tracking-wide text-on-surface-variant mb-3">Apply Template</h3>
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant mb-3">Apply Template</h3>
                 <div className="space-y-3">
                   <div>
                     <label className="text-[10px] text-on-surface-variant uppercase tracking-wide block mb-1">Host / IP Address *</label>
-                    <input value={applyForm.host} onChange={(e) => setApplyForm({ ...applyForm, host: e.target.value })} className="w-full bg-surface-container-highest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary outline-none" placeholder="e.g. 10.2.1.100" />
+                    <input value={applyForm.host} onChange={(e) => setApplyForm({ ...applyForm, host: e.target.value })} className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary outline-none" placeholder="e.g. 10.2.1.100" />
                   </div>
                   <div>
                     <label className="text-[10px] text-on-surface-variant uppercase tracking-wide block mb-1">Custom Name (optional)</label>
-                    <input value={applyForm.name} onChange={(e) => setApplyForm({ ...applyForm, name: e.target.value })} className="w-full bg-surface-container-highest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary outline-none" placeholder="e.g. CS Lab ERP Server" />
+                    <input value={applyForm.name} onChange={(e) => setApplyForm({ ...applyForm, name: e.target.value })} className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary outline-none" placeholder="e.g. CS Lab ERP Server" />
                   </div>
                   <div>
                     <label className="text-[10px] text-on-surface-variant uppercase tracking-wide block mb-1">Location ID (optional)</label>
-                    <input value={applyForm.locationId} onChange={(e) => setApplyForm({ ...applyForm, locationId: e.target.value })} className="w-full bg-surface-container-highest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary outline-none" placeholder="e.g. 5" />
+                    <input value={applyForm.locationId} onChange={(e) => setApplyForm({ ...applyForm, locationId: e.target.value })} className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary outline-none" placeholder="e.g. 5" />
                   </div>
                 </div>
               </div>
             </div>
 
             <div className="flex border-t border-outline-variant/20 shrink-0">
-              <button onClick={() => setSelected(null)} className="flex-1 py-3 text-xs font-headline font-bold uppercase tracking-wide text-on-surface-variant hover:bg-surface-container-high transition-colors">Cancel</button>
+              <button onClick={() => setSelected(null)} className="flex-1 py-3 text-xs font-headline font-semibold uppercase tracking-wide text-on-surface-variant hover:bg-surface-container-low transition-colors">Cancel</button>
               <div className="w-px bg-outline-variant/20" />
-              <button onClick={handleApply} disabled={applying || !applyForm.host} className="flex-1 py-3 text-xs font-headline font-bold uppercase tracking-wide text-primary hover:bg-primary/10 transition-colors disabled:opacity-50">
+              <button onClick={handleApply} disabled={applying || !applyForm.host} className="flex-1 py-3 text-xs font-headline font-semibold uppercase tracking-wide text-primary hover:bg-primary/10 transition-colors disabled:opacity-50">
                 {applying ? 'Applying...' : 'Apply Template'}
               </button>
             </div>

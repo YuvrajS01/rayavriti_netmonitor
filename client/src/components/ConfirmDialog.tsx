@@ -77,7 +77,7 @@ export default function ConfirmDialog({
             <span className={`material-symbols-outlined text-3xl ${danger ? 'text-error' : 'text-primary'}`}>
               {danger ? 'warning' : 'help'}
             </span>
-            <h2 id="confirm-title" className="font-headline text-lg font-bold text-on-surface uppercase tracking-tight">
+            <h2 id="confirm-title" className="font-headline text-lg font-semibold text-on-surface uppercase tracking-tight">
               {title}
             </h2>
           </div>
@@ -88,7 +88,7 @@ export default function ConfirmDialog({
         <div className="flex border-t border-outline-variant/20 shrink-0">
           <button
             onClick={onCancel}
-            className="flex-1 py-3 text-xs font-headline font-bold uppercase tracking-wide text-on-surface-variant hover:bg-surface-container-high transition-[background-color]"
+            className="flex-1 py-3 text-xs font-headline font-semibold uppercase tracking-wide text-on-surface-variant hover:bg-surface-container-low transition-colors"
           >
             {cancelLabel}
           </button>
@@ -96,7 +96,7 @@ export default function ConfirmDialog({
           <button
             ref={confirmBtnRef}
             onClick={onConfirm}
-            className={`flex-1 py-3 text-xs font-headline font-bold uppercase tracking-wide transition-[background-color] ${
+            className={`flex-1 py-3 text-xs font-headline font-semibold uppercase tracking-wide transition-colors ${
               danger
                 ? 'text-error hover:bg-error/10'
                 : 'text-primary hover:bg-primary/10'
