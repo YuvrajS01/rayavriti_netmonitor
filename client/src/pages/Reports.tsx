@@ -1,11 +1,13 @@
 import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
-import { getReportSummary, getReportTimeseries, getReportDeviceBreakdown, getReportAlerts, downloadMetricsCsv, getDevices } from '../api/client';
+import { getReportSummary, getReportTimeseries, getReportDeviceBreakdown, getReportAlerts, getReportISP, downloadMetricsCsv, getDevices } from '../api/client';
 import type { ReportSummary, ReportTimeseriesPoint as TimeseriesPoint, DeviceBreakdown, ReportAlert, Device } from '../api/types';
+import type { ISPReportLink } from '../api/reports';
 
 const SummaryTab = lazy(() => import('../components/reports/SummaryTab'));
 const DeviceTab = lazy(() => import('../components/reports/DeviceTab'));
 const SlaTab = lazy(() => import('../components/reports/SlaTab'));
 const AlertTab = lazy(() => import('../components/reports/AlertTab'));
+const IspTab = lazy(() => import('../components/reports/IspTab'));
 
 function formatLocalInput(date: Date) {
   const d = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
@@ -21,12 +23,13 @@ function toQuery(from: string, to: string, deviceId?: number) {
   return text ? `?${text}` : '';
 }
 
-type TabId = 'summary' | 'devices' | 'sla' | 'alerts';
+type TabId = 'summary' | 'devices' | 'sla' | 'alerts' | 'isp';
 const TABS: { id: TabId; label: string; icon: string }[] = [
   { id: 'summary', label: 'Executive Summary', icon: 'dashboard' },
   { id: 'devices', label: 'Device Performance', icon: 'devices' },
   { id: 'sla', label: 'SLA Compliance', icon: 'verified' },
   { id: 'alerts', label: 'Alert History', icon: 'notifications' },
+  { id: 'isp', label: 'ISP Links', icon: 'router' },
 ];
 
 const RANGES = [
@@ -42,6 +45,7 @@ export default function Reports() {
   const [series, setSeries] = useState<TimeseriesPoint[]>([]);
   const [deviceBreakdown, setDeviceBreakdown] = useState<DeviceBreakdown[]>([]);
   const [reportAlerts, setReportAlerts] = useState<ReportAlert[]>([]);
+  const [ispLinks, setIspLinks] = useState<ISPReportLink[]>([]);
   const [allDevices, setAllDevices] = useState<Device[]>([]);
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
@@ -65,16 +69,18 @@ export default function Reports() {
     setError(null);
     const query = toQuery(from, to, selectedDevice);
     try {
-      const [sumRes, tsRes, devRes, alertRes] = await Promise.all([
+      const [sumRes, tsRes, devRes, alertRes, ispRes] = await Promise.all([
         getReportSummary(query),
         getReportTimeseries(query),
         getReportDeviceBreakdown(query),
         getReportAlerts(query),
+        getReportISP(query),
       ]);
       setSummary(sumRes.data);
       setSeries(tsRes.data || []);
       setDeviceBreakdown(devRes.data || []);
       setReportAlerts(alertRes.data || []);
+      setIspLinks(ispRes.data || []);
     } catch {
       setError('Failed to load report data. Please try again.');
     } finally {
@@ -200,6 +206,7 @@ export default function Reports() {
             {activeTab === 'devices' && <DeviceTab devices={deviceBreakdown} onSelectDevice={handleSelectDevice} />}
             {activeTab === 'sla' && <SlaTab summary={summary} series={series} />}
             {activeTab === 'alerts' && <AlertTab alerts={reportAlerts} />}
+            {activeTab === 'isp' && <IspTab links={ispLinks} />}
           </Suspense>
         </div>
       )}
