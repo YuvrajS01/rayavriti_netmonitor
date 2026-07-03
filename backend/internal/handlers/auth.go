@@ -309,7 +309,7 @@ func (h *AuthHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 		Username    string `json:"username"`
 		Password    string `json:"password"`
 		Role        string `json:"role"`
-		DisplayName string `json:"displayName"`
+		DisplayName string `json:"display_name"`
 		Email       string `json:"email"`
 		Phone       string `json:"phone"`
 		Enabled     *bool  `json:"enabled"`
