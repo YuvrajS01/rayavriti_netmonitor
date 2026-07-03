@@ -109,14 +109,14 @@ export default function ISPLinkModal({ link, onClose }: { link: ISPLink; onClose
   const slaColor = slaMet === true ? 'text-success' : slaMet === false ? 'text-error' : 'text-outline';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-20 bg-black/60 overflow-y-auto" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-16 bg-black/60" onClick={onClose}>
       <div
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-label={`ISP link details for ${link.name}`}
         tabIndex={-1}
-        className="bg-surface-container-low border border-outline-variant/30 rounded-lg w-full max-w-3xl max-h-[calc(100vh-7rem)] overflow-hidden flex flex-col outline-none"
+        className="bg-surface-container-low border border-outline-variant/30 rounded-lg w-full max-w-4xl max-h-[calc(100vh-4rem)] overflow-hidden flex flex-col outline-none"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="p-6 border-b border-outline-variant/20 flex justify-between items-start shrink-0">

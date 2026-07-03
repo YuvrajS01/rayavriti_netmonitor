@@ -6,7 +6,7 @@ import type { RootState } from '../store';
 import SectionHeader from '../components/ui/SectionHeader';
 import { useToast } from '../components/ui/useToast';
 
-const APP_VERSION = import.meta.env.VITE_APP_VERSION || '1.0.0';
+const APP_VERSION = import.meta.env.VITE_APP_VERSION || '3.5.0';
 
 export default function Settings() {
   const user = useSelector((s: RootState) => s.auth.user);
