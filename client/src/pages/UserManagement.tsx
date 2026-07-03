@@ -447,7 +447,9 @@ export default function UserManagement() {
               <div>
                 <label className="text-[10px] text-on-surface-variant uppercase tracking-wide block mb-1">Role</label>
                 <select value={String(userForm.role ?? '')} onChange={(e) => setUserForm({ ...userForm, role: e.target.value })} className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary">
-                  {roles.map((r) => <option key={r.id} value={r.name}>{r.display_name || r.name}</option>)}
+                  {roles.length > 0
+                    ? roles.map((r) => <option key={r.id} value={r.name}>{r.display_name || r.name}</option>)
+                    : <option value={String(userForm.role ?? 'viewer')}>{String(userForm.role ?? 'Viewer')}</option>}
                 </select>
               </div>
               <div>
@@ -571,7 +573,9 @@ export default function UserManagement() {
               <div>
                 <label className="text-[10px] text-on-surface-variant uppercase tracking-wide block mb-1">Role</label>
                 <select value={userCreateForm.role} onChange={(e) => setUserCreateForm({ ...userCreateForm, role: e.target.value })} className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary">
-                  {roles.map((r) => <option key={r.id} value={r.name}>{r.display_name || r.name}</option>)}
+                  {roles.length > 0
+                    ? roles.map((r) => <option key={r.id} value={r.name}>{r.display_name || r.name}</option>)
+                    : ['viewer', 'dept_admin', 'network_admin', 'admin', 'super_admin'].map((r) => <option key={r} value={r}>{r.replace(/_/g, ' ')}</option>)}
                 </select>
               </div>
               <div>
