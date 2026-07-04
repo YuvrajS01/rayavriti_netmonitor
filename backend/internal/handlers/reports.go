@@ -161,19 +161,19 @@ func (h *ReportHandler) ISP(w http.ResponseWriter, r *http.Request) {
 	defer rows.Close()
 
 	type ispReport struct {
-		ID              int64   `json:"id"`
-		Name            string  `json:"name"`
-		Provider        string  `json:"provider"`
-		BandwidthMbps   int     `json:"bandwidthMbps"`
-		SLATarget       float64 `json:"slaTarget"`
-		AvgLatency      float64 `json:"avgLatency"`
-		AvgJitter       float64 `json:"avgJitter"`
-		AvgPacketLoss   float64 `json:"avgPacketLoss"`
-		AvgDownload     float64 `json:"avgDownload"`
-		AvgUpload       float64 `json:"avgUpload"`
-		TotalProbes     int64   `json:"totalProbes"`
-		UpProbes        int64   `json:"-"`
-		UptimePercent   float64 `json:"uptimePercent"`
+		ID            int64   `json:"id"`
+		Name          string  `json:"name"`
+		Provider      string  `json:"provider"`
+		BandwidthMbps int     `json:"bandwidthMbps"`
+		SLATarget     float64 `json:"slaTarget"`
+		AvgLatency    float64 `json:"avgLatency"`
+		AvgJitter     float64 `json:"avgJitter"`
+		AvgPacketLoss float64 `json:"avgPacketLoss"`
+		AvgDownload   float64 `json:"avgDownload"`
+		AvgUpload     float64 `json:"avgUpload"`
+		TotalProbes   int64   `json:"totalProbes"`
+		UpProbes      int64   `json:"-"`
+		UptimePercent float64 `json:"uptimePercent"`
 	}
 
 	var links []ispReport
