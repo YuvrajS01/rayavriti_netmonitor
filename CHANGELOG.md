@@ -5,6 +5,26 @@ All notable changes to Rayavriti NetMonitor will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.6.0] - 2026-07-06
+
+Bug fix and minor feature release. Adds ISP link reports tab, fixes cached database 501 errors, alert badge refresh, ISP modal positioning, location toggle, and fallback roles in user management.
+
+### Added
+
+- **ISP links tab on Reports page** (`4bd3e78`) — New `GET /api/v1/reports/isp-links` endpoint returning per-link SLA metrics (uptime, latency, jitter, packet loss, throughput) for the selected period; new `IspTab` component with sortable table integrated as the fifth tab on the Reports page
+
+### Fixed
+
+- **Alert badge not refreshing on resolve** (`22c2766`, `ceecf89`) — Sidebar badge now listens to `alert:resolved` WebSocket events; count stays accurate when alerts auto-resolve instead of remaining stale
+- **CachedDatabase missing ListPhase2Cursor** (`ceecf89`) — Delegates `ListPhase2Cursor` through the caching layer, fixing 501 errors on roles, users, and other Phase2 handler endpoints; also fixes `display_name` JSON tag mismatch in `CreateUser` handler
+- **ISP modal positioning and clipping** (`da0cc5b`, `0fe21da`, `9a7ab69`) — Switches to `items-start` with scroll to prevent top clipping, increases modal height to fill available viewport space, updates default app version to 3.5.0
+- **Empty role dropdown in user create/edit** (`d0ae7ba`) — Adds fallback role options when the roles API returns an empty list, preventing broken select inputs
+- **Location toggle defaulting to disabled** (`2cb7c82`) — Fixes toggle button initial state and slider position
+
+### Changed
+
+- **gofmt formatting in reports.go** (`0c5f9c2`) — Code formatting cleanup in ISP handler
+
 ## [3.1.0] - 2026-06-30
 
 Security hardening release implementing comprehensive review_codex.md recommendations. Adds request validation, typed service handlers, HttpOnly cookie auth, audit logging, RBAC boundary tests, CI security scanning, and frontend performance improvements.
