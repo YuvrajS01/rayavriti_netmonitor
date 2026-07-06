@@ -136,6 +136,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   useSocket({
     onAlertTriggered: () => fetchAlertCount(),
+    onAlertResolved: () => fetchAlertCount(),
     onBootstrap: () => fetchAlertCount(),
   });
 
