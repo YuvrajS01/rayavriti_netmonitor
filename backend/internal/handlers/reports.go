@@ -132,3 +132,65 @@ func (h *ReportHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 	httputil.SendOK(w, reports)
 }
+
+func (h *ReportHandler) ISP(w http.ResponseWriter, r *http.Request) {
+	from, to, _ := parseTimeRange(r)
+	pp, ok := h.db.(database.PoolProvider)
+	if !ok || pp.Pool() == nil {
+		httputil.SendOK(w, []any{})
+		return
+	}
+	rows, err := pp.Pool().Query(r.Context(),
+		`SELECT l.id, l.name, l.provider, l.bandwidth_mbps, l.sla_uptime_percent,
+		 COALESCE(AVG(m.latency_ms),0) as avg_latency,
+		 COALESCE(AVG(m.jitter_ms),0) as avg_jitter,
+		 COALESCE(AVG(m.packet_loss_percent),0) as avg_packet_loss,
+		 COALESCE(AVG(m.download_speed_mbps),0) as avg_download,
+		 COALESCE(AVG(m.upload_speed_mbps),0) as avg_upload,
+		 COUNT(m.id) as total_probes,
+		 COUNT(m.id) FILTER (WHERE m.status = 'up') as up_probes
+		 FROM isp_links l
+		 LEFT JOIN isp_metrics m ON m.link_id = l.id AND m.created_at BETWEEN $1 AND $2
+		 WHERE l.enabled = true
+		 GROUP BY l.id, l.name, l.provider, l.bandwidth_mbps, l.sla_uptime_percent
+		 ORDER BY l.name`, from, to)
+	if err != nil {
+		httputil.SendError(w, 500, err.Error())
+		return
+	}
+	defer rows.Close()
+
+	type ispReport struct {
+		ID            int64   `json:"id"`
+		Name          string  `json:"name"`
+		Provider      string  `json:"provider"`
+		BandwidthMbps int     `json:"bandwidthMbps"`
+		SLATarget     float64 `json:"slaTarget"`
+		AvgLatency    float64 `json:"avgLatency"`
+		AvgJitter     float64 `json:"avgJitter"`
+		AvgPacketLoss float64 `json:"avgPacketLoss"`
+		AvgDownload   float64 `json:"avgDownload"`
+		AvgUpload     float64 `json:"avgUpload"`
+		TotalProbes   int64   `json:"totalProbes"`
+		UpProbes      int64   `json:"-"`
+		UptimePercent float64 `json:"uptimePercent"`
+	}
+
+	var links []ispReport
+	for rows.Next() {
+		var l ispReport
+		if err := rows.Scan(&l.ID, &l.Name, &l.Provider, &l.BandwidthMbps, &l.SLATarget,
+			&l.AvgLatency, &l.AvgJitter, &l.AvgPacketLoss, &l.AvgDownload, &l.AvgUpload,
+			&l.TotalProbes, &l.UpProbes); err != nil {
+			continue
+		}
+		if l.TotalProbes > 0 {
+			l.UptimePercent = float64(l.UpProbes) / float64(l.TotalProbes) * 100
+		}
+		links = append(links, l)
+	}
+	if links == nil {
+		links = []ispReport{}
+	}
+	httputil.SendOK(w, links)
+}

@@ -13,6 +13,24 @@ export const getReportDeviceBreakdown = (query = '') =>
 export const getReportAlerts = (query = '') =>
   v1.get(`/reports/alerts${query}`).then((r) => wrap<ReportAlert[]>(r.data));
 
+export interface ISPReportLink {
+  id: number;
+  name: string;
+  provider: string;
+  bandwidthMbps: number;
+  slaTarget: number;
+  avgLatency: number;
+  avgJitter: number;
+  avgPacketLoss: number;
+  avgDownload: number;
+  avgUpload: number;
+  totalProbes: number;
+  uptimePercent: number;
+}
+
+export const getReportISP = (query = '') =>
+  v1.get(`/reports/isp-links${query}`).then((r) => wrap<ISPReportLink[]>(r.data));
+
 export const downloadMetricsCsv = async (query = '') => {
   const blob = await v1.get(`/reports/export${query}`, { responseType: 'blob' }).then((r) => r.data);
   const url = URL.createObjectURL(blob);

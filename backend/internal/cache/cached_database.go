@@ -168,6 +168,14 @@ func (c *CachedDatabase) ListPhase2(ctx context.Context, resource string, filter
 	return ps.ListPhase2(ctx, resource, filters)
 }
 
+func (c *CachedDatabase) ListPhase2Cursor(ctx context.Context, resource string, filters map[string]string, cursor string, limit int) ([]map[string]any, string, bool, error) {
+	ps, ok := phase2Inner(c.Database)
+	if !ok {
+		return nil, "", false, fmt.Errorf("inner database does not implement Phase2Store")
+	}
+	return ps.ListPhase2Cursor(ctx, resource, filters, cursor, limit)
+}
+
 func (c *CachedDatabase) GetPhase2(ctx context.Context, resource string, id int64) (map[string]any, error) {
 	ps, ok := phase2Inner(c.Database)
 	if !ok {

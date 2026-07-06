@@ -4,7 +4,7 @@ export { getDevices, addDevice, deleteDevice, getLatestMetrics, getDeviceMetrics
 export { getAlerts, getAlertCounts, getGroupedAlerts, acknowledgeAlert, resolveAlert } from './alerts';
 export { getFlowRecords, getTopTalkers, getProtocolDistribution, getFlowTimeseries, getFlowStats } from './flows';
 export { getInterfaces, startCaptureSession, stopCaptureSession, getCaptureSession, getCapturePackets, getCaptureSessions } from './capture';
-export { getReportSummary, getReportTimeseries, getReportDeviceBreakdown, getReportAlerts, downloadMetricsCsv } from './reports';
+export { getReportSummary, getReportTimeseries, getReportDeviceBreakdown, getReportAlerts, getReportISP, downloadMetricsCsv } from './reports';
 export { getInsights, getInsightsHistory } from './insights';
 export { getSystemInfo, getStats } from './system';
 

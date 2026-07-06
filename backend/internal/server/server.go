@@ -373,6 +373,7 @@ func (s *Server) Start() error {
 		r.With(rbac.RequirePermission(models.PermReportsRead)).Get("/api/v1/reports/timeseries", report.Timeseries)
 		r.With(rbac.RequirePermission(models.PermReportsRead)).Get("/api/v1/reports/devices", report.Devices)
 		r.With(rbac.RequirePermission(models.PermReportsRead)).Get("/api/v1/reports/alerts", report.Alerts)
+		r.With(rbac.RequirePermission(models.PermReportsRead)).Get("/api/v1/reports/isp-links", report.ISP)
 		r.With(rbac.RequirePermission(models.PermReportsRead)).Get("/api/v1/reports/export", report.Export)
 
 		// --- Locations / Topology (settings.write / devices.read) ---
