@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/rayavriti/netmonitor-backend/internal/auth"
+	"github.com/rayavriti/netmonitor-backend/internal/backup"
 	"github.com/rayavriti/netmonitor-backend/internal/cache"
 	"github.com/rayavriti/netmonitor-backend/internal/config"
 	"github.com/rayavriti/netmonitor-backend/internal/database"
@@ -147,7 +149,18 @@ func (s *Server) Start() error {
 	reportGenH := handlers.NewReportGenHandler(s.db, s.cfg.Phase2.ReportOutputDir)
 	discH := discovery.NewDiscoveryHandler(s.db)
 	roleH := handlers.NewRoleHandler(s.db)
-	userScopeH := handlers.NewUserScopeHandler(s.db)
+		userScopeH := handlers.NewUserScopeHandler(s.db)
+		var backupH *handlers.BackupHandler
+		if pp, ok := s.db.(database.PoolProvider); ok && pp.Pool() != nil {
+			backupMgr := backup.NewManager(pp.Pool(), backup.Config{
+				BackupDir:       s.cfg.Backup.BackupDir,
+				MaxBackups:      s.cfg.Backup.MaxBackups,
+				RetentionDays:   s.cfg.Backup.RetentionDays,
+				ScheduleEnabled: s.cfg.Backup.ScheduleEnabled,
+				ScheduleCron:    s.cfg.Backup.ScheduleCron,
+			}, slog.Default().With("component", "backup"))
+			backupH = handlers.NewBackupHandler(backupMgr)
+		}
 	var monitoringH *monitoring.MonitoringHandler
 	if pp, ok := s.db.(database.PoolProvider); ok && pp.Pool() != nil {
 		logStore := monitoring.NewStore(pp.Pool())
@@ -269,6 +282,18 @@ func (s *Server) Start() error {
 			r.With(rbac.RequirePermission(models.PermSystemLogs)).Get("/api/v1/system/logging/verbose-sessions", monitoringH.ListVerboseSessions)
 			r.With(rbac.RequirePermission(models.PermSystemLogs)).Post("/api/v1/system/logging/verbose-sessions", monitoringH.CreateVerboseSession)
 			r.With(rbac.RequirePermission(models.PermSystemLogs)).Post("/api/v1/system/logging/verbose-sessions/{id}/stop", monitoringH.StopVerboseSession)
+		}
+
+		// --- Backup & Restore (settings.write) ---
+		if backupH != nil {
+			r.With(rbac.RequirePermission(models.PermSettingsWrite)).Get("/api/v1/backups", backupH.List)
+			r.With(rbac.RequirePermission(models.PermSettingsWrite)).Get("/api/v1/backups/config", backupH.Config)
+			r.With(rbac.RequirePermission(models.PermSettingsWrite)).Post("/api/v1/backups", backupH.Create)
+			r.With(rbac.RequirePermission(models.PermSettingsWrite)).Get("/api/v1/backups/{id}", backupH.Get)
+			r.With(rbac.RequirePermission(models.PermSettingsWrite)).Get("/api/v1/backups/{id}/download", backupH.Download)
+			r.With(rbac.RequirePermission(models.PermSettingsWrite)).Post("/api/v1/backups/{id}/restore", backupH.Restore)
+			r.With(rbac.RequirePermission(models.PermSettingsWrite)).Delete("/api/v1/backups/{id}", backupH.Delete)
+			r.With(rbac.RequirePermission(models.PermSettingsWrite)).Post("/api/v1/backups/upload", backupH.Upload)
 		}
 
 		// --- Devices (devices.read / devices.write / devices.delete) ---

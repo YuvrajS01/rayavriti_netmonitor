@@ -64,6 +64,7 @@ const navGroups: NavGroup[] = [
       { to: '/settings/contacts', label: 'Contacts', icon: 'contacts', permission: 'contacts.write' },
       { to: '/settings/status-page', label: 'Status Page', icon: 'public', permission: 'status_page.manage' },
       { to: '/settings/users', label: 'Users & Roles', icon: 'manage_accounts', permission: 'users.manage' },
+      { to: '/settings/backup', label: 'Backup & Restore', icon: 'backup', permission: 'settings.write' },
     ],
   },
 ];

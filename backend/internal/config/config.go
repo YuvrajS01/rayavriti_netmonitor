@@ -16,6 +16,7 @@ type Config struct {
 	Collector CollectorConfig
 	Logging   LoggingConfig
 	Phase2    Phase2Config
+	Backup    BackupConfig
 }
 
 type RedisConfig struct {
@@ -103,6 +104,14 @@ type Phase2Config struct {
 	DiscoveryMaxConcurrent int
 	DiscoveryTimeoutMS     int
 	DefaultTimezone        string
+}
+
+type BackupConfig struct {
+	BackupDir      string
+	MaxBackups     int
+	RetentionDays  int
+	ScheduleEnabled bool
+	ScheduleCron   string
 }
 
 func Load() (*Config, error) {
@@ -201,6 +210,13 @@ func Load() (*Config, error) {
 			DiscoveryMaxConcurrent: envInt("DISCOVERY_MAX_CONCURRENT", 64),
 			DiscoveryTimeoutMS:     envInt("DISCOVERY_TIMEOUT_MS", 2000),
 			DefaultTimezone:        envStr("DEFAULT_TIMEZONE", "Asia/Kolkata"),
+		},
+		Backup: BackupConfig{
+			BackupDir:       envStr("BACKUP_DIR", "./data/backups"),
+			MaxBackups:      envInt("BACKUP_MAX_BACKUPS", 50),
+			RetentionDays:   envInt("BACKUP_RETENTION_DAYS", 90),
+			ScheduleEnabled: envBool("BACKUP_SCHEDULE_ENABLED", false),
+			ScheduleCron:    envStr("BACKUP_SCHEDULE_CRON", "0 2 * * *"),
 		},
 	}
 
