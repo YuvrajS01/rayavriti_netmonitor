@@ -82,7 +82,7 @@ const SidebarLink = memo(function SidebarLink({ to, label, icon, badge, end, onC
       end={end}
       onClick={onClick}
       className={({ isActive }) =>
-        `group relative mx-2 flex h-9 items-center gap-3 rounded-md px-3 font-body text-sm transition-colors duration-200 ${
+        `group relative mx-2 flex h-9 items-center gap-3 rounded-md px-3 font-body text-sm transition-colors duration-100 ${
           isActive
             ? 'bg-surface-container-high text-on-surface'
             : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low'
@@ -118,15 +118,17 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     Administration: false,
   });
 
-  const hasPermission = (item: NavItem) => {
-    if (!item.permission) return true;
-    if (user?.role === 'super_admin' || user?.role === 'admin') return true;
-    return user?.permissions?.includes(item.permission);
-  };
+  const visibleGroups = useMemo(() => {
+    const hasPermission = (item: NavItem) => {
+      if (!item.permission) return true;
+      if (user?.role === 'super_admin' || user?.role === 'admin') return true;
+      return user?.permissions?.includes(item.permission);
+    };
 
-  const visibleGroups = navGroups
-    .map((g) => ({ ...g, items: g.items.filter(hasPermission) }))
-    .filter((g) => g.items.length > 0);
+    return navGroups
+      .map((g) => ({ ...g, items: g.items.filter(hasPermission) }))
+      .filter((g) => g.items.length > 0);
+  }, [user?.permissions, user?.role]);
   const visibleItems = useMemo(() => visibleGroups.flatMap((group) => group.items.map((item) => ({ ...item, group: group.label }))), [visibleGroups]);
 
   const isGroupActive = (group: NavGroup) =>
@@ -184,11 +186,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   }, [location.pathname]);
 
   useEffect(() => {
-    const handleResize = () => {
-      if (window.innerWidth < 1024) setSidebarOpen(false);
+    const media = window.matchMedia('(min-width: 1024px)');
+    const handleChange = () => {
+      if (!media.matches) setSidebarOpen(false);
     };
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    media.addEventListener('change', handleChange);
+    return () => media.removeEventListener('change', handleChange);
   }, []);
 
   const handleLogout = async () => {
@@ -207,7 +210,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         <div className="flex min-w-0 items-center gap-3">
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="material-symbols-outlined flex h-9 w-9 items-center justify-center rounded-md text-on-surface-variant transition-colors duration-200 hover:bg-surface-container-low hover:text-on-surface"
+            className="material-symbols-outlined flex h-9 w-9 items-center justify-center rounded-md text-on-surface-variant transition-colors duration-100 hover:bg-surface-container-low hover:text-on-surface"
             aria-label="Toggle sidebar"
           >
             menu
@@ -237,7 +240,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           </div>
           <NavLink
             to="/alerts"
-            className={`flex h-9 items-center gap-2 rounded-md px-3 text-sm transition-colors duration-200 ${
+            className={`flex h-9 items-center gap-2 rounded-md px-3 text-sm transition-colors duration-100 ${
               activeAlertCount > 0
                 ? 'bg-error-container text-on-error-container hover:bg-error/25'
                 : 'bg-surface-container-low text-on-surface-variant hover:bg-surface-container hover:text-on-surface'
@@ -250,7 +253,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           <div className="relative">
             <button
               onClick={() => setAccountOpen((open) => !open)}
-              className="flex h-9 items-center gap-2 rounded-md border border-outline-variant/25 bg-surface-container-low px-2 text-on-surface transition-colors duration-200 hover:bg-surface-container"
+              className="flex h-9 items-center gap-2 rounded-md border border-outline-variant/25 bg-surface-container-low px-2 text-on-surface transition-colors duration-100 hover:bg-surface-container"
               aria-label="Account menu"
               aria-expanded={accountOpen}
             >
@@ -289,7 +292,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       <div className="flex pt-16">
         {/* Sidebar */}
         <aside
-          className={`fixed left-0 top-16 z-40 flex h-[calc(100vh-64px)] w-[260px] flex-col border-r border-outline-variant/30 bg-surface-dim transition-transform duration-300 ${
+          className={`fixed left-0 top-16 z-40 flex h-[calc(100vh-64px)] w-[260px] transform-gpu flex-col border-r border-outline-variant/30 bg-surface-dim transition-transform duration-150 ease-out will-change-transform ${
             sidebarOpen ? 'translate-x-0' : '-translate-x-full'
           }`}
           aria-hidden={!sidebarOpen}
@@ -313,7 +316,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 <div key={group.label} className="mb-2">
                   <button
                     onClick={() => toggleGroup(group.label)}
-                    className={`mb-1 flex h-8 w-full items-center gap-2 px-4 font-label text-[11px] font-semibold uppercase tracking-wide transition-colors duration-200 ${
+                    className={`mb-1 flex h-8 w-full items-center gap-2 px-4 font-label text-[11px] font-semibold uppercase tracking-wide transition-colors duration-100 ${
                       active ? 'text-on-surface' : 'text-on-surface-variant hover:text-on-surface'
                     }`}
                   >
@@ -354,7 +357,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           </div>
         </aside>
 
-        <main id="main-content" className={`min-h-[calc(100vh-64px)] flex-1 bg-surface p-4 pb-20 transition-[margin-left] duration-300 sm:p-6 lg:pb-6 ${sidebarOpen ? 'lg:ml-[260px]' : 'ml-0'}`}>
+        <main id="main-content" className={`min-h-[calc(100vh-64px)] flex-1 bg-surface p-4 pb-20 sm:p-6 lg:pb-6 ${sidebarOpen ? 'lg:ml-[260px]' : 'ml-0'}`}>
           <div key={location.pathname} className="page-enter">
             {children}
           </div>
@@ -369,7 +372,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             to={item.to}
             end={item.to === '/'}
             className={({ isActive }) =>
-              `flex flex-col items-center gap-1 transition-colors duration-200 ${isActive ? 'text-on-surface' : 'text-on-surface-variant'}`
+              `flex flex-col items-center gap-1 transition-colors duration-100 ${isActive ? 'text-on-surface' : 'text-on-surface-variant'}`
             }
           >
             <span className="material-symbols-outlined text-[20px]">{item.icon}</span>
