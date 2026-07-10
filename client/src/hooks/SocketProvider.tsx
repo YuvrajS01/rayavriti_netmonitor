@@ -1,6 +1,8 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
+import { useSelector } from 'react-redux';
 import { getToken } from '../api/client';
 import { SocketContext, type EventName, type Handler } from './socketContext';
+import type { RootState } from '../store';
 
 const WS_URL = import.meta.env.VITE_WS_URL || '/api/v1/ws';
 const RECONNECT_BASE_DELAY = 1000;
@@ -15,6 +17,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
   const reconnectAttempts = useRef(0);
   const isCleanClose = useRef(false);
   const [connected, setConnected] = useState(false);
+  const isAuthenticated = useSelector((s: RootState) => s.auth.isAuthenticated);
 
   const clearTimers = useCallback(() => {
     if (reconnectTimer.current) {
@@ -30,8 +33,17 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
   const connectRef = useRef<() => void>(() => {});
 
   const connect = useCallback(() => {
+    if (!isAuthenticated) {
+      isCleanClose.current = true;
+      clearTimers();
+      if (wsRef.current) {
+        wsRef.current.close(1000, 'not authenticated');
+        wsRef.current = null;
+      }
+      return;
+    }
+
     const token = getToken();
-    if (!token) return;
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = window.location.host;
@@ -39,7 +51,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       ? `${protocol}//${import.meta.env.VITE_WS_URL}`
       : `${protocol}//${host}`;
     const url = new URL(WS_URL, baseWsUrl);
-    const ws = new WebSocket(url.toString(), [token]);
+    const ws = token ? new WebSocket(url.toString(), [token]) : new WebSocket(url.toString());
     wsRef.current = ws;
 
     ws.onopen = () => {
@@ -94,7 +106,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     ws.onerror = () => {
       ws.close();
     };
-  }, [clearTimers]);
+  }, [clearTimers, isAuthenticated]);
 
   useEffect(() => {
     connectRef.current = connect;

@@ -15,14 +15,16 @@ services:
     container_name: rayavriti-redis
     command: >
       redis-server
-      --requirepass ${REDIS_PASSWORD:-CHANGEME_REDIS_PASSWORD}
+      --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
       --appendonly yes
       --maxmemory 256mb
       --maxmemory-policy allkeys-lru
+    ports:
+      - "127.0.0.1:6379:6379"
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-CHANGEME_REDIS_PASSWORD}", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:?REDIS_PASSWORD is required}", "ping"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -36,7 +38,7 @@ services:
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-netmonitor}
       POSTGRES_USER: ${POSTGRES_USER:-netmonitor}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-netmonitor}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -60,8 +62,8 @@ services:
     network_mode: host
     env_file: .env
     environment:
-      DATABASE_URL: postgres://${POSTGRES_USER:-netmonitor}:${POSTGRES_PASSWORD:-netmonitor}@localhost:5433/${POSTGRES_DB:-netmonitor}?sslmode=disable
-      REDIS_URL: redis://:${REDIS_PASSWORD:-CHANGEME_REDIS_PASSWORD}@localhost:6379/0
+      DATABASE_URL: postgres://${POSTGRES_USER:-netmonitor}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@localhost:5433/${POSTGRES_DB:-netmonitor}?sslmode=disable
+      REDIS_URL: redis://:${REDIS_PASSWORD:?REDIS_PASSWORD is required}@localhost:6379/0
     depends_on:
       timescaledb:
         condition: service_healthy

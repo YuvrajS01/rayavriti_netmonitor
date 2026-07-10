@@ -66,9 +66,6 @@ func (s *Server) Start() error {
 	if allowAll && len(s.cfg.App.CORSOrigins) > 0 {
 		allowAll = false
 	}
-	if s.cfg.App.AppEnv == "production" && len(s.cfg.App.CORSOrigins) == 0 {
-		s.logger.Warn("CORS_ORIGINS is empty in production — all origins will be blocked")
-	}
 	corsHandler := cors.New(cors.Options{
 		AllowOriginFunc: func(origin string) bool {
 			if allowAll {
@@ -129,6 +126,7 @@ func (s *Server) Start() error {
 	insight := handlers.NewInsightHandler(s.db)
 	capture := handlers.NewCaptureHandler(s.db, s.hub, handlers.CaptureConfig{
 		Enabled:        s.cfg.Collector.CaptureEnabled,
+		PayloadEnabled: s.cfg.Collector.CapturePayloadEnabled,
 		MaxDurationSec: s.cfg.Collector.CaptureMaxDurationSec,
 		MaxPackets:     s.cfg.Collector.CaptureMaxPackets,
 		MaxBytes:       s.cfg.Collector.CaptureMaxBytes,
@@ -149,18 +147,18 @@ func (s *Server) Start() error {
 	reportGenH := handlers.NewReportGenHandler(s.db, s.cfg.Phase2.ReportOutputDir)
 	discH := discovery.NewDiscoveryHandler(s.db)
 	roleH := handlers.NewRoleHandler(s.db)
-		userScopeH := handlers.NewUserScopeHandler(s.db)
-		var backupH *handlers.BackupHandler
-		if pp, ok := s.db.(database.PoolProvider); ok && pp.Pool() != nil {
-			backupMgr := backup.NewManager(pp.Pool(), backup.Config{
-				BackupDir:       s.cfg.Backup.BackupDir,
-				MaxBackups:      s.cfg.Backup.MaxBackups,
-				RetentionDays:   s.cfg.Backup.RetentionDays,
-				ScheduleEnabled: s.cfg.Backup.ScheduleEnabled,
-				ScheduleCron:    s.cfg.Backup.ScheduleCron,
-			}, slog.Default().With("component", "backup"))
-			backupH = handlers.NewBackupHandler(backupMgr)
-		}
+	userScopeH := handlers.NewUserScopeHandler(s.db)
+	var backupH *handlers.BackupHandler
+	if pp, ok := s.db.(database.PoolProvider); ok && pp.Pool() != nil {
+		backupMgr := backup.NewManager(pp.Pool(), backup.Config{
+			BackupDir:       s.cfg.Backup.BackupDir,
+			MaxBackups:      s.cfg.Backup.MaxBackups,
+			RetentionDays:   s.cfg.Backup.RetentionDays,
+			ScheduleEnabled: s.cfg.Backup.ScheduleEnabled,
+			ScheduleCron:    s.cfg.Backup.ScheduleCron,
+		}, slog.Default().With("component", "backup"))
+		backupH = handlers.NewBackupHandler(backupMgr)
+	}
 	var monitoringH *monitoring.MonitoringHandler
 	if pp, ok := s.db.(database.PoolProvider); ok && pp.Pool() != nil {
 		logStore := monitoring.NewStore(pp.Pool())

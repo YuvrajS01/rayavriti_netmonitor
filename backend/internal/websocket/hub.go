@@ -209,6 +209,7 @@ func (h *Hub) ConnectionCount() int {
 // extractToken tries to extract a JWT from the request using multiple methods:
 // 1. Authorization: Bearer <token> header
 // 2. Sec-WebSocket-Protocol: <token>
+// 3. HttpOnly access-token cookie
 // NOTE: Query-string tokens are intentionally NOT supported to prevent
 // token leakage through logs, browser history, and proxy access logs.
 func (h *Hub) extractToken(r *http.Request) string {
@@ -228,6 +229,11 @@ func (h *Hub) extractToken(r *http.Request) string {
 		if token != "" {
 			return token
 		}
+	}
+
+	// Method 3: HttpOnly cookie for same-origin browser clients
+	if cookie, err := r.Cookie(auth.AccessCookieName); err == nil && cookie.Value != "" {
+		return cookie.Value
 	}
 
 	return ""

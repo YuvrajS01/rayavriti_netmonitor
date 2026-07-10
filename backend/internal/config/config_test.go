@@ -11,11 +11,13 @@ import (
 
 func clearEnv() {
 	keys := []string{
-		"JWT_SECRET", "PORT", "NODE_ENV", "VERSION", "DATABASE_URL", "DATABASE_DSN",
+		"JWT_SECRET", "PORT", "APP_ENV", "NODE_ENV", "VERSION", "DATABASE_URL", "DATABASE_DSN",
+		"REDIS_URL", "REDIS_ENABLED", "REDIS_POOL_SIZE", "REDIS_MIN_IDLE_CONNS",
 		"DB_MAX_CONNS", "DB_MIN_CONNS", "DB_MAX_CONN_LIFETIME", "DB_HEALTH_CHECK_PERIOD",
 		"ADMIN_USERNAME", "ADMIN_PASSWORD", "ACCESS_TOKEN_EXPIRY", "REFRESH_TOKEN_EXPIRY",
 		"NETFLOW_PORT", "METRICS_RETENTION_DAYS", "FLOW_RETENTION_DAYS", "ALERTS_RETENTION_DAYS",
-		"PORT_DISCOVERY_ENABLED", "CAPTURE_ENABLED", "COLLECTOR_INTERVAL_SEC",
+		"PORT_DISCOVERY_ENABLED", "CAPTURE_ENABLED", "CAPTURE_PAYLOAD_ENABLED",
+		"CAPTURE_MAX_DURATION_SEC", "CAPTURE_MAX_PACKETS", "CAPTURE_MAX_BYTES", "COLLECTOR_INTERVAL_SEC",
 		"LOG_LEVEL", "LOG_FORMAT", "LOG_FILE_ENABLED", "LOG_FILE_PATH",
 		"LOG_FILE_MAX_SIZE_MB", "LOG_FILE_MAX_BACKUPS", "LOG_FILE_MAX_AGE_DAYS", "LOG_FILE_COMPRESS",
 		"LOG_DB_ENABLED", "LOG_DB_SAMPLE_RATE", "LOG_DB_QUEUE_SIZE", "LOG_DB_DROP_POLICY",
@@ -72,11 +74,13 @@ func TestLoad_OverrideValues(t *testing.T) {
 	os.Setenv("PORT", "8080")
 	os.Setenv("NODE_ENV", "production")
 	os.Setenv("LOG_LEVEL", "debug")
+	os.Setenv("CORS_ORIGINS", "https://netmonitor.example.edu")
 	defer func() {
 		os.Unsetenv("JWT_SECRET")
 		os.Unsetenv("PORT")
 		os.Unsetenv("NODE_ENV")
 		os.Unsetenv("LOG_LEVEL")
+		os.Unsetenv("CORS_ORIGINS")
 	}()
 
 	cfg, err := Load()
@@ -84,6 +88,20 @@ func TestLoad_OverrideValues(t *testing.T) {
 	assert.Equal(t, 8080, cfg.App.Port)
 	assert.Equal(t, "production", cfg.App.AppEnv)
 	assert.Equal(t, "debug", cfg.Logging.Level)
+}
+
+func TestLoad_ProductionRequiresCORSOrigins(t *testing.T) {
+	clearEnv()
+	os.Setenv("JWT_SECRET", "test-secret")
+	os.Setenv("APP_ENV", "production")
+	defer func() {
+		os.Unsetenv("JWT_SECRET")
+		os.Unsetenv("APP_ENV")
+	}()
+
+	_, err := Load()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "CORS_ORIGINS")
 }
 
 func TestLoad_ModuleLevels(t *testing.T) {
