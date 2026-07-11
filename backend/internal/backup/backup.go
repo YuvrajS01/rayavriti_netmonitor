@@ -35,28 +35,28 @@ const (
 )
 
 type Backup struct {
-	ID          int64     `json:"id"`
-	Filename    string    `json:"filename"`
-	Path        string    `json:"-"`
-	Size        int64     `json:"size"`
-	Status      Status    `json:"status"`
-	Type        Type      `json:"type"`
-	CreatedAt   time.Time `json:"createdAt"`
+	ID          int64      `json:"id"`
+	Filename    string     `json:"filename"`
+	Path        string     `json:"-"`
+	Size        int64      `json:"size"`
+	Status      Status     `json:"status"`
+	Type        Type       `json:"type"`
+	CreatedAt   time.Time  `json:"createdAt"`
 	CompletedAt *time.Time `json:"completedAt,omitempty"`
-	Error       string    `json:"error,omitempty"`
-	Checksum    string    `json:"checksum,omitempty"`
+	Error       string     `json:"error,omitempty"`
+	Checksum    string     `json:"checksum,omitempty"`
 	RestoredAt  *time.Time `json:"restoredAt,omitempty"`
-	RestoredBy  string    `json:"restoredBy,omitempty"`
+	RestoredBy  string     `json:"restoredBy,omitempty"`
 }
 
 type Config struct {
-	BackupDir        string
-	MaxBackups       int
-	RetentionDays    int
-	ScheduleEnabled  bool
-	ScheduleCron     string
-	PostgresBinary   string
-	RestoreBinary    string
+	BackupDir       string
+	MaxBackups      int
+	RetentionDays   int
+	ScheduleEnabled bool
+	ScheduleCron    string
+	PostgresBinary  string
+	RestoreBinary   string
 }
 
 type Manager struct {
@@ -130,14 +130,15 @@ func (m *Manager) CreateBackup(ctx context.Context, backupType Type, createdBy s
 		CreatedAt: time.Now().UTC(),
 	}
 
-	// Run pg_dump in background
-	go m.runDump(id, backupPath)
+	// Run pg_dump in background, preserving auth/request values without tying the
+	// backup lifetime to the HTTP response context.
+	go m.runDump(context.WithoutCancel(ctx), id, backupPath)
 
 	return backup, nil
 }
 
-func (m *Manager) runDump(backupID int64, backupPath string) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+func (m *Manager) runDump(ctx context.Context, backupID int64, backupPath string) {
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Minute)
 	defer cancel()
 
 	// Update status to running
@@ -151,16 +152,20 @@ func (m *Manager) runDump(backupID int64, backupPath string) {
 	dsn := m.getDSN()
 
 	// Create the output file
-	outFile, err := os.Create(backupPath)
+	if err := m.validateBackupPath(backupPath); err != nil {
+		m.failBackup(ctx, backupID, fmt.Sprintf("invalid backup path: %v", err))
+		return
+	}
+
+	outFile, err := os.Create(backupPath) //nolint:gosec // Path is generated internally and validated against BackupDir above.
 	if err != nil {
 		m.failBackup(ctx, backupID, fmt.Sprintf("create file: %v", err))
 		return
 	}
-	defer outFile.Close()
 
 	// Build pg_dump command - use custom format for pg_restore compatibility
 	// We'll use plain SQL format piped through gzip for human readability
-	cmd := exec.CommandContext(ctx, m.cfg.PostgresBinary,
+	cmd := exec.CommandContext(ctx, m.cfg.PostgresBinary, //nolint:gosec // Binary comes from trusted server config; args are fixed except DSN.
 		"--no-owner",
 		"--no-privileges",
 		"--clean",
@@ -172,12 +177,18 @@ func (m *Manager) runDump(backupID int64, backupPath string) {
 	cmd.Stderr = os.Stderr
 
 	if err := cmd.Run(); err != nil {
+		if closeErr := outFile.Close(); closeErr != nil {
+			m.logger.Warn("Failed to close incomplete backup file", "backup_id", backupID, "error", closeErr)
+		}
 		m.failBackup(ctx, backupID, fmt.Sprintf("pg_dump failed: %v", err))
 		return
 	}
 
 	// Get file size
-	outFile.Close()
+	if err := outFile.Close(); err != nil {
+		m.failBackup(ctx, backupID, fmt.Sprintf("close file: %v", err))
+		return
+	}
 	stat, err := os.Stat(backupPath)
 	if err != nil {
 		m.failBackup(ctx, backupID, fmt.Sprintf("stat file: %v", err))
@@ -223,17 +234,25 @@ func (m *Manager) getDSN() string {
 		dsn = os.Getenv("DATABASE_DSN")
 	}
 	if dsn == "" {
-		dsn = "postgres://postgres:postgres@localhost:5432/netmonitor?sslmode=disable"
+		dsn = "postgres://postgres:postgres@localhost:5432/netmonitor?sslmode=disable" //nolint:gosec // Local development fallback only; production must set DATABASE_URL.
 	}
 	return dsn
 }
 
 func (m *Manager) computeChecksum(path string) (string, error) {
-	f, err := os.Open(path)
+	if err := m.validateBackupPath(path); err != nil {
+		return "", err
+	}
+
+	f, err := os.Open(path) //nolint:gosec // Path is generated internally and validated against BackupDir above.
 	if err != nil {
 		return "", err
 	}
-	defer f.Close()
+	defer func() {
+		if err := f.Close(); err != nil {
+			m.logger.Warn("Failed to close checksum file", "path", path, "error", err)
+		}
+	}()
 
 	h := sha256.New()
 	if _, err := io.Copy(h, f); err != nil {
@@ -314,19 +333,23 @@ func (m *Manager) RestoreBackup(ctx context.Context, id int64, restoredBy string
 		return fmt.Errorf("backup not found or not completed: %w", err)
 	}
 
+	if err := m.validateBackupPath(path); err != nil {
+		return fmt.Errorf("invalid backup path: %w", err)
+	}
+
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		return fmt.Errorf("backup file not found on disk: %s", path)
 	}
 
 	dsn := m.getDSN()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Minute)
 	defer cancel()
 
 	m.logger.Info("Starting database restore", "backup_id", id, "file", filename)
 
 	// Use psql for plain SQL format restore
-	cmd := exec.CommandContext(ctx, "psql",
+	cmd := exec.CommandContext(ctx, "psql", //nolint:gosec // Restores trusted backup files validated under BackupDir using fixed psql args.
 		"--single-transaction",
 		"--set=ON_ERROR_STOP=on",
 		dsn,
@@ -336,7 +359,7 @@ func (m *Manager) RestoreBackup(ctx context.Context, id int64, restoredBy string
 	if err != nil {
 		errMsg := fmt.Sprintf("restore failed: %v\n%s", err, string(output))
 		m.logger.Error("Restore failed", "backup_id", id, "error", errMsg)
-		return fmt.Errorf("restore failed: %v", err)
+		return fmt.Errorf("restore failed: %w", err)
 	}
 
 	now := time.Now().UTC()
@@ -352,18 +375,22 @@ func (m *Manager) RestoreBackup(ctx context.Context, id int64, restoredBy string
 }
 
 func (m *Manager) RestoreFromFile(ctx context.Context, filePath string, restoredBy string) error {
+	if err := m.validateBackupPath(filePath); err != nil {
+		return fmt.Errorf("invalid restore file path: %w", err)
+	}
+
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
 		return fmt.Errorf("file not found: %s", filePath)
 	}
 
 	dsn := m.getDSN()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Minute)
 	defer cancel()
 
 	m.logger.Info("Starting restore from uploaded file", "file", filePath, "restored_by", restoredBy)
 
-	cmd := exec.CommandContext(ctx, "psql",
+	cmd := exec.CommandContext(ctx, "psql", //nolint:gosec // Uploaded restore file is stored and validated under BackupDir; args are fixed except DSN.
 		"--single-transaction",
 		"--set=ON_ERROR_STOP=on",
 		dsn,
@@ -373,10 +400,29 @@ func (m *Manager) RestoreFromFile(ctx context.Context, filePath string, restored
 	if err != nil {
 		errMsg := fmt.Sprintf("restore failed: %v\n%s", err, string(output))
 		m.logger.Error("Restore from file failed", "error", errMsg)
-		return fmt.Errorf("restore from file failed: %v", err)
+		return fmt.Errorf("restore from file failed: %w", err)
 	}
 
 	m.logger.Info("Restore from file completed", "file", filePath, "restored_by", restoredBy)
+	return nil
+}
+
+func (m *Manager) validateBackupPath(path string) error {
+	backupDir, err := filepath.Abs(m.cfg.BackupDir)
+	if err != nil {
+		return fmt.Errorf("resolve backup dir: %w", err)
+	}
+	candidate, err := filepath.Abs(path)
+	if err != nil {
+		return fmt.Errorf("resolve backup path: %w", err)
+	}
+	rel, err := filepath.Rel(backupDir, candidate)
+	if err != nil {
+		return fmt.Errorf("compare backup path: %w", err)
+	}
+	if rel == "." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) || rel == ".." || filepath.IsAbs(rel) {
+		return fmt.Errorf("path escapes backup directory")
+	}
 	return nil
 }
 

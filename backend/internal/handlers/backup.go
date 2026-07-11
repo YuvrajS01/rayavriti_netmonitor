@@ -3,6 +3,7 @@ package handlers
 import (
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -12,6 +13,11 @@ import (
 	"github.com/rayavriti/netmonitor-backend/internal/auth"
 	"github.com/rayavriti/netmonitor-backend/internal/backup"
 	"github.com/rayavriti/netmonitor-backend/internal/httputil"
+)
+
+const (
+	uploadMaxBytes        = 500 << 20
+	uploadMultipartMemory = 32 << 20
 )
 
 type BackupHandler struct {
@@ -76,14 +82,14 @@ func (h *BackupHandler) Download(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := os.Stat(path); os.IsNotExist(err) {
+	if _, err := os.Stat(path); os.IsNotExist(err) { //nolint:gosec // Path comes from completed backup metadata resolved by manager.
 		httputil.SendError(w, http.StatusNotFound, "backup file not found on disk")
 		return
 	}
 
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filename))
 	w.Header().Set("Content-Type", "application/octet-stream")
-	http.ServeFile(w, r, path)
+	http.ServeFile(w, r, path) //nolint:gosec // Path comes from completed backup metadata resolved by manager.
 }
 
 func (h *BackupHandler) Delete(w http.ResponseWriter, r *http.Request) {
@@ -127,8 +133,8 @@ func (h *BackupHandler) Upload(w http.ResponseWriter, r *http.Request) {
 		restoredBy = claims.Username
 	}
 
-	// Parse multipart form (max 500MB)
-	if err := r.ParseMultipartForm(500 << 20); err != nil {
+	r.Body = http.MaxBytesReader(w, r.Body, uploadMaxBytes)
+	if err := r.ParseMultipartForm(uploadMultipartMemory); err != nil { //nolint:gosec // Request body is capped by MaxBytesReader above.
 		httputil.SendError(w, http.StatusBadRequest, "failed to parse upload: "+err.Error())
 		return
 	}
@@ -138,7 +144,11 @@ func (h *BackupHandler) Upload(w http.ResponseWriter, r *http.Request) {
 		httputil.SendError(w, http.StatusBadRequest, "no file provided")
 		return
 	}
-	defer file.Close()
+	defer func() {
+		if err := file.Close(); err != nil {
+			slog.Default().Warn("failed to close uploaded backup file", "error", err)
+		}
+	}()
 
 	// Validate file extension
 	ext := filepath.Ext(header.Filename)
@@ -159,16 +169,27 @@ func (h *BackupHandler) Upload(w http.ResponseWriter, r *http.Request) {
 		httputil.SendError(w, http.StatusInternalServerError, "failed to create temp file")
 		return
 	}
+	tmpFileClosed := false
 	defer func() {
-		tmpFile.Close()
-		os.Remove(tmpFile.Name())
+		if !tmpFileClosed {
+			if err := tmpFile.Close(); err != nil {
+				slog.Default().Warn("failed to close temporary backup file", "path", tmpFile.Name(), "error", err)
+			}
+		}
+		if err := os.Remove(tmpFile.Name()); err != nil && !os.IsNotExist(err) {
+			slog.Default().Warn("failed to remove temporary backup file", "path", tmpFile.Name(), "error", err)
+		}
 	}()
 
 	if _, err := io.Copy(tmpFile, file); err != nil {
 		httputil.SendError(w, http.StatusInternalServerError, "failed to save uploaded file")
 		return
 	}
-	tmpFile.Close()
+	if err := tmpFile.Close(); err != nil {
+		httputil.SendError(w, http.StatusInternalServerError, "failed to finalize uploaded file")
+		return
+	}
+	tmpFileClosed = true
 
 	// Run restore
 	if err := h.manager.RestoreFromFile(r.Context(), tmpFile.Name(), restoredBy); err != nil {
