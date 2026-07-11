@@ -2,9 +2,9 @@ import { useEffect, useRef, useCallback, useState } from 'react';
 import { useSelector } from 'react-redux';
 import { getToken } from '../api/client';
 import { SocketContext, type EventName, type Handler } from './socketContext';
+import { resolveWebSocketUrl } from './socketUrl';
 import type { RootState } from '../store';
 
-const WS_URL = import.meta.env.VITE_WS_URL || '/api/v1/ws';
 const RECONNECT_BASE_DELAY = 1000;
 const RECONNECT_MAX_DELAY = 30000;
 const PING_INTERVAL = 30000;
@@ -45,13 +45,9 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
 
     const token = getToken();
 
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host = window.location.host;
-    const baseWsUrl = import.meta.env.VITE_WS_URL
-      ? `${protocol}//${import.meta.env.VITE_WS_URL}`
-      : `${protocol}//${host}`;
-    const url = new URL(WS_URL, baseWsUrl);
-    const ws = token ? new WebSocket(url.toString(), [token]) : new WebSocket(url.toString());
+    const url = resolveWebSocketUrl();
+    const isSameOrigin = new URL(url).host === window.location.host;
+    const ws = token && !isSameOrigin ? new WebSocket(url, [token]) : new WebSocket(url);
     wsRef.current = ws;
 
     ws.onopen = () => {

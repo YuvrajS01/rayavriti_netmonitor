@@ -252,7 +252,12 @@ func (h *Hub) ServeWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	conn, err := h.upgrader.Upgrade(w, r, nil)
+	responseHeader := http.Header{}
+	if proto := r.Header.Get("Sec-WebSocket-Protocol"); proto != "" {
+		responseHeader.Set("Sec-WebSocket-Protocol", strings.TrimSpace(strings.SplitN(proto, ",", 2)[0]))
+	}
+
+	conn, err := h.upgrader.Upgrade(w, r, responseHeader)
 	if err != nil {
 		slog.Warn("WebSocket upgrade failed", "error", err)
 		return

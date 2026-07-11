@@ -236,7 +236,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         <div className="flex items-center gap-2">
           <div className="hidden items-center gap-2 rounded-md border border-outline-variant/25 bg-surface-container-low px-3 py-2 text-xs text-on-surface-variant sm:flex">
             <span className={`h-2 w-2 rounded-full ${connected ? 'bg-success' : 'bg-outline'}`} />
-            <span>{connected ? 'Live' : 'Offline'}</span>
+            <span>{connected ? 'Live' : 'Realtime paused'}</span>
           </div>
           <NavLink
             to="/alerts"
