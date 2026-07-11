@@ -44,6 +44,7 @@ type captureStats struct {
 // CaptureConfig holds quota and feature-flag settings for packet capture.
 type CaptureConfig struct {
 	Enabled        bool
+	PayloadEnabled bool
 	MaxDurationSec int
 	MaxPackets     int
 	MaxBytes       int64
@@ -276,7 +277,10 @@ func (h *CaptureHandler) runCapture(ctx context.Context, sessionID int64, iface,
 		defer cancel()
 	}
 
-	args := []string{"-i", iface, "-nn", "-l", "-x"}
+	args := []string{"-i", iface, "-nn", "-l"}
+	if h.cfg.PayloadEnabled {
+		args = append(args, "-x")
+	}
 	if filter != "" {
 		args = append(args, filter)
 	}
@@ -340,8 +344,10 @@ func (h *CaptureHandler) runCapture(ctx context.Context, sessionID int64, iface,
 				"protocol":  pkt.Protocol,
 				"length":    pkt.Length,
 				"flags":     pkt.Flags,
-				"payload":   pkt.Payload,
 			})
+			if h.cfg.PayloadEnabled {
+				packetData[len(packetData)-1]["payload"] = pkt.Payload
+			}
 		}
 		h.hub.Broadcast(websocket.Message{
 			Type: websocket.EventCapturePacket,
@@ -356,7 +362,7 @@ func (h *CaptureHandler) runCapture(ctx context.Context, sessionID int64, iface,
 	// finalizePacket attaches accumulated hex data and adds the packet to the batch.
 	finalizePacket := func() {
 		if currentPkt != nil {
-			if len(hexLines) > 0 {
+			if h.cfg.PayloadEnabled && len(hexLines) > 0 {
 				currentPkt.Payload = strings.Join(hexLines, " ")
 			}
 			h.mu.Lock()

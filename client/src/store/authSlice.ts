@@ -7,11 +7,11 @@ interface AuthState {
 }
 
 const initialState: AuthState = {
-  token: localStorage.getItem('netmonitor_token'),
+  token: null,
   user: (() => {
     try { return JSON.parse(localStorage.getItem('netmonitor_user') || 'null'); } catch { return null; }
   })(),
-  isAuthenticated: !!localStorage.getItem('netmonitor_token'),
+  isAuthenticated: !!localStorage.getItem('netmonitor_user'),
 };
 
 const authSlice = createSlice({
@@ -22,7 +22,6 @@ const authSlice = createSlice({
       state.token = action.payload.token;
       state.user = action.payload.user;
       state.isAuthenticated = true;
-      localStorage.setItem('netmonitor_token', action.payload.token);
       localStorage.setItem('netmonitor_user', JSON.stringify(action.payload.user));
     },
     setPermissions(state, action: PayloadAction<string[]>) {
@@ -36,6 +35,7 @@ const authSlice = createSlice({
       state.user = null;
       state.isAuthenticated = false;
       localStorage.removeItem('netmonitor_token');
+      localStorage.removeItem('netmonitor_refresh_token');
       localStorage.removeItem('netmonitor_user');
     },
   },

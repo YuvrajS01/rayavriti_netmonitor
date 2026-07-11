@@ -6,17 +6,23 @@ export const v1 = axios.create({
   withCredentials: true,
 });
 
+let accessToken: string | null = null;
+
+export const setAccessToken = (token: string | null) => {
+  accessToken = token && token !== 'undefined' ? token : null;
+};
+
+export const getAccessToken = () => accessToken;
+
 const attachToken = (config: InternalAxiosRequestConfig) => {
-  const token = localStorage.getItem('netmonitor_token');
-  if (token && token !== 'undefined') {
-    config.headers.Authorization = `Bearer ${token}`;
+  if (accessToken) {
+    config.headers.Authorization = `Bearer ${accessToken}`;
   }
   return config;
 };
 
 export const clearCredentials = () => {
-  localStorage.removeItem('netmonitor_token');
-  localStorage.removeItem('netmonitor_refresh_token');
+  setAccessToken(null);
   localStorage.removeItem('netmonitor_user');
   // Clear cookies via logout endpoint (best-effort)
   axios.post(
@@ -66,9 +72,6 @@ const handleTokenRefresh = async (error: AxiosError) => {
   isRefreshing = true;
 
   try {
-    const refreshToken = localStorage.getItem('netmonitor_refresh_token');
-    if (!refreshToken || refreshToken === 'undefined') throw new Error('No refresh token');
-
     const { data: raw } = await axios.post(
       `${import.meta.env.VITE_API_V1_URL || '/api/v1'}/auth/refresh`,
       {},
@@ -78,11 +81,7 @@ const handleTokenRefresh = async (error: AxiosError) => {
     const body = raw as Record<string, unknown>;
     const data = body?.data !== undefined ? body.data : body;
     const newToken = (data as Record<string, unknown>)?.accessToken || (data as Record<string, unknown>)?.token;
-    localStorage.setItem('netmonitor_token', newToken as string);
-    const newRefresh = (data as Record<string, unknown>)?.refreshToken;
-    if (newRefresh) {
-      localStorage.setItem('netmonitor_refresh_token', newRefresh as string);
-    }
+    setAccessToken(newToken as string);
 
     processQueue(null, newToken as string);
     originalRequest.headers.Authorization = `Bearer ${newToken}`;

@@ -33,13 +33,19 @@ func RequireAuth(secret string, apiKeyLookup func(ctx context.Context, hash stri
 					return
 				}
 			}
-			// JWT check
+			// JWT check: Authorization header first, then HttpOnly access cookie for browser clients.
 			raw := r.Header.Get("Authorization")
-			if !strings.HasPrefix(raw, "Bearer ") {
+			token := ""
+			if strings.HasPrefix(raw, "Bearer ") {
+				token = strings.TrimPrefix(raw, "Bearer ")
+			} else if cookie, err := r.Cookie(AccessCookieName); err == nil {
+				token = cookie.Value
+			}
+			if token == "" {
 				sendUnauth(w, "missing or invalid authorization")
 				return
 			}
-			claims, err := ValidateToken(strings.TrimPrefix(raw, "Bearer "), secret)
+			claims, err := ValidateToken(token, secret)
 			if err != nil {
 				sendUnauth(w, "invalid token")
 				return

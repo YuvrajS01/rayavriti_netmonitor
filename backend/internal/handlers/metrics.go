@@ -13,6 +13,8 @@ import (
 
 type MetricHandler struct{ db database.Database }
 
+const maxMetricQueryLimit = 5000
+
 func NewMetricHandler(db database.Database) *MetricHandler { return &MetricHandler{db: db} }
 
 func (h *MetricHandler) Latest(w http.ResponseWriter, r *http.Request) {
@@ -110,6 +112,6 @@ func parseTimeRange(r *http.Request) (from, to time.Time, limit int) {
 			to = t
 		}
 	}
-	limit, _ = strconv.Atoi(q.Get("limit"))
+	limit = httputil.QueryParamInt(r, "limit", 0, 1, maxMetricQueryLimit)
 	return
 }

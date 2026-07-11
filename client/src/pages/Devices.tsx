@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useLocation } from 'react-router-dom';
 import { getDevices, getLatestMetrics, deleteDevice } from '../api/client';
 import { useSocket } from '../hooks/useSocket';
 import type { Device, Metric } from '../api/types';
@@ -26,6 +27,7 @@ const STATUS_GROUP_HOVER_TEXT: Record<string, string> = {
 
 export default function Devices() {
   const { addToast } = useToast();
+  const location = useLocation();
   const [devices, setDevices] = useState<Device[]>([]);
   const [metricsMap, setMetricsMap] = useState<Map<number, Metric>>(new Map());
   const [loading, setLoading] = useState(true);
@@ -44,6 +46,12 @@ export default function Devices() {
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    const query = new URLSearchParams(location.search).get('search') || '';
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSearch(query);
+  }, [location.search]);
 
   useSocket({
     onMetricUpdate: (metric) => {

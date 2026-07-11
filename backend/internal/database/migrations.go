@@ -1000,4 +1000,23 @@ var migrations = []string{
 		FROM jsonb_array_elements_text(permissions || '["system.logs"]'::jsonb) AS t(value)
 	)
 	WHERE name = 'network_admin' AND is_system = TRUE;`,
+
+	// V37: backups table
+	`CREATE TABLE IF NOT EXISTS backups (
+		id           BIGSERIAL PRIMARY KEY,
+		filename     TEXT NOT NULL,
+		path         TEXT NOT NULL,
+		size         BIGINT NOT NULL DEFAULT 0,
+		status       TEXT NOT NULL DEFAULT 'pending',
+		type         TEXT NOT NULL DEFAULT 'manual',
+		created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+		completed_at TIMESTAMPTZ,
+		error        TEXT,
+		checksum     TEXT,
+		restored_at  TIMESTAMPTZ,
+		restored_by  TEXT
+	);
+	CREATE INDEX IF NOT EXISTS idx_backups_status ON backups(status);
+	CREATE INDEX IF NOT EXISTS idx_backups_type   ON backups(type);
+	CREATE INDEX IF NOT EXISTS idx_backups_created ON backups(created_at DESC);`,
 }
