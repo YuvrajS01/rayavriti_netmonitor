@@ -136,7 +136,7 @@ func Load() (*Config, error) {
 			Port:        envInt("PORT", 3000),
 			AppEnv:      envStr("APP_ENV", envStr("NODE_ENV", "development")),
 			Version:     envStr("VERSION", "1.1.0"),
-			CORSOrigins: envSlice("CORS_ORIGINS"),
+			CORSOrigins: envSliceDefault("CORS_ORIGINS", []string{"http://localhost:3000"}),
 			PublicDir:   envStr("PUBLIC_DIR", "/app/public"),
 		},
 		Database: DatabaseConfig{
@@ -223,7 +223,7 @@ func Load() (*Config, error) {
 	}
 
 	if cfg.App.AppEnv == "production" && len(cfg.App.CORSOrigins) == 0 {
-		return nil, fmt.Errorf("CORS_ORIGINS is required in production")
+		cfg.App.CORSOrigins = []string{"http://localhost:3000"}
 	}
 
 	return cfg, nil
