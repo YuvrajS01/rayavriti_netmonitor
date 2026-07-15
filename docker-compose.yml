@@ -1,18 +1,17 @@
-# Rayavriti NetMonitor — Docker Compose
+# Rayavriti NetMonitor — Docker Compose (Linux default)
 #
 # Usage:
 #   1. Copy .env.example to .env and configure required values
 #   2. docker compose up -d
 #   3. Open http://localhost:3000
 #
-# This default config uses a standard bridge network so it runs on
-# Linux, macOS, and Windows. Services reach each other by name
-# (redis, timescaledb, netmonitor) and ports are published to the host.
+# NOTE: Uses host networking so the container can directly reach
+# local network devices for monitoring, SNMP, and packet capture.
+# All ports (3000, 2055/udp) are exposed directly on the host.
 #
-# NOTE: Host networking (network_mode: host) is Linux-only and is what
-# enables packet capture / direct LAN device monitoring. To enable those
-# features on Linux, run with the optional override:
-#   docker compose -f docker-compose.yml -f docker-compose.linux.yml up -d
+# On Windows or macOS, host networking is not supported. Use the
+# bridge-networking override instead:
+#   docker compose -f docker-compose.yml -f docker-compose.windows.yml up -d
 
 services:
   redis:
@@ -34,8 +33,6 @@ services:
       timeout: 5s
       retries: 3
     restart: unless-stopped
-    networks:
-      - appnet
 
   timescaledb:
     image: timescale/timescaledb:latest-pg16
@@ -55,24 +52,22 @@ services:
       start_period: 10s
       retries: 5
     restart: unless-stopped
-    networks:
-      - appnet
 
   netmonitor:
     build:
       context: .
       target: production
     container_name: rayavriti-netmonitor
-    # Bridge networking: services communicate by name. Ports are published
-    # to the host so the web UI is reachable at http://localhost:3000.
-    # (Linux-only host networking / packet capture is in docker-compose.linux.yml)
-    ports:
-      - "3000:3000"
-      - "2055:2055/udp"
+    # Host networking is required for:
+    #  - Monitoring local network devices (ping, SNMP, port scans)
+    #  - Receiving NetFlow/sFlow on UDP 2055
+    #  - Packet capture on host interfaces
+    # Ports 3000 (HTTP) and 2055 (NetFlow UDP) are available on the host.
+    network_mode: host
     env_file: .env
     environment:
-      DATABASE_URL: postgres://${POSTGRES_USER:-netmonitor}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@timescaledb:5432/${POSTGRES_DB:-netmonitor}?sslmode=disable
-      REDIS_URL: redis://:${REDIS_PASSWORD:?REDIS_PASSWORD is required}@redis:6379/0
+      DATABASE_URL: postgres://${POSTGRES_USER:-netmonitor}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@localhost:5433/${POSTGRES_DB:-netmonitor}?sslmode=disable
+      REDIS_URL: redis://:${REDIS_PASSWORD:?REDIS_PASSWORD is required}@localhost:6379/0
     depends_on:
       timescaledb:
         condition: service_healthy
@@ -96,34 +91,27 @@ services:
       timeout: 5s
       start_period: 10s
       retries: 3
-    networks:
-      - appnet
 
   simulator:
     build:
       context: .
       target: development
     container_name: rayavriti-netmonitor-simulator
+    network_mode: host
     profiles:
       - simulator
     env_file: .env
     environment:
-      SIMULATOR_API_URL: http://netmonitor:3000
+      SIMULATOR_API_URL: http://localhost:3000
       SIMULATOR_WRITE_MODE: api
     command: >
-      sh -c "until wget -qO- http://netmonitor:3000/health >/dev/null 2>&1;
+      sh -c "until wget -qO- http://localhost:3000/health >/dev/null 2>&1;
       do sleep 2; done;
       npm run simulate -- --duration=${SIMULATOR_DURATION:-600}
       --speed=${SIMULATOR_SPEED:-1}
       --scenario=${SIMULATOR_SCENARIO:-mixed}"
     depends_on:
       - netmonitor
-    networks:
-      - appnet
-
-networks:
-  appnet:
-    driver: bridge
 
 volumes:
   postgres_data:

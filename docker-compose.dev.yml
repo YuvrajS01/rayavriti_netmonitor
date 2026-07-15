@@ -1,22 +1,22 @@
-# Rayavriti NetMonitor — local development (cross-platform)
+# Rayavriti NetMonitor — local development (Linux default)
 #
 # Usage:
 #   1. Copy .env.dev.example to .env.dev and adjust values if needed
 #   2. docker compose -f docker-compose.dev.yml up --build
 #   3. Open http://localhost:5173
 #
-# Uses a standard bridge network so it runs on Linux, macOS, and Windows.
-# Services reach each other by name (redis, timescaledb, backend).
+# Host networking matches production and keeps the Vite proxy, SNMP,
+# NetFlow, ping, and packet-capture behavior close to the deployed app.
 #
-# For Linux-only host networking (SNMP, NetFlow, ping, packet capture), run:
-#   docker compose -f docker-compose.dev.yml -f docker-compose.dev.linux.yml up --build
+# On Windows or macOS, host networking is not supported. Use the
+# bridge-networking override instead:
+#   docker compose -f docker-compose.dev.yml -f docker-compose.dev.windows.yml up --build
 
 services:
   redis:
     image: redis:7-alpine
     container_name: rayavriti-redis-dev
-    ports:
-      - "127.0.0.1:6379:6379"
+    network_mode: host
     volumes:
       - redis_dev_data:/data
     command: redis-server --appendonly yes --maxmemory 128mb --maxmemory-policy allkeys-lru
@@ -25,19 +25,16 @@ services:
       interval: 10s
       timeout: 5s
       retries: 3
-    networks:
-      - devnet
 
   timescaledb:
     image: timescale/timescaledb:latest-pg16
     container_name: rayavriti-timescaledb-dev
-    ports:
-      - "127.0.0.1:5433:5432"
+    network_mode: host
     environment:
       POSTGRES_DB: netmonitor
       POSTGRES_USER: netmonitor
       POSTGRES_PASSWORD: netmonitor
-      PGPORT: "5432"
+      PGPORT: "5433"
     volumes:
       - postgres_dev_data:/var/lib/postgresql/data
     healthcheck:
@@ -46,8 +43,6 @@ services:
       timeout: 5s
       start_period: 10s
       retries: 5
-    networks:
-      - devnet
 
   backend:
     build:
@@ -55,14 +50,12 @@ services:
       dockerfile: Dockerfile
       target: development
     container_name: rayavriti-netmonitor-backend-dev
-    ports:
-      - "3000:3000"
+    network_mode: host
     env_file:
       - path: .env.dev
         required: false
     environment:
-      DATABASE_URL: postgres://netmonitor:netmonitor@timescaledb:5432/netmonitor?sslmode=disable
-      REDIS_URL: redis://redis:6379/0
+      DATABASE_URL: postgres://netmonitor:netmonitor@localhost:5433/netmonitor?sslmode=disable
     volumes:
       - .:/app
       - backend-go-modules:/go/pkg/mod
@@ -75,8 +68,6 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    networks:
-      - devnet
 
   client:
     build:
@@ -84,14 +75,10 @@ services:
       dockerfile: Dockerfile
       target: client-development
     container_name: rayavriti-netmonitor-client-dev
-    ports:
-      - "5173:5173"
+    network_mode: host
     env_file:
       - path: .env.dev
         required: false
-    environment:
-      # Vite dev server proxies API calls to the backend by service name.
-      VITE_PROXY_TARGET: http://backend:3000
     volumes:
       - .:/app
       - root-node-modules:/app/node_modules
@@ -99,8 +86,6 @@ services:
     command: npm --workspace client run dev -- --host 0.0.0.0
     depends_on:
       - backend
-    networks:
-      - devnet
 
   simulator:
     build:
@@ -108,31 +93,26 @@ services:
       dockerfile: Dockerfile
       target: development
     container_name: rayavriti-netmonitor-simulator-dev
+    network_mode: host
     profiles:
       - simulator
     env_file:
       - path: .env.dev
         required: false
     environment:
-      SIMULATOR_API_URL: http://backend:3000
+      SIMULATOR_API_URL: http://localhost:3000
       SIMULATOR_WRITE_MODE: api
     volumes:
       - .:/app
       - backend-go-modules:/go/pkg/mod
     command: >
-      sh -c "until wget -qO- http://backend:3000/health >/dev/null 2>&1;
+      sh -c "until wget -qO- http://localhost:3000/health >/dev/null 2>&1;
       do sleep 2; done;
       npm run simulate -- --duration=${SIMULATOR_DURATION:-600}
       --speed=${SIMULATOR_SPEED:-1}
       --scenario=${SIMULATOR_SCENARIO:-mixed}"
     depends_on:
       - backend
-    networks:
-      - devnet
-
-networks:
-  devnet:
-    driver: bridge
 
 volumes:
   postgres_dev_data:
