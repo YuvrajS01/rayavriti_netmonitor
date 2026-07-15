@@ -1,0 +1,41 @@
+# Linux-only override for development — enables host networking for
+# SNMP, NetFlow, ping, and packet capture. NOT supported on Windows/macOS.
+#
+#   docker compose -f docker-compose.dev.yml -f docker-compose.dev.linux.yml up --build
+#
+# With host networking, services share the host's network namespace, so
+# localhost resolves to the host where Redis/Postgres listen.
+
+services:
+  redis:
+    network_mode: host
+    ports: !reset []
+    networks: !reset []
+
+  timescaledb:
+    network_mode: host
+    ports: !reset []
+    networks: !reset []
+    environment:
+      PGPORT: "5433"
+
+  backend:
+    network_mode: host
+    ports: !reset []
+    networks: !reset []
+    environment:
+      DATABASE_URL: postgres://netmonitor:netmonitor@localhost:5433/netmonitor?sslmode=disable
+      REDIS_URL: redis://localhost:6379/0
+
+  client:
+    network_mode: host
+    ports: !reset []
+    networks: !reset []
+    environment:
+      VITE_PROXY_TARGET: http://localhost:3000
+
+  simulator:
+    network_mode: host
+    networks: !reset []
+    environment:
+      SIMULATOR_API_URL: http://localhost:3000
