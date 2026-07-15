@@ -1,4 +1,4 @@
-import { v1 } from './http';
+import { getAccessToken, setAccessToken, v1 } from './http';
 
 interface LoginResponse {
   token: string;
@@ -15,20 +15,15 @@ export const login = (username: string, password: string) =>
     const token = (record?.accessToken || record?.token) as string;
     const refreshToken = record?.refreshToken as string;
     const user = record?.user as LoginResponse['user'];
-    localStorage.setItem('netmonitor_token', token);
-    localStorage.setItem('netmonitor_refresh_token', refreshToken);
+    setAccessToken(token);
     localStorage.setItem('netmonitor_user', JSON.stringify(user));
     return { success: true, data: { token, refreshToken, user } };
   });
 
 export const logout = () =>
   v1.post('/auth/logout').finally(() => {
-    localStorage.removeItem('netmonitor_token');
-    localStorage.removeItem('netmonitor_refresh_token');
+    setAccessToken(null);
     localStorage.removeItem('netmonitor_user');
   });
 
-export const getToken = () => {
-  const t = localStorage.getItem('netmonitor_token');
-  return t && t !== 'undefined' ? t : null;
-};
+export const getToken = getAccessToken;

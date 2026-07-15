@@ -5,6 +5,30 @@ All notable changes to Rayavriti NetMonitor will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.7.0] - 2026-07-15
+
+Backup and restore release. Adds full database backup/restore management with pg_dump/psql, app shell redesign with faster navigation, and security hardening fixes.
+
+### Added
+
+- **Backup & Restore system** (`a2024cf`) — Complete backup management with pg_dump/psql restore, SHA-256 checksum verification, and auto-pruning of old backups. Adds `backups` table migration (V37) tracking status, type, size, and checksum. Eight API endpoints for listing, creating, downloading, restoring, deleting, uploading backups, and config. Frontend backup page with one-click backup, file upload restore, and full management UI. New env vars: `BACKUP_DIR`, `BACKUP_MAX_BACKUPS`, `BACKUP_RETENTION_DAYS`.
+- **docker-compose.dev.yml** — Switched to host networking for all services (`a2024cf`)
+
+### Changed
+
+- **App shell navigation redesign** (`1fdd6bb`) — Redesigned sidebar and top navigation for improved UX
+- **App shell performance** (`6ba0359`) — Optimized interactions for faster responsiveness throughout app shell
+
+### Fixed
+
+- **Realtime connection indicator** (`b6fa7b0`) — Fixed connection status display in realtime monitoring views
+- **Backup golangci lint issues** (`c629858`) — Resolved linter errors in backup implementation
+
+### Security
+
+- **Go toolchain update** (`883a95c`) — Upgraded to Go 1.26.5 to fix GO-2026-5856 vulnerability
+- **Review hardening findings** (`2c78906`) — Implemented recommendations from security review
+
 ## [3.6.0] - 2026-07-06
 
 Bug fix and minor feature release. Adds ISP link reports tab, fixes cached database 501 errors, alert badge refresh, ISP modal positioning, location toggle, and fallback roles in user management.

@@ -16,6 +16,7 @@ type Config struct {
 	Collector CollectorConfig
 	Logging   LoggingConfig
 	Phase2    Phase2Config
+	Backup    BackupConfig
 }
 
 type RedisConfig struct {
@@ -56,6 +57,7 @@ type CollectorConfig struct {
 	AlertsRetentionDays   int
 	PortDiscoveryEnabled  bool
 	CaptureEnabled        bool
+	CapturePayloadEnabled bool
 	CaptureMaxDurationSec int
 	CaptureMaxPackets     int
 	CaptureMaxBytes       int64
@@ -103,6 +105,14 @@ type Phase2Config struct {
 	DiscoveryMaxConcurrent int
 	DiscoveryTimeoutMS     int
 	DefaultTimezone        string
+}
+
+type BackupConfig struct {
+	BackupDir       string
+	MaxBackups      int
+	RetentionDays   int
+	ScheduleEnabled bool
+	ScheduleCron    string
 }
 
 func Load() (*Config, error) {
@@ -156,6 +166,7 @@ func Load() (*Config, error) {
 			AlertsRetentionDays:   envInt("ALERTS_RETENTION_DAYS", 90),
 			PortDiscoveryEnabled:  envBool("PORT_DISCOVERY_ENABLED", true),
 			CaptureEnabled:        envBool("CAPTURE_ENABLED", false),
+			CapturePayloadEnabled: envBool("CAPTURE_PAYLOAD_ENABLED", false),
 			CaptureMaxDurationSec: envInt("CAPTURE_MAX_DURATION_SEC", 300),
 			CaptureMaxPackets:     envInt("CAPTURE_MAX_PACKETS", 10000),
 			CaptureMaxBytes:       int64(envInt("CAPTURE_MAX_BYTES", 10*1024*1024)),
@@ -202,6 +213,17 @@ func Load() (*Config, error) {
 			DiscoveryTimeoutMS:     envInt("DISCOVERY_TIMEOUT_MS", 2000),
 			DefaultTimezone:        envStr("DEFAULT_TIMEZONE", "Asia/Kolkata"),
 		},
+		Backup: BackupConfig{
+			BackupDir:       envStr("BACKUP_DIR", "./data/backups"),
+			MaxBackups:      envInt("BACKUP_MAX_BACKUPS", 50),
+			RetentionDays:   envInt("BACKUP_RETENTION_DAYS", 90),
+			ScheduleEnabled: envBool("BACKUP_SCHEDULE_ENABLED", false),
+			ScheduleCron:    envStr("BACKUP_SCHEDULE_CRON", "0 2 * * *"),
+		},
+	}
+
+	if cfg.App.AppEnv == "production" && len(cfg.App.CORSOrigins) == 0 {
+		return nil, fmt.Errorf("CORS_ORIGINS is required in production")
 	}
 
 	return cfg, nil

@@ -209,6 +209,7 @@ func (h *Hub) ConnectionCount() int {
 // extractToken tries to extract a JWT from the request using multiple methods:
 // 1. Authorization: Bearer <token> header
 // 2. Sec-WebSocket-Protocol: <token>
+// 3. HttpOnly access-token cookie
 // NOTE: Query-string tokens are intentionally NOT supported to prevent
 // token leakage through logs, browser history, and proxy access logs.
 func (h *Hub) extractToken(r *http.Request) string {
@@ -230,6 +231,11 @@ func (h *Hub) extractToken(r *http.Request) string {
 		}
 	}
 
+	// Method 3: HttpOnly cookie for same-origin browser clients
+	if cookie, err := r.Cookie(auth.AccessCookieName); err == nil && cookie.Value != "" {
+		return cookie.Value
+	}
+
 	return ""
 }
 
@@ -246,7 +252,12 @@ func (h *Hub) ServeWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	conn, err := h.upgrader.Upgrade(w, r, nil)
+	responseHeader := http.Header{}
+	if proto := r.Header.Get("Sec-WebSocket-Protocol"); proto != "" {
+		responseHeader.Set("Sec-WebSocket-Protocol", strings.TrimSpace(strings.SplitN(proto, ",", 2)[0]))
+	}
+
+	conn, err := h.upgrader.Upgrade(w, r, responseHeader)
 	if err != nil {
 		slog.Warn("WebSocket upgrade failed", "error", err)
 		return

@@ -21,10 +21,10 @@ describe('authSlice', () => {
       expect(state.isAuthenticated).toBe(true);
     });
 
-    it('persists to localStorage', () => {
+    it('persists only user profile to localStorage', () => {
       const user = { id: 1, username: 'admin', role: 'super_admin' };
       authReducer(initialState, setCredentials({ token: 'tok_123', user }));
-      expect(localStorage.getItem('netmonitor_token')).toBe('tok_123');
+      expect(localStorage.getItem('netmonitor_token')).toBeNull();
       expect(JSON.parse(localStorage.getItem('netmonitor_user')!)).toEqual(user);
     });
   });
@@ -72,10 +72,12 @@ describe('authSlice', () => {
 
     it('removes from localStorage', () => {
       localStorage.setItem('netmonitor_token', 'tok');
+      localStorage.setItem('netmonitor_refresh_token', 'refresh');
       localStorage.setItem('netmonitor_user', '{"id":1}');
       authReducer(initialState, clearCredentials());
-      expect(localStorage.getItem('netmonitor_token')).toBeNull();
       expect(localStorage.getItem('netmonitor_user')).toBeNull();
+      expect(localStorage.getItem('netmonitor_token')).toBeNull();
+      expect(localStorage.getItem('netmonitor_refresh_token')).toBeNull();
     });
   });
 });

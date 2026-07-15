@@ -34,6 +34,7 @@ const Discovery = lazy(() => import('./pages/Discovery'));
 const ServiceTemplates = lazy(() => import('./pages/ServiceTemplates'));
 const BulkImport = lazy(() => import('./pages/BulkImport'));
 const ISP = lazy(() => import('./pages/ISP'));
+const BackupPage = lazy(() => import('./pages/Backup'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 
 function PageLoader() {
@@ -121,6 +122,7 @@ function AppRoutes() {
         <Route path="/settings/contacts" element={<ProtectedRoute><Contacts /></ProtectedRoute>} />
         <Route path="/settings/status-page" element={<ProtectedRoute><StatusPageAdmin /></ProtectedRoute>} />
         <Route path="/settings/users" element={<ProtectedRoute><UserManagement /></ProtectedRoute>} />
+        <Route path="/settings/backup" element={<ProtectedRoute><BackupPage /></ProtectedRoute>} />
         <Route path="*" element={<ProtectedRoute><NotFound /></ProtectedRoute>} />
       </Routes>
     </Suspense>
