@@ -44,4 +44,12 @@ describe('RemoteMonitoring', () => {
 
     expect(await screen.findByText('Mumbai')).toBeInTheDocument();
   });
+
+  it('explains how to enable remote monitoring when the server disables it', async () => {
+    vi.mocked(remoteApi.getRemoteInstances).mockRejectedValue({ response: { status: 503 } });
+
+    render(<RemoteMonitoring />);
+
+    expect(await screen.findByText('Remote monitoring is disabled on this server. Set REMOTE_ENABLED=true and restart the server.')).toBeInTheDocument();
+  });
 });

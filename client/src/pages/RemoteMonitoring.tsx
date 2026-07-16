@@ -17,6 +17,10 @@ function remoteInstancesFrom(value: unknown): RemoteInstance[] | null {
   return null;
 }
 
+function isRemoteMonitoringDisabled(reason: unknown): boolean {
+  return (reason as { response?: { status?: unknown } })?.response?.status === 503;
+}
+
 export default function RemoteMonitoring() {
   const { subscribe } = useSocketContext();
   const [overview, setOverview] = useState<RemoteOverview>({ totalInstances: 0, online: 0, offline: 0, degraded: 0, alertCount: 0 });
@@ -40,7 +44,9 @@ export default function RemoteMonitoring() {
         setInstances(remoteInstances);
         setError('');
       })
-      .catch(() => setError('Unable to load remote monitoring data.'));
+      .catch((reason) => setError(isRemoteMonitoringDisabled(reason)
+        ? 'Remote monitoring is disabled on this server. Set REMOTE_ENABLED=true and restart the server.'
+        : 'Unable to load remote monitoring data.'));
   }, []);
 
   useEffect(() => { refresh(); }, [refresh]);

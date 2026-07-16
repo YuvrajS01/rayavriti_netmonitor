@@ -588,6 +588,12 @@ func (s *Server) Start() error {
 			r.With(rbac.RequirePermission(models.PermRemoteManage)).Get("/api/v1/remote/instances/{id}/snapshots", remoteH.Snapshots)
 			r.With(rbac.RequirePermission(models.PermRemoteManage)).Get("/api/v1/remote/instances/{id}/devices", remoteH.Devices)
 			r.With(rbac.RequirePermission(models.PermRemoteManage)).Get("/api/v1/remote/instances/{id}/alerts", remoteH.Alerts)
+		} else {
+			remoteUnavailable := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				httputil.SendError(w, http.StatusServiceUnavailable, "remote monitoring is disabled; set REMOTE_ENABLED=true and restart the server")
+			})
+			r.Handle("/api/v1/remote", remoteUnavailable)
+			r.Handle("/api/v1/remote/*", remoteUnavailable)
 		}
 
 		// --- Simulator (admin only) ---
