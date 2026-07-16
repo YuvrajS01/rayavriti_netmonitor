@@ -47,9 +47,15 @@ const processQueue = (error: unknown, token: string | null = null) => {
 };
 
 const handleTokenRefresh = async (error: AxiosError) => {
-  const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
+	const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
+	const responseBody = error.response?.data as { error?: { message?: string } } | { error?: string } | undefined;
+	const message = typeof responseBody?.error === 'string' ? responseBody.error : responseBody?.error?.message;
+	if (error.response?.status === 503 && message === 'System is under maintenance') {
+		window.location.href = '/system-maintenance';
+		return Promise.reject(error);
+	}
 
-  if (error.response?.status !== 401 || originalRequest._retry) {
+	if (error.response?.status !== 401 || originalRequest._retry) {
     return Promise.reject(error);
   }
 

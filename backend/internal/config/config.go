@@ -17,6 +17,8 @@ type Config struct {
 	Logging   LoggingConfig
 	Phase2    Phase2Config
 	Backup    BackupConfig
+	Remote    RemoteConfig
+	Telemetry TelemetryConfig
 }
 
 type RedisConfig struct {
@@ -113,6 +115,20 @@ type BackupConfig struct {
 	RetentionDays   int
 	ScheduleEnabled bool
 	ScheduleCron    string
+}
+
+type RemoteConfig struct {
+	Enabled               bool
+	PollInterval          time.Duration
+	HealthInterval        time.Duration
+	SnapshotRetentionDays int
+	HTTPTimeout           time.Duration
+}
+
+type TelemetryConfig struct {
+	Endpoint     string
+	SyncInterval time.Duration
+	GraceDays    int
 }
 
 func Load() (*Config, error) {
@@ -220,6 +236,14 @@ func Load() (*Config, error) {
 			ScheduleEnabled: envBool("BACKUP_SCHEDULE_ENABLED", false),
 			ScheduleCron:    envStr("BACKUP_SCHEDULE_CRON", "0 2 * * *"),
 		},
+		Remote: RemoteConfig{
+			Enabled:               envBool("REMOTE_ENABLED", false),
+			PollInterval:          time.Duration(envInt("REMOTE_POLL_INTERVAL", 60)) * time.Second,
+			HealthInterval:        time.Duration(envInt("REMOTE_HEALTH_INTERVAL", 30)) * time.Second,
+			SnapshotRetentionDays: envInt("REMOTE_SNAPSHOT_RETENTION_DAYS", 30),
+			HTTPTimeout:           time.Duration(envInt("REMOTE_HTTP_TIMEOUT", 10)) * time.Second,
+		},
+		Telemetry: TelemetryConfig{Endpoint: envStr("TELEMETRY_ENDPOINT", ""), SyncInterval: time.Duration(envInt("TELEMETRY_SYNC_INTERVAL", 21600)) * time.Second, GraceDays: envInt("TELEMETRY_GRACE_DAYS", 7)},
 	}
 
 	if cfg.App.AppEnv == "production" && len(cfg.App.CORSOrigins) == 0 {

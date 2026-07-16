@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
@@ -17,6 +18,33 @@ import (
 	"github.com/rayavriti/netmonitor-backend/internal/logging"
 	"golang.org/x/time/rate"
 )
+
+// ServiceModeMiddleware provides explicit maintenance and read-only operating modes.
+func ServiceModeMiddleware(getMode func() string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/health" || r.URL.Path == "/api/v1/auth/login" {
+				next.ServeHTTP(w, r)
+				return
+			}
+			mode := "active"
+			if getMode != nil {
+				mode = getMode()
+			}
+			if mode == "maintenance" {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusServiceUnavailable)
+				_ = json.NewEncoder(w).Encode(map[string]any{"error": "System is under maintenance", "retry_after": 3600})
+				return
+			}
+			if mode == "readonly" && (r.Method == http.MethodPost || r.Method == http.MethodPut || r.Method == http.MethodDelete || r.Method == http.MethodPatch) {
+				SendError(w, http.StatusServiceUnavailable, "System is in read-only mode")
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
 
 type requestIDKey struct{}
 

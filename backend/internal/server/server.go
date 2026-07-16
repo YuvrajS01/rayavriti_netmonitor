@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -22,20 +23,23 @@ import (
 	"github.com/rayavriti/netmonitor-backend/internal/models"
 	"github.com/rayavriti/netmonitor-backend/internal/monitoring"
 	"github.com/rayavriti/netmonitor-backend/internal/rbac"
+	"github.com/rayavriti/netmonitor-backend/internal/remote"
 	"github.com/rayavriti/netmonitor-backend/internal/servicetmpl"
 	"github.com/rayavriti/netmonitor-backend/internal/websocket"
 	"github.com/rs/cors"
 )
 
 type Server struct {
-	cfg        *config.Config
-	db         database.Database
-	hub        *websocket.Hub
-	rdb        *cache.Redis
-	logger     *logging.Logger
-	alertEng   handlers.AlertProcessor
-	httpServer *http.Server
-	cancel     context.CancelFunc
+	cfg             *config.Config
+	db              database.Database
+	hub             *websocket.Hub
+	rdb             *cache.Redis
+	logger          *logging.Logger
+	alertEng        handlers.AlertProcessor
+	httpServer      *http.Server
+	cancel          context.CancelFunc
+	remoteCollector *remote.Collector
+	serviceMode     *atomic.Value
 }
 
 func New(cfg *config.Config, db database.Database, hub *websocket.Hub, logger *logging.Logger, opts ...ServerOption) *Server {
@@ -54,6 +58,10 @@ func WithRedis(rdb *cache.Redis) ServerOption {
 
 func WithAlertEngine(ap handlers.AlertProcessor) ServerOption {
 	return func(s *Server) { s.alertEng = ap }
+}
+
+func WithServiceMode(value *atomic.Value) ServerOption {
+	return func(s *Server) { s.serviceMode = value }
 }
 
 func (s *Server) Start() error {
@@ -90,6 +98,12 @@ func (s *Server) Start() error {
 	r.Use(SecurityHeaders)
 	r.Use(logging.RequestLogger(s.logger, s.cfg.Logging.SlowRequestMs))
 	r.Use(RequestSize(1 << 20)) // 1MB
+	if s.serviceMode != nil {
+		r.Use(ServiceModeMiddleware(func() string {
+			mode, _ := s.serviceMode.Load().(string)
+			return mode
+		}))
+	}
 	if s.cfg.App.AppEnv == "production" {
 		r.Use(RateLimiter(ctx, 100, 200, s.rdb))
 	}
@@ -185,6 +199,24 @@ func (s *Server) Start() error {
 		svcTmplH = servicetmpl.NewHandler(servicetmpl.NewService(pp.Pool()))
 	}
 
+	var remoteH *handlers.RemoteHandler
+	var syncH *handlers.SyncHandler
+	if pp, ok := s.db.(database.PoolProvider); ok && pp.Pool() != nil {
+		syncH = handlers.NewSyncHandler(pp.Pool(), monitoring.NewSysConfigStore(pp.Pool()))
+	}
+	if s.cfg.Remote.Enabled {
+		if pp, ok := s.db.(database.PoolProvider); ok && pp.Pool() != nil {
+			store, err := remote.NewStore(pp.Pool(), s.cfg.Auth.JWTSecret)
+			if err != nil {
+				s.logger.Error("remote monitoring unavailable", "error", err)
+			} else {
+				s.remoteCollector = remote.NewCollector(store, s.hub, s.cfg.Remote.HTTPTimeout, s.cfg.Remote.SnapshotRetentionDays)
+				s.remoteCollector.Start(ctx)
+				remoteH = handlers.NewRemoteHandler(store, s.remoteCollector)
+			}
+		}
+	}
+
 	// WebSocket scope filter: only deliver events to users with matching scopes
 	if pp, ok := s.db.(database.PoolProvider); ok && pp.Pool() != nil {
 		pool := pp.Pool()
@@ -241,6 +273,10 @@ func (s *Server) Start() error {
 	r.Post("/api/v1/auth/refresh", authH.Refresh)
 	r.Post("/api/v1/auth/2fa/verify", authH.Verify2FA)
 	r.Post("/api/v1/auth/logout", authH.V1Logout)
+	if syncH != nil {
+		r.Post("/api/v1/sync/cfg", syncH.Config)
+		r.Get("/api/v1/sync/identity", syncH.Identity)
+	}
 
 	// Protected routes
 	r.Group(func(r chi.Router) {
@@ -539,6 +575,21 @@ func (s *Server) Start() error {
 			r.With(rbac.RequirePermission(models.PermDevicesWrite)).Post("/api/v1/service-templates/apply", svcTmplH.ApplyTemplate)
 		}
 
+		// --- Remote monitoring (remote.manage) ---
+		if remoteH != nil {
+			r.With(rbac.RequirePermission(models.PermRemoteManage)).Get("/api/v1/remote/overview", remoteH.Overview)
+			r.With(rbac.RequirePermission(models.PermRemoteManage)).Get("/api/v1/remote/instances", remoteH.List)
+			r.With(rbac.RequirePermission(models.PermRemoteManage)).Post("/api/v1/remote/instances", remoteH.Create)
+			r.With(rbac.RequirePermission(models.PermRemoteManage)).Get("/api/v1/remote/instances/{id}", remoteH.Get)
+			r.With(rbac.RequirePermission(models.PermRemoteManage)).Put("/api/v1/remote/instances/{id}", remoteH.Update)
+			r.With(rbac.RequirePermission(models.PermRemoteManage)).Delete("/api/v1/remote/instances/{id}", remoteH.Delete)
+			r.With(rbac.RequirePermission(models.PermRemoteManage)).Post("/api/v1/remote/instances/{id}/test", remoteH.Test)
+			r.With(rbac.RequirePermission(models.PermRemoteManage)).Post("/api/v1/remote/instances/{id}/mode", remoteH.SetMode)
+			r.With(rbac.RequirePermission(models.PermRemoteManage)).Get("/api/v1/remote/instances/{id}/snapshots", remoteH.Snapshots)
+			r.With(rbac.RequirePermission(models.PermRemoteManage)).Get("/api/v1/remote/instances/{id}/devices", remoteH.Devices)
+			r.With(rbac.RequirePermission(models.PermRemoteManage)).Get("/api/v1/remote/instances/{id}/alerts", remoteH.Alerts)
+		}
+
 		// --- Simulator (admin only) ---
 		r.Group(func(r chi.Router) {
 			r.Use(auth.RequireRole("admin"))
@@ -576,6 +627,9 @@ func (s *Server) Start() error {
 func (s *Server) Shutdown(ctx context.Context) error {
 	if s.cancel != nil {
 		s.cancel()
+	}
+	if s.remoteCollector != nil {
+		s.remoteCollector.Stop()
 	}
 	if s.httpServer != nil {
 		return s.httpServer.Shutdown(ctx)
