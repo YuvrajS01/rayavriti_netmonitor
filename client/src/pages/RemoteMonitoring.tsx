@@ -7,6 +7,16 @@ import { createRemoteInstance, deleteRemoteInstance, getRemoteInstance, getRemot
 const emptyInput: RemoteInput = { name: '', url: '', apiKey: '', locationLabel: '', tags: [], pollIntervalS: 60, tlsSkipVerify: false };
 const statusStyle: Record<string, string> = { online: 'bg-success', offline: 'bg-error', degraded: 'bg-warning', unknown: 'bg-outline' };
 
+function remoteInstancesFrom(value: unknown): RemoteInstance[] | null {
+  if (Array.isArray(value)) return value as RemoteInstance[];
+  if (value && typeof value === 'object') {
+    const body = value as { instances?: unknown; items?: unknown };
+    if (Array.isArray(body.instances)) return body.instances as RemoteInstance[];
+    if (Array.isArray(body.items)) return body.items as RemoteInstance[];
+  }
+  return null;
+}
+
 export default function RemoteMonitoring() {
   const { subscribe } = useSocketContext();
   const [overview, setOverview] = useState<RemoteOverview>({ totalInstances: 0, online: 0, offline: 0, degraded: 0, alertCount: 0 });
@@ -19,7 +29,17 @@ export default function RemoteMonitoring() {
 
   const refresh = useCallback(() => {
     void Promise.all([getRemoteOverview(), getRemoteInstances()])
-      .then(([overviewResponse, instancesResponse]) => { setOverview(overviewResponse.data); setInstances(instancesResponse.data); })
+      .then(([overviewResponse, instancesResponse]) => {
+        const remoteInstances = remoteInstancesFrom(instancesResponse.data);
+        if (!remoteInstances) {
+          setInstances([]);
+          setError('Remote instances returned an unexpected response. Please try again.');
+          return;
+        }
+        setOverview(overviewResponse.data);
+        setInstances(remoteInstances);
+        setError('');
+      })
       .catch(() => setError('Unable to load remote monitoring data.'));
   }, []);
 
