@@ -1,0 +1,60 @@
+# Windows / macOS override for the Linux-default docker-compose.dev.yml.
+#
+# Host networking is Linux-only. This override switches every service to a
+# shared bridge network, publishes the dev ports (5173, 3000, 2055/udp) to
+# the host, and points the backend/Vite proxy at services by name.
+#
+# Usage (from the project root):
+#   docker compose -f docker-compose.dev.yml -f docker-compose.dev.windows.yml up --build
+# Then open http://localhost:5173
+#
+# NOTE: LAN monitoring features (packet capture, SNMP, direct device ping)
+# require host networking and only work on Linux.
+
+services:
+  redis:
+    network_mode: !reset
+    ports:
+      - "127.0.0.1:6379:6379"
+    networks:
+      - devnet
+
+  timescaledb:
+    network_mode: !reset
+    ports:
+      - "127.0.0.1:5433:5432"
+    environment:
+      PGPORT: "5432"
+    networks:
+      - devnet
+
+  backend:
+    network_mode: !reset
+    ports:
+      - "3000:3000"
+    networks:
+      - devnet
+    environment:
+      DATABASE_URL: postgres://netmonitor:netmonitor@timescaledb:5432/netmonitor?sslmode=disable
+      REDIS_URL: redis://redis:6379/0
+
+  client:
+    network_mode: !reset
+    ports:
+      - "5173:5173"
+    networks:
+      - devnet
+    environment:
+      # Vite dev server proxies API calls to the backend by service name.
+      VITE_PROXY_TARGET: http://backend:3000
+
+  simulator:
+    network_mode: !reset
+    networks:
+      - devnet
+    environment:
+      SIMULATOR_API_URL: http://backend:3000
+
+networks:
+  devnet:
+    driver: bridge

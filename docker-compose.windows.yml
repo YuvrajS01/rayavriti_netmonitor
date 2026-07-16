@@ -1,0 +1,44 @@
+# Windows / macOS override for the Linux-default docker-compose.yml.
+#
+# Host networking (network_mode: host) is Linux-only and is what breaks
+# the app on Windows/macOS. This override drops host networking, puts the
+# services on a shared bridge network, publishes the ports to the host,
+# and points the app at Redis/Postgres by service name instead of localhost.
+#
+# Usage (from the project root):
+#   docker compose -f docker-compose.yml -f docker-compose.windows.yml up -d
+# Then open http://localhost:3000
+#
+# NOTE: LAN monitoring features (packet capture, SNMP, direct device ping,
+# real-device NetFlow) require host networking and only work on Linux.
+
+services:
+  redis:
+    networks:
+      - appnet
+
+  timescaledb:
+    networks:
+      - appnet
+
+  netmonitor:
+    network_mode: !reset
+    networks:
+      - appnet
+    ports:
+      - "3000:3000"
+      - "2055:2055/udp"
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-netmonitor}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@timescaledb:5432/${POSTGRES_DB:-netmonitor}?sslmode=disable
+      REDIS_URL: redis://:${REDIS_PASSWORD:?REDIS_PASSWORD is required}@redis:6379/0
+
+  simulator:
+    network_mode: !reset
+    networks:
+      - appnet
+    environment:
+      SIMULATOR_API_URL: http://netmonitor:3000
+
+networks:
+  appnet:
+    driver: bridge

@@ -1,4 +1,4 @@
-# Rayavriti NetMonitor — local development
+# Rayavriti NetMonitor — local development (Linux default)
 #
 # Usage:
 #   1. Copy .env.dev.example to .env.dev and adjust values if needed
@@ -7,6 +7,10 @@
 #
 # Host networking matches production and keeps the Vite proxy, SNMP,
 # NetFlow, ping, and packet-capture behavior close to the deployed app.
+#
+# On Windows or macOS, host networking is not supported. Use the
+# bridge-networking override instead:
+#   docker compose -f docker-compose.dev.yml -f docker-compose.dev.windows.yml up --build
 
 services:
   redis:
