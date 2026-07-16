@@ -5,6 +5,23 @@ All notable changes to Rayavriti NetMonitor will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.7.5] - 2026-07-16
+
+Cross-platform Docker release. Adds Windows/macOS compatibility via bridge networking overrides, fixes CORS boot crash when `CORS_ORIGINS` is unset, and makes Vite dev proxy target configurable.
+
+### Added
+
+- **Docker Windows/macOS overrides** (`9e3bfa1`, `2f6f69c`) — New `docker-compose.windows.yml` and `docker-compose.dev.windows.yml` override files that switch from host networking (Linux-only) to a bridge network with service-name DNS, enabling the stack to run on Windows and macOS. Linux host-networking remains the default.
+- **Configurable Vite proxy target** (`2f6f69c`) — `client/vite.config.ts` now accepts `VITE_PROXY_TARGET` env var (defaults to `http://localhost:3000`) so the dev client can reach the backend by service name on a bridge network.
+
+### Fixed
+
+- **CORS boot crash** (`0ff825c`) — `CORS_ORIGINS` now defaults to `http://localhost:3000` when unset, preventing the server from crashing on startup with "CORS_ORIGINS is required in production". Config tests updated to assert default and explicit override behavior.
+
+### Changed
+
+- **Docker compose restructured** (`9e3bfa1`) — Restored default compose files to host networking (Linux default); Windows overrides provided as separate files instead of changing the baseline.
+
 ## [3.7.0] - 2026-07-15
 
 Backup and restore release. Adds full database backup/restore management with pg_dump/psql, app shell redesign with faster navigation, and security hardening fixes.

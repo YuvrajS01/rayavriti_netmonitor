@@ -1,4 +1,4 @@
-# Rayavriti NetMonitor — Docker Compose
+# Rayavriti NetMonitor — Docker Compose (Linux default)
 #
 # Usage:
 #   1. Copy .env.example to .env and configure required values
@@ -8,6 +8,10 @@
 # NOTE: Uses host networking so the container can directly reach
 # local network devices for monitoring, SNMP, and packet capture.
 # All ports (3000, 2055/udp) are exposed directly on the host.
+#
+# On Windows or macOS, host networking is not supported. Use the
+# bridge-networking override instead:
+#   docker compose -f docker-compose.yml -f docker-compose.windows.yml up -d
 
 services:
   redis:

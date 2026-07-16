@@ -90,7 +90,7 @@ func TestLoad_OverrideValues(t *testing.T) {
 	assert.Equal(t, "debug", cfg.Logging.Level)
 }
 
-func TestLoad_ProductionRequiresCORSOrigins(t *testing.T) {
+func TestLoad_ProductionDefaultsCORSOrigins(t *testing.T) {
 	clearEnv()
 	os.Setenv("JWT_SECRET", "test-secret")
 	os.Setenv("APP_ENV", "production")
@@ -99,9 +99,25 @@ func TestLoad_ProductionRequiresCORSOrigins(t *testing.T) {
 		os.Unsetenv("APP_ENV")
 	}()
 
-	_, err := Load()
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "CORS_ORIGINS")
+	cfg, err := Load()
+	require.NoError(t, err)
+	assert.Equal(t, []string{"http://localhost:3000"}, cfg.App.CORSOrigins)
+}
+
+func TestLoad_CORSOriginsOverride(t *testing.T) {
+	clearEnv()
+	os.Setenv("JWT_SECRET", "test-secret")
+	os.Setenv("APP_ENV", "production")
+	os.Setenv("CORS_ORIGINS", "https://netmonitor.example.edu, https://status.example.edu")
+	defer func() {
+		os.Unsetenv("JWT_SECRET")
+		os.Unsetenv("APP_ENV")
+		os.Unsetenv("CORS_ORIGINS")
+	}()
+
+	cfg, err := Load()
+	require.NoError(t, err)
+	assert.Equal(t, []string{"https://netmonitor.example.edu", "https://status.example.edu"}, cfg.App.CORSOrigins)
 }
 
 func TestLoad_ModuleLevels(t *testing.T) {
