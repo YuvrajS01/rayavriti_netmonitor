@@ -277,15 +277,13 @@ func (h *CaptureHandler) runCapture(ctx context.Context, sessionID int64, iface,
 		defer cancel()
 	}
 
-	args := []string{"-i", iface, "-nn", "-l"}
+	args := []string{"-i", iface, "-nn", "-l", "-e", "-tttt"}
 	if h.cfg.PayloadEnabled {
 		args = append(args, "-x")
 	}
 	if filter != "" {
 		args = append(args, filter)
 	}
-	// -e adds link-level headers, -tttt adds human-readable timestamps
-	args = append(args, "-e", "-tttt")
 
 	cmd := exec.CommandContext(ctx, "tcpdump", args...) //nolint:gosec // args built from validated user input
 	stdout, err := cmd.StdoutPipe()
@@ -469,9 +467,13 @@ func (h *CaptureHandler) stopSession(sessionID int64, status, errMsg string) {
 	}
 	atomic.StoreInt32(&h.running, 0)
 
+	statusData := map[string]any{"sessionId": sessionID, "status": status}
+	if errMsg != "" {
+		statusData["error"] = errMsg
+	}
 	h.hub.Broadcast(websocket.Message{
 		Type: websocket.EventCaptureStatus,
-		Data: map[string]any{"sessionId": sessionID, "status": status},
+		Data: statusData,
 	})
 }
 

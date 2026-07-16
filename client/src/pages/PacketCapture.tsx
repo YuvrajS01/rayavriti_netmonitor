@@ -20,6 +20,11 @@ function getProtoStyle(proto: string) {
   return PROTO_COLORS[proto] || PROTO_COLORS.UNKNOWN;
 }
 
+function captureErrorMessage(reason: unknown, fallback: string) {
+  const body = (reason as { response?: { data?: { error?: { message?: unknown } } } })?.response?.data;
+  return typeof body?.error?.message === 'string' ? body.error.message : fallback;
+}
+
 const HexDump = ({ hex }: { hex: string }) => {
   const rows = useMemo(() => {
     if (!hex) return [];
@@ -116,8 +121,7 @@ export default function PacketCapture() {
       setPackets([]);
       setSelectedPacket(null);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to start capture';
-      setError(msg);
+      setError(captureErrorMessage(err, 'Failed to start capture'));
     } finally {
       setIsStarting(false);
     }
@@ -130,8 +134,7 @@ export default function PacketCapture() {
       setActiveSession(null);
       loadSessions();
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to stop capture';
-      setError(msg);
+      setError(captureErrorMessage(err, 'Failed to stop capture'));
     }
   };
 
@@ -155,10 +158,11 @@ export default function PacketCapture() {
       }
     },
     onCaptureStatus: (data) => {
-      const d = data as { sessionId: number; status: string; packetCount?: number; bytesCaptured?: number };
+      const d = data as { sessionId: number; status: string; error?: string; packetCount?: number; bytesCaptured?: number };
       if (d.status === 'stopped' || d.status === 'error') {
         const session = activeSessionRef.current;
         if (session && d.sessionId === session.id) {
+          if (d.error) setError(d.error);
           setActiveSession(null);
           loadSessions();
         }
