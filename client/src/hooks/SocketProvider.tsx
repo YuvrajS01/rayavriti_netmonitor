@@ -46,8 +46,12 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     const token = getToken();
 
     const url = resolveWebSocketUrl();
-    const isSameOrigin = new URL(url).host === window.location.host;
-    const ws = token && !isSameOrigin ? new WebSocket(url, [token]) : new WebSocket(url);
+    // Always pass the access token as a subprotocol. The backend's
+    // extractToken reads it from Sec-WebSocket-Protocol (and falls back to
+    // the cookie), so this authenticates reliably over HTTP or HTTPS,
+    // same-origin or proxied — without depending on the Secure/SameSite
+    // access cookie being present.
+    const ws = token ? new WebSocket(url, [token]) : new WebSocket(url);
     wsRef.current = ws;
 
     ws.onopen = () => {
