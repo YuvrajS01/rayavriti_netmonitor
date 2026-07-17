@@ -10,6 +10,7 @@ import StatCard from '../components/ui/StatCard';
 import EmptyState from '../components/ui/EmptyState';
 import { useToast } from '../components/ui/useToast';
 import { severityIcon, severityTextColor, severityBgColor, statusTextColor } from '../utils/colors';
+import GanttTimeline from '../components/charts/GanttTimeline';
 
 interface Incident {
   id: number;
@@ -190,6 +191,8 @@ export default function Incidents() {
           <StatCard label="Avg Duration" value={formatDuration(stats.avg_duration_seconds)} icon="schedule" />
         </div>
       )}
+
+      <GanttTimeline title="Recent incident windows" items={incidents.map((incident) => ({ id: incident.id, label: incident.title, start: incident.started_at, end: incident.resolved_at || incident.closed_at, color: incident.severity === 'critical' ? 'var(--color-error)' : incident.severity === 'major' ? 'var(--color-warning)' : 'var(--color-info)' }))} />
 
       <Card variant="low" className="overflow-hidden">
         <div className="p-5 border-b border-outline-variant/20 flex flex-col md:flex-row gap-4 md:items-center md:justify-between">

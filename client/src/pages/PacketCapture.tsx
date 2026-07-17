@@ -8,6 +8,8 @@ import type { CapturedPacket, CaptureSession, NetworkInterface } from '../api/ty
 import { formatBytes } from '../utils/formatters';
 import SectionHeader from '../components/ui/SectionHeader';
 import EmptyState from '../components/ui/EmptyState';
+import Sparkline from '../components/ui/Sparkline';
+import RingGauge from '../components/ui/RingGauge';
 
 const PROTO_COLORS: Record<string, { text: string; bg: string; border: string }> = {
   TCP: { text: 'var(--color-secondary)', bg: 'color-mix(in srgb, var(--color-secondary) 8%, transparent)', border: 'color-mix(in srgb, var(--color-secondary) 20%, transparent)' },
@@ -177,6 +179,11 @@ export default function PacketCapture() {
   const protoEntries = useMemo(() => Object.entries(protoCounts).sort((a, b) => b[1] - a[1]), [protoCounts]);
 
   const visiblePackets = useMemo(() => packets.slice(-VISIBLE_PACKETS), [packets]);
+  const packetSizes = useMemo(() => {
+    const buckets = [{ label: '0–64', min: 0, max: 64 }, { label: '65–128', min: 65, max: 128 }, { label: '129–256', min: 129, max: 256 }, { label: '257–512', min: 257, max: 512 }, { label: '512+', min: 513, max: Infinity }];
+    return buckets.map(bucket => ({ ...bucket, count: packets.filter(packet => packet.length >= bucket.min && packet.length <= bucket.max).length }));
+  }, [packets]);
+  const rateData = useMemo(() => Array.from({ length: 18 }, (_, index) => packets.slice(Math.max(0, packets.length - (index + 1) * 6), packets.length - index * 6).length).reverse(), [packets]);
 
   return (
     <div>
@@ -256,6 +263,12 @@ export default function PacketCapture() {
             <span className="text-error text-xs">{error}</span>
           </div>
         )}
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-6">
+        <div className="bg-surface-container-low rounded-lg p-4 border border-outline-variant/20"><p className="text-[10px] uppercase tracking-wide text-on-surface-variant">Packet rate</p><div className="flex items-end justify-between mt-2"><span className="font-headline text-2xl font-semibold">{packets.length}</span><Sparkline data={rateData.length ? rateData : [0, 0]} color="var(--color-info)" showTrend /></div><p className="text-[10px] text-on-surface-variant mt-2">Recent capture activity</p></div>
+        <div className="bg-surface-container-low rounded-lg p-4 border border-outline-variant/20"><p className="text-[10px] uppercase tracking-wide text-on-surface-variant">Packet size histogram</p><div className="flex items-end gap-2 h-14 mt-2">{packetSizes.map(bucket => <div key={bucket.label} className="flex-1 flex flex-col justify-end h-full"><i className="bg-secondary rounded-t-sm" style={{ height: `${Math.max(5, packets.length ? bucket.count / packets.length * 100 : 5)}%` }} /><span className="text-[8px] text-on-surface-variant mt-1 text-center">{bucket.label}</span></div>)}</div></div>
+        <div className="bg-surface-container-low rounded-lg p-3 border border-outline-variant/20 flex items-center gap-4"><RingGauge value={activeSession?.status === 'running' ? 72 : packets.length ? 100 : 0} size={76} strokeWidth={6} label="capture" /><div><p className="text-sm font-headline font-semibold">Session signal</p><p className="text-xs text-on-surface-variant mt-1">{activeSession?.status === 'running' ? 'Capturing packets in real time.' : 'Start a capture to activate the stream.'}</p></div></div>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-6">

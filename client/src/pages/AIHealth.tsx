@@ -5,6 +5,8 @@ import type { DeviceHealth, InsightItem, InsightsResponse, HealthHistoryPoint, H
 import { TOOLTIP_STYLE } from '../utils/chartConfig';
 
 import SectionHeader from '../components/ui/SectionHeader';
+import RadarChart from '../components/charts/RadarChart';
+import RingGauge from '../components/ui/RingGauge';
 
 // ── Color helpers ──────────────────────────────────────────────
 
@@ -104,31 +106,6 @@ function RadialGauge({ score, size = 140, strokeWidth = 10, label }: { score: nu
   );
 }
 
-// ── Small Gauge for device cards ───────────────────────────────
-
-function MiniGauge({ score, size = 72, strokeWidth = 6 }: { score: number; size?: number; strokeWidth?: number }) {
-  const radius = (size - strokeWidth) / 2;
-  const circumference = 2 * Math.PI * radius;
-  const offset = circumference - (score / 100) * circumference;
-  const center = size / 2;
-
-  return (
-    <div className="relative inline-flex items-center justify-center" style={{ width: size, height: size }}>
-      <svg width={size} height={size} className="transform -rotate-90">
-        <circle cx={center} cy={center} r={radius} fill="none" stroke="#26261d" strokeWidth={strokeWidth} />
-        <circle
-          cx={center} cy={center} r={radius}
-          fill="none" stroke={scoreBg(score)} strokeWidth={strokeWidth} strokeLinecap="round"
-          strokeDasharray={circumference}
-          className="gauge-ring"
-          style={{ '--gauge-circumference': circumference, '--gauge-offset': offset, strokeDashoffset: offset } as React.CSSProperties}
-        />
-      </svg>
-      <span className={`absolute font-headline text-xl font-semibold ${scoreColor(score)}`}>{score.toFixed(2)}</span>
-    </div>
-  );
-}
-
 // ── Factor Breakdown Bars ──────────────────────────────────────
 
 function FactorBreakdown({ factors }: { factors: HealthFactors }) {
@@ -206,7 +183,7 @@ function DeviceScoreCard({ device, deviceInsights }: { device: DeviceHealth; dev
       <div className="p-5 grid grid-cols-1 lg:grid-cols-[auto_1fr] xl:grid-cols-[auto_1fr_280px] gap-5">
         {/* Left: Gauge + Name + Trend */}
         <div className="flex items-center gap-4">
-          <MiniGauge score={device.score} />
+          <RingGauge value={device.score} size={72} strokeWidth={6} />
           <div className="min-w-0">
             <h3 className="font-headline text-lg font-semibold text-on-surface truncate">{device.deviceName}</h3>
             <p className={`text-[10px] uppercase tracking-wide font-semibold ${scoreColor(device.score)}`}>{device.label}</p>
@@ -244,6 +221,8 @@ function DeviceScoreCard({ device, deviceInsights }: { device: DeviceHealth; dev
 
           {device.factors && <FactorBreakdown factors={device.factors} />}
         </div>
+
+        {device.factors && <div className="bg-surface-container-lowest/40 border border-outline-variant/15 rounded-lg p-2"><RadarChart axes={['Avail.', 'Latency', 'Alerts', 'Stable', 'Ports']} series={[{ label: device.deviceName, values: [device.factors.availability.score, device.factors.latency.score, device.factors.alerts.score, device.factors.stability.score, device.factors.ports.score] }]} size={160} /></div>}
 
         {/* Right: Primary Issue + Insights */}
         <div className="bg-surface-container-low rounded-lg p-4 border border-outline-variant/15">

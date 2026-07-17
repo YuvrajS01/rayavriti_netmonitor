@@ -35,7 +35,7 @@ export default function Login() {
   };
 
   return (
-    <div className="bg-surface text-on-surface font-body min-h-screen flex">
+    <div className="bg-surface text-on-surface font-body min-h-screen flex login-atmosphere">
       {/* Left Panel — Brand */}
       <div
         className="hidden lg:flex lg:w-1/2 bg-surface-dim items-center justify-center"
@@ -54,7 +54,7 @@ export default function Login() {
           <img src={IconColor} alt="Rayavriti" className="w-10 h-10 mb-6 lg:hidden" />
 
           {/* Login Card */}
-          <div className="bg-surface-container-low rounded-xl p-8 w-full max-w-md border border-outline-variant/20">
+          <div className="glass-card rounded-xl p-8 w-full max-w-md login-card">
             <div className="mb-8">
               <h2 className="font-headline text-2xl font-semibold text-on-surface">Sign in</h2>
             </div>

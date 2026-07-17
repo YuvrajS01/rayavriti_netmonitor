@@ -237,6 +237,34 @@
   animation-delay: calc(var(--i, 0) * 24ms);
 }
 
+/* ── Visual telemetry system ───────────────────────────── */
+@keyframes shimmer {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+@keyframes glow-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in oklch, var(--glow-color, var(--color-success)) 0%, transparent); }
+  50% { box-shadow: 0 0 18px 1px color-mix(in oklch, var(--glow-color, var(--color-success)) 28%, transparent); }
+}
+@keyframes particle-drift { to { transform: rotate(360deg); } }
+.shimmer { background: linear-gradient(100deg, var(--color-surface-container-low) 35%, var(--color-surface-bright) 50%, var(--color-surface-container-low) 65%); background-size: 200% 100%; animation: shimmer 1.6s linear infinite; }
+.glass-card { background: color-mix(in oklch, var(--color-surface-container-low) 82%, transparent); backdrop-filter: blur(14px); border: 1px solid color-mix(in oklch, var(--color-outline-variant) 45%, transparent); }
+.glow-success { --glow-color: var(--color-success); animation: glow-pulse 2.4s ease-in-out infinite; }
+.glow-error { --glow-color: var(--color-error); animation: glow-pulse 1.6s ease-in-out infinite; }
+.glow-warning { --glow-color: var(--color-warning); animation: glow-pulse 2s ease-in-out infinite; }
+.stat-card { transition: transform var(--duration-normal) var(--ease-out-quart), border-color var(--duration-normal), box-shadow var(--duration-normal); }
+.stat-card:hover { transform: translateY(-2px); border-color: color-mix(in oklch, var(--color-primary) 38%, var(--color-outline-variant)); box-shadow: 0 12px 26px color-mix(in oklch, var(--color-surface-dim) 75%, transparent); }
+.ring-particles::before, .ring-particles::after { content: ''; position: absolute; inset: -8px; border: 1px dashed color-mix(in oklch, var(--color-success) 55%, transparent); border-radius: inherit; animation: particle-drift 10s linear infinite; }
+.ring-particles::after { inset: 7px; animation-direction: reverse; animation-duration: 7s; }
+.status-dot-live { box-shadow: 0 0 0 0 color-mix(in oklch, var(--color-success) 50%, transparent); animation: live-pulse 1.8s ease-out infinite; }
+@keyframes live-pulse { 70% { box-shadow: 0 0 0 7px transparent; } 100% { box-shadow: 0 0 0 0 transparent; } }
+@keyframes flow-band { from { transform: scaleX(.03); opacity: .2; } to { transform: scaleX(1); opacity: 1; } }
+.flow-band { transform-origin: left; animation: flow-band .65s var(--ease-out-quart) both; }
+.gantt-bar { animation: flow-band .5s var(--ease-out-quart) both; transform-origin: left; }
+.login-atmosphere { position: relative; overflow: hidden; }
+.login-atmosphere::before { content: ''; pointer-events: none; position: fixed; inset: -20%; background: radial-gradient(circle at 25% 30%, color-mix(in oklch, var(--color-primary) 13%, transparent) 0 1px, transparent 2px), radial-gradient(circle at 72% 68%, color-mix(in oklch, var(--color-success) 12%, transparent) 0 1px, transparent 2px); background-size: 92px 92px, 138px 138px; animation: particle-drift 38s linear infinite; }
+.login-card { box-shadow: 0 24px 80px color-mix(in oklch, var(--color-surface-dim) 65%, transparent); animation: page-enter .45s var(--ease-out-expo) both; }
+
 /* ── GPU-Accelerated Utilities ─────────────────────────── */
 .gpu-accelerate {
   transform: translateZ(0);

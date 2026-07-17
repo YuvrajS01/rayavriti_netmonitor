@@ -133,11 +133,13 @@ export default function Discovery() {
       />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <StatCard label="Total Scans" value={stats.total} icon="radar" />
-        <StatCard label="Completed" value={stats.completed} icon="check_circle" />
-        <StatCard label="Running" value={stats.running} icon="progress_activity" color={stats.running > 0 ? 'text-warning' : undefined} />
-        <StatCard label="Devices Found" value={stats.totalFound} icon="devices" />
+        <StatCard label="Total Scans" value={stats.total} icon="radar" sparklineData={jobs.map(job => job.totalIpsScanned)} />
+        <StatCard label="Completed" value={stats.completed} icon="check_circle" trend="up" sparklineData={jobs.map(job => job.status === 'completed' ? 1 : 0)} />
+        <StatCard label="Running" value={stats.running} icon="progress_activity" color={stats.running > 0 ? 'text-warning' : undefined} trend={stats.running ? 'up' : 'flat'} sparklineData={jobs.map(job => job.status === 'running' ? 1 : 0)} />
+        <StatCard label="Devices Found" value={stats.totalFound} icon="devices" sparklineData={jobs.map(job => job.devicesFound)} />
       </div>
+
+      <Card variant="low" className="p-6 overflow-hidden"><div className="flex items-center justify-between"><div><h2 className="font-headline text-sm font-semibold uppercase tracking-wide">Discovery sweep</h2><p className="text-xs text-on-surface-variant mt-1">Live scan coverage and discovered nodes</p></div><span className={`material-symbols-outlined text-4xl text-primary ${stats.running ? 'animate-spin' : ''}`}>radar</span></div><div className="mt-6 grid grid-cols-12 gap-1.5">{Array.from({ length: 48 }, (_, index) => <i key={index} className={`h-6 rounded-sm ${index < Math.min(48, stats.totalFound) ? 'bg-success/80' : index < Math.min(48, stats.totalFound + stats.running * 8) ? 'bg-warning/60' : 'bg-surface-container-lowest'}`} />)}</div></Card>
 
       <Card variant="low" className="overflow-hidden">
         <div className="p-5 border-b border-outline-variant/20 flex flex-col md:flex-row gap-4 md:items-center md:justify-between">

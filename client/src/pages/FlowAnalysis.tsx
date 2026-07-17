@@ -15,6 +15,8 @@ import StatCard from '../components/ui/StatCard';
 import LoadingState from '../components/ui/LoadingState';
 import ErrorState from '../components/ui/ErrorState';
 import SectionHeader from '../components/ui/SectionHeader';
+import Treemap from '../components/charts/Treemap';
+import SankeyDiagram from '../components/charts/SankeyDiagram';
 
 export default function FlowAnalysis() {
   const [stats, setStats] = useState<FlowStats | null>(null);
@@ -208,6 +210,7 @@ export default function FlowAnalysis() {
           </div>
 
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-6">
+            <SankeyDiagram flows={flows.map((f) => ({ src: f.srcIp, dst: f.dstIp, bytes: f.bytes, protocol: f.protocol }))} />
             <div className="bg-surface-container-low rounded-lg p-5 border border-outline-variant/20">
               <h3 className="text-sm font-headline font-semibold uppercase tracking-wide mb-4 flex items-center gap-2">
                 <span className="material-symbols-outlined text-[#d9fd3a] text-lg">upload</span>
@@ -246,6 +249,7 @@ export default function FlowAnalysis() {
               )}
             </div>
 
+            <Treemap title="Protocol bandwidth" items={protocols.map((p, i) => ({ label: p.protocolName, value: p.bytes, color: PROTOCOL_COLORS[p.protocolName] || CHART_COLORS[i % CHART_COLORS.length], detail: p.bytesFormatted }))} />
             <div className="bg-surface-container-low rounded-lg p-5 border border-outline-variant/20 flex flex-col">
               <h3 className="text-sm font-headline font-semibold uppercase tracking-wide mb-4 flex items-center gap-2">
                 <span className="material-symbols-outlined text-[#c084fc] text-lg">pie_chart</span>

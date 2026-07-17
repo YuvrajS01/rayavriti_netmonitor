@@ -7,6 +7,7 @@ import { listPhase2, type Phase2Row } from '../api/phase2';
 import { getDevices } from '../api/client';
 import type { Device } from '../api/types';
 import { useToast } from '../components/ui/useToast';
+import CampusMap from '../components/CampusMap';
 
 const statusColors: Record<string, string> = {
   up: 'bg-success',
@@ -23,6 +24,7 @@ export default function Campus() {
   const [devices, setDevices] = useState<Device[]>([]);
   const [selected, setSelected] = useState<Phase2Row | null>(null);
   const [loading, setLoading] = useState(true);
+  const [view, setView] = useState<'tree' | 'map' | 'floor'>('tree');
 
   useEffect(() => {
     (async () => {
@@ -113,6 +115,10 @@ export default function Campus() {
         ))}
       </div>
 
+      <div className="flex items-center gap-1 border-b border-outline-variant/20">
+        {([['tree', 'account_tree', 'Tree view'], ['map', 'map', 'Campus map'], ['floor', 'grid_view', 'Floor plan']] as const).map(([key, icon, label]) => <button key={key} onClick={() => setView(key)} className={`px-3 py-2.5 text-xs font-semibold border-b-2 transition-colors ${view === key ? 'border-primary text-primary' : 'border-transparent text-on-surface-variant hover:text-on-surface'}`}><span className="material-symbols-outlined text-sm mr-1">{icon}</span>{label}</button>)}
+      </div>
+
       {locations.length === 0 ? (
         <Card variant="low" className="p-8">
           <EmptyState
@@ -121,6 +127,10 @@ export default function Campus() {
             description="Create your first location in the Location Manager to get started."
           />
         </Card>
+      ) : view === 'map' ? (
+        <CampusMap locations={enriched} selectedId={selected ? Number(selected.id) : null} onSelect={handleSelect} />
+      ) : view === 'floor' ? (
+        <Card variant="low" className="min-h-[440px] p-8 grid place-items-center text-center"><div><span className="material-symbols-outlined text-5xl text-primary">architecture</span><h2 className="font-headline text-xl font-semibold mt-4">Floor plan workspace</h2><p className="text-sm text-on-surface-variant mt-2 max-w-md">Use the campus map to explore live location health. Floor-plan positioning is ready for location-level device placement data.</p></div></Card>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
           {/* Left Panel — Tree */}

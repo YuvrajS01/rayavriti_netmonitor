@@ -13,6 +13,7 @@ import Layout from './components/Layout';
 const Login = lazy(() => import('./pages/Login'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Devices = lazy(() => import('./pages/Devices'));
+const NetworkTopology = lazy(() => import('./pages/NetworkTopology'));
 const Sensors = lazy(() => import('./pages/Sensors'));
 const FlowAnalysis = lazy(() => import('./pages/FlowAnalysis'));
 const PacketCapture = lazy(() => import('./pages/PacketCapture'));
@@ -104,6 +105,7 @@ function AppRoutes() {
 		<Route path="/system-maintenance" element={<SystemMaintenance />} />
         <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
         <Route path="/devices" element={<ProtectedRoute><Devices /></ProtectedRoute>} />
+        <Route path="/devices/topology" element={<ProtectedRoute><NetworkTopology /></ProtectedRoute>} />
         <Route path="/sensors" element={<ProtectedRoute><Sensors /></ProtectedRoute>} />
         <Route path="/flows" element={<ProtectedRoute><FlowAnalysis /></ProtectedRoute>} />
         <Route path="/capture" element={<ProtectedRoute><PacketCapture /></ProtectedRoute>} />

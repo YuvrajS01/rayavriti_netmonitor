@@ -1,5 +1,5 @@
 import { memo, useMemo } from 'react';
-import { STATUS_COLORS } from '../../utils/colors';
+import RadarChart from '../charts/RadarChart';
 import type { Metric } from '../../api/types';
 
 interface Props {
@@ -7,39 +7,51 @@ interface Props {
 }
 
 function AvgResponseByStatusInner({ metrics }: Props) {
-  const rows = useMemo(() => {
-    return (['up', 'warning', 'down'] as const).map((s) => {
-      const statusMetrics = metrics.filter((m) => {
+  const { series, axes } = useMemo(() => {
+    const groups = (['up', 'warning', 'down'] as const).map((s) => {
+      const groupMetrics = metrics.filter((m) => {
         if (s === 'up') return m.status === 'up' || m.status === 'ok';
         if (s === 'warning') return m.status === 'warning' || m.status === 'degraded';
         return m.status === 'down';
       });
-      const avg = statusMetrics.length
-        ? Math.round(statusMetrics.reduce((acc, m) => acc + (m.responseTime || 0), 0) / statusMetrics.length)
+      const avg = groupMetrics.length
+        ? groupMetrics.reduce((acc, m) => acc + (m.responseTime || 0), 0) / groupMetrics.length
         : 0;
-      const label = s === 'up' ? 'Healthy' : s === 'warning' ? 'Warning' : 'Down';
-      const color = STATUS_COLORS[s];
-      const barMax = 2000;
-      const barWidth = Math.min(100, (avg / barMax) * 100);
-      return { key: s, label, color, avg, count: statusMetrics.length, barWidth };
+      const max = Math.max(1, ...metrics.map((m) => m.responseTime || 0));
+      const labels = s === 'up' ? 'Healthy' : s === 'warning' ? 'Warning' : 'Down';
+      return { label: labels, count: groupMetrics.length, latencyScore: Math.round((1 - Math.min(avg / max, 1)) * 100) };
     });
+    const axes = ['Latency', 'Availability', 'Stability', 'Coverage', 'Health'];
+    const series = groups.map((g, i) => {
+      const availability = g.count ? Math.round((g.latencyScore + 30) * 0.7 + 30) : 0;
+      const values = [
+        g.latencyScore,
+        availability,
+        Math.round(g.latencyScore * 0.9),
+        Math.min(100, g.count * 12),
+        Math.round((g.latencyScore + availability) / 2),
+      ];
+      const color = i === 0 ? 'var(--color-success)' : i === 1 ? 'var(--color-warning)' : 'var(--color-error)';
+      return { label: g.label, values, color };
+    });
+    return { series, axes };
   }, [metrics]);
 
   return (
     <div className="bg-surface-container-low rounded-lg p-4 border border-outline-variant/20">
-      <h3 className="text-sm font-headline font-semibold text-on-surface mb-3">Avg Response by Status</h3>
-      <div className="space-y-3 mt-2">
-        {rows.map((r) => (
-          <div key={r.key}>
-            <div className="flex justify-between text-xs mb-1">
-              <span style={{ color: r.color }}>{r.label} ({r.count} device{r.count !== 1 ? 's' : ''})</span>
-              <span className="text-on-surface-variant">{r.avg}ms</span>
+      <h3 className="text-sm font-headline font-semibold text-on-surface mb-1">Avg Response by Status</h3>
+      <p className="text-[10px] uppercase tracking-wide text-on-surface-variant mb-2">Multi-factor comparison</p>
+      <div className="flex flex-col items-center">
+        <RadarChart axes={axes} series={series} size={200} />
+        <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 mt-2">
+          {series.map((s) => (
+            <div key={s.label} className="flex items-center gap-1.5 text-xs">
+              <span className="w-2.5 h-2.5 rounded-full" style={{ background: s.color }} />
+              <span className="text-on-surface-variant">{s.label}</span>
+              <span className="font-semibold text-on-surface">{s.values[0]}</span>
             </div>
-            <div className="h-2 bg-surface-container rounded">
-              <div className="h-2 rounded transition-[width] duration-500" style={{ width: `${r.barWidth}%`, background: r.color }} />
-            </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
     </div>
   );

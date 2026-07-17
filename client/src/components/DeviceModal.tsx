@@ -8,6 +8,8 @@ import type { Device, Metric, MetricMessagePayload, PortScanResult, TrafficInter
 import ConfirmDialog from './ConfirmDialog';
 import { formatMbps } from '../utils/formatters';
 import { TOOLTIP_STYLE } from '../utils/chartConfig';
+import Sparkline from './ui/Sparkline';
+import RingGauge from './ui/RingGauge';
 
 interface TrafficPoint {
   time: string;
@@ -201,10 +203,9 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
           <div>
             <h2 className="font-headline text-3xl font-semibold text-on-surface uppercase tracking-tight">{device.name}</h2>
             <p className="text-on-surface-variant text-sm font-data">{device.protocol === 'http' || device.protocol === 'https' ? `${device.protocol}://${device.ipAddress}` : device.ipAddress}{device.port > 0 && !['http','https'].includes(device.protocol) ? `:${device.port}` : ''} ({device.protocol.toUpperCase()})</p>
+            <Sparkline data={metrics.map(metric => metric.responseTime ?? 0)} color="var(--color-info)" className="mt-2" />
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-surface-container-lowest rounded-full transition-colors" aria-label="Close dialog">
-            <span className="material-symbols-outlined text-outline hover:text-on-surface">close</span>
-          </button>
+          <div className="flex items-center gap-3"><RingGauge value={latestMetric?.status === 'down' ? 20 : latestMetric?.status === 'warning' || latestMetric?.status === 'degraded' ? 60 : 92} size={54} strokeWidth={5} /><button onClick={onClose} className="p-2 hover:bg-surface-container-lowest rounded-full transition-colors" aria-label="Close dialog"><span className="material-symbols-outlined text-outline hover:text-on-surface">close</span></button></div>
         </div>
 
         {/* Content */}
