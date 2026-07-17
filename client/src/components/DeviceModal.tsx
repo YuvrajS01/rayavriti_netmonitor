@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip, Legend } from 'recharts';
-import { getDeviceMetrics, deleteDevice, getDevicePorts, scanDevicePorts } from '../api/client';
+import { getDeviceMetrics, deleteDevice, getDevicePorts, scanDevicePorts, getHealthScore } from '../api/client';
 import { listPhase2, type Phase2Row } from '../api/phase2';
 import { v1 } from '../api/http';
 import { useSocket } from '../hooks/useSocket';
@@ -72,6 +72,7 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
   const [loading, setLoading] = useState(true);
   const [scanning, setScanning] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [healthScore, setHealthScore] = useState<number | null>(null);
 
   useEffect(() => {
     previousFocus.current = document.activeElement as HTMLElement;
@@ -107,14 +108,16 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
 
   const loadData = useCallback(async () => {
     try {
-      const [metricRes, portRes, locRes] = await Promise.all([
+      const [metricRes, portRes, locRes, healthRes] = await Promise.all([
         getDeviceMetrics(device.id, 50),
         getDevicePorts(device.id),
-        listPhase2('/locations')
+        listPhase2('/locations'),
+        getHealthScore(device.id).catch(() => null),
       ]);
       setMetrics((metricRes.data || []).reverse());
       setPorts(portRes.data || []);
       setLocations(locRes.data || []);
+      setHealthScore(healthRes?.data?.score ?? null);
     } catch {
       // ignore
     } finally {
@@ -205,7 +208,13 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
             <p className="text-on-surface-variant text-sm font-data">{device.protocol === 'http' || device.protocol === 'https' ? `${device.protocol}://${device.ipAddress}` : device.ipAddress}{device.port > 0 && !['http','https'].includes(device.protocol) ? `:${device.port}` : ''} ({device.protocol.toUpperCase()})</p>
             <Sparkline data={metrics.map(metric => metric.responseTime ?? 0)} color="var(--color-info)" className="mt-2" />
           </div>
-          <div className="flex items-center gap-3"><RingGauge value={latestMetric?.status === 'down' ? 20 : latestMetric?.status === 'warning' || latestMetric?.status === 'degraded' ? 60 : 92} size={54} strokeWidth={5} /><button onClick={onClose} className="p-2 hover:bg-surface-container-lowest rounded-full transition-colors" aria-label="Close dialog"><span className="material-symbols-outlined text-outline hover:text-on-surface">close</span></button></div>
+          <div className="flex items-center gap-3">
+            <div className="text-center">
+              <RingGauge value={healthScore ?? (latestMetric?.status === 'down' ? 20 : latestMetric?.status === 'warning' || latestMetric?.status === 'degraded' ? 60 : 92)} size={54} strokeWidth={5} />
+              <span className="block text-[10px] uppercase tracking-wide text-on-surface-variant mt-1">AI Health</span>
+            </div>
+            <button onClick={onClose} className="p-2 hover:bg-surface-container-lowest rounded-full transition-colors" aria-label="Close dialog"><span className="material-symbols-outlined text-outline hover:text-on-surface">close</span></button>
+          </div>
         </div>
 
         {/* Content */}

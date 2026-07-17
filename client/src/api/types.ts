@@ -287,6 +287,18 @@ export interface HealthFactors {
   ports: HealthFactor;
 }
 
+// DeviceHealthScore mirrors the persisted AI Health score row from the backend
+// (/api/v1/health/scores). It carries the headline numeric score used by the
+// device modal gauge.
+export interface DeviceHealthScore {
+  deviceId: number;
+  score: number;
+  label: 'healthy' | 'watch' | 'risk' | 'critical';
+  trend: 'improving' | 'stable' | 'degrading';
+  trendDelta: number;
+  computedAt: string;
+}
+
 export interface DeviceHealth {
   deviceId: number;
   deviceName: string;

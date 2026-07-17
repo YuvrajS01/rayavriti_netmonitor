@@ -47,6 +47,16 @@ export default function NetworkTopologyMini() {
     for (const d of top) {
       if (d.parentDeviceId && nodeMap.has(d.parentDeviceId)) links.push({ source: nodeMap.get(d.parentDeviceId)!, target: nodeMap.get(d.id)! });
     }
+    if (links.length === 0 && top.length > 1) {
+      const isHub = (d: Device) =>
+        /gateway|router|core|switch|firewall/i.test(d.deviceCategory || '') ||
+        /gateway|router|core|firewall/i.test(d.name || '');
+      const hub = top.find(isHub) ?? top[0];
+      const hubNode = nodeMap.get(hub.id)!;
+      for (const d of top) {
+        if (d.id !== hub.id) links.push({ source: hubNode, target: nodeMap.get(d.id)! });
+      }
+    }
     sim.current.nodes = nodes;
     sim.current.links = links;
     setCount(nodes.length);

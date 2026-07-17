@@ -110,9 +110,25 @@ export default function NetworkTopology() {
     });
     const nodeMap = new Map(nodes.map((n) => [n.id, n]));
     const links: SimLink[] = [];
+    // 1. Explicit dependency edges from parentDeviceId (real relationships).
     for (const d of visible.list) {
       if (d.parentDeviceId && nodeMap.has(d.parentDeviceId)) {
         links.push({ source: nodeMap.get(d.parentDeviceId)!, target: nodeMap.get(d.id)! });
+      }
+    }
+    // 2. Fallback: build a hub-and-spoke topology from the available data so
+    //    the map is never empty. Devices without a parent link to the gateway/
+    //    router (by category or name), or to the first device as a central hub.
+    if (links.length === 0 && visible.list.length > 1) {
+      const isHub = (d: Device) =>
+        /gateway|router|core|switch|firewall/i.test(d.deviceCategory || '') ||
+        /gateway|router|core|firewall/i.test(d.name || '');
+      const hub = visible.list.find(isHub) ?? visible.list[0];
+      const hubNode = nodeMap.get(hub.id)!;
+      for (const d of visible.list) {
+        if (d.id !== hub.id && nodeMap.has(hub.id)) {
+          links.push({ source: hubNode, target: nodeMap.get(d.id)! });
+        }
       }
     }
     sim.current.nodes = nodes;

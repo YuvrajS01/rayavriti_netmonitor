@@ -2,8 +2,10 @@ package handlers
 
 import (
 	"net/http"
+	"strconv"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/rayavriti/netmonitor-backend/internal/database"
 	"github.com/rayavriti/netmonitor-backend/internal/httputil"
 )
@@ -34,4 +36,35 @@ func (h *HealthHandler) Stats(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httputil.SendOK(w, stats)
+}
+
+// Scores returns the latest persisted AI Health scores for all devices.
+func (h *HealthHandler) Scores(w http.ResponseWriter, r *http.Request) {
+	scores, err := h.db.GetHealthScores(r.Context())
+	if err != nil {
+		httputil.SendError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	httputil.SendOK(w, scores)
+}
+
+// DeviceScore returns the latest persisted AI Health score for a single device.
+func (h *HealthHandler) DeviceScore(w http.ResponseWriter, r *http.Request) {
+	deviceID, err := strconv.ParseInt(chi.URLParam(r, "deviceId"), 10, 64)
+	if err != nil {
+		httputil.SendError(w, http.StatusBadRequest, "invalid device id")
+		return
+	}
+	scores, err := h.db.GetHealthScores(r.Context())
+	if err != nil {
+		httputil.SendError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	for _, s := range scores {
+		if s.DeviceID == deviceID {
+			httputil.SendOK(w, s)
+			return
+		}
+	}
+	httputil.SendError(w, http.StatusNotFound, "no health score for device")
 }
