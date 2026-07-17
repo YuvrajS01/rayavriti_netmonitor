@@ -132,7 +132,11 @@ func run() error {
 			},
 		}, nil
 	}
-	hub := websocket.NewHub(cfg.Auth.JWTSecret, bootstrapFn, cfg.App.CORSOrigins)
+	hub := websocket.NewHub(
+		cfg.Auth.JWTSecret,
+		bootstrapFn,
+		websocket.DevAwareAllowedOrigins(cfg.App.CORSOrigins, cfg.App.AppEnv == "production"),
+	)
 	if pp, ok := any(db).(database.PoolProvider); ok && pp.Pool() != nil {
 		hub.SetDB(pp.Pool())
 	}
