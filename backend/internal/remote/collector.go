@@ -85,7 +85,7 @@ func (c *Collector) fetch(ctx context.Context, instance Instance, path string) (
 	if err != nil {
 		return nil, latency, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return nil, latency, fmt.Errorf("remote returned %s", resp.Status)
 	}
@@ -146,9 +146,10 @@ func summarize(id int64, health, devices, alerts json.RawMessage, latency float6
 	_ = json.Unmarshal(unwrap(devices), &ds)
 	snapshot.DeviceCount = len(ds)
 	for _, device := range ds {
-		if device.Status == "up" || device.Status == "online" {
+		switch device.Status {
+		case "up", "online":
 			snapshot.DeviceUpCount++
-		} else if device.Status == "down" || device.Status == "offline" {
+		case "down", "offline":
 			snapshot.DeviceDownCount++
 		}
 	}

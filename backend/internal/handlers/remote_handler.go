@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 	"strconv"
@@ -177,5 +178,7 @@ func (h *RemoteHandler) proxy(w http.ResponseWriter, r *http.Request, path strin
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	_, _ = w.Write(raw)
+	if err := json.NewEncoder(w).Encode(raw); err != nil {
+		httputil.SendError(w, http.StatusInternalServerError, "write error")
+	}
 }
