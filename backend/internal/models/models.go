@@ -477,4 +477,5 @@ const (
 	PermSLAManage           = "sla.manage"
 	PermSystemMonitoring    = "system.monitoring"
 	PermSystemLogs          = "system.logs"
+	PermRemoteManage        = "remote.manage"
 )

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -18,6 +19,7 @@ import (
 	"github.com/rayavriti/netmonitor-backend/internal/database"
 	"github.com/rayavriti/netmonitor-backend/internal/engine"
 	"github.com/rayavriti/netmonitor-backend/internal/logging"
+	"github.com/rayavriti/netmonitor-backend/internal/monitoring"
 	"github.com/rayavriti/netmonitor-backend/internal/reports"
 	"github.com/rayavriti/netmonitor-backend/internal/retention"
 	"github.com/rayavriti/netmonitor-backend/internal/scheduler"
@@ -216,8 +218,26 @@ func run() error {
 	reportScheduler.Start(context.Background())
 	logger.Info("Scheduled report runner started")
 
-	// 12. Initialize HTTP server
-	srv := server.New(cfg, appDB, hub, logger, server.WithRedis(rdb), server.WithAlertEngine(alertEng))
+	// 12. Initialize explicit service-mode synchronization.
+	var serviceMode atomic.Value
+	serviceMode.Store("active")
+	sysConfig := monitoring.NewSysConfigStore(db.Pool())
+	if storedMode, err := sysConfig.GetSysConfig(context.Background(), "service_mode"); err == nil && (storedMode == "active" || storedMode == "maintenance" || storedMode == "readonly") {
+		serviceMode.Store(storedMode)
+	}
+	if cfg.Telemetry.Endpoint != "" {
+		cfgSync := monitoring.NewConfigSyncService(cfg.Telemetry.Endpoint, sysConfig,
+			monitoring.WithSyncInterval(cfg.Telemetry.SyncInterval),
+			monitoring.WithGracePeriod(cfg.Telemetry.GraceDays),
+			monitoring.WithOnModeChange(func(mode string) { serviceMode.Store(mode); logger.Info("service mode updated", "mode", mode) }),
+		)
+		cfgSync.Start(context.Background())
+		defer cfgSync.Stop()
+		logger.Info("configuration sync started")
+	}
+
+	// 13. Initialize HTTP server
+	srv := server.New(cfg, appDB, hub, logger, server.WithRedis(rdb), server.WithAlertEngine(alertEng), server.WithServiceMode(&serviceMode))
 
 	// 13. Start server in goroutine
 	errChan := make(chan error, 1)

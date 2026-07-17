@@ -35,6 +35,8 @@ const ServiceTemplates = lazy(() => import('./pages/ServiceTemplates'));
 const BulkImport = lazy(() => import('./pages/BulkImport'));
 const ISP = lazy(() => import('./pages/ISP'));
 const BackupPage = lazy(() => import('./pages/Backup'));
+const RemoteMonitoring = lazy(() => import('./pages/RemoteMonitoring'));
+const SystemMaintenance = lazy(() => import('./pages/SystemMaintenance'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 
 function PageLoader() {
@@ -99,6 +101,7 @@ function AppRoutes() {
     <Suspense fallback={<PageLoader />}>
       <Routes>
         <Route path="/login" element={isAuth ? <Navigate to="/" replace /> : <Login />} />
+		<Route path="/system-maintenance" element={<SystemMaintenance />} />
         <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
         <Route path="/devices" element={<ProtectedRoute><Devices /></ProtectedRoute>} />
         <Route path="/sensors" element={<ProtectedRoute><Sensors /></ProtectedRoute>} />
@@ -117,6 +120,7 @@ function AppRoutes() {
         <Route path="/service-templates" element={<ProtectedRoute><ServiceTemplates /></ProtectedRoute>} />
         <Route path="/import" element={<ProtectedRoute><BulkImport /></ProtectedRoute>} />
         <Route path="/isp" element={<ProtectedRoute><ISP /></ProtectedRoute>} />
+		<Route path="/remote" element={<ProtectedRoute><RemoteMonitoring /></ProtectedRoute>} />
         <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
         <Route path="/settings/locations" element={<ProtectedRoute><LocationManager /></ProtectedRoute>} />
         <Route path="/settings/contacts" element={<ProtectedRoute><Contacts /></ProtectedRoute>} />
