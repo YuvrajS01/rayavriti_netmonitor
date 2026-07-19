@@ -30,7 +30,7 @@ function ActiveAlertsListInner({ alerts }: Props) {
             const icon = isCritical ? 'error' : isWarn ? 'warning' : 'info';
 
             return (
-              <div key={alert.id} className={`flex items-start gap-4 p-4 rounded-lg border ${bg} transition-[background-color] hover:bg-surface-container-high`}>
+              <div key={alert.id} className={`relative overflow-hidden flex items-start gap-4 p-4 rounded-lg border border-l-2 ${bg} ${isCritical ? 'glow-error' : ''} transition-[background-color] hover:bg-surface-container-high`}>
                 <span className={`material-symbols-outlined ${color} mt-0.5`}>{icon}</span>
                 <div className="flex-1">
                   <div className="flex items-center justify-between mb-1">
@@ -38,6 +38,7 @@ function ActiveAlertsListInner({ alerts }: Props) {
                     <span className="text-[10px] font-data text-on-surface-variant">{new Date(alert.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                   </div>
                   <p className="text-xs text-on-surface-variant font-body">{alert.message}</p>
+                  <div className={`mt-2 h-1 rounded-full ${isCritical ? 'bg-error/25' : isWarn ? 'bg-warning/25' : 'bg-info/25'}`}><div className={`h-full rounded-full ${isCritical ? 'bg-error' : isWarn ? 'bg-warning' : 'bg-info'}`} style={{ width: `${15 + (alert.id * 17) % 82}%` }} /></div>
                 </div>
               </div>
             );

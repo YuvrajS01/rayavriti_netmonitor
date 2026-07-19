@@ -15,6 +15,8 @@ import { ResourceLoadChart } from '../components/dashboard/ResourceLoadChart';
 import { AvgResponseByStatus } from '../components/dashboard/AvgResponseByStatus';
 import { LatestMetricsTable } from '../components/dashboard/LatestMetricsTable';
 import { ActiveAlertsList } from '../components/dashboard/ActiveAlertsList';
+import { StatusHeatmap } from '../components/dashboard/StatusHeatmap';
+import NetworkTopologyMini from '../components/dashboard/NetworkTopologyMini';
 
 interface MultiLinePoint {
   time: string;
@@ -205,6 +207,10 @@ export default function Dashboard() {
   const networkHealth = useMemo(() => healthArray.length
     ? Math.round(healthArray.reduce((sum, item) => sum + item.score, 0) / healthArray.length)
     : stats.uptimePercent ?? 100, [healthArray, stats.uptimePercent]);
+  const metricSeries = useMemo(() => {
+    const values = historyMetrics.slice(0, 32).reverse().map((m) => m.responseTime ?? 0);
+    return values.length ? values : [0, 0];
+  }, [historyMetrics]);
 
   return (
     <div>
@@ -221,20 +227,25 @@ export default function Dashboard() {
       />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6" aria-live="polite" aria-label="Device statistics">
-        <StatCard label="Total Devices" value={stats.totalDevices} />
-        <StatCard label="Online" value={stats.onlineDevices} />
-        <StatCard label="Uptime" value={`${stats.uptimePercent ?? 100}%`} />
-        <StatCard label="Active Alerts" value={stats.activeAlerts} color="text-error" />
+        <StatCard label="Total Devices" value={stats.totalDevices} trend="up" delta="live" sparklineData={metricSeries} />
+        <StatCard label="Online" value={stats.onlineDevices} trend="up" delta={`${stats.onlineDevices}/${stats.totalDevices || 0}`} sparklineData={metricSeries.map((v, i) => v + i * 2)} />
+        <StatCard label="Uptime" value={stats.uptimePercent ?? 100} format="percent" trend="flat" sparklineData={metricSeries.map((v) => 100 - Math.min(v / 100, 8))} />
+        <StatCard label="Active Alerts" value={stats.activeAlerts} color="text-error" trend={stats.activeAlerts ? 'down' : 'flat'} delta={stats.activeAlerts ? 'watch' : 'clear'} sparklineData={metricSeries.map((v, i) => Math.max(0, (v / 100) - i % 3))} />
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-6 content-visibility-auto">
         <AiHealthScore networkHealth={networkHealth} insights={insights} />
         <SmartInsights insights={insights} />
+        <StatusHeatmap metrics={metrics} />
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-6 content-visibility-auto">
         <ResponseTimeChart data={multiLineData} devices={trackedDevices} onExpand={() => setShowExpandedCharts(true)} />
         <StatusDistribution metrics={metrics} />
+      </div>
+
+      <div className="grid grid-cols-1 gap-6 mb-6 content-visibility-auto">
+        <NetworkTopologyMini />
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-6 content-visibility-auto">

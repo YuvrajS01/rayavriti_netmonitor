@@ -321,11 +321,13 @@ export default function UserManagement() {
       />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <StatCard label="Users" value={stats.totalUsers} icon="people" />
-        <StatCard label="Active" value={stats.enabledUsers} icon="check_circle" />
-        <StatCard label="Roles" value={stats.totalRoles} icon="shield" />
-        <StatCard label="Custom Roles" value={stats.customRoles} icon="tune" />
+        <StatCard label="Users" value={stats.totalUsers} icon="people" sparklineData={roles.map(role => users.filter(user => user.role === role.name).length)} />
+        <StatCard label="Active" value={stats.enabledUsers} icon="check_circle" trend="up" sparklineData={users.map(user => user.enabled ? 1 : 0)} />
+        <StatCard label="Roles" value={stats.totalRoles} icon="shield" sparklineData={roles.map(role => role.permissions.length)} />
+        <StatCard label="Custom Roles" value={stats.customRoles} icon="tune" sparklineData={roles.map(role => role.is_system ? 0 : 1)} />
       </div>
+
+      <Card variant="low" className="p-5"><div className="flex items-center justify-between mb-4"><div><h2 className="font-headline text-sm font-semibold uppercase tracking-wide">Role distribution</h2><p className="text-xs text-on-surface-variant mt-1">Active users by assigned role</p></div><span className="material-symbols-outlined text-primary">admin_panel_settings</span></div><div className="flex h-4 rounded-full overflow-hidden bg-surface-container-lowest">{roles.map((role, index) => { const count = users.filter(user => user.role === role.name).length; const color = `var(--color-chart-${index % 8 + 1})`; return <i key={role.id} title={`${role.display_name || role.name}: ${count}`} style={{ width: `${users.length ? count / users.length * 100 : 0}%`, background: color }} />; })}</div><div className="flex flex-wrap gap-x-4 gap-y-2 mt-3">{roles.map((role, index) => <span key={role.id} className="text-xs text-on-surface-variant"><i className="inline-block w-2 h-2 rounded-full mr-1.5" style={{ background: `var(--color-chart-${index % 8 + 1})` }} />{role.display_name || role.name} · {users.filter(user => user.role === role.name).length}</span>)}</div></Card>
 
       <div className="flex gap-1 bg-surface-container-low rounded-lg p-1 w-fit">
         {(['users', 'roles'] as const).map((t) => (

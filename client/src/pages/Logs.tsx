@@ -147,6 +147,11 @@ export default function Logs() {
         }
       />
 
+      <Card variant="low" className="p-5 overflow-hidden">
+        <div className="flex items-center justify-between gap-4 mb-4"><div><h2 className="font-headline text-sm font-semibold uppercase tracking-wide">Log volume pulse</h2><p className="text-xs text-on-surface-variant mt-1">Severity mix for the selected time window</p></div><span className="font-headline text-2xl font-semibold">{stats.total.toLocaleString()}</span></div>
+        <div className="flex items-end gap-2 h-20">{Object.entries(stats.byLevel).length ? Object.entries(stats.byLevel).map(([level, value]) => { const max = Math.max(...Object.values(stats.byLevel), 1); const color = level === 'error' || level === 'fatal' ? 'bg-error' : level === 'warn' ? 'bg-warning' : level === 'info' ? 'bg-info' : 'bg-primary'; return <div key={level} className="flex-1 h-full flex flex-col justify-end min-w-10"><i className={`${color} rounded-t-sm transition-[height] duration-500`} style={{ height: `${Math.max(7, Number(value) / max * 100)}%` }} /><span className="text-[9px] uppercase text-on-surface-variant mt-1 text-center">{level}</span></div>; }) : <p className="m-auto text-xs text-on-surface-variant">No log activity in this range.</p>}</div>
+      </Card>
+
       <Card variant="low" className="p-4">
         <div className="grid grid-cols-1 md:grid-cols-7 gap-3">
           <input type="datetime-local" value={filters.from} onChange={(e) => setFilters((f) => ({ ...f, from: e.target.value }))} className="bg-surface-container rounded-lg px-3 py-2.5 text-sm text-on-surface border border-outline-variant/20 outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 [color-scheme:dark]" />

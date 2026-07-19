@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -13,6 +14,35 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rayavriti/netmonitor-backend/internal/auth"
 )
+
+// defaultDevOrigins are origins used by the Vite dev server and the API's own
+// HTTP listener in local/development setups. They are appended to the
+// configured CORS origins so the SPA served on :5173 can open a WebSocket to
+// the API on :3000 without manually setting CORS_ORIGINS.
+var defaultDevOrigins = []string{
+	"http://localhost:5173",
+	"http://127.0.0.1:5173",
+	"http://localhost:3000",
+	"http://127.0.0.1:3000",
+}
+
+// DevAwareAllowedOrigins returns the origins the WebSocket hub may accept. In
+// non-production it always includes the common local dev origins so the dev
+// SPA (served by Vite on a different port than the API) can upgrade its
+// connection. In production only the explicitly configured origins are used.
+func DevAwareAllowedOrigins(configured []string, isProduction bool) []string {
+	if isProduction {
+		return configured
+	}
+	out := make([]string, len(configured))
+	copy(out, configured)
+	for _, o := range defaultDevOrigins {
+		if !slices.Contains(out, o) {
+			out = append(out, o)
+		}
+	}
+	return out
+}
 
 const (
 	writeWait      = 10 * time.Second

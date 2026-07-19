@@ -1,5 +1,5 @@
 import { memo, useMemo } from 'react';
-import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip, Legend } from 'recharts';
+import { AreaChart, Area, XAxis, YAxis, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import { TOOLTIP_STYLE, DEVICE_COLORS, AXIS_TICK_STYLE, LEGEND_STYLE, legendFormatter } from '../../utils/chartConfig';
 import ChartDataTable from '../ui/ChartDataTable';
 
@@ -41,7 +41,8 @@ function ResponseTimeChartInner({ data, devices, onExpand }: Props) {
       ) : (
         <>
           <ResponsiveContainer width="100%" height={240}>
-            <LineChart data={data} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+            <AreaChart data={data} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+              <defs>{devices.map((dev, i) => <linearGradient id={`response-gradient-${i}`} key={dev} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor={DEVICE_COLORS[i % DEVICE_COLORS.length]} stopOpacity=".28"/><stop offset="1" stopColor={DEVICE_COLORS[i % DEVICE_COLORS.length]} stopOpacity="0"/></linearGradient>)}</defs>
               <XAxis
                 dataKey="time"
                 tick={AXIS_TICK_STYLE}
@@ -65,18 +66,20 @@ function ResponseTimeChartInner({ data, devices, onExpand }: Props) {
                 formatter={legendFormatter}
               />
               {devices.map((dev, i) => (
-                <Line
+                <Area
                   key={dev}
                   type="monotone"
                   dataKey={dev}
                   stroke={DEVICE_COLORS[i % DEVICE_COLORS.length]}
                   strokeWidth={2}
-                  dot={false}
-                  activeDot={{ r: 4 }}
+                  fill={`url(#response-gradient-${i})`}
+                  fillOpacity={i === 0 ? 1 : .35}
+                  activeDot={{ r: 4, strokeWidth: 0 }}
                   connectNulls
+                  animationBegin={i * 120}
                 />
               ))}
-            </LineChart>
+            </AreaChart>
           </ResponsiveContainer>
           <div className="sr-only">
             <ChartDataTable title="Response Time Data" columns={tableData.columns} rows={tableData.rows} />

@@ -1,4 +1,4 @@
-import { memo, useMemo } from 'react';
+import { memo, useMemo, useState } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import type { Metric } from '../../api/types';
 import { STATUS_COLORS, STATUS_LABELS } from '../../utils/colors';
@@ -32,27 +32,20 @@ function buildDonutData(metrics: Metric[]): DonutSlice[] {
     }));
 }
 
-function DonutCenter({ cx, cy, total }: { cx: number; cy: number; total: number }) {
-  return (
-    <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle" fill="currentColor" className="text-on-surface">
-      <tspan x={cx} dy="-0.4em" fontSize="22" fontWeight="600" fontFamily="'Instrument Sans Variable', sans-serif">{total}</tspan>
-      <tspan x={cx} dy="1.4em" fontSize="10" className="text-on-surface-variant" fontFamily="'Plus Jakarta Sans Variable', sans-serif">DEVICES</tspan>
-    </text>
-  );
-}
-
 function StatusDistributionInner({ metrics }: Props) {
+  const [activeIndex, setActiveIndex] = useState<number | undefined>(undefined);
   const donutData = useMemo(() => buildDonutData(metrics), [metrics]);
   const donutTotal = useMemo(() => donutData.reduce((s, d) => s + d.value, 0), [donutData]);
+  const active = activeIndex != null ? donutData[activeIndex] : undefined;
 
   return (
-    <div className="bg-surface-container-low rounded-lg p-4 border border-outline-variant/20 flex flex-col">
+    <div className="bg-surface-container-low rounded-lg p-4 border border-outline-variant/20 flex flex-col group">
       <h3 className="text-sm font-headline font-semibold text-on-surface mb-3">Status Distribution</h3>
       {donutTotal === 0 ? (
         <p className="text-xs text-on-surface-variant text-center my-auto py-8">No data yet</p>
       ) : (
         <div className="flex flex-col items-center justify-center flex-1">
-          <ResponsiveContainer width="100%" height={180}>
+          <ResponsiveContainer width="100%" height={190}>
             <PieChart>
               <Pie
                 data={donutData}
@@ -63,30 +56,43 @@ function StatusDistributionInner({ metrics }: Props) {
                 paddingAngle={3}
                 dataKey="value"
                 labelLine={false}
+                animationBegin={120}
+                animationDuration={700}
               >
-                {donutData.map((entry) => (
-                  <Cell key={entry.name} fill={entry.color} stroke="transparent" />
+                {donutData.map((entry, i) => (
+                  <Cell
+                    key={entry.name}
+                    fill={entry.color}
+                    stroke="transparent"
+                    onMouseEnter={() => setActiveIndex(i)}
+                    onMouseLeave={() => setActiveIndex(undefined)}
+                    style={{ filter: activeIndex === i ? `drop-shadow(0 0 6px ${entry.color})` : undefined, transition: 'filter 200ms', cursor: 'pointer', opacity: activeIndex != null && activeIndex !== i ? 0.55 : 1 }}
+                  />
                 ))}
-                <DonutCenter cx={0} cy={0} total={donutTotal} />
               </Pie>
               <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: unknown, name: unknown) => [Number(v ?? 0), String(name)]} />
+              <text x="50%" y="46%" textAnchor="middle" dominantBaseline="middle" fill="currentColor" className="text-on-surface">
+                <tspan x="50%" dy="-0.3em" fontSize="24" fontWeight="600" fontFamily="'Instrument Sans Variable', sans-serif">{active ? active.value : donutTotal}</tspan>
+                <tspan x="50%" dy="1.3em" fontSize="9" className="text-on-surface-variant" fontFamily="'Plus Jakarta Sans Variable', sans-serif" letterSpacing="0.12em">{active ? active.name.toUpperCase() : 'DEVICES'}</tspan>
+              </text>
             </PieChart>
           </ResponsiveContainer>
           <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 mt-2">
-            {donutData.map((d) => (
-              <div key={d.name} className="flex items-center gap-1.5 text-xs">
-                <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: d.color }} />
+            {donutData.map((d, i) => (
+              <div
+                key={d.name}
+                className={`flex items-center gap-1.5 text-xs transition-opacity ${activeIndex != null && activeIndex !== i ? 'opacity-50' : ''}`}
+                onMouseEnter={() => setActiveIndex(i)}
+                onMouseLeave={() => setActiveIndex(undefined)}
+              >
+                <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: d.color, boxShadow: activeIndex === i ? `0 0 8px ${d.color}` : undefined }} />
                 <span className="text-on-surface-variant">{d.name}</span>
                 <span className="font-semibold text-on-surface">{d.value}</span>
               </div>
             ))}
           </div>
           <div className="sr-only">
-            <ChartDataTable
-              title="Status Distribution"
-              columns={['Status', 'Count']}
-              rows={donutData.map((d) => [d.name, d.value])}
-            />
+            <ChartDataTable title="Status Distribution" columns={['Status', 'Count']} rows={donutData.map((d) => [d.name, d.value])} />
           </div>
         </div>
       )}

@@ -1,5 +1,7 @@
 import { memo } from 'react';
 import type { InsightsResponse } from '../../api/types';
+import RingGauge from '../ui/RingGauge';
+import Sparkline from '../ui/Sparkline';
 
 interface Props {
   networkHealth: number;
@@ -15,28 +17,7 @@ function AiHealthScoreInner({ networkHealth, insights }: Props) {
   return (
     <div className="bg-surface-container-low rounded-lg p-5 border border-outline-variant/20 flex flex-col items-center justify-center">
       <p className="text-xs text-on-surface-variant uppercase tracking-wide font-medium mb-3">AI Health Score</p>
-      <div className="relative inline-flex items-center justify-center" style={{ width: 120, height: 120 }}>
-        <svg width={120} height={120} className="transform -rotate-90" role="img" aria-label={`Health score: ${networkHealth.toFixed(0)}%`}>
-          <circle cx={60} cy={60} r={52} fill="none" stroke="var(--color-surface-container)" strokeWidth={8} />
-          <circle
-            cx={60} cy={60} r={52}
-            fill="none"
-            stroke={networkHealth < 55 ? 'var(--color-error)' : networkHealth < 75 ? 'var(--color-warning)' : 'var(--color-success)'}
-            strokeWidth={8}
-            strokeLinecap="round"
-            strokeDasharray={2 * Math.PI * 52}
-            className="gauge-ring"
-            style={{
-              '--gauge-circumference': 2 * Math.PI * 52,
-              '--gauge-offset': 2 * Math.PI * 52 - (networkHealth / 100) * 2 * Math.PI * 52,
-              strokeDashoffset: 2 * Math.PI * 52 - (networkHealth / 100) * 2 * Math.PI * 52,
-            } as React.CSSProperties}
-          />
-        </svg>
-        <span className={`absolute font-headline text-3xl font-semibold ${networkHealth < 55 ? 'text-error' : networkHealth < 75 ? 'text-warning' : 'text-success'}`}>
-          {networkHealth.toFixed(2)}
-        </span>
-      </div>
+      <RingGauge value={networkHealth} label="network" showParticles />
       {weakestDevice && (
         <div className="flex items-center gap-1 mt-2">
           <span className={`material-symbols-outlined text-sm ${weakestDevice.trend === 'improving' ? 'text-success' : weakestDevice.trend === 'degrading' ? 'text-error trend-pulse' : 'text-on-surface-variant'}`}>
@@ -50,6 +31,7 @@ function AiHealthScoreInner({ networkHealth, insights }: Props) {
       <p className="text-[10px] text-on-surface-variant mt-2 text-center">
         {weakestDevice ? `${weakestDevice.deviceName} needs watch` : 'Waiting for telemetry'}
       </p>
+      <Sparkline data={healthArray.map((item) => item.score).slice(-12)} color="var(--color-success)" className="mt-2" />
     </div>
   );
 }

@@ -6,6 +6,7 @@ export { getFlowRecords, getTopTalkers, getProtocolDistribution, getFlowTimeseri
 export { getInterfaces, startCaptureSession, stopCaptureSession, getCaptureSession, getCapturePackets, getCaptureSessions } from './capture';
 export { getReportSummary, getReportTimeseries, getReportDeviceBreakdown, getReportAlerts, getReportISP, downloadMetricsCsv } from './reports';
 export { getInsights, getInsightsHistory } from './insights';
+export { getHealthScores, getHealthScore } from './health';
 export { getSystemInfo, getStats } from './system';
 
 export type { Device, Metric, Alert, AlertCounts, DashboardStats, ReportSummary, ReportTimeseriesPoint, DeviceBreakdown, ReportAlert, PortScanResult, PortScanResponse, InsightsResponse, HealthHistoryResponse } from './types';

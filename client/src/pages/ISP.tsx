@@ -146,11 +146,13 @@ export default function ISP() {
       />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <StatCard label="Total Links" value={stats.total} icon="router" />
-        <StatCard label="Enabled" value={stats.enabled} icon="check_circle" />
-        <StatCard label="Total Bandwidth" value={`${stats.totalBandwidth} Mbps`} icon="speed" />
-        <StatCard label="Avg Bandwidth" value={`${stats.avgBandwidth} Mbps`} icon="data_usage" />
+        <StatCard label="Total Links" value={stats.total} icon="router" sparklineData={links.map(link => link.bandwidth_mbps)} />
+        <StatCard label="Enabled" value={stats.enabled} icon="check_circle" trend="up" sparklineData={links.map(link => link.enabled ? 1 : 0)} />
+        <StatCard label="Total Bandwidth" value={`${stats.totalBandwidth} Mbps`} icon="speed" sparklineData={links.map(link => link.bandwidth_mbps)} />
+        <StatCard label="Avg Bandwidth" value={`${stats.avgBandwidth} Mbps`} icon="data_usage" sparklineData={links.map(link => link.bandwidth_mbps)} />
       </div>
+
+      {comparison?.links?.length ? <Card variant="low" className="p-5"><div className="flex items-center justify-between mb-4"><div><h2 className="font-headline text-sm font-semibold uppercase tracking-wide">Circuit throughput comparison</h2><p className="text-xs text-on-surface-variant mt-1">Download and upload against provisioned capacity</p></div><span className="material-symbols-outlined text-info">speed</span></div><div className="space-y-4">{comparison.links.map(link => <div key={link.id} className="grid grid-cols-[minmax(90px,160px)_1fr_auto] gap-4 items-center"><div className="min-w-0"><strong className="text-sm block truncate">{link.name}</strong><span className="text-[10px] uppercase tracking-wide text-on-surface-variant">{link.provider}</span></div><div className="space-y-1.5"><div className="h-2 rounded-full bg-surface-container-lowest overflow-hidden"><i className="block h-full bg-info rounded-full" style={{ width: `${Math.min(100, link.bandwidthMbps ? link.avgDownload / link.bandwidthMbps * 100 : 0)}%` }} /></div><div className="h-1 rounded-full bg-surface-container-lowest overflow-hidden"><i className="block h-full bg-primary rounded-full" style={{ width: `${Math.min(100, link.bandwidthMbps ? link.avgUpload / link.bandwidthMbps * 100 : 0)}%` }} /></div></div><span className="font-data text-xs text-on-surface-variant">↓{link.avgDownload.toFixed(1)} ↑{link.avgUpload.toFixed(1)} Mbps</span></div>)}</div></Card> : null}
 
       <Card variant="low" className="overflow-hidden">
         <div className="p-5 border-b border-outline-variant/20 flex flex-col md:flex-row gap-4 md:items-center md:justify-between">
