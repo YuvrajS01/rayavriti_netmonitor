@@ -5,6 +5,54 @@ All notable changes to Rayavriti NetMonitor will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.8.0] - 2026-07-19
+
+Fleet operations release. Adds remote monitoring for centralized management of multiple NetMonitor instances, service mode coordination (active/readonly/maintenance), and telemetry-based config sync.
+
+### Added — Backend
+
+- **Remote monitoring registry** (`e5bc96a`) — New `remote` package with `Store` for CRUD on remote NetMonitor instances; encrypted API key storage; poll interval, TLS skip verify, location label, and tag support. Migrations V38–V40 create `remote_instances`, `remote_snapshots` (TimescaleDB hypertable), and `sys_config` tables.
+- **Remote collector** (`e5bc96a`) — Background `Collector` polls registered instances on a configurable interval, fetches `/api/v1/remote/overview` and `/api/v1/remote/instances` snapshots via API key auth, stores device counts, alert counts, health score, and latency as TimescaleDB time-series rows. Automatic snapshot pruning by retention days.
+- **Remote API handler** (`e5bc96a`) — `RemoteHandler` exposes 8 endpoints: List, Overview, Get, Create, Update, Delete, Test, and Mode under `/api/v1/remote/*`. Test triggers an immediate poll cycle; Mode switches service mode (active/readonly/maintenance) on a remote instance.
+- **Config sync service** (`e5bc96a`) — `ConfigSyncService` periodically POSTs system fingerprint to a configurable telemetry endpoint and receives back the assigned service mode. Includes grace period before mode downgrade on missed check-ins.
+- **Service mode middleware** (`e5bc96a`) — `ServiceModeMiddleware` gates mutating POST/PUT/DELETE requests based on the instance's current service mode; read-only and maintenance modes return 403 on writes.
+- **System config store** (`e5bc96a`) — Key-value `sys_config` table with `SysConfigStore` for persisting system identity fingerprint and other configuration.
+- **Remote handler for sync** (`e5bc96a`) — `SyncHandler` exposes `POST /api/v1/sync/config` (returns service mode for a fingerprint) and `GET /api/v1/sync/identity` (returns local system fingerprint).
+
+### Added — Frontend
+
+- **Remote Monitoring page** (`e5bc96a`) — New `/remote` route with full management UI: overview stat cards (instances, online, offline, degraded, alerts), instance registration form, instance detail sidebar with device counts, health score, latency, service mode selector, connection test, and removal.
+- **Remote API client** (`e5bc96a`) — `remoteApi.ts` with typed functions for all remote endpoints.
+- **Layout sidebar entry** (`e5bc96a`) — "Remote Monitoring" link in sidebar navigation with `lan` icon.
+
+### Added — Tests
+
+- **Remote monitoring tests** (`e5bc96a`) — Unit tests for remote instance list, overview, and error handling.
+
+### Changed
+
+- **Server wiring** (`e5bc96a`) — `Server` struct gains `remoteCollector` and `serviceMode` fields; `main.go` conditionally starts remote collector and config sync when `REMOTE_ENABLED=true`.
+- **WebSocket hub** (`e5bc96a`) — Added `remote:status` and `remote:metrics` event types for realtime updates.
+- **Dockerfile** (`e5bc96a`) — Updated base image.
+
+### Fixed
+
+- **Remote monitoring response handling** (`6b72b5d`) — Hardened JSON parsing and body close patterns across remote collector and registry to prevent nil dereference on malformed responses.
+- **Disabled remote monitoring reporting** (`77bb6fc`) — Frontend now returns a clear 503 message when `REMOTE_ENABLED=false` instead of showing an empty state with no explanation.
+- **Packet capture execution** (`351cc74`) — Restored broken packet capture functionality.
+- **golangci-lint issues** (`2aa468d`) — Fixed unchecked `body.Close()`, XSS taint via `json.NewEncoder` for proxy responses, and if-else to switch conversion per QF1003.
+
+### New Environment Variables
+
+- `REMOTE_ENABLED` — Enable remote monitoring (default: `false`)
+- `REMOTE_POLL_INTERVAL` — Seconds between remote polls (default: `60`)
+- `REMOTE_HEALTH_INTERVAL` — Seconds between health checks (default: `30`)
+- `REMOTE_SNAPSHOT_RETENTION_DAYS` — Days to retain snapshots (default: `30`)
+- `REMOTE_HTTP_TIMEOUT` — HTTP client timeout in seconds (default: `10`)
+- `TELEMETRY_ENDPOINT` — Config sync telemetry URL (default: empty)
+- `TELEMETRY_SYNC_INTERVAL` — Seconds between telemetry syncs (default: `21600`)
+- `TELEMETRY_GRACE_DAYS` — Days before mode downgrade on missed sync (default: `7`)
+
 ## [3.7.5] - 2026-07-16
 
 Cross-platform Docker release. Adds Windows/macOS compatibility via bridge networking overrides, fixes CORS boot crash when `CORS_ORIGINS` is unset, and makes Vite dev proxy target configurable.
