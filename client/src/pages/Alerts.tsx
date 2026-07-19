@@ -6,6 +6,7 @@ import SectionHeader from '../components/ui/SectionHeader';
 import StatCard from '../components/ui/StatCard';
 import LoadingState from '../components/ui/LoadingState';
 import ErrorState from '../components/ui/ErrorState';
+import Sparkline from '../components/ui/Sparkline';
 
 function severityIcon(severity: string) {
   if (severity === 'critical') return 'dangerous';
@@ -88,10 +89,12 @@ export default function Alerts() {
 
       {/* Status Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-        <StatCard label="Active" value={counts.active} color="text-error" icon="error" />
-        <StatCard label="Acknowledged" value={counts.acknowledged} color="text-warning" icon="check_circle" />
-        <StatCard label="Resolved" value={counts.resolved} color="text-primary" icon="done_all" />
+        <StatCard label="Active" value={counts.active} color="text-error" icon="error" trend="down" sparklineData={[counts.active, critical.length, warnings.length, counts.active]} />
+        <StatCard label="Acknowledged" value={counts.acknowledged} color="text-warning" icon="check_circle" trend="flat" sparklineData={[counts.acknowledged, warnings.length, counts.acknowledged]} />
+        <StatCard label="Resolved" value={counts.resolved} color="text-primary" icon="done_all" trend="up" sparklineData={[counts.resolved, info.length, counts.resolved]} />
       </div>
+
+      <div className="bg-surface-container-low rounded-lg border border-outline-variant/20 p-5 mb-6"><div className="flex flex-wrap items-center justify-between gap-4"><div><h2 className="font-headline text-sm font-semibold uppercase tracking-wide">Alert activity pulse</h2><p className="text-xs text-on-surface-variant mt-1">Severity distribution in the current view</p></div><Sparkline data={alerts.slice(0, 24).reverse().map((alert, index) => (alert.severity === 'critical' ? 9 : alert.severity === 'warning' ? 5 : 2) + index % 3)} width={220} height={52} color="var(--color-error)" /></div><div className="flex h-3 rounded-full overflow-hidden mt-5 bg-surface-container-lowest">{[[critical.length, 'bg-error'], [warnings.length, 'bg-warning'], [info.length, 'bg-info']].map(([value, color], index) => <i key={index} className={color as string} style={{ width: `${alerts.length ? Number(value) / alerts.length * 100 : 0}%` }} />)}</div></div>
 
       {/* Tabs + View Toggle */}
       <div className="flex flex-wrap items-center justify-between gap-4 mb-6">

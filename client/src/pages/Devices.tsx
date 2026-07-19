@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { useLocation } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { getDevices, getLatestMetrics, deleteDevice } from '../api/client';
 import { useSocket } from '../hooks/useSocket';
 import type { Device, Metric } from '../api/types';
@@ -112,9 +112,7 @@ export default function Devices() {
         title="My Devices"
         subtitle="Manage and monitor all connected network devices."
         action={
-          <Button onClick={() => setShowForm(!showForm)} icon="add_circle">
-            Add Device
-          </Button>
+          <div className="flex gap-2"><Link to="/devices/topology" className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold border border-outline-variant/40 rounded-md text-on-surface-variant hover:text-on-surface hover:border-primary/50"><span className="material-symbols-outlined text-base">hub</span>Topology</Link><Button onClick={() => setShowForm(!showForm)} icon="add_circle">Add Device</Button></div>
         }
       />
 
@@ -152,12 +150,13 @@ export default function Devices() {
               role="button"
               tabIndex={0}
               onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedDevice(device); } }}
-              className={`bg-surface-container-low rounded-lg group overflow-hidden border border-outline-variant/20 hover:border-outline/30 transition-colors duration-200 duration-300 flex flex-col cursor-pointer`}
+              className={`bg-surface-container-low rounded-lg group overflow-hidden border border-outline-variant/20 hover:border-primary/35 transition-[transform,border-color,box-shadow] duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-surface-dim/40 flex flex-col cursor-pointer card-stagger`}
+              style={{ '--i': filtered.indexOf(device) } as React.CSSProperties}
               onClick={() => setSelectedDevice(device)}
             >
               <div className="p-6">
                 <div className="flex justify-between items-start mb-6">
-                  <div className={`bg-surface-container-lowest p-3 rounded-lg ${statusTextColor(status)}`}>
+                  <div className={`bg-surface-container-lowest p-3 rounded-lg ${statusTextColor(status)} ${status === 'up' || status === 'ok' ? 'glow-success' : ''}`}>
                     <span className="material-symbols-outlined text-3xl">{iconForProtocol(device.protocol)}</span>
                   </div>
                   <div className={`flex items-center gap-2 px-3 py-1 rounded-full ${statusBgColor(status)}/10`}>

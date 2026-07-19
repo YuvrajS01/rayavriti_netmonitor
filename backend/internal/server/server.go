@@ -308,6 +308,10 @@ func (s *Server) Start() error {
 		// --- System (system.monitoring) ---
 		r.With(rbac.RequirePermission(models.PermSystemMonitoring)).Get("/api/v1/system/stats", health.Stats)
 		r.With(rbac.RequirePermission(models.PermSystemMonitoring)).Get("/api/v1/system/info", system.Info)
+
+		// --- AI Health scores (devices.read) ---
+		r.With(rbac.RequirePermission(models.PermDevicesRead)).Get("/api/v1/health/scores", health.Scores)
+		r.With(rbac.RequirePermission(models.PermDevicesRead)).Get("/api/v1/health/scores/{deviceId}", health.DeviceScore)
 		r.With(rbac.RequirePermission(models.PermSystemMonitoring)).Get("/api/v1/phase2/summary", phase2.Summary)
 		if monitoringH != nil {
 			r.With(rbac.RequirePermission(models.PermSystemLogs)).Get("/api/v1/system/logs", monitoringH.SystemLogs)

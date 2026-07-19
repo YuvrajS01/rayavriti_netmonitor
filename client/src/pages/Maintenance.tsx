@@ -8,6 +8,7 @@ import StatCard from '../components/ui/StatCard';
 import EmptyState from '../components/ui/EmptyState';
 import ConfirmDialog from '../components/ConfirmDialog';
 import { useToast } from '../components/ui/useToast';
+import GanttTimeline from '../components/charts/GanttTimeline';
 
 interface MaintenanceWindow extends Phase2Row {
   id: number;
@@ -133,11 +134,13 @@ export default function Maintenance() {
       />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <StatCard label="Total" value={stats.total} icon="event_repeat" />
-        <StatCard label="Currently Active" value={stats.active} icon="pending" color="text-warning" />
-        <StatCard label="Recurring" value={stats.recurring} icon="repeat" />
-        <StatCard label="Suppress Alerts" value={stats.suppress} icon="notifications_off" />
+        <StatCard label="Total" value={stats.total} icon="event_repeat" sparklineData={windows.map(window => window.enabled ? 1 : 0)} />
+        <StatCard label="Currently Active" value={stats.active} icon="pending" color="text-warning" trend={stats.active ? 'up' : 'flat'} sparklineData={windows.map(window => nowInRange(window.start_time, window.end_time) ? 1 : 0)} />
+        <StatCard label="Recurring" value={stats.recurring} icon="repeat" sparklineData={windows.map(window => window.schedule_type === 'recurring' ? 1 : 0)} />
+        <StatCard label="Suppress Alerts" value={stats.suppress} icon="notifications_off" sparklineData={windows.map(window => window.suppress_alerts ? 1 : 0)} />
       </div>
+
+      <GanttTimeline title="Maintenance schedule" items={windows.filter(window => window.start_time).map(window => ({ id: window.id, label: window.name, start: window.start_time, end: window.end_time, color: nowInRange(window.start_time, window.end_time) ? 'var(--color-warning)' : 'var(--color-info)' }))} />
 
       <Card variant="low" className="overflow-hidden">
         <div className="p-5 border-b border-outline-variant/20 flex flex-col md:flex-row gap-4 md:items-center md:justify-between">

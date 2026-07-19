@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -213,15 +214,20 @@ func (s *LocationService) GetTree(ctx context.Context) ([]*Location, error) {
 // GetSubtree loads a location and all of its descendants as a tree.
 func (s *LocationService) GetSubtree(ctx context.Context, id int64) (*Location, error) {
 	// Use a recursive CTE to grab the subtree in one query.
+	// Qualify every column of the recursive branch with the table alias so
+	// the JOIN against the CTE does not produce ambiguous column references.
+	lColumns := strings.Join(strings.FieldsFunc(locationColumns, func(r rune) bool {
+		return r == ',' || r == '\n' || r == '\t' || r == ' '
+	}), ", l.")
 	rows, err := s.db.Query(ctx, `
 		WITH RECURSIVE subtree AS (
 			SELECT `+locationColumns+` FROM locations WHERE id = $1
 			UNION ALL
-			SELECT l.`+locationColumns+`
+			SELECT l.`+lColumns+`
 			  FROM locations l
 			  JOIN subtree s ON l.parent_id = s.id
 		)
-		SELECT `+locationColumns+` FROM subtree ORDER BY sort_order, name`, id)
+		SELECT `+locationColumns+` FROM subtree ORDER BY sort_order, subtree.name`, id)
 	if err != nil {
 		return nil, fmt.Errorf("query subtree: %w", err)
 	}
@@ -268,13 +274,21 @@ func (s *LocationService) Create(ctx context.Context, loc *Location) (*Location,
 		loc.Metadata = json.RawMessage(`{}`)
 	}
 
+	// An empty code must be stored as NULL so the UNIQUE constraint permits
+	// multiple locations without a code (only one non-empty code may exist).
+	var codeVal *string
+	if loc.Code != "" {
+		c := loc.Code
+		codeVal = &c
+	}
+
 	row := s.db.QueryRow(ctx, `
 		INSERT INTO locations (name, type, parent_id, code, description, address,
 			latitude, longitude, floor_number, contact_person_id, metadata,
 			sort_order, enabled, created_at, updated_at)
 		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13, now(), now())
 		RETURNING `+locationColumns,
-		loc.Name, loc.Type, loc.ParentID, loc.Code, loc.Description, loc.Address,
+		loc.Name, loc.Type, loc.ParentID, codeVal, loc.Description, loc.Address,
 		loc.Latitude, loc.Longitude, loc.FloorNumber, loc.ContactPersonID, loc.Metadata,
 		loc.SortOrder, loc.Enabled,
 	)
@@ -297,7 +311,12 @@ func (s *LocationService) Update(ctx context.Context, id int64, loc *Location) (
 		loc.Metadata = json.RawMessage(`{}`)
 	}
 
+	// Normalize empty code to NULL so the UNIQUE constraint allows multiple
+	// locations without a code.
+	var codeVal *string
 	if loc.Code != "" {
+		c := loc.Code
+		codeVal = &c
 		var conflictID int64
 		err := s.db.QueryRow(ctx,
 			`SELECT id FROM locations WHERE code = $1 AND id != $2`, loc.Code, id).Scan(&conflictID)
@@ -318,7 +337,7 @@ func (s *LocationService) Update(ctx context.Context, id int64, loc *Location) (
 		WHERE id = $1
 		RETURNING `+locationColumns,
 		id,
-		loc.Name, loc.Type, loc.ParentID, loc.Code,
+		loc.Name, loc.Type, loc.ParentID, codeVal,
 		loc.Description, loc.Address, loc.Latitude, loc.Longitude,
 		loc.FloorNumber, loc.ContactPersonID, loc.Metadata,
 		loc.SortOrder, loc.Enabled,

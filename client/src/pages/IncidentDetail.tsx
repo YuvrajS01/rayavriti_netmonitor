@@ -214,9 +214,9 @@ export default function IncidentDetail() {
           {STATUS_FLOW.map((s, i) => (
             <div key={s} className="flex-1 flex items-center">
               <div className="flex flex-col items-center flex-1">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold ${i <= statusIdx ? 'bg-primary text-on-primary' : 'bg-surface-container-lowest text-outline'}`}>
-                  {i < statusIdx ? <span className="material-symbols-outlined text-sm">check</span> : i + 1}
-                </div>
+                 <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold transition-colors ${i <= statusIdx ? 'bg-primary text-on-primary' : 'bg-surface-container-lowest text-outline'} ${i === statusIdx ? 'ring-4 ring-primary/25' : ''}`}>
+                   {i < statusIdx ? <span className="material-symbols-outlined text-sm">check</span> : i + 1}
+                 </div>
                 <span className={`text-[10px] mt-1 uppercase tracking-wide font-semibold ${i <= statusIdx ? 'text-primary' : 'text-outline'}`}>{s}</span>
               </div>
               {i < STATUS_FLOW.length - 1 && <div className={`h-0.5 flex-1 mx-1 rounded ${i < statusIdx ? 'bg-primary' : 'bg-surface-container-lowest'}`} />}
@@ -330,16 +330,29 @@ export default function IncidentDetail() {
               <div className="p-5 border-b border-outline-variant/20">
                 <h3 className="font-headline font-semibold text-sm uppercase tracking-wide text-on-surface-variant">Affected Devices</h3>
               </div>
-              <div className="divide-y divide-outline-variant/10">
-                {devices.map((d) => (
-                  <div key={d.id} className="px-5 py-3 flex items-center justify-between hover:bg-surface-container-low/50 transition-colors">
-                    <div>
-                      <div className="text-sm font-medium">{d.name}</div>
-                      <div className="text-xs text-on-surface-variant font-data">{d.ip}</div>
+              <div className="p-5">
+                <div className="grid grid-cols-4 sm:grid-cols-6 gap-2 mb-4" aria-label="Impacted topology">
+                  {devices.map((d, i) => {
+                    const color = d.status === 'down' ? 'var(--color-error)' : d.status === 'warning' || d.status === 'degraded' ? 'var(--color-warning)' : 'var(--color-success)';
+                    return (
+                      <div key={d.id} className="relative aspect-square rounded-md border border-outline-variant/20 bg-surface-container-lowest flex items-center justify-center" title={`${d.name} · ${d.status}`} style={{ animationDelay: `${i * 40}ms` }}>
+                        <span className="w-2.5 h-2.5 rounded-full" style={{ background: color, boxShadow: `0 0 6px ${color}` }} />
+                        {i < devices.length - 1 && <span className="absolute -right-2 top-1/2 w-2 h-px bg-outline-variant/40" />}
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="divide-y divide-outline-variant/10">
+                  {devices.map((d) => (
+                    <div key={d.id} className="px-0 py-3 flex items-center justify-between hover:bg-surface-container-low/50 transition-colors">
+                      <div>
+                        <div className="text-sm font-medium">{d.name}</div>
+                        <div className="text-xs text-on-surface-variant font-data">{d.ip}</div>
+                      </div>
+                      <span className={`text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full ${statusBgColor(d.status)}/10 ${statusTextColor(d.status)}`}>{d.status}</span>
                     </div>
-                    <span className={`text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full ${statusBgColor(d.status)}/10 ${statusTextColor(d.status)}`}>{d.status}</span>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
             </Card>
           )}

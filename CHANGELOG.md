@@ -5,6 +5,81 @@ All notable changes to Rayavriti NetMonitor will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.9.0] - 2026-07-19
+
+Visual UI redesign release. Transforms the text-heavy, table-centric interface into an infographic-driven experience with interactive charts, force-directed topology maps, heatmaps, sparklines, Gantt timelines, and live data visualizations across all pages. Also fixes WebSocket realtime authentication, device modal AI Health score rendering, and campus multi-level location hierarchy.
+
+### Added — Frontend
+
+#### New Components
+- **AnimatedCounter** (`65697fb`) — Rolling number component supporting number/percent/bytes/ms formats with configurable animation duration.
+- **Sparkline** (`65697fb`) — Inline gradient area chart with trend coloring and optional trend arrow indicator.
+- **RingGauge** (`65697fb`) — Animated SVG ring/arc gauge replacing inline AiHealthScore SVG, supports label, size, and stroke width props.
+- **StatCard enhancements** (`65697fb`) — Added animated counters, inline sparklines, trend arrows, delta values, and glow effects to all stat cards across Discovery, ISP, Maintenance, RemoteMonitoring, and Sensors pages.
+- **NetworkTopology page** (`65697fb`) — New `/devices/topology` route with interactive force-directed graph built on a dependency-free canvas simulation; includes status-colored nodes, hover tooltips, click-to-DeviceModal, zoom/pan/drag-pin, filters (status/protocol/location), live WebSocket updates, animated edge particles, and hub-and-spoke fallback when no parent dependency edges exist.
+- **NetworkTopologyMini** (`65697fb`) — Compact force-graph preview on Dashboard linking to full topology page.
+- **StatusHeatmap** (`65697fb`) — Device × time status grid on Dashboard for at-a-glance monitoring.
+- **SankeyDiagram** (`65697fb`) — Flow visualization on FlowAnalysis page showing source→destination bandwidth.
+- **Treemap** (`65697fb`) — Protocol bandwidth treemap on FlowAnalysis page.
+- **RadarChart** (`65697fb`) — Multi-factor comparison on AvgResponseByStatus dashboard widget.
+- **HeatmapChart** (`65697fb`) — Reusable heatmap visualization component.
+- **GanttTimeline** (`65697fb`) — Timeline visualization for incident windows, maintenance schedule, and recent events.
+- **AreaSparkline** (`65697fb`) — Reusable area sparkline chart component.
+- **AnimatedDonut** (`65697fb`) — Animated donut chart used in StatusDistribution with hover glow/expand and animated center label.
+
+#### Dashboard Overhaul
+- **ResponseTimeChart** (`65697fb`) — AreaChart with gradient fills and staggered draw animation.
+- **AiHealthScore** (`65697fb`) — RingGauge + health trend sparkline replacing static SVG.
+- **ResourceLoadChart/ResourceBar** (`65697fb`) — Glow-threshold warnings when utilization exceeds 90%.
+- **LatestMetricsTable** (`65697fb`) — Status dots with glow, response bars, staggered row animation.
+- **ActiveAlertsList** (`65697fb`) — Severity border accents, pulsing dots, timeline bars.
+- **DashboardSkeleton** (`65697fb`) — Shimmer-shaped chart/skeleton placeholders for loading states.
+
+#### Page Enhancements
+- **Devices** (`65697fb`) — Sparklines, status rings with glow on up/ok devices, hover elevation with shadow, stagger animation on card grid, topology link in page header.
+- **Campus** (`65697fb`) — Tree/map/floor tabs with schematic SVG CampusMap and status tiles.
+- **DeviceModal** (`65697fb`, `53d29cc`) — Response sparkline + animated health ring showing real persisted AI Health score; smaller font for modal context.
+- **FlowAnalysis** (`65697fb`) — SankeyDiagram + Treemap + protocol comparison bars.
+- **PacketCapture** (`65697fb`) — Packet-rate sparkline, size histogram, capture session ring gauge.
+- **AIHealth** (`65697fb`) — RingGauge device cards + radar charts per device.
+- **Alerts** (`65697fb`) — Animated stat cards with severity indicators.
+- **ISP** (`65697fb`) — Circuit throughput comparison bars, sparklines on stat cards.
+- **Incidents** (`65697fb`) — GanttTimeline for recent incident windows.
+- **IncidentDetail** (`65697fb`) — Impacted topology grid with status glow dots, active step ring highlight on status flow.
+- **Discovery** (`65697fb`) — Sparklines on stat cards, discovery sweep visualization grid.
+- **Maintenance** (`65697fb`) — GanttTimeline for maintenance schedule, sparklines on stat cards.
+- **Logs** (`65697fb`) — Log volume pulse bar chart by severity level.
+- **RemoteMonitoring** (`65697fb`) — Sparklines and trend arrows on stat cards.
+- **Sensors** (`65697fb`) — Migrated to StatCard component with animated values.
+- **UserManagement** (`65697fb`) — Stat cards with animated counters.
+- **Login** (`65697fb`) — Glass-card login form with atmosphere background.
+
+#### CSS & Animations
+- **index.css** (`65697fb`) — Shimmer, glow-pulse, particle-drift keyframes; glass-card, glow-success/glow-warning/glow-error utilities; card-stagger animation; status-dot-live pulse; login-atmosphere gradient.
+
+### Added — Backend
+
+- **AI Health scores API** (`53d29cc`) — New `GET /api/v1/health/scores` and `GET /api/v1/health/scores/{deviceId}` endpoints (devices.read permission) returning `DeviceHealthScoreRow` for device modal and topology widgets.
+
+### Changed
+
+- **Vite config** (`65697fb`) — Manual chunk splitting for chart libraries; vendor-charts chunk for production optimization.
+- **App.tsx** (`65697fb`) — Lazy-loaded `/devices/topology` route.
+
+### Fixed
+
+- **WebSocket subprotocol auth** (`9cbabbd`) — Always send access token as `Sec-WebSocket-Protocol` subprotocol when an in-memory token is available, fixing realtime connection failure over plain HTTP and non-prod setups.
+- **WebSocket token rehydration** (`3b440c0`) — Persist access token alongside user in localStorage and rehydrate at module load so SocketProvider.connect() authenticates immediately on page reload instead of staying stuck on "Realtime paused".
+- **WebSocket dev origin** (`36297b1`) — `DevAwareAllowedOrigins` now appends common local dev origins (Vite `:5173` + API `:3000`) in non-production, fixing 403 "request origin not allowed" on WebSocket upgrade from the Vite dev server.
+- **Device modal AI Health score** (`53d29cc`) — Replaced hardcoded 92/20 RingGauge values with the device's persisted AI Health score from `/api/v1/health/scores/{id}`; falls back to status-based value only if no score exists.
+- **AI Health score display** (`964aa14`) — Round RingGauge value (decimals=0) and use `text-lg` instead of `text-3xl` so the score fits cleanly in the 54px modal gauge.
+- **Campus location hierarchy** (`aba6f45`) — Store empty location code as NULL (not `''`) so the UNIQUE constraint permits multiple locations without a code; qualify all recursive CTE columns with table alias to fix ambiguous column references in `GetSubtree`, unblocking nested locations like Main Campus → CS Dept → Lab 1.
+
+### Removed
+
+- `react-force-graph-2d` dependency — Topology uses a dependency-free canvas simulation.
+- `leaflet` and `react-leaflet` dependencies — Campus uses schematic SVG instead of interactive maps.
+
 ## [3.8.0] - 2026-07-19
 
 Fleet operations release. Adds remote monitoring for centralized management of multiple NetMonitor instances, service mode coordination (active/readonly/maintenance), and telemetry-based config sync.

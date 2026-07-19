@@ -12,6 +12,7 @@ import { TOOLTIP_STYLE, AXIS_TICK_STYLE, LEGEND_STYLE, legendFormatter } from '.
 import LoadingState from '../components/ui/LoadingState';
 import ErrorState from '../components/ui/ErrorState';
 import SectionHeader from '../components/ui/SectionHeader';
+import StatCard from '../components/ui/StatCard';
 
 const KNOWN_PROTOCOLS = ['ping', 'http', 'https', 'port', 'system', 'snmp'];
 
@@ -104,38 +105,10 @@ export default function Sensors() {
       {!loading && !error && (
         <>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-            <div className="bg-surface-container-low p-6 rounded-lg border border-outline-variant/10">
-              <div className="flex justify-between items-start mb-4">
-                <span className="material-symbols-outlined text-primary bg-primary/10 p-2 rounded-lg">sensors</span>
-                <span className="text-xs text-primary bg-primary/10 px-2 py-0.5 rounded-full font-semibold">TOTAL</span>
-              </div>
-              <h3 className="text-outline font-label uppercase tracking-wide text-xs mb-1">Total Sensors</h3>
-              <span className="text-3xl font-headline font-semibold text-on-surface">{total}</span>
-            </div>
-            <div className="bg-surface-container-low p-6 rounded-lg border border-outline-variant/10">
-              <div className="flex justify-between items-start mb-4">
-                <span className="material-symbols-outlined text-primary bg-primary/10 p-2 rounded-lg">check_circle</span>
-                <span className="text-xs text-primary bg-primary/10 px-2 py-0.5 rounded-full font-semibold">HEALTHY</span>
-              </div>
-              <h3 className="text-outline font-label uppercase tracking-wide text-xs mb-1">Healthy</h3>
-              <span className="text-3xl font-headline font-semibold text-primary">{healthy}</span>
-            </div>
-            <div className="bg-surface-container-low p-6 rounded-lg border border-outline-variant/10">
-              <div className="flex justify-between items-start mb-4">
-                <span className="material-symbols-outlined text-warning bg-warning/10 p-2 rounded-lg">warning</span>
-                <span className="text-xs text-warning bg-warning/10 px-2 py-0.5 rounded-full font-semibold">WARNING</span>
-              </div>
-              <h3 className="text-outline font-label uppercase tracking-wide text-xs mb-1">Warning</h3>
-              <span className="text-3xl font-headline font-semibold text-warning">{warn}</span>
-            </div>
-            <div className="bg-surface-container-low p-6 rounded-lg border border-outline-variant/10">
-              <div className="flex justify-between items-start mb-4">
-                <span className="material-symbols-outlined text-error bg-error/10 p-2 rounded-lg">error</span>
-                <span className="text-xs text-error bg-error/10 px-2 py-0.5 rounded-full font-semibold">DOWN</span>
-              </div>
-              <h3 className="text-outline font-label uppercase tracking-wide text-xs mb-1">Down</h3>
-              <span className="text-3xl font-headline font-semibold text-error">{down}</span>
-            </div>
+            <StatCard label="Total Sensors" value={total} icon="sensors" trend="up" sparklineData={metrics.map((m) => m.responseTime ?? 0)} />
+            <StatCard label="Healthy" value={healthy} icon="check_circle" color="text-primary" trend="up" sparklineData={metrics.map((m) => (m.status === 'up' || m.status === 'ok' ? 1 : 0))} />
+            <StatCard label="Warning" value={warn} icon="warning" color="text-warning" trend={warn ? 'flat' : 'down'} sparklineData={metrics.map((m) => (m.status === 'warning' || m.status === 'degraded' ? 1 : 0))} />
+            <StatCard label="Down" value={down} icon="error" color="text-error" trend={down ? 'up' : 'down'} sparklineData={metrics.map((m) => (m.status === 'down' ? 1 : 0))} />
           </div>
 
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-6">
@@ -183,8 +156,9 @@ export default function Sensors() {
                    <div key={m.id || i} className={`bg-surface-container-low p-5 rounded-lg border ${statusBorderColor(m.status)} group hover:bg-surface-container-low transition-colors`}>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-5">
-                        <div className={`w-10 h-10 rounded-lg ${m.status === 'down' ? 'bg-error/10' : 'bg-surface-container-lowest'} flex items-center justify-center`}>
+                        <div className={`w-10 h-10 rounded-lg ${m.status === 'down' ? 'bg-error/10' : 'bg-surface-container-lowest'} flex items-center justify-center relative`}>
                           <span className={`material-symbols-outlined ${statusTextColor(m.status)}`}>{sensorIconForProtocol(m.protocol)}</span>
+                          <span className={`absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 border-surface-container-low ${m.status === 'down' ? 'bg-error glow-error' : m.status === 'warning' || m.status === 'degraded' ? 'bg-warning' : 'bg-success status-dot-live'}`} />
                         </div>
                         <div>
                           <p className="font-semibold text-on-surface tracking-tight">{m.deviceName}</p>

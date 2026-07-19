@@ -21,9 +21,9 @@ function ResourceLoadChartInner({ systemInfo, onExpand }: Props) {
         <span className="material-symbols-outlined text-on-surface-variant group-hover:text-on-surface text-sm transition-colors">open_in_full</span>
       </div>
       <div className="space-y-4 mt-6">
-        <ResourceBar label="CPU" value={systemInfo.cpu} color="var(--color-chart-1)" />
-        <ResourceBar label="Memory" value={systemInfo.memory} color="var(--color-chart-2)" />
-        <ResourceBar label="Error Rate" value={systemInfo.errorRate} color="var(--color-error)" />
+        <ResourceBar label="CPU" value={systemInfo.cpu} color="var(--color-chart-1)" warn={systemInfo.cpu > 90} />
+        <ResourceBar label="Memory" value={systemInfo.memory} color="var(--color-chart-2)" warn={systemInfo.memory > 90} />
+        <ResourceBar label="Error Rate" value={systemInfo.errorRate} color="var(--color-error)" warn={systemInfo.errorRate > 80} />
       </div>
     </div>
   );
