@@ -42,6 +42,7 @@ const navGroups: NavGroup[] = [
       { to: '/campus', label: 'Campus', icon: 'account_tree', permission: 'locations.read' },
       { to: '/sensors', label: 'Sensors', icon: 'sensors', permission: 'devices.read' },
       { to: '/isp', label: 'ISP Links', icon: 'router', permission: 'isp.read' },
+		{ to: '/remote', label: 'Remote Monitoring', icon: 'hub', permission: 'remote.manage' },
     ],
   },
   {

@@ -1019,4 +1019,55 @@ var migrations = []string{
 	CREATE INDEX IF NOT EXISTS idx_backups_status ON backups(status);
 	CREATE INDEX IF NOT EXISTS idx_backups_type   ON backups(type);
 	CREATE INDEX IF NOT EXISTS idx_backups_created ON backups(created_at DESC);`,
+
+	// V38: Remote monitoring registry and snapshots
+	`CREATE TABLE IF NOT EXISTS remote_instances (
+		id BIGSERIAL PRIMARY KEY,
+		name TEXT NOT NULL,
+		url TEXT NOT NULL,
+		api_key_enc BYTEA NOT NULL,
+		location_label TEXT NOT NULL DEFAULT '',
+		tags TEXT[] NOT NULL DEFAULT '{}',
+		poll_interval_s INTEGER NOT NULL DEFAULT 60 CHECK (poll_interval_s BETWEEN 10 AND 3600),
+		tls_skip_verify BOOLEAN NOT NULL DEFAULT FALSE,
+		status TEXT NOT NULL DEFAULT 'unknown',
+		last_seen_at TIMESTAMPTZ,
+		last_error TEXT NOT NULL DEFAULT '',
+		created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+		updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+	);
+	CREATE TABLE IF NOT EXISTS remote_snapshots (
+		id BIGSERIAL,
+		instance_id BIGINT NOT NULL REFERENCES remote_instances(id) ON DELETE CASCADE,
+		timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+		device_count INTEGER NOT NULL DEFAULT 0,
+		device_up_count INTEGER NOT NULL DEFAULT 0,
+		device_down_count INTEGER NOT NULL DEFAULT 0,
+		alert_count INTEGER NOT NULL DEFAULT 0,
+		critical_alerts INTEGER NOT NULL DEFAULT 0,
+		health_score REAL NOT NULL DEFAULT 0,
+		latency_ms REAL NOT NULL DEFAULT 0,
+		version TEXT NOT NULL DEFAULT '',
+		raw_data JSONB NOT NULL DEFAULT '{}',
+		PRIMARY KEY (id, timestamp)
+	);
+	SELECT create_hypertable('remote_snapshots', 'timestamp', if_not_exists => TRUE);
+	CREATE INDEX IF NOT EXISTS idx_remote_snapshots_instance_time ON remote_snapshots(instance_id, timestamp DESC);
+	UPDATE roles SET permissions = '["*"]' WHERE name = 'super_admin' AND is_system = TRUE;
+	UPDATE roles SET permissions = (
+		SELECT jsonb_agg(DISTINCT value)
+		FROM jsonb_array_elements_text(permissions || '["remote.manage"]'::jsonb) AS t(value)
+	) WHERE name = 'network_admin' AND is_system = TRUE;`,
+
+	// V39: System configuration for explicit service-mode coordination
+	`CREATE TABLE IF NOT EXISTS sys_config (
+		key TEXT PRIMARY KEY,
+		value TEXT NOT NULL DEFAULT '',
+		updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+	);`,
+
+	// V40: Remote service-mode assignments by synchronized fingerprint
+	`ALTER TABLE remote_instances ADD COLUMN IF NOT EXISTS sync_fingerprint TEXT NOT NULL DEFAULT '';
+	ALTER TABLE remote_instances ADD COLUMN IF NOT EXISTS service_mode TEXT NOT NULL DEFAULT 'active';
+	CREATE INDEX IF NOT EXISTS idx_remote_instances_fingerprint ON remote_instances(sync_fingerprint) WHERE sync_fingerprint <> '';`,
 }

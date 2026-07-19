@@ -34,6 +34,9 @@ const (
 	EventCaptureStatus  EventType = "capture:status"
 	EventPortsScanned   EventType = "ports:scanned"
 	EventBootstrap      EventType = "bootstrap"
+	EventRemoteStatus   EventType = "remote:status"
+	EventRemoteMetrics  EventType = "remote:metrics"
+	EventRemoteAlert    EventType = "remote:alert"
 )
 
 type Message struct {
