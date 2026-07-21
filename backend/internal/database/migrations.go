@@ -1081,4 +1081,8 @@ var migrations = []string{
 	ALTER TABLE monitoring_app_health ADD COLUMN IF NOT EXISTS poller_avg_latency_ms BIGINT NOT NULL DEFAULT 0;
 	ALTER TABLE monitoring_app_health ADD COLUMN IF NOT EXISTS poller_unreachable_count INT NOT NULL DEFAULT 0;
 	ALTER TABLE monitoring_app_health ADD COLUMN IF NOT EXISTS poller_paused_count INT NOT NULL DEFAULT 0;`,
+
+	// V42: Add priority column to devices
+	`ALTER TABLE devices ADD COLUMN IF NOT EXISTS priority INT NOT NULL DEFAULT 1;
+	CREATE INDEX IF NOT EXISTS idx_devices_priority ON devices(priority) WHERE enabled = true;`,
 }
