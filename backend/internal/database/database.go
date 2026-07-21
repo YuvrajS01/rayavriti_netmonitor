@@ -83,6 +83,7 @@ type Database interface {
 
 	// Metrics
 	RecordMetric(ctx context.Context, m *models.Metric) error
+	RecordMetricsBatch(ctx context.Context, metrics []*models.Metric) error
 	GetLatestMetrics(ctx context.Context) ([]models.Metric, error)
 	GetLatestMetricForDevice(ctx context.Context, deviceID int64) (*models.Metric, error)
 	GetDeviceMetrics(ctx context.Context, deviceID int64, from, to time.Time, limit int) ([]models.Metric, error)

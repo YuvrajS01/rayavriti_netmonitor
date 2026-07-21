@@ -281,6 +281,30 @@ func (p *Postgres) RecordMetric(ctx context.Context, m *models.Metric) error {
 	return err
 }
 
+func (p *Postgres) RecordMetricsBatch(ctx context.Context, metrics []*models.Metric) error {
+	if len(metrics) == 0 {
+		return nil
+	}
+
+	rows := make([][]any, len(metrics))
+	for i, m := range metrics {
+		details, _ := json.Marshal(m.Details)
+		rows[i] = []any{
+			m.DeviceID, m.Timestamp, m.Status,
+			m.ResponseTime, m.PacketLoss, m.CPUUsage, m.MemoryUsage,
+			m.Bandwidth, m.CustomValue, details,
+		}
+	}
+
+	_, err := p.pool.CopyFrom(ctx,
+		pgx.Identifier{"metrics"},
+		[]string{"device_id", "timestamp", "status", "response_time", "packet_loss",
+			"cpu_usage", "memory_usage", "bandwidth", "custom_value", "details"},
+		pgx.CopyFromRows(rows),
+	)
+	return err
+}
+
 func (p *Postgres) GetLatestMetrics(ctx context.Context) ([]models.Metric, error) {
 	rows, err := p.pool.Query(ctx, `
 		SELECT DISTINCT ON (m.device_id)

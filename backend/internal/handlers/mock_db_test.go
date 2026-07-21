@@ -244,6 +244,8 @@ func (m *mockDB) RecordMetric(ctx context.Context, mt *models.Metric) error {
 	return nil
 }
 
+func (m *mockDB) RecordMetricsBatch(ctx context.Context, metrics []*models.Metric) error { return nil }
+
 func (m *mockDB) GetLatestMetrics(ctx context.Context) ([]models.Metric, error) {
 	if m.getLatestMetricsFn != nil {
 		return m.getLatestMetricsFn(ctx)
