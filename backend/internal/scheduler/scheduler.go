@@ -49,9 +49,10 @@ type Scheduler struct {
 	buffer   *cache.MetricBuffer
 	rdb      *cache.Redis
 
-	pool       *WorkerPool
-	dispatcher *PollDispatcher
-	pipeline   *ResultPipeline
+	pool         *WorkerPool
+	dispatcher   *PollDispatcher
+	pipeline     *ResultPipeline
+	stateTracker *DeviceStateTracker
 
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
@@ -70,15 +71,39 @@ func WithRedis(rdb *cache.Redis) SchedulerOption {
 	return func(s *Scheduler) { s.rdb = rdb }
 }
 
-func New(db database.Database, registry *collectors.Registry, hub *websocket.Hub, alertEng *engine.AlertEngine, intervalSec int, opts ...SchedulerOption) *Scheduler {
-	cfg := DefaultSchedulerConfig()
+func WithSchedulerConfig(cfg SchedulerConfig) SchedulerOption {
+	return func(s *Scheduler) {
+		if cfg.WorkerCount > 0 {
+			s.config.WorkerCount = cfg.WorkerCount
+		}
+		if cfg.MaxWorkerCount > 0 {
+			s.config.MaxWorkerCount = cfg.MaxWorkerCount
+		}
+		if cfg.CriticalQueueSize > 0 {
+			s.config.CriticalQueueSize = cfg.CriticalQueueSize
+		}
+		if cfg.NormalQueueSize > 0 {
+			s.config.NormalQueueSize = cfg.NormalQueueSize
+		}
+		if cfg.LowQueueSize > 0 {
+			s.config.LowQueueSize = cfg.LowQueueSize
+		}
+		if cfg.ResultBatchSize > 0 {
+			s.config.ResultBatchSize = cfg.ResultBatchSize
+		}
+		if cfg.ResultFlushMs > 0 {
+			s.config.ResultFlushMs = cfg.ResultFlushMs
+		}
+	}
+}
 
+func New(db database.Database, registry *collectors.Registry, hub *websocket.Hub, alertEng *engine.AlertEngine, intervalSec int, opts ...SchedulerOption) *Scheduler {
 	s := &Scheduler{
 		db:       db,
 		registry: registry,
 		hub:      hub,
 		alertEng: alertEng,
-		config:   cfg,
+		config:   DefaultSchedulerConfig(),
 	}
 
 	if intervalSec > 0 {
@@ -89,28 +114,30 @@ func New(db database.Database, registry *collectors.Registry, hub *websocket.Hub
 		o(s)
 	}
 
+	// Build components AFTER options have been applied
 	wpCfg := WorkerPoolConfig{
-		WorkerCount:       cfg.WorkerCount,
-		MaxWorkerCount:    cfg.MaxWorkerCount,
-		CriticalQueueSize: cfg.CriticalQueueSize,
-		NormalQueueSize:   cfg.NormalQueueSize,
-		LowQueueSize:      cfg.LowQueueSize,
+		WorkerCount:       s.config.WorkerCount,
+		MaxWorkerCount:    s.config.MaxWorkerCount,
+		CriticalQueueSize: s.config.CriticalQueueSize,
+		NormalQueueSize:   s.config.NormalQueueSize,
+		LowQueueSize:      s.config.LowQueueSize,
 	}
 
 	s.pool = NewWorkerPool(wpCfg, s.collectAndReturnResult)
 	s.dispatcher = NewPollDispatcher(s.pool, time.Duration(intervalSec)*time.Second)
-
 	s.pool.SetResultHandler(s.handlePollResult)
 
 	s.pipeline = NewResultPipeline(ResultPipelineConfig{
-		DB:          db,
-		Hub:         hub,
-		AlertEng:    alertEng,
-		Buffer:      s.buffer,
-		RDB:         s.rdb,
-		BatchSize:   cfg.ResultBatchSize,
-		FlushMs:     cfg.ResultFlushMs,
+		DB:        db,
+		Hub:       hub,
+		AlertEng:  alertEng,
+		Buffer:    s.buffer,
+		RDB:       s.rdb,
+		BatchSize: s.config.ResultBatchSize,
+		FlushMs:   s.config.ResultFlushMs,
 	})
+
+	s.stateTracker = NewDeviceStateTracker()
 
 	return s
 }
@@ -172,12 +199,12 @@ func (s *Scheduler) scheduleDevice(d models.Device) {
 
 	interval := time.Duration(d.Interval) * time.Second
 	s.dispatcher.Upsert(d, priority, interval)
-	s.jobCount.Add(1)
+	s.jobCount.Store(int64(s.dispatcher.Count()))
 }
 
 func (s *Scheduler) unscheduleDevice(deviceID int64) {
 	s.dispatcher.Remove(deviceID)
-	s.jobCount.Add(-1)
+	s.jobCount.Store(int64(s.dispatcher.Count()))
 }
 
 func (s *Scheduler) reconcileLoop(ctx context.Context) {
@@ -202,11 +229,20 @@ func (s *Scheduler) reconcile(ctx context.Context) {
 		return
 	}
 
-	currentIDs := make(map[int64]bool)
+	currentIDs := make(map[int64]bool, len(devices))
 	for _, d := range devices {
 		currentIDs[d.ID] = true
 		s.scheduleDevice(d)
 	}
+
+	// Remove devices that no longer exist or are disabled
+	for _, id := range s.dispatcher.DeviceIDs() {
+		if !currentIDs[id] {
+			slog.Info("device removed or disabled, unscheduling", "device_id", id)
+			s.dispatcher.Remove(id)
+		}
+	}
+	s.jobCount.Store(int64(s.dispatcher.Count()))
 }
 
 func (s *Scheduler) collectAndReturnResult(ctx context.Context, job PollJob) PollResult {
@@ -280,6 +316,7 @@ func (s *Scheduler) collectAndReturnResult(ctx context.Context, job PollJob) Pol
 	result.FinishedAt = time.Now()
 
 	result.Device.Status = collectResult.Status
+	result.CollectResult = collectResult
 	if collectResult.Details == nil {
 		collectResult.Details = make(map[string]any)
 	}
@@ -291,9 +328,16 @@ func (s *Scheduler) collectAndReturnResult(ctx context.Context, job PollJob) Pol
 func (s *Scheduler) handlePollResult(pr PollResult) {
 	if pr.Error != nil {
 		s.dispatcher.RecordFailure(pr.Device.ID)
+		s.stateTracker.RecordFailure(pr.Device.ID, pr.Error)
 	} else {
+		duration := pr.FinishedAt.Sub(pr.StartedAt)
 		s.dispatcher.RecordSuccess(pr.Device.ID)
+		s.stateTracker.RecordSuccess(pr.Device.ID, duration)
 	}
 
 	s.pipeline.Submit(pr)
+}
+
+func (s *Scheduler) StateTracker() *DeviceStateTracker {
+	return s.stateTracker
 }

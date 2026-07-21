@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/rayavriti/netmonitor-backend/internal/collectors"
 	"github.com/rayavriti/netmonitor-backend/internal/models"
 )
 
@@ -42,12 +43,13 @@ type WorkerPool struct {
 }
 
 type PollResult struct {
-	Device     models.Device
-	Status     string
-	ResponseMs float64
-	Error      error
-	StartedAt  time.Time
-	FinishedAt time.Time
+	Device        models.Device
+	CollectResult *collectors.Result
+	Status        string
+	ResponseMs    float64
+	Error         error
+	StartedAt     time.Time
+	FinishedAt    time.Time
 }
 
 type WorkerPoolConfig struct {

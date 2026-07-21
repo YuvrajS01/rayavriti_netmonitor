@@ -126,6 +126,17 @@ func (rp *ResultPipeline) processBatch(ctx context.Context, batch []PollResult) 
 
 	rp.writeMetrics(ctx, metrics)
 
+	// Update device status in database
+	for _, pr := range batch {
+		if pr.Status != "" {
+			if pg, ok := rp.db.(interface {
+				UpdateDeviceStatus(context.Context, int64, string) error
+			}); ok {
+				_ = pg.UpdateDeviceStatus(ctx, pr.Device.ID, pr.Status)
+			}
+		}
+	}
+
 	if rp.alertEng != nil {
 		for i, pr := range batch {
 			prevStatus := pr.Device.Status
@@ -135,19 +146,29 @@ func (rp *ResultPipeline) processBatch(ctx context.Context, batch []PollResult) 
 }
 
 func (rp *ResultPipeline) buildMetric(pr PollResult, now time.Time) *models.Metric {
-	responseTime := pr.ResponseMs
 	status := pr.Status
 	if status == "" {
 		status = pr.Device.Status
 	}
 
 	metric := &models.Metric{
-		DeviceID:     pr.Device.ID,
-		DeviceName:   pr.Device.Name,
-		Protocol:     pr.Device.Protocol,
-		Timestamp:    now,
-		Status:       status,
-		ResponseTime: &responseTime,
+		DeviceID:   pr.Device.ID,
+		DeviceName: pr.Device.Name,
+		Protocol:   pr.Device.Protocol,
+		Timestamp:  now,
+		Status:     status,
+	}
+
+	if pr.CollectResult != nil {
+		metric.ResponseTime = pr.CollectResult.ResponseTime
+		metric.PacketLoss = pr.CollectResult.PacketLoss
+		metric.CPUUsage = pr.CollectResult.CPUUsage
+		metric.MemoryUsage = pr.CollectResult.MemoryUsage
+		metric.Bandwidth = pr.CollectResult.Bandwidth
+		metric.Details = pr.CollectResult.Details
+	} else {
+		responseTime := pr.ResponseMs
+		metric.ResponseTime = &responseTime
 	}
 
 	return metric

@@ -108,6 +108,11 @@ func (d *PollDispatcher) Upsert(device models.Device, priority int, interval tim
 		d.deviceMap[device.ID] = entry
 		heap.Push(d.schedule, entry)
 	}
+
+	select {
+	case d.wakeup <- struct{}{}:
+	default:
+	}
 }
 
 func (d *PollDispatcher) Remove(deviceID int64) {
@@ -194,6 +199,16 @@ func (d *PollDispatcher) Count() int {
 	return d.schedule.Len()
 }
 
+func (d *PollDispatcher) DeviceIDs() []int64 {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	ids := make([]int64, 0, len(d.deviceMap))
+	for id := range d.deviceMap {
+		ids = append(ids, id)
+	}
+	return ids
+}
+
 func (d *PollDispatcher) UnreachableCount() int {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
@@ -223,19 +238,18 @@ func (d *PollDispatcher) run(ctx context.Context) {
 	timer := time.NewTimer(0)
 	defer timer.Stop()
 
-	// drain initial fire
-	select {
-	case <-timer.C:
-	default:
-	}
-	timer.Reset(0)
-
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-timer.C:
 		case <-d.wakeup:
+			if !timer.Stop() {
+				select {
+				case <-timer.C:
+				default:
+				}
+			}
 		}
 		d.dispatchDue()
 		d.rescheduleTimer(timer)

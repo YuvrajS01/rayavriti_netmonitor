@@ -195,6 +195,15 @@ func run() error {
 	if rdb != nil {
 		schedOpts = append(schedOpts, scheduler.WithRedis(rdb))
 	}
+	schedOpts = append(schedOpts, scheduler.WithSchedulerConfig(scheduler.SchedulerConfig{
+		WorkerCount:       cfg.Collector.PollerWorkerCount,
+		MaxWorkerCount:    cfg.Collector.PollerMaxWorkerCount,
+		CriticalQueueSize: cfg.Collector.PollerCriticalQueueSize,
+		NormalQueueSize:   cfg.Collector.PollerNormalQueueSize,
+		LowQueueSize:      cfg.Collector.PollerLowQueueSize,
+		ResultBatchSize:   cfg.Collector.PollerResultBatchSize,
+		ResultFlushMs:     cfg.Collector.PollerResultFlushMs,
+	}))
 	sched := scheduler.New(appDB, registry, hub, alertEng, cfg.Collector.CollectorIntervalSec, schedOpts...)
 	sched.Start(context.Background())
 	logger.Info("Scheduler started")

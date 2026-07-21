@@ -24,6 +24,7 @@ type mockDB struct {
 	recordMetricsBatchFn       func(ctx context.Context, metrics []*models.Metric) error
 	getLatestMetricsFn         func(ctx context.Context) ([]models.Metric, error)
 	getLatestMetricForDeviceFn func(ctx context.Context, deviceID int64) (*models.Metric, error)
+	updateDeviceStatusFn       func(ctx context.Context, id int64, status string) error
 }
 
 func (m *mockDB) Connect(ctx context.Context) error                       { return nil }
@@ -44,8 +45,13 @@ func (m *mockDB) CreateDevice(ctx context.Context, d *models.Device) (*models.De
 func (m *mockDB) UpdateDevice(ctx context.Context, id int64, d *models.Device) (*models.Device, error) {
 	return nil, nil
 }
-func (m *mockDB) DeleteDevice(ctx context.Context, id int64) error                      { return nil }
-func (m *mockDB) UpdateDeviceStatus(ctx context.Context, id int64, status string) error { return nil }
+func (m *mockDB) DeleteDevice(ctx context.Context, id int64) error { return nil }
+func (m *mockDB) UpdateDeviceStatus(ctx context.Context, id int64, status string) error {
+	if m.updateDeviceStatusFn != nil {
+		return m.updateDeviceStatusFn(ctx, id, status)
+	}
+	return nil
+}
 func (m *mockDB) GetEnabledDevices(ctx context.Context) ([]models.Device, error) {
 	if m.getEnabledDevicesFn != nil {
 		return m.getEnabledDevicesFn(ctx)
@@ -331,9 +337,14 @@ func TestScheduler_Reconcile(t *testing.T) {
 				return []models.Device{
 					{ID: 1, Name: "d1", Protocol: "ping", Interval: 10},
 				}, nil
+			} else if callCount == 2 {
+				return []models.Device{
+					{ID: 1, Name: "d1", Protocol: "ping", Interval: 10},
+					{ID: 2, Name: "d2", Protocol: "ping", Interval: 10},
+				}, nil
 			}
+			// Third call: device 1 removed, only device 2 remains
 			return []models.Device{
-				{ID: 1, Name: "d1", Protocol: "ping", Interval: 10},
 				{ID: 2, Name: "d2", Protocol: "ping", Interval: 10},
 			}, nil
 		},
@@ -343,8 +354,20 @@ func TestScheduler_Reconcile(t *testing.T) {
 	defer cancel()
 	s.Start(ctx)
 	time.Sleep(50 * time.Millisecond)
+	assert.Equal(t, 1, s.JobCount())
+	assert.Equal(t, 1, s.dispatcher.Count())
+
 	s.reconcile(ctx)
 	time.Sleep(50 * time.Millisecond)
+	assert.Equal(t, 2, s.JobCount())
+	assert.Equal(t, 2, s.dispatcher.Count())
+
+	s.reconcile(ctx)
+	time.Sleep(50 * time.Millisecond)
+	assert.Equal(t, 1, s.JobCount())
+	assert.Equal(t, 1, s.dispatcher.Count())
+	assert.ElementsMatch(t, []int64{2}, s.dispatcher.DeviceIDs())
+
 	s.Stop()
 }
 
@@ -486,10 +509,10 @@ func TestWorkerPool_PriorityOrder(t *testing.T) {
 	})
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	wp.Start(ctx)
 	wp.Enqueue(PollJob{Device: models.Device{ID: 3}, Priority: 2})
 	wp.Enqueue(PollJob{Device: models.Device{ID: 1}, Priority: 0})
 	wp.Enqueue(PollJob{Device: models.Device{ID: 2}, Priority: 1})
+	wp.Start(ctx)
 	time.Sleep(200 * time.Millisecond)
 	wp.Stop()
 	mu.Lock()
@@ -572,6 +595,23 @@ func TestPollDispatcher_Remove(t *testing.T) {
 	assert.Equal(t, 1, d.Count())
 	d.Remove(1)
 	assert.Equal(t, 0, d.Count())
+	d.Stop()
+	wp.Stop()
+}
+
+func TestPollDispatcher_DeviceIDs(t *testing.T) {
+	t.Parallel()
+	wp := NewWorkerPool(WorkerPoolConfig{WorkerCount: 1}, func(ctx context.Context, job PollJob) PollResult {
+		return PollResult{Device: job.Device, Status: "up", FinishedAt: time.Now()}
+	})
+	d := NewPollDispatcher(wp, time.Second)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	wp.Start(ctx)
+	d.Start(ctx)
+	d.Upsert(models.Device{ID: 10}, 0, time.Hour)
+	d.Upsert(models.Device{ID: 20}, 0, time.Hour)
+	assert.ElementsMatch(t, []int64{10, 20}, d.DeviceIDs())
 	d.Stop()
 	wp.Stop()
 }
@@ -911,4 +951,70 @@ func TestWorkerPoolConfig_Defaults(t *testing.T) {
 	cfg := DefaultWorkerPoolConfig()
 	assert.Equal(t, 32, cfg.WorkerCount)
 	assert.Equal(t, 64, cfg.MaxWorkerCount)
+}
+
+func TestResultPipeline_FullCollectResultAndDeviceStatusUpdate(t *testing.T) {
+	t.Parallel()
+	var recordedMetrics []*models.Metric
+	var updatedStatusDeviceID int64
+	var updatedStatus string
+	db := &mockDB{
+		recordMetricsBatchFn: func(ctx context.Context, metrics []*models.Metric) error {
+			recordedMetrics = append(recordedMetrics, metrics...)
+			return nil
+		},
+		updateDeviceStatusFn: func(ctx context.Context, id int64, status string) error {
+			updatedStatusDeviceID = id
+			updatedStatus = status
+			return nil
+		},
+	}
+	p := NewResultPipeline(ResultPipelineConfig{
+		DB:        db,
+		BatchSize: 100,
+		FlushMs:   5000,
+	})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	p.Start(ctx)
+
+	cpu := 45.5
+	mem := 60.2
+	loss := 0.0
+	bw := 1000.0
+	resp := 12.3
+	details := map[string]any{"cpu_temp": 42}
+
+	p.Submit(PollResult{
+		Device: models.Device{ID: 10, Name: "switch1", Protocol: "snmp", Status: "down"},
+		Status: "up",
+		CollectResult: &collectors.Result{
+			Status:       "up",
+			ResponseTime: &resp,
+			PacketLoss:   &loss,
+			CPUUsage:     &cpu,
+			MemoryUsage:  &mem,
+			Bandwidth:    &bw,
+			Details:      details,
+		},
+		FinishedAt: time.Now(),
+	})
+	time.Sleep(50 * time.Millisecond)
+	p.Stop()
+
+	assert.Len(t, recordedMetrics, 1)
+	if len(recordedMetrics) == 1 {
+		m := recordedMetrics[0]
+		assert.Equal(t, int64(10), m.DeviceID)
+		assert.Equal(t, "up", m.Status)
+		assert.Equal(t, &resp, m.ResponseTime)
+		assert.Equal(t, &loss, m.PacketLoss)
+		assert.Equal(t, &cpu, m.CPUUsage)
+		assert.Equal(t, &mem, m.MemoryUsage)
+		assert.Equal(t, &bw, m.Bandwidth)
+		assert.Equal(t, details, m.Details)
+	}
+
+	assert.Equal(t, int64(10), updatedStatusDeviceID)
+	assert.Equal(t, "up", updatedStatus)
 }
