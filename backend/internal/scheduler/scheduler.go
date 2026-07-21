@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -16,6 +17,30 @@ import (
 	"github.com/rayavriti/netmonitor-backend/internal/websocket"
 )
 
+type SchedulerConfig struct {
+	WorkerCount       int
+	MaxWorkerCount    int
+	CriticalQueueSize int
+	NormalQueueSize   int
+	LowQueueSize      int
+	ReconcileInterval time.Duration
+	ResultBatchSize   int
+	ResultFlushMs     int
+}
+
+func DefaultSchedulerConfig() SchedulerConfig {
+	return SchedulerConfig{
+		WorkerCount:       runtime.NumCPU() * 4,
+		MaxWorkerCount:    runtime.NumCPU() * 8,
+		CriticalQueueSize: 256,
+		NormalQueueSize:   1024,
+		LowQueueSize:      512,
+		ReconcileInterval: 30 * time.Second,
+		ResultBatchSize:   100,
+		ResultFlushMs:     2000,
+	}
+}
+
 type Scheduler struct {
 	db       database.Database
 	registry *collectors.Registry
@@ -23,25 +48,16 @@ type Scheduler struct {
 	alertEng *engine.AlertEngine
 	buffer   *cache.MetricBuffer
 	rdb      *cache.Redis
-	jobs     map[int64]context.CancelFunc
-	mu       sync.Mutex
-	cancel   context.CancelFunc
-	wg       sync.WaitGroup
-	jobCount atomic.Int64
-}
 
-func New(db database.Database, reg *collectors.Registry, hub *websocket.Hub, alertEng *engine.AlertEngine, intervalSec int, opts ...SchedulerOption) *Scheduler {
-	s := &Scheduler{
-		db:       db,
-		registry: reg,
-		hub:      hub,
-		alertEng: alertEng,
-		jobs:     make(map[int64]context.CancelFunc),
-	}
-	for _, opt := range opts {
-		opt(s)
-	}
-	return s
+	pool       *WorkerPool
+	dispatcher *PollDispatcher
+	pipeline   *ResultPipeline
+
+	cancel context.CancelFunc
+	wg     sync.WaitGroup
+	config SchedulerConfig
+
+	jobCount atomic.Int64
 }
 
 type SchedulerOption func(*Scheduler)
@@ -54,261 +70,230 @@ func WithRedis(rdb *cache.Redis) SchedulerOption {
 	return func(s *Scheduler) { s.rdb = rdb }
 }
 
+func New(db database.Database, registry *collectors.Registry, hub *websocket.Hub, alertEng *engine.AlertEngine, intervalSec int, opts ...SchedulerOption) *Scheduler {
+	cfg := DefaultSchedulerConfig()
+
+	s := &Scheduler{
+		db:       db,
+		registry: registry,
+		hub:      hub,
+		alertEng: alertEng,
+		config:   cfg,
+	}
+
+	if intervalSec > 0 {
+		s.config.ReconcileInterval = time.Duration(intervalSec) * time.Second
+	}
+
+	for _, o := range opts {
+		o(s)
+	}
+
+	wpCfg := WorkerPoolConfig{
+		WorkerCount:       cfg.WorkerCount,
+		MaxWorkerCount:    cfg.MaxWorkerCount,
+		CriticalQueueSize: cfg.CriticalQueueSize,
+		NormalQueueSize:   cfg.NormalQueueSize,
+		LowQueueSize:      cfg.LowQueueSize,
+	}
+
+	s.pool = NewWorkerPool(wpCfg, s.collectAndReturnResult)
+	s.dispatcher = NewPollDispatcher(s.pool, time.Duration(intervalSec)*time.Second)
+
+	s.pool.SetResultHandler(s.handlePollResult)
+
+	s.pipeline = NewResultPipeline(ResultPipelineConfig{
+		DB:          db,
+		Hub:         hub,
+		AlertEng:    alertEng,
+		Buffer:      s.buffer,
+		RDB:         s.rdb,
+		BatchSize:   cfg.ResultBatchSize,
+		FlushMs:     cfg.ResultFlushMs,
+	})
+
+	return s
+}
+
 func (s *Scheduler) Start(ctx context.Context) {
 	ctx, s.cancel = context.WithCancel(ctx)
 
-	// Run initial collection for all devices immediately
+	s.pool.Start(ctx)
+	s.dispatcher.Start(ctx)
+	s.pipeline.Start(ctx)
+
 	devices, err := s.db.GetEnabledDevices(ctx)
 	if err != nil {
-		slog.Error("Failed to get enabled devices for initial collection", "error", err)
+		slog.Error("failed to fetch enabled devices on start", "error", err)
 	} else {
 		for _, d := range devices {
-			s.scheduleDevice(ctx, d)
+			s.scheduleDevice(d)
 		}
-		slog.Info("Scheduler started", "devices", len(devices))
 	}
 
-	// Periodically check for device changes (new devices, interval changes, deleted devices)
 	s.wg.Add(1)
-	go func() {
-		defer s.wg.Done()
-		ticker := time.NewTicker(30 * time.Second)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				s.reconcile(ctx)
-			}
-		}
-	}()
+	go s.reconcileLoop(ctx)
+
+	slog.Info("async scheduler started",
+		"workers", s.config.WorkerCount,
+		"devices", s.dispatcher.Count(),
+		"reconcileInterval", s.config.ReconcileInterval)
 }
 
 func (s *Scheduler) Stop() {
 	if s.cancel != nil {
 		s.cancel()
 	}
-	s.mu.Lock()
-	for id, cancel := range s.jobs {
-		cancel()
-		delete(s.jobs, id)
-	}
-	s.mu.Unlock()
+
+	s.pool.Stop()
+	s.dispatcher.Stop()
+	s.pipeline.Stop()
 	s.wg.Wait()
-	slog.Info("Scheduler stopped")
+
+	slog.Info("async scheduler stopped")
 }
 
-// JobCount returns the number of active scheduled jobs.
 func (s *Scheduler) JobCount() int {
 	return int(s.jobCount.Load())
 }
 
-func (s *Scheduler) scheduleDevice(ctx context.Context, device models.Device) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+func (s *Scheduler) Config() SchedulerConfig {
+	return s.config
+}
 
-	// Cancel existing job for this device if any
-	if cancel, ok := s.jobs[device.ID]; ok {
-		cancel()
+func (s *Scheduler) scheduleDevice(d models.Device) {
+	priority := 1
+	if d.Protocol == "snmp" {
+		priority = 0
+	}
+	if d.DeviceCategory == "switch" || d.DeviceCategory == "router" || d.DeviceCategory == "firewall" {
+		priority = 0
 	}
 
-	interval := time.Duration(device.Interval) * time.Second
-	if interval < 5*time.Second {
-		interval = 5 * time.Second
-	}
+	interval := time.Duration(d.Interval) * time.Second
+	s.dispatcher.Upsert(d, priority, interval)
+	s.jobCount.Add(1)
+}
 
-	deviceCtx, deviceCancel := context.WithCancel(ctx) //nolint:gosec // cancel stored in s.jobs map, called by StopJob
-	s.jobs[device.ID] = deviceCancel
-	s.jobCount.Store(int64(len(s.jobs)))
+func (s *Scheduler) unscheduleDevice(deviceID int64) {
+	s.dispatcher.Remove(deviceID)
+	s.jobCount.Add(-1)
+}
 
-	// Run immediately in a goroutine
-	s.wg.Add(1)
-	go func() {
-		defer s.wg.Done()
-		s.collectOnce(deviceCtx, device)
-	}()
+func (s *Scheduler) reconcileLoop(ctx context.Context) {
+	defer s.wg.Done()
+	ticker := time.NewTicker(s.config.ReconcileInterval)
+	defer ticker.Stop()
 
-	// Then run on interval
-	s.wg.Add(1)
-	go func() {
-		defer s.wg.Done()
-		ticker := time.NewTicker(interval)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-deviceCtx.Done():
-				return
-			case <-ticker.C:
-				// Re-fetch device to get latest config
-				if d, err := s.db.GetDevice(deviceCtx, device.ID); err == nil && d.Enabled {
-					s.collectOnce(deviceCtx, *d)
-				}
-			}
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			s.reconcile(ctx)
 		}
-	}()
-
-	slog.Debug("Device scheduled", "device_id", device.ID, "name", device.Name, "interval", interval)
+	}
 }
 
 func (s *Scheduler) reconcile(ctx context.Context) {
 	devices, err := s.db.GetEnabledDevices(ctx)
 	if err != nil {
-		slog.Warn("Failed to get devices for reconciliation", "error", err)
+		slog.Error("reconcile: failed to fetch devices", "error", err)
 		return
 	}
 
-	// Build set of current device IDs
-	activeIDs := make(map[int64]bool, len(devices))
+	currentIDs := make(map[int64]bool)
 	for _, d := range devices {
-		activeIDs[d.ID] = true
-		if _, scheduled := s.jobs[d.ID]; !scheduled {
-			slog.Info("New device discovered, scheduling", "device_id", d.ID, "name", d.Name)
-			s.scheduleDevice(ctx, d)
-		}
+		currentIDs[d.ID] = true
+		s.scheduleDevice(d)
 	}
-
-	// Remove jobs for devices that no longer exist or are disabled
-	s.mu.Lock()
-	for id, cancel := range s.jobs {
-		if !activeIDs[id] {
-			slog.Info("Device removed or disabled, unscheduling", "device_id", id)
-			cancel()
-			delete(s.jobs, id)
-		}
-	}
-	s.jobCount.Store(int64(len(s.jobs)))
-	s.mu.Unlock()
 }
 
-func (s *Scheduler) collectOnce(ctx context.Context, device models.Device) {
-	// Distributed lock: ensure only one instance collects this device
+func (s *Scheduler) collectAndReturnResult(ctx context.Context, job PollJob) PollResult {
+	start := time.Now()
+	result := PollResult{
+		Device:    job.Device,
+		StartedAt: start,
+	}
+
 	if s.rdb != nil {
-		lockName := fmt.Sprintf("collect:%d", device.ID)
-		release, err := s.rdb.AcquireLock(ctx, lockName, 30*time.Second)
-		if err != nil {
-			slog.Debug("Failed to acquire collection lock", "device_id", device.ID, "error", err)
-			return
-		}
-		if release == nil {
-			return // another instance is collecting this device
+		lockKey := fmt.Sprintf("collect:%d", job.Device.ID)
+		locked, release, err := s.rdb.TryLock(ctx, lockKey, time.Duration(job.Device.Interval)*time.Second)
+		if err != nil || !locked {
+			if err != nil {
+				slog.Warn("distributed lock failed", "deviceID", job.Device.ID, "error", err)
+			}
+			result.Error = fmt.Errorf("skipped: could not acquire lock")
+			result.FinishedAt = time.Now()
+			return result
 		}
 		defer release()
 	}
 
-	collector, ok := s.registry.Get(device.Protocol)
+	c, ok := s.registry.Get(job.Device.Protocol)
 	if !ok {
-		slog.Warn("No collector for protocol", "protocol", device.Protocol, "device_id", device.ID)
-		return
+		slog.Warn("unknown protocol for device", "deviceID", job.Device.ID, "protocol", job.Device.Protocol)
+		result.Error = fmt.Errorf("unknown protocol: %s", job.Device.Protocol)
+		result.FinishedAt = time.Now()
+		return result
 	}
 
-	start := time.Now()
-	result, err := collector.Collect(ctx, &device)
-	duration := time.Since(start)
+	duration := time.Duration(0)
+	timeout := 30 * time.Second
+	if meta, ok := c.(collectors.CollectorMeta); ok {
+		if t := meta.DefaultTimeout(); t > 0 {
+			timeout = t
+		}
+	}
+
+	collectCtx, collectCancel := context.WithTimeout(ctx, timeout)
+	defer collectCancel()
+
+	collectResult, err := c.Collect(collectCtx, &result.Device)
+
+	duration = time.Since(start)
 
 	if err != nil {
-		slog.Error("Collection failed",
-			"device_id", device.ID,
-			"device_name", device.Name,
-			"protocol", device.Protocol,
-			"error", err,
-			"duration_ms", duration.Milliseconds(),
-		)
-		return
+		slog.Warn("collection failed", "deviceID", job.Device.ID, "device", job.Device.Name,
+			"protocol", job.Device.Protocol, "duration", duration, "error", err)
+		result.Error = err
+		result.Status = "down"
+		result.FinishedAt = time.Now()
+		result.ResponseMs = float64(duration.Milliseconds())
+		return result
 	}
 
-	if result == nil {
-		result = &collectors.Result{Status: "down"}
+	if collectResult == nil {
+		result.Status = "down"
+		result.FinishedAt = time.Now()
+		result.ResponseMs = float64(duration.Milliseconds())
+		slog.Warn("collector returned nil result", "deviceID", job.Device.ID, "device", job.Device.Name)
+		return result
 	}
 
-	// Determine previous status
-	var previousStatus string
-	if latest, err := s.db.GetLatestMetricForDevice(ctx, device.ID); err == nil && latest != nil {
-		previousStatus = latest.Status
-	}
-
-	statusChanged := previousStatus != "" && previousStatus != result.Status
-
-	// Record metric
-	metric := &models.Metric{
-		DeviceID:     device.ID,
-		DeviceName:   device.Name,
-		Protocol:     device.Protocol,
-		Timestamp:    time.Now(),
-		Status:       result.Status,
-		ResponseTime: result.ResponseTime,
-		PacketLoss:   result.PacketLoss,
-		CPUUsage:     result.CPUUsage,
-		MemoryUsage:  result.MemoryUsage,
-		Bandwidth:    result.Bandwidth,
-		Details:      result.Details,
-	}
-
-	if s.buffer != nil {
-		if err := s.buffer.Push(ctx, metric); err != nil {
-			slog.Warn("Failed to push metric to buffer, recording directly", "device_id", device.ID, "error", err)
-			if err := s.db.RecordMetric(ctx, metric); err != nil {
-				slog.Error("Failed to record metric", "device_id", device.ID, "error", err)
-			}
-		}
+	result.Status = collectResult.Status
+	if collectResult.ResponseTime != nil {
+		result.ResponseMs = *collectResult.ResponseTime
 	} else {
-		if err := s.db.RecordMetric(ctx, metric); err != nil {
-			slog.Error("Failed to record metric", "device_id", device.ID, "error", err)
-		}
+		result.ResponseMs = float64(duration.Milliseconds())
 	}
+	result.FinishedAt = time.Now()
 
-	// Update device status
-	if pg, ok := s.db.(interface {
-		UpdateDeviceStatus(context.Context, int64, string) error
-	}); ok {
-		_ = pg.UpdateDeviceStatus(ctx, device.ID, result.Status)
+	result.Device.Status = collectResult.Status
+	if collectResult.Details == nil {
+		collectResult.Details = make(map[string]any)
 	}
+	collectResult.Details["collectDurationMs"] = duration.Milliseconds()
 
-	// Log the collection result
-	if statusChanged {
-		slog.Info("Device status changed",
-			"device_id", device.ID,
-			"device_name", device.Name,
-			"protocol", device.Protocol,
-			"previous_status", previousStatus,
-			"new_status", result.Status,
-			"duration_ms", duration.Milliseconds(),
-		)
+	return result
+}
+
+func (s *Scheduler) handlePollResult(pr PollResult) {
+	if pr.Error != nil {
+		s.dispatcher.RecordFailure(pr.Device.ID)
 	} else {
-		slog.Debug("Collection completed",
-			"device_id", device.ID,
-			"device_name", device.Name,
-			"status", result.Status,
-			"duration_ms", duration.Milliseconds(),
-		)
+		s.dispatcher.RecordSuccess(pr.Device.ID)
 	}
 
-	// Broadcast metric update via WebSocket
-	s.hub.Broadcast(websocket.Message{
-		Type: websocket.EventMetricUpdate,
-		Data: metric,
-	})
-
-	// If status changed, broadcast device status
-	if statusChanged {
-		s.hub.Broadcast(websocket.Message{
-			Type: websocket.EventDeviceStatus,
-			Data: map[string]any{
-				"device_id":       device.ID,
-				"device_name":     device.Name,
-				"previous_status": previousStatus,
-				"new_status":      result.Status,
-			},
-		})
-	}
-
-	// Evaluate alert rules if alert engine is configured
-	if s.alertEng != nil {
-		if err := s.alertEng.ProcessMetric(ctx, &device, metric, previousStatus); err != nil {
-			slog.Warn("Alert evaluation failed",
-				"device_id", device.ID,
-				"error", err,
-			)
-		}
-	}
+	s.pipeline.Submit(pr)
 }
