@@ -64,6 +64,15 @@ type CollectorConfig struct {
 	CaptureMaxPackets     int
 	CaptureMaxBytes       int64
 	CollectorIntervalSec  int
+
+	PollerWorkerCount       int
+	PollerMaxWorkerCount    int
+	PollerCriticalQueueSize int
+	PollerNormalQueueSize   int
+	PollerLowQueueSize      int
+	PollerResultBatchSize   int
+	PollerResultFlushMs     int
+	RemoteMaxConcurrent     int
 }
 
 type LoggingConfig struct {
@@ -187,6 +196,15 @@ func Load() (*Config, error) {
 			CaptureMaxPackets:     envInt("CAPTURE_MAX_PACKETS", 10000),
 			CaptureMaxBytes:       int64(envInt("CAPTURE_MAX_BYTES", 10*1024*1024)),
 			CollectorIntervalSec:  envInt("COLLECTOR_INTERVAL_SEC", 60),
+
+			PollerWorkerCount:       envInt("POLLER_WORKER_COUNT", 0),
+			PollerMaxWorkerCount:    envInt("POLLER_MAX_WORKER_COUNT", 0),
+			PollerCriticalQueueSize: envInt("POLLER_CRITICAL_QUEUE_SIZE", 0),
+			PollerNormalQueueSize:   envInt("POLLER_NORMAL_QUEUE_SIZE", 0),
+			PollerLowQueueSize:      envInt("POLLER_LOW_QUEUE_SIZE", 0),
+			PollerResultBatchSize:   envInt("POLLER_RESULT_BATCH_SIZE", 0),
+			PollerResultFlushMs:     envInt("POLLER_RESULT_FLUSH_MS", 0),
+			RemoteMaxConcurrent:     envInt("REMOTE_MAX_CONCURRENT", 0),
 		},
 		Logging: LoggingConfig{
 			Level:          envStr("LOG_LEVEL", "info"),

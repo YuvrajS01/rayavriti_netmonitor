@@ -104,7 +104,18 @@ type SystemMetrics struct {
 	RequestsTotal         int64     `json:"requests_total"`
 	RequestsActive        int64     `json:"requests_active"`
 	ErrorsTotal           int64     `json:"errors_total"`
-	Timestamp             time.Time `json:"timestamp"`
+
+	PollerActiveWorkers     int   `json:"poller_active_workers"`
+	PollerQueuedCritical    int   `json:"poller_queued_critical"`
+	PollerQueuedNormal      int   `json:"poller_queued_normal"`
+	PollerQueuedLow         int   `json:"poller_queued_low"`
+	PollerJobsCompleted     int64 `json:"poller_jobs_completed"`
+	PollerErrorsTotal       int64 `json:"poller_errors_total"`
+	PollerAvgLatencyMs      int64 `json:"poller_avg_latency_ms"`
+	PollerUnreachableCount  int   `json:"poller_unreachable_count"`
+	PollerPausedCount       int   `json:"poller_paused_count"`
+
+	Timestamp time.Time `json:"timestamp"`
 }
 
 // AuditLogEntry represents a security/audit event for the monitoring_audit_log table.
