@@ -45,6 +45,7 @@ type PollDispatcher struct {
 	interval  time.Duration
 	wg        sync.WaitGroup
 	cancel    context.CancelFunc
+	wakeup    chan struct{}
 }
 
 func NewPollDispatcher(pool *WorkerPool, defaultInterval time.Duration) *PollDispatcher {
@@ -55,6 +56,7 @@ func NewPollDispatcher(pool *WorkerPool, defaultInterval time.Duration) *PollDis
 		schedule:  h,
 		deviceMap: make(map[int64]*ScheduleEntry),
 		interval:  defaultInterval,
+		wakeup:    make(chan struct{}, 1),
 	}
 }
 
@@ -133,16 +135,23 @@ func (d *PollDispatcher) Pause(deviceID int64) {
 
 func (d *PollDispatcher) Resume(deviceID int64) {
 	d.mu.Lock()
-	defer d.mu.Unlock()
 
 	entry, exists := d.deviceMap[deviceID]
 	if !exists {
+		d.mu.Unlock()
 		return
 	}
 	entry.State = StateHealthy
 	entry.Failures = 0
 	entry.NextPollAt = time.Now()
 	heap.Fix(d.schedule, entry.index)
+
+	d.mu.Unlock()
+
+	select {
+	case d.wakeup <- struct{}{}:
+	default:
+	}
 }
 
 func (d *PollDispatcher) RecordSuccess(deviceID int64) {
@@ -211,25 +220,34 @@ func (d *PollDispatcher) PausedCount() int {
 
 func (d *PollDispatcher) run(ctx context.Context) {
 	defer d.wg.Done()
-	timer := time.NewTimer(time.Second)
+	timer := time.NewTimer(0)
 	defer timer.Stop()
+
+	// drain initial fire
+	select {
+	case <-timer.C:
+	default:
+	}
+	timer.Reset(0)
 
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-timer.C:
-			d.dispatchDue()
-			d.rescheduleTimer(timer)
+		case <-d.wakeup:
 		}
+		d.dispatchDue()
+		d.rescheduleTimer(timer)
 	}
 }
 
 func (d *PollDispatcher) dispatchDue() {
 	d.mu.Lock()
-	defer d.mu.Unlock()
 
 	now := time.Now()
+	var toEnqueue []PollJob
+
 	for d.schedule.Len() > 0 {
 		entry := (*d.schedule)[0]
 		if entry.NextPollAt.After(now) {
@@ -238,6 +256,7 @@ func (d *PollDispatcher) dispatchDue() {
 		heap.Pop(d.schedule)
 
 		if entry.State == StatePaused {
+			entry.NextPollAt = now.Add(24 * time.Hour)
 			heap.Push(d.schedule, entry)
 			continue
 		}
@@ -247,7 +266,7 @@ func (d *PollDispatcher) dispatchDue() {
 			priority = 2
 		}
 
-		d.pool.Enqueue(PollJob{
+		toEnqueue = append(toEnqueue, PollJob{
 			Device:     entry.Device,
 			Priority:   priority,
 			ScheduleAt: entry.NextPollAt,
@@ -256,6 +275,12 @@ func (d *PollDispatcher) dispatchDue() {
 
 		entry.NextPollAt = now.Add(entry.effectiveInterval())
 		heap.Push(d.schedule, entry)
+	}
+
+	d.mu.Unlock()
+
+	for _, job := range toEnqueue {
+		d.pool.Enqueue(job)
 	}
 }
 
