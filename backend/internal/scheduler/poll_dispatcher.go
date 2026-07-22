@@ -89,13 +89,16 @@ func (d *PollDispatcher) Upsert(device models.Device, priority int, interval tim
 
 	entry, exists := d.deviceMap[device.ID]
 	if exists {
+		// Update device data and priority without touching the schedule.
+		// Only reschedule if the poll interval actually changed.
 		entry.Device = device
 		entry.Priority = priority
+		intervalChanged := entry.Interval != interval
 		entry.Interval = interval
-		if entry.State != StatePaused {
+		if intervalChanged && entry.State != StatePaused {
 			entry.NextPollAt = time.Now().Add(entry.effectiveInterval())
+			heap.Fix(d.schedule, entry.index)
 		}
-		heap.Fix(d.schedule, entry.index)
 	} else {
 		entry = &ScheduleEntry{
 			DeviceID:   device.ID,
@@ -107,11 +110,12 @@ func (d *PollDispatcher) Upsert(device models.Device, priority int, interval tim
 		}
 		d.deviceMap[device.ID] = entry
 		heap.Push(d.schedule, entry)
-	}
 
-	select {
-	case d.wakeup <- struct{}{}:
-	default:
+		// Only wake up the dispatcher for genuinely new devices.
+		select {
+		case d.wakeup <- struct{}{}:
+		default:
+		}
 	}
 }
 

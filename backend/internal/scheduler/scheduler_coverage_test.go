@@ -102,7 +102,9 @@ func TestNew_PreservesConfig(t *testing.T) {
 	reg := collectors.NewRegistry()
 	s := New(db, reg, nil, nil, 60)
 	cfg := s.Config()
-	assert.Equal(t, 60*time.Second, cfg.ReconcileInterval)
+	// intervalSec controls the default poll interval, not the reconcile interval.
+	// ReconcileInterval should always be the default (30s).
+	assert.Equal(t, 30*time.Second, cfg.ReconcileInterval)
 }
 
 func TestScheduler_Config(t *testing.T) {

@@ -106,9 +106,9 @@ func New(db database.Database, registry *collectors.Registry, hub *websocket.Hub
 		config:   DefaultSchedulerConfig(),
 	}
 
-	if intervalSec > 0 {
-		s.config.ReconcileInterval = time.Duration(intervalSec) * time.Second
-	}
+	// intervalSec controls the default poll interval, NOT the reconcile frequency.
+	// ReconcileInterval is set independently via DefaultSchedulerConfig (30s).
+
 
 	for _, o := range opts {
 		o(s)
@@ -326,6 +326,12 @@ func (s *Scheduler) collectAndReturnResult(ctx context.Context, job PollJob) Pol
 }
 
 func (s *Scheduler) handlePollResult(pr PollResult) {
+	// Skip operational errors that aren't real device failures
+	// (e.g., distributed lock contention, unknown protocol)
+	if pr.Error != nil && pr.Status == "" {
+		return
+	}
+
 	if pr.Error != nil {
 		s.dispatcher.RecordFailure(pr.Device.ID)
 		s.stateTracker.RecordFailure(pr.Device.ID, pr.Error)
