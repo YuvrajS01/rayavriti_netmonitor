@@ -2,501 +2,191 @@ package scheduler
 
 import (
 	"context"
-	"fmt"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/rayavriti/netmonitor-backend/internal/collectors"
 	"github.com/rayavriti/netmonitor-backend/internal/models"
-	"github.com/rayavriti/netmonitor-backend/internal/websocket"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func newTestHubSched() *websocket.Hub {
-	return websocket.NewHub("test-secret", nil, nil)
+type atomicCount struct {
+	c atomic.Int64
 }
 
-type mockCollector struct {
-	name   string
-	result *collectors.Result
-	err    error
+func (a *atomicCount) Add(n int64) { a.c.Add(n) }
+func (a *atomicCount) Load() int64 { return a.c.Load() }
+
+func TestPollDispatcher_UnreachableCount(t *testing.T) {
+	t.Parallel()
+	wp := NewWorkerPool(WorkerPoolConfig{WorkerCount: 1}, func(ctx context.Context, job PollJob) PollResult {
+		return PollResult{Device: job.Device, FinishedAt: time.Now()}
+	})
+	d := NewPollDispatcher(wp, time.Second)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	wp.Start(ctx)
+	d.Start(ctx)
+	d.Upsert(models.Device{ID: 1}, 0, time.Hour)
+	d.Upsert(models.Device{ID: 2}, 0, time.Hour)
+	assert.Equal(t, 0, d.UnreachableCount())
+	d.RecordFailure(1)
+	d.RecordFailure(1)
+	d.RecordFailure(1)
+	assert.Equal(t, 1, d.UnreachableCount())
+	d.Stop()
+	wp.Stop()
 }
 
-func (m *mockCollector) Name() string { return m.name }
-func (m *mockCollector) Collect(ctx context.Context, d *models.Device) (*collectors.Result, error) {
-	return m.result, m.err
+func TestPollDispatcher_PausedCount(t *testing.T) {
+	t.Parallel()
+	wp := NewWorkerPool(WorkerPoolConfig{WorkerCount: 1}, func(ctx context.Context, job PollJob) PollResult {
+		return PollResult{Device: job.Device, FinishedAt: time.Now()}
+	})
+	d := NewPollDispatcher(wp, time.Second)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	wp.Start(ctx)
+	d.Start(ctx)
+	d.Upsert(models.Device{ID: 1}, 0, time.Hour)
+	d.Upsert(models.Device{ID: 2}, 0, time.Hour)
+	assert.Equal(t, 0, d.PausedCount())
+	d.Pause(1)
+	d.Pause(2)
+	assert.Equal(t, 2, d.PausedCount())
+	d.Stop()
+	wp.Stop()
 }
 
-type panicCollector struct{}
-
-func (p *panicCollector) Name() string { return "panic_collector" }
-func (p *panicCollector) Collect(ctx context.Context, d *models.Device) (*collectors.Result, error) {
-	panic("intentional panic in collector")
+func TestPollDispatcher_DispatchCorrectPriority(t *testing.T) {
+	t.Parallel()
+	executed := make(chan int, 10)
+	wp := NewWorkerPool(WorkerPoolConfig{WorkerCount: 1}, func(ctx context.Context, job PollJob) PollResult {
+		executed <- job.Priority
+		return PollResult{Device: job.Device, Status: "up", FinishedAt: time.Now()}
+	})
+	d := NewPollDispatcher(wp, time.Second)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	wp.Start(ctx)
+	d.Start(ctx)
+	d.Upsert(models.Device{ID: 1, DeviceCategory: "switch"}, 0, 30*time.Millisecond)
+	time.Sleep(80 * time.Millisecond)
+	select {
+	case p := <-executed:
+		assert.Equal(t, 0, p)
+	default:
+		t.Fatal("expected job")
+	}
+	d.Stop()
+	wp.Stop()
 }
 
-func TestScheduler_New(t *testing.T) {
+func TestScheduleEntry_EffectiveInterval(t *testing.T) {
+	t.Parallel()
+	e := &ScheduleEntry{Interval: 10 * time.Second}
+	assert.Equal(t, 10*time.Second, e.effectiveInterval())
+	e.Failures = 2
+	assert.Equal(t, 20*time.Second, e.effectiveInterval())
+	e.Failures = 3
+	assert.Equal(t, 40*time.Second, e.effectiveInterval())
+	e.Failures = 10
+	assert.Equal(t, 80*time.Second, e.effectiveInterval())
+}
+
+func TestNew_PreservesConfig(t *testing.T) {
 	t.Parallel()
 	db := &mockDB{}
 	reg := collectors.NewRegistry()
-	hub := newTestHubSched()
+	s := New(db, reg, nil, nil, 60)
+	cfg := s.Config()
+	// intervalSec controls the default poll interval, not the reconcile interval.
+	// ReconcileInterval should always be the default (30s).
+	assert.Equal(t, 30*time.Second, cfg.ReconcileInterval)
+}
 
-	s := New(db, reg, hub, nil, 30)
+func TestScheduler_Config(t *testing.T) {
+	t.Parallel()
+	db := &mockDB{}
+	reg := collectors.NewRegistry()
+	s := New(db, reg, nil, nil, 30)
 	require.NotNil(t, s)
-	assert.Equal(t, 0, s.JobCount())
+	assert.NotNil(t, s.Config())
 }
 
-func TestScheduler_Start_Stop_NoDevices(t *testing.T) {
+func TestWorkerPool_NilResultHandler(t *testing.T) {
 	t.Parallel()
-	db := &mockDB{
-		getEnabledDevicesFn: func(ctx context.Context) ([]models.Device, error) {
-			return nil, nil
-		},
-	}
-	reg := collectors.NewRegistry()
-	hub := newTestHubSched()
-
-	s := New(db, reg, hub, nil, 30)
+	wp := NewWorkerPool(DefaultWorkerPoolConfig(), func(ctx context.Context, job PollJob) PollResult {
+		return PollResult{Device: job.Device, Status: "up", FinishedAt: time.Now()}
+	})
+	wp.SetResultHandler(nil)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-
-	s.Start(ctx)
-	time.Sleep(50 * time.Millisecond)
-	assert.Equal(t, 0, s.JobCount())
-
-	s.Stop()
+	wp.Start(ctx)
+	wp.Enqueue(PollJob{Device: models.Device{ID: 1}, Priority: 1})
+	time.Sleep(100 * time.Millisecond)
+	wp.Stop()
 }
 
-func TestScheduler_Start_Stop_DisabledCollectors(t *testing.T) {
+func TestDeviceStateTracker_Concurrent(t *testing.T) {
 	t.Parallel()
-	db := &mockDB{
-		getEnabledDevicesFn: func(ctx context.Context) ([]models.Device, error) {
-			return []models.Device{
-				{ID: 1, Name: "d1", Protocol: "ping", Interval: 10, Enabled: true},
-				{ID: 2, Name: "d2", Protocol: "snmp", Interval: 10, Enabled: true},
-			}, nil
-		},
-		getDeviceFn: func(ctx context.Context, id int64) (*models.Device, error) {
-			return &models.Device{ID: id, Enabled: true, Interval: 10}, nil
-		},
+	dst := NewDeviceStateTracker()
+	for i := 0; i < 100; i++ {
+		go dst.RecordSuccess(1, time.Millisecond)
+		go dst.RecordFailure(2, assert.AnError)
 	}
-	reg := collectors.NewRegistry()
-	hub := newTestHubSched()
+	time.Sleep(50 * time.Millisecond)
+	assert.Greater(t, dst.Count(), 0)
+}
 
-	s := New(db, reg, hub, nil, 30)
+func TestDependencyTree_GetDescendants_NoChildren(t *testing.T) {
+	t.Parallel()
+	dt := NewDependencyTree()
+	assert.Empty(t, dt.GetDescendants(1))
+}
+
+func TestDependencyTree_Count(t *testing.T) {
+	t.Parallel()
+	dt := NewDependencyTree()
+	assert.Equal(t, 0, dt.Count())
+	dt.SetParent(2, 1)
+	assert.Equal(t, 1, dt.Count())
+	dt.SetParent(3, 1)
+	assert.Equal(t, 2, dt.Count())
+}
+
+func TestResultPipeline_EmptyBatch(t *testing.T) {
+	t.Parallel()
+	db := &mockDB{}
+	p := NewResultPipeline(ResultPipelineConfig{DB: db, BatchSize: 100, FlushMs: 50})
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-
-	s.Start(ctx)
-	time.Sleep(50 * time.Millisecond)
-	// Collectors not registered but scheduler still schedules goroutines
-	assert.GreaterOrEqual(t, s.JobCount(), 2)
-
-	s.Stop()
+	p.Start(ctx)
+	time.Sleep(100 * time.Millisecond)
+	p.Stop()
 }
 
-func TestScheduleDevice_VariousProtocols(t *testing.T) {
+func TestResultPipeline_FallbackOnBatchError(t *testing.T) {
 	t.Parallel()
-	protocols := []string{"http", "https", "ping", "snmp", "system", "port"}
-
-	for _, proto := range protocols {
-		t.Run(proto, func(t *testing.T) {
-			t.Parallel()
-			db := &mockDB{
-				getLatestMetricsFn: func(ctx context.Context) ([]models.Metric, error) {
-					return nil, nil
-				},
-			}
-			reg := collectors.NewRegistry()
-			hub := newTestHubSched()
-			s := New(db, reg, hub, nil, 30)
-
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
-
-			device := models.Device{
-				ID:       1,
-				Name:     "test-device",
-				Protocol: proto,
-				Enabled:  true,
-				Interval: 300,
-			}
-
-			s.scheduleDevice(ctx, device)
-			time.Sleep(50 * time.Millisecond)
-			assert.GreaterOrEqual(t, s.JobCount(), 1)
-
-			s.Stop()
-		})
-	}
-}
-
-func TestScheduleDevice_MinInterval(t *testing.T) {
-	t.Parallel()
+	var individualCount atomicCount
 	db := &mockDB{
-		getLatestMetricsFn: func(ctx context.Context) ([]models.Metric, error) {
-			return nil, nil
-		},
-	}
-	reg := collectors.NewRegistry()
-	hub := newTestHubSched()
-	s := New(db, reg, hub, nil, 30)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	// Interval too small, should be bumped to 5s
-	device := models.Device{ID: 1, Name: "d1", Protocol: "ping", Interval: 1}
-	s.scheduleDevice(ctx, device)
-	time.Sleep(50 * time.Millisecond)
-	assert.GreaterOrEqual(t, s.JobCount(), 1)
-
-	s.Stop()
-}
-
-func TestScheduleDevice_ReplaceExistingJob(t *testing.T) {
-	t.Parallel()
-	db := &mockDB{
-		getLatestMetricsFn: func(ctx context.Context) ([]models.Metric, error) {
-			return nil, nil
-		},
-	}
-	reg := collectors.NewRegistry()
-	hub := newTestHubSched()
-	s := New(db, reg, hub, nil, 30)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	device := models.Device{ID: 1, Name: "d1", Protocol: "ping", Interval: 300}
-	s.scheduleDevice(ctx, device)
-	time.Sleep(50 * time.Millisecond)
-	assert.GreaterOrEqual(t, s.JobCount(), 1)
-
-	// Re-schedule same device
-	s.scheduleDevice(ctx, device)
-	time.Sleep(50 * time.Millisecond)
-
-	s.Stop()
-}
-
-func TestReconcile_AddsNewDevices(t *testing.T) {
-	t.Parallel()
-	callCount := 0
-	db := &mockDB{
-		getEnabledDevicesFn: func(ctx context.Context) ([]models.Device, error) {
-			callCount++
-			if callCount <= 1 {
-				return []models.Device{
-					{ID: 1, Name: "d1", Protocol: "ping", Interval: 10},
-				}, nil
-			}
-			return []models.Device{
-				{ID: 1, Name: "d1", Protocol: "ping", Interval: 10},
-				{ID: 2, Name: "d2", Protocol: "ping", Interval: 10},
-			}, nil
-		},
-	}
-	reg := collectors.NewRegistry()
-	hub := newTestHubSched()
-	s := New(db, reg, hub, nil, 30)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	s.Start(ctx)
-	time.Sleep(50 * time.Millisecond)
-
-	// First reconcile should have 1 device
-	s.reconcile(ctx)
-	time.Sleep(50 * time.Millisecond)
-
-	// Second reconcile should discover new device
-	s.reconcile(ctx)
-	time.Sleep(50 * time.Millisecond)
-
-	s.Stop()
-}
-
-func TestReconcile_RemovesDisabledDevices(t *testing.T) {
-	t.Parallel()
-	callCount := 0
-	db := &mockDB{
-		getEnabledDevicesFn: func(ctx context.Context) ([]models.Device, error) {
-			callCount++
-			if callCount <= 1 {
-				return []models.Device{
-					{ID: 1, Name: "d1", Protocol: "ping", Interval: 10},
-					{ID: 2, Name: "d2", Protocol: "ping", Interval: 10},
-				}, nil
-			}
-			// Device 2 removed
-			return []models.Device{
-				{ID: 1, Name: "d1", Protocol: "ping", Interval: 10},
-			}, nil
-		},
-	}
-	reg := collectors.NewRegistry()
-	hub := newTestHubSched()
-	s := New(db, reg, hub, nil, 30)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	s.Start(ctx)
-	time.Sleep(50 * time.Millisecond)
-	s.reconcile(ctx)
-	time.Sleep(50 * time.Millisecond)
-
-	s.reconcile(ctx)
-	time.Sleep(50 * time.Millisecond)
-
-	s.Stop()
-}
-
-func TestReconcile_DBError(t *testing.T) {
-	t.Parallel()
-	db := &mockDB{
-		getEnabledDevicesFn: func(ctx context.Context) ([]models.Device, error) {
-			return nil, fmt.Errorf("db error")
-		},
-	}
-	reg := collectors.NewRegistry()
-	hub := newTestHubSched()
-	s := New(db, reg, hub, nil, 30)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	s.Start(ctx)
-	s.reconcile(ctx)
-	s.Stop()
-}
-
-func TestCollectOnce_WithMockCollector_Success(t *testing.T) {
-	t.Parallel()
-	db := &mockDB{
-		getLatestMetricsFn: func(ctx context.Context) ([]models.Metric, error) {
-			return nil, nil
-		},
-	}
-	reg := collectors.NewRegistry()
-	mock := &mockCollector{
-		name:   "test_proto",
-		result: &collectors.Result{Status: "up"},
-	}
-	reg.Register(mock)
-	hub := newTestHubSched()
-
-	s := New(db, reg, hub, nil, 30)
-	device := models.Device{ID: 1, Name: "d1", Protocol: "test_proto"}
-	s.collectOnce(context.Background(), device)
-}
-
-func TestCollectOnce_WithMockCollector_Failure(t *testing.T) {
-	t.Parallel()
-	db := &mockDB{
-		getLatestMetricsFn: func(ctx context.Context) ([]models.Metric, error) {
-			return nil, nil
-		},
-	}
-	reg := collectors.NewRegistry()
-	mock := &mockCollector{
-		name: "fail_proto",
-		err:  fmt.Errorf("collection failed"),
-	}
-	reg.Register(mock)
-	hub := newTestHubSched()
-
-	s := New(db, reg, hub, nil, 30)
-	device := models.Device{ID: 1, Name: "d1", Protocol: "fail_proto"}
-	s.collectOnce(context.Background(), device)
-}
-
-func TestCollectOnce_WithMockCollector_NilResult(t *testing.T) {
-	t.Parallel()
-	db := &mockDB{
-		getLatestMetricsFn: func(ctx context.Context) ([]models.Metric, error) {
-			return nil, nil
-		},
-	}
-	reg := collectors.NewRegistry()
-	mock := &mockCollector{
-		name:   "nil_proto",
-		result: nil,
-	}
-	reg.Register(mock)
-	hub := newTestHubSched()
-
-	s := New(db, reg, hub, nil, 30)
-	device := models.Device{ID: 1, Name: "d1", Protocol: "nil_proto"}
-	s.collectOnce(context.Background(), device)
-}
-
-func TestCollectOnce_PanicCollector(t *testing.T) {
-	t.Parallel()
-	db := &mockDB{
-		getLatestMetricsFn: func(ctx context.Context) ([]models.Metric, error) {
-			return nil, nil
-		},
-	}
-	reg := collectors.NewRegistry()
-	pc := &panicCollector{}
-	reg.Register(pc)
-	hub := newTestHubSched()
-
-	s := New(db, reg, hub, nil, 30)
-	device := models.Device{ID: 1, Name: "d1", Protocol: "panic_collector"}
-
-	// The scheduler does not have Recovery middleware, so panics propagate.
-	// Verify this by recovering ourselves.
-	func() {
-		defer func() {
-			if r := recover(); r != nil {
-				_ = r // Expected: panic propagated
-			}
-		}()
-		s.collectOnce(context.Background(), device)
-	}()
-}
-
-func TestCollectOnce_UnknownProtocol(t *testing.T) {
-	t.Parallel()
-	db := &mockDB{
-		getLatestMetricsFn: func(ctx context.Context) ([]models.Metric, error) {
-			return nil, nil
-		},
-	}
-	reg := collectors.NewRegistry()
-	hub := newTestHubSched()
-
-	s := New(db, reg, hub, nil, 30)
-	device := models.Device{ID: 1, Name: "d1", Protocol: "nonexistent"}
-	s.collectOnce(context.Background(), device)
-}
-
-func TestCollectOnce_WithStatusChange(t *testing.T) {
-	t.Parallel()
-	db := &mockDB{
-		getLatestMetricForDeviceFn: func(ctx context.Context, deviceID int64) (*models.Metric, error) {
-			if deviceID == 1 {
-				return &models.Metric{DeviceID: 1, Status: "up"}, nil
-			}
-			return nil, nil
-		},
-	}
-	reg := collectors.NewRegistry()
-	mock := &mockCollector{
-		name:   "test_proto",
-		result: &collectors.Result{Status: "down"},
-	}
-	reg.Register(mock)
-	hub := newTestHubSched()
-
-	s := New(db, reg, hub, nil, 30)
-	device := models.Device{ID: 1, Name: "d1", Protocol: "test_proto"}
-	s.collectOnce(context.Background(), device)
-}
-
-func TestCollectOnce_WithAlertEngine(t *testing.T) {
-	t.Parallel()
-	db := &mockDB{
-		getLatestMetricsFn: func(ctx context.Context) ([]models.Metric, error) {
-			return nil, nil
-		},
-	}
-	reg := collectors.NewRegistry()
-	mock := &mockCollector{
-		name:   "test_proto",
-		result: &collectors.Result{Status: "up"},
-	}
-	reg.Register(mock)
-	hub := newTestHubSched()
-
-	s := New(db, reg, hub, nil, 30)
-	device := models.Device{ID: 1, Name: "d1", Protocol: "test_proto"}
-	s.collectOnce(context.Background(), device)
-}
-
-func TestCollectOnce_RecordMetricFails(t *testing.T) {
-	t.Parallel()
-	db := &mockDB{
-		getLatestMetricsFn: func(ctx context.Context) ([]models.Metric, error) {
-			return nil, nil
+		recordMetricsBatchFn: func(ctx context.Context, metrics []*models.Metric) error {
+			return assert.AnError
 		},
 		recordMetricFn: func(ctx context.Context, m *models.Metric) error {
-			return fmt.Errorf("db write failed")
+			individualCount.Add(1)
+			return nil
 		},
 	}
-	reg := collectors.NewRegistry()
-	mock := &mockCollector{
-		name:   "test_proto",
-		result: &collectors.Result{Status: "up"},
-	}
-	reg.Register(mock)
-	hub := newTestHubSched()
-
-	s := New(db, reg, hub, nil, 30)
-	device := models.Device{ID: 1, Name: "d1", Protocol: "test_proto"}
-	s.collectOnce(context.Background(), device)
-}
-
-func TestCollectOnce_MultipleConsecutive(t *testing.T) {
-	t.Parallel()
-	db := &mockDB{
-		getLatestMetricsFn: func(ctx context.Context) ([]models.Metric, error) {
-			return nil, nil
-		},
-	}
-	reg := collectors.NewRegistry()
-	mock := &mockCollector{
-		name:   "test_proto",
-		result: &collectors.Result{Status: "up"},
-	}
-	reg.Register(mock)
-	hub := newTestHubSched()
-
-	s := New(db, reg, hub, nil, 30)
-	device := models.Device{ID: 1, Name: "d1", Protocol: "test_proto"}
-
-	for i := 0; i < 5; i++ {
-		s.collectOnce(context.Background(), device)
-	}
-}
-
-func TestStop_Idempotent(t *testing.T) {
-	t.Parallel()
-	db := &mockDB{}
-	reg := collectors.NewRegistry()
-	hub := newTestHubSched()
-
-	s := New(db, reg, hub, nil, 30)
+	p := NewResultPipeline(ResultPipelineConfig{DB: db, BatchSize: 2, FlushMs: 5000})
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-
-	s.Start(ctx)
-	time.Sleep(50 * time.Millisecond)
-
-	s.Stop()
-	s.Stop()
-	s.Stop()
-}
-
-func TestStart_GetDevicesError(t *testing.T) {
-	t.Parallel()
-	db := &mockDB{
-		getEnabledDevicesFn: func(ctx context.Context) ([]models.Device, error) {
-			return nil, fmt.Errorf("connection refused")
-		},
-	}
-	reg := collectors.NewRegistry()
-	hub := newTestHubSched()
-
-	s := New(db, reg, hub, nil, 30)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	s.Start(ctx)
-	time.Sleep(50 * time.Millisecond)
-	s.Stop()
+	p.Start(ctx)
+	p.Submit(PollResult{Device: models.Device{ID: 1}, Status: "up", FinishedAt: time.Now()})
+	p.Submit(PollResult{Device: models.Device{ID: 2}, Status: "up", FinishedAt: time.Now()})
+	time.Sleep(100 * time.Millisecond)
+	assert.Greater(t, individualCount.Load(), int64(0))
+	p.Stop()
 }

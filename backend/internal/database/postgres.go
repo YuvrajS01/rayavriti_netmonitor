@@ -155,7 +155,7 @@ func splitStatements(sql string) []string {
 // ── Devices ──────────────────────────────────────────────────────────────────
 
 const deviceSelectCols = `
-	SELECT id,name,ip_address,protocol,port,enabled,status,tags,
+	SELECT id,name,ip_address,protocol,port,enabled,status,priority,tags,
 	       COALESCE(snmp_community,''),COALESCE(snmp_version,''),COALESCE(snmp_port,0),COALESCE(http_path,''),COALESCE(http_expected_status,0),
 	       interval_sec,location_id,parent_device_id,COALESCE(dependency_port,''),COALESCE(rack_position,''),COALESCE(asset_tag,''),
 	       COALESCE(mac_address,''),COALESCE(serial_number,''),COALESCE(manufacturer,''),COALESCE(model,''),COALESCE(device_category,''),COALESCE(notes,''),created_at,updated_at
@@ -190,13 +190,13 @@ func (p *Postgres) CreateDevice(ctx context.Context, d *models.Device) (*models.
 	tags, _ := json.Marshal(d.Tags)
 	var id int64
 	err := p.pool.QueryRow(ctx, `
-		INSERT INTO devices(name,ip_address,protocol,port,enabled,tags,snmp_community,snmp_version,
+		INSERT INTO devices(name,ip_address,protocol,port,enabled,priority,tags,snmp_community,snmp_version,
 		                    snmp_port,http_path,http_expected_status,interval_sec,
 		                    location_id,parent_device_id,dependency_port,rack_position,asset_tag,mac_address,serial_number,manufacturer,
 		                    model,device_category,notes)
-		VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)
+		VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)
 		RETURNING id`,
-		d.Name, d.IPAddress, d.Protocol, d.Port, d.Enabled, tags,
+		d.Name, d.IPAddress, d.Protocol, d.Port, d.Enabled, d.Priority, tags,
 		nullStr(d.SNMPCommunity), nullStr(d.SNMPVersion), nullInt(d.SNMPPort),
 		nullStr(d.HTTPPath), nullInt(d.HTTPExpectedStatus), d.Interval,
 		d.LocationID, d.ParentDeviceID, nullStr(d.DependencyPort), nullStr(d.RackPosition), nullStr(d.AssetTag),
@@ -212,13 +212,13 @@ func (p *Postgres) CreateDevice(ctx context.Context, d *models.Device) (*models.
 func (p *Postgres) UpdateDevice(ctx context.Context, id int64, d *models.Device) (*models.Device, error) {
 	tags, _ := json.Marshal(d.Tags)
 	_, err := p.pool.Exec(ctx, `
-		UPDATE devices SET name=$1,ip_address=$2,protocol=$3,port=$4,enabled=$5,tags=$6,
-		    snmp_community=$7,snmp_version=$8,snmp_port=$9,http_path=$10,
-		    http_expected_status=$11,interval_sec=$12,location_id=$13,
-		    parent_device_id=$14,dependency_port=$15,rack_position=$16,asset_tag=$17,mac_address=$18,serial_number=$19,manufacturer=$20,
-		    model=$21,device_category=$22,notes=$23,updated_at=NOW()
-		WHERE id=$24`,
-		d.Name, d.IPAddress, d.Protocol, d.Port, d.Enabled, tags,
+		UPDATE devices SET name=$1,ip_address=$2,protocol=$3,port=$4,enabled=$5,priority=$6,tags=$7,
+		    snmp_community=$8,snmp_version=$9,snmp_port=$10,http_path=$11,
+		    http_expected_status=$12,interval_sec=$13,location_id=$14,
+		    parent_device_id=$15,dependency_port=$16,rack_position=$17,asset_tag=$18,mac_address=$19,serial_number=$20,manufacturer=$21,
+		    model=$22,device_category=$23,notes=$24,updated_at=NOW()
+		WHERE id=$25`,
+		d.Name, d.IPAddress, d.Protocol, d.Port, d.Enabled, d.Priority, tags,
 		nullStr(d.SNMPCommunity), nullStr(d.SNMPVersion), nullInt(d.SNMPPort),
 		nullStr(d.HTTPPath), nullInt(d.HTTPExpectedStatus), d.Interval,
 		d.LocationID, d.ParentDeviceID, nullStr(d.DependencyPort), nullStr(d.RackPosition), nullStr(d.AssetTag),
@@ -241,7 +241,7 @@ func scanDevices(rows pgx.Rows) ([]models.Device, error) {
 		var d models.Device
 		var tagsRaw []byte
 		err := rows.Scan(
-			&d.ID, &d.Name, &d.IPAddress, &d.Protocol, &d.Port, &d.Enabled, &d.Status, &tagsRaw,
+			&d.ID, &d.Name, &d.IPAddress, &d.Protocol, &d.Port, &d.Enabled, &d.Status, &d.Priority, &tagsRaw,
 			&d.SNMPCommunity, &d.SNMPVersion, &d.SNMPPort, &d.HTTPPath, &d.HTTPExpectedStatus,
 			&d.Interval, &d.LocationID, &d.ParentDeviceID, &d.DependencyPort, &d.RackPosition, &d.AssetTag,
 			&d.MACAddress, &d.SerialNumber, &d.Manufacturer, &d.Model, &d.DeviceCategory, &d.Notes,
@@ -278,6 +278,30 @@ func (p *Postgres) RecordMetric(ctx context.Context, m *models.Metric) error {
 		m.DeviceID, m.Timestamp, m.Status,
 		m.ResponseTime, m.PacketLoss, m.CPUUsage, m.MemoryUsage, m.Bandwidth, m.CustomValue,
 		details)
+	return err
+}
+
+func (p *Postgres) RecordMetricsBatch(ctx context.Context, metrics []*models.Metric) error {
+	if len(metrics) == 0 {
+		return nil
+	}
+
+	rows := make([][]any, len(metrics))
+	for i, m := range metrics {
+		details, _ := json.Marshal(m.Details)
+		rows[i] = []any{
+			m.DeviceID, m.Timestamp, m.Status,
+			m.ResponseTime, m.PacketLoss, m.CPUUsage, m.MemoryUsage,
+			m.Bandwidth, m.CustomValue, details,
+		}
+	}
+
+	_, err := p.pool.CopyFrom(ctx,
+		pgx.Identifier{"metrics"},
+		[]string{"device_id", "timestamp", "status", "response_time", "packet_loss",
+			"cpu_usage", "memory_usage", "bandwidth", "custom_value", "details"},
+		pgx.CopyFromRows(rows),
+	)
 	return err
 }
 

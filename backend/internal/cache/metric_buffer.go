@@ -82,14 +82,24 @@ func (b *MetricBuffer) flush(ctx context.Context) {
 		return
 	}
 
+	metrics := make([]*models.Metric, 0, len(items))
 	for _, raw := range items {
 		var m models.Metric
 		if err := json.Unmarshal([]byte(raw), &m); err != nil {
 			slog.Warn("Failed to unmarshal buffered metric", "error", err)
 			continue
 		}
-		if err := b.db.RecordMetric(ctx, &m); err != nil {
-			slog.Warn("Failed to record buffered metric", "device_id", m.DeviceID, "error", err)
+		metrics = append(metrics, &m)
+	}
+
+	if len(metrics) > 0 {
+		if err := b.db.RecordMetricsBatch(ctx, metrics); err != nil {
+			slog.Warn("Batch insert failed, falling back to individual inserts", "error", err)
+			for _, m := range metrics {
+				if dbErr := b.db.RecordMetric(ctx, m); dbErr != nil {
+					slog.Warn("Failed to record buffered metric", "device_id", m.DeviceID, "error", dbErr)
+				}
+			}
 		}
 	}
 	slog.Debug("Flushed metrics batch", "count", len(items))

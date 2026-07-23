@@ -15,12 +15,21 @@ type SelfMonitor struct {
 	cancel    context.CancelFunc
 	wg        sync.WaitGroup
 
-	// Optional stat providers — set before calling Start().
 	WSConnectionCount   func() int
 	CaptureSessionCount func() int
 	SchedulerJobCount   func() int
 	DBStats             func() (open, idle int, waitCount int64, waitDurationMs float64)
 	RequestStats        func() (total, active, errors int64)
+
+	WorkerPoolActiveWorkers  func() int
+	WorkerPoolQueuedCritical func() int
+	WorkerPoolQueuedNormal   func() int
+	WorkerPoolQueuedLow      func() int
+	WorkerPoolCompleted      func() int64
+	WorkerPoolErrors         func() int64
+	WorkerPoolAvgLatencyMs   func() int64
+	WorkerPoolUnreachable    func() int
+	WorkerPoolPaused         func() int
 }
 
 // NewSelfMonitor creates a self-monitoring goroutine that snapshots app health.
@@ -105,6 +114,33 @@ func (sm *SelfMonitor) collect(ctx context.Context) {
 		metrics.RequestsTotal = total
 		metrics.RequestsActive = active
 		metrics.ErrorsTotal = errors
+	}
+	if sm.WorkerPoolActiveWorkers != nil {
+		metrics.PollerActiveWorkers = sm.WorkerPoolActiveWorkers()
+	}
+	if sm.WorkerPoolQueuedCritical != nil {
+		metrics.PollerQueuedCritical = sm.WorkerPoolQueuedCritical()
+	}
+	if sm.WorkerPoolQueuedNormal != nil {
+		metrics.PollerQueuedNormal = sm.WorkerPoolQueuedNormal()
+	}
+	if sm.WorkerPoolQueuedLow != nil {
+		metrics.PollerQueuedLow = sm.WorkerPoolQueuedLow()
+	}
+	if sm.WorkerPoolCompleted != nil {
+		metrics.PollerJobsCompleted = sm.WorkerPoolCompleted()
+	}
+	if sm.WorkerPoolErrors != nil {
+		metrics.PollerErrorsTotal = sm.WorkerPoolErrors()
+	}
+	if sm.WorkerPoolAvgLatencyMs != nil {
+		metrics.PollerAvgLatencyMs = sm.WorkerPoolAvgLatencyMs()
+	}
+	if sm.WorkerPoolUnreachable != nil {
+		metrics.PollerUnreachableCount = sm.WorkerPoolUnreachable()
+	}
+	if sm.WorkerPoolPaused != nil {
+		metrics.PollerPausedCount = sm.WorkerPoolPaused()
 	}
 
 	if err := sm.recorder.RecordSystem(ctx, metrics); err != nil {

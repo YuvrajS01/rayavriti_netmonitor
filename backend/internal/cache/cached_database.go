@@ -112,6 +112,17 @@ func (c *CachedDatabase) RecordMetric(ctx context.Context, m *models.Metric) err
 	return err
 }
 
+func (c *CachedDatabase) RecordMetricsBatch(ctx context.Context, metrics []*models.Metric) error {
+	err := c.Database.RecordMetricsBatch(ctx, metrics)
+	if err == nil {
+		c.statsCache.InvalidateMetrics(ctx)
+		for _, m := range metrics {
+			c.statsCache.InvalidateMetricForDevice(ctx, m.DeviceID)
+		}
+	}
+	return err
+}
+
 func (c *CachedDatabase) CreateAlert(ctx context.Context, a *models.Alert) (*models.Alert, error) {
 	result, err := c.Database.CreateAlert(ctx, a)
 	if err == nil {

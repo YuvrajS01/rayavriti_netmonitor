@@ -12,6 +12,11 @@ import (
 	"github.com/rayavriti/netmonitor-backend/internal/websocket"
 )
 
+var pooledTransport = &http.Transport{
+	MaxIdleConnsPerHost: 5,
+	IdleConnTimeout:     90 * time.Second,
+}
+
 type Collector struct {
 	store         *Store
 	hub           *websocket.Hub
@@ -19,10 +24,15 @@ type Collector struct {
 	retentionDays int
 	cancel        context.CancelFunc
 	wg            sync.WaitGroup
+	maxConcurrent int
 }
 
-func NewCollector(store *Store, hub *websocket.Hub, timeout time.Duration, retentionDays int) *Collector {
-	return &Collector{store: store, hub: hub, timeout: timeout, retentionDays: retentionDays}
+func NewCollector(store *Store, hub *websocket.Hub, timeout time.Duration, retentionDays int, maxConcurrent ...int) *Collector {
+	cc := 10
+	if len(maxConcurrent) > 0 && maxConcurrent[0] > 0 {
+		cc = maxConcurrent[0]
+	}
+	return &Collector{store: store, hub: hub, timeout: timeout, retentionDays: retentionDays, maxConcurrent: cc}
 }
 func (c *Collector) Start(ctx context.Context) {
 	if c == nil {
@@ -56,18 +66,34 @@ func (c *Collector) poll(ctx context.Context) {
 	if err != nil {
 		return
 	}
+
+	sem := make(chan struct{}, c.maxConcurrent)
+	var wg sync.WaitGroup
 	for _, instance := range instances {
 		if instance.LastSeenAt != nil && instance.LastSeenAt.Add(time.Duration(instance.PollIntervalS)*time.Second).After(time.Now()) {
 			continue
 		}
-		c.collect(ctx, instance)
+		wg.Add(1)
+		sem <- struct{}{}
+		go func(inst Instance) {
+			defer wg.Done()
+			defer func() { <-sem }()
+			c.collect(ctx, inst)
+		}(instance)
 	}
+	wg.Wait()
+
 	if c.retentionDays > 0 {
 		_ = c.store.PruneSnapshots(ctx, c.retentionDays)
 	}
 }
 func (c *Collector) client(skip bool) *http.Client {
-	return &http.Client{Timeout: c.timeout, Transport: &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: skip}}}
+	transport := pooledTransport
+	if skip {
+		transport = pooledTransport.Clone()
+		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+	}
+	return &http.Client{Timeout: c.timeout, Transport: transport}
 }
 func (c *Collector) fetch(ctx context.Context, instance Instance, path string) (json.RawMessage, float64, error) {
 	key, err := c.store.credential(ctx, instance.ID)
