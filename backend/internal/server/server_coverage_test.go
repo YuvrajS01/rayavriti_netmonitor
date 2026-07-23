@@ -67,7 +67,9 @@ func (m *serverMockDB) GetSensorsByDeviceID(ctx context.Context, deviceID int64)
 	return nil, nil
 }
 func (m *serverMockDB) RecordMetric(ctx context.Context, metric *models.Metric) error { return nil }
-func (m *serverMockDB) RecordMetricsBatch(ctx context.Context, metrics []*models.Metric) error { return nil }
+func (m *serverMockDB) RecordMetricsBatch(ctx context.Context, metrics []*models.Metric) error {
+	return nil
+}
 func (m *serverMockDB) GetLatestMetrics(ctx context.Context) ([]models.Metric, error) {
 	return nil, nil
 }

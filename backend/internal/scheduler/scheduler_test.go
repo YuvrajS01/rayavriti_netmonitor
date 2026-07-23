@@ -41,7 +41,9 @@ func (m *mockDB) GetDevice(ctx context.Context, id int64) (*models.Device, error
 	}
 	return nil, nil
 }
-func (m *mockDB) CreateDevice(ctx context.Context, d *models.Device) (*models.Device, error) { return nil, nil }
+func (m *mockDB) CreateDevice(ctx context.Context, d *models.Device) (*models.Device, error) {
+	return nil, nil
+}
 func (m *mockDB) UpdateDevice(ctx context.Context, id int64, d *models.Device) (*models.Device, error) {
 	return nil, nil
 }
@@ -61,9 +63,13 @@ func (m *mockDB) GetEnabledDevices(ctx context.Context) ([]models.Device, error)
 func (m *mockDB) GetDevicesByStatus(ctx context.Context, status string) ([]models.Device, error) {
 	return nil, nil
 }
-func (m *mockDB) GetSensors(ctx context.Context, deviceID *int64) ([]models.Sensor, error)  { return nil, nil }
-func (m *mockDB) GetSensor(ctx context.Context, id int64) (*models.Sensor, error)           { return nil, nil }
-func (m *mockDB) CreateSensor(ctx context.Context, s *models.Sensor) (*models.Sensor, error) { return nil, nil }
+func (m *mockDB) GetSensors(ctx context.Context, deviceID *int64) ([]models.Sensor, error) {
+	return nil, nil
+}
+func (m *mockDB) GetSensor(ctx context.Context, id int64) (*models.Sensor, error) { return nil, nil }
+func (m *mockDB) CreateSensor(ctx context.Context, s *models.Sensor) (*models.Sensor, error) {
+	return nil, nil
+}
 func (m *mockDB) UpdateSensor(ctx context.Context, id int64, s *models.Sensor) (*models.Sensor, error) {
 	return nil, nil
 }
@@ -104,7 +110,9 @@ func (m *mockDB) GetReportTimeseries(ctx context.Context, from, to time.Time, bu
 func (m *mockDB) GetReportDeviceBreakdown(ctx context.Context, from, to time.Time, deviceID *int64) ([]models.DeviceBreakdown, error) {
 	return nil, nil
 }
-func (m *mockDB) QueryMetrics(ctx context.Context, q models.MetricQuery) ([]models.Metric, error) { return nil, nil }
+func (m *mockDB) QueryMetrics(ctx context.Context, q models.MetricQuery) ([]models.Metric, error) {
+	return nil, nil
+}
 func (m *mockDB) ExportMetrics(ctx context.Context, from, to time.Time, deviceID *int64, limit int) ([]models.Metric, error) {
 	return nil, nil
 }
@@ -115,8 +123,12 @@ func (m *mockDB) GetAlerts(ctx context.Context, status string, limit, offset int
 	return nil, 0, nil
 }
 func (m *mockDB) GetAlert(ctx context.Context, id int64) (*models.Alert, error) { return nil, nil }
-func (m *mockDB) CreateAlert(ctx context.Context, a *models.Alert) (*models.Alert, error) { return nil, nil }
-func (m *mockDB) UpdateAlertStatus(ctx context.Context, id int64, status, by string) error { return nil }
+func (m *mockDB) CreateAlert(ctx context.Context, a *models.Alert) (*models.Alert, error) {
+	return nil, nil
+}
+func (m *mockDB) UpdateAlertStatus(ctx context.Context, id int64, status, by string) error {
+	return nil
+}
 func (m *mockDB) DeleteAlert(ctx context.Context, id int64) error { return nil }
 func (m *mockDB) GetAlertCounts(ctx context.Context) (models.AlertCounts, error) {
 	return models.AlertCounts{}, nil
@@ -137,7 +149,9 @@ func (m *mockDB) GetAlertsForReport(ctx context.Context, from, to time.Time, dev
 	return nil, nil
 }
 func (m *mockDB) GetAlertRules(ctx context.Context) ([]models.AlertRule, error) { return nil, nil }
-func (m *mockDB) GetAlertRule(ctx context.Context, id int64) (*models.AlertRule, error) { return nil, nil }
+func (m *mockDB) GetAlertRule(ctx context.Context, id int64) (*models.AlertRule, error) {
+	return nil, nil
+}
 func (m *mockDB) CreateAlertRule(ctx context.Context, r *models.AlertRule) (*models.AlertRule, error) {
 	return nil, nil
 }
@@ -166,18 +180,26 @@ func (m *mockDB) GetAlertHistory(ctx context.Context, alertID int64) ([]models.A
 func (m *mockDB) GetAlertRuleState(ctx context.Context, ruleID, deviceID int64) (*models.AlertRuleState, error) {
 	return nil, nil
 }
-func (m *mockDB) UpsertAlertRuleState(ctx context.Context, s *models.AlertRuleState) error { return nil }
+func (m *mockDB) UpsertAlertRuleState(ctx context.Context, s *models.AlertRuleState) error {
+	return nil
+}
 func (m *mockDB) GetUserByUsername(ctx context.Context, username string) (*models.User, error) {
 	return nil, nil
 }
 func (m *mockDB) GetUserByID(ctx context.Context, id int64) (*models.User, error) { return nil, nil }
-func (m *mockDB) CreateUser(ctx context.Context, u *models.User) (*models.User, error) { return nil, nil }
+func (m *mockDB) CreateUser(ctx context.Context, u *models.User) (*models.User, error) {
+	return nil, nil
+}
 func (m *mockDB) UpdateUser(ctx context.Context, id int64, u *models.User) (*models.User, error) {
 	return nil, nil
 }
 func (m *mockDB) DeleteUser(ctx context.Context, id int64) error { return nil }
-func (m *mockDB) GetAPIKey(ctx context.Context, keyHash string) (*models.APIKey, error) { return nil, nil }
-func (m *mockDB) GetAPIKeyByID(ctx context.Context, id int64) (*models.APIKey, error)  { return nil, nil }
+func (m *mockDB) GetAPIKey(ctx context.Context, keyHash string) (*models.APIKey, error) {
+	return nil, nil
+}
+func (m *mockDB) GetAPIKeyByID(ctx context.Context, id int64) (*models.APIKey, error) {
+	return nil, nil
+}
 func (m *mockDB) CreateAPIKey(ctx context.Context, k *models.APIKey) (*models.APIKey, error) {
 	return nil, nil
 }
@@ -207,7 +229,9 @@ func (m *mockDB) CreateCaptureSession(ctx context.Context, cs *models.CaptureSes
 func (m *mockDB) GetCaptureSession(ctx context.Context, id int64) (*models.CaptureSession, error) {
 	return nil, nil
 }
-func (m *mockDB) GetCaptureSessions(ctx context.Context) ([]models.CaptureSession, error) { return nil, nil }
+func (m *mockDB) GetCaptureSessions(ctx context.Context) ([]models.CaptureSession, error) {
+	return nil, nil
+}
 func (m *mockDB) StopCaptureSession(ctx context.Context, id int64, stats models.CaptureSessionStats) error {
 	return nil
 }
@@ -223,8 +247,12 @@ func (m *mockDB) UpsertPortScanResults(ctx context.Context, deviceID int64, resu
 func (m *mockDB) GetPortScanResults(ctx context.Context, deviceID int64) ([]models.PortScanResult, error) {
 	return nil, nil
 }
-func (m *mockDB) GetDashboards(ctx context.Context, userID int64) ([]models.Dashboard, error) { return nil, nil }
-func (m *mockDB) GetDashboard(ctx context.Context, id int64) (*models.Dashboard, error)      { return nil, nil }
+func (m *mockDB) GetDashboards(ctx context.Context, userID int64) ([]models.Dashboard, error) {
+	return nil, nil
+}
+func (m *mockDB) GetDashboard(ctx context.Context, id int64) (*models.Dashboard, error) {
+	return nil, nil
+}
 func (m *mockDB) SaveDashboard(ctx context.Context, d *models.Dashboard) (*models.Dashboard, error) {
 	return nil, nil
 }
@@ -245,7 +273,9 @@ func (m *mockDB) CleanupExpiredRefreshTokens(ctx context.Context) (int64, error)
 func (m *mockDB) UpsertHealthScore(ctx context.Context, score *models.DeviceHealthScoreRow) error {
 	return nil
 }
-func (m *mockDB) GetHealthScores(ctx context.Context) ([]models.DeviceHealthScoreRow, error) { return nil, nil }
+func (m *mockDB) GetHealthScores(ctx context.Context) ([]models.DeviceHealthScoreRow, error) {
+	return nil, nil
+}
 func (m *mockDB) GetHealthScoreHistory(ctx context.Context, deviceID int64, hours int) ([]models.HealthHistoryPoint, error) {
 	return nil, nil
 }
@@ -333,20 +363,22 @@ func TestScheduler_Reconcile(t *testing.T) {
 	db := &mockDB{
 		getEnabledDevicesFn: func(ctx context.Context) ([]models.Device, error) {
 			callCount++
-			if callCount == 1 {
+			switch callCount {
+			case 1:
 				return []models.Device{
 					{ID: 1, Name: "d1", Protocol: "ping", Interval: 10},
 				}, nil
-			} else if callCount == 2 {
+			case 2:
 				return []models.Device{
 					{ID: 1, Name: "d1", Protocol: "ping", Interval: 10},
 					{ID: 2, Name: "d2", Protocol: "ping", Interval: 10},
 				}, nil
+			default:
+				// Third call: device 1 removed, only device 2 remains
+				return []models.Device{
+					{ID: 2, Name: "d2", Protocol: "ping", Interval: 10},
+				}, nil
 			}
-			// Third call: device 1 removed, only device 2 remains
-			return []models.Device{
-				{ID: 2, Name: "d2", Protocol: "ping", Interval: 10},
-			}, nil
 		},
 	}
 	s := New(db, collectors.NewRegistry(), newTestHub(), nil, 30)
@@ -858,8 +890,8 @@ func TestResultPipeline_SubmitAndFlush(t *testing.T) {
 	p.Start(ctx)
 	for i := 0; i < 5; i++ {
 		p.Submit(PollResult{
-			Device:   models.Device{ID: int64(i), Name: fmt.Sprintf("d%d", i)},
-			Status:   "up",
+			Device:     models.Device{ID: int64(i), Name: fmt.Sprintf("d%d", i)},
+			Status:     "up",
 			FinishedAt: time.Now(),
 		})
 	}
@@ -886,8 +918,8 @@ func TestResultPipeline_BatchSizeTrigger(t *testing.T) {
 	p.Start(ctx)
 	for i := 0; i < 5; i++ {
 		p.Submit(PollResult{
-			Device:   models.Device{ID: int64(i)},
-			Status:   "up",
+			Device:     models.Device{ID: int64(i)},
+			Status:     "up",
 			FinishedAt: time.Now(),
 		})
 	}
@@ -914,8 +946,8 @@ func TestResultPipeline_FlushOnStop(t *testing.T) {
 	defer cancel()
 	p.Start(ctx)
 	p.Submit(PollResult{
-		Device:   models.Device{ID: 1, Name: "d1"},
-		Status:   "up",
+		Device:     models.Device{ID: 1, Name: "d1"},
+		Status:     "up",
 		FinishedAt: time.Now(),
 	})
 	time.Sleep(50 * time.Millisecond)

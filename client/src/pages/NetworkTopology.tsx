@@ -153,6 +153,29 @@ export default function NetworkTopology() {
     return { list, ids };
   }, [devices, metricsMap, filters]);
 
+  const edgeCount = useMemo(() => {
+    const idsInTree = new Set<number>();
+    for (const e of topoEdges) { idsInTree.add(e.parentId); idsInTree.add(e.childId); }
+    let inferred = 0;
+    const supplementedIds = new Set(idsInTree);
+    for (const d of visible.list) {
+      if (d.parentDeviceId && !supplementedIds.has(d.id) && visible.ids.has(d.parentDeviceId)) {
+        inferred++;
+        supplementedIds.add(d.id);
+      }
+    }
+    if (visible.list.length > 1) {
+      const isHub = (d: Device) =>
+        /gateway|router|core|switch|firewall/i.test(d.deviceCategory || '') ||
+        /gateway|router|core|firewall/i.test(d.name || '');
+      const hub = visible.list.find(isHub) ?? visible.list[0];
+      for (const d of visible.list) {
+        if (d.id !== hub.id && !supplementedIds.has(d.id)) inferred++;
+      }
+    }
+    return topoEdges.length + inferred;
+  }, [topoEdges, visible]);
+
   // Simulation
   const sim = useRef<{ nodes: SimNode[]; links: SimLink[]; raf: number; dragging: SimNode | null; mx: number; my: number; pan: { x: number; y: number } }>({ nodes: [], links: [], raf: 0, dragging: null, mx: 0, my: 0, pan: { x: 0, y: 0 } });
 
@@ -388,7 +411,6 @@ export default function NetworkTopology() {
 
   const zoomBy = (factor: number) => setZoom((z) => Math.max(0.3, Math.min(4, +(z * factor).toFixed(2))));
 
-  const edgeCount = sim.current.links.length;
   const realEdgeCount = topoEdges.length;
 
   return (

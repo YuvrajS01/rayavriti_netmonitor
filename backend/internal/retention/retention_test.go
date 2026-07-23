@@ -54,7 +54,9 @@ func (m *mockRetDB) GetSensorsByDeviceID(ctx context.Context, deviceID int64) ([
 	return nil, nil
 }
 func (m *mockRetDB) RecordMetric(ctx context.Context, metric *models.Metric) error { return nil }
-func (m *mockRetDB) RecordMetricsBatch(ctx context.Context, metrics []*models.Metric) error { return nil }
+func (m *mockRetDB) RecordMetricsBatch(ctx context.Context, metrics []*models.Metric) error {
+	return nil
+}
 func (m *mockRetDB) GetLatestMetrics(ctx context.Context) ([]models.Metric, error) { return nil, nil }
 func (m *mockRetDB) GetDeviceMetrics(ctx context.Context, deviceID int64, from, to time.Time, limit int) ([]models.Metric, error) {
 	return nil, nil

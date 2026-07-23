@@ -85,35 +85,35 @@ type CollectorRun struct {
 
 // SystemMetrics represents a health snapshot for the monitoring_app_health table.
 type SystemMetrics struct {
-	UptimeSeconds         int64     `json:"uptime_seconds"`
-	GoroutineCount        int       `json:"goroutine_count"`
-	HeapAllocBytes        int64     `json:"heap_alloc_bytes"`
-	HeapSysBytes          int64     `json:"heap_sys_bytes"`
-	StackInUseBytes       int64     `json:"stack_in_use_bytes"`
-	GCPauseTotalNs        int64     `json:"gc_pause_total_ns"`
-	GCRuns                int       `json:"gc_runs"`
-	GCLastPauseNs         int64     `json:"gc_last_pause_ns"`
-	NumCPU                int       `json:"num_cpu"`
-	ActiveWSConnections   int       `json:"active_ws_connections"`
-	ActiveCaptureSessions int       `json:"active_capture_sessions"`
-	SchedulerJobsActive   int       `json:"scheduler_jobs_active"`
-	DBOpenConnections     int       `json:"db_open_connections"`
-	DBIdleConnections     int       `json:"db_idle_connections"`
-	DBWaitCount           int64     `json:"db_wait_count"`
-	DBWaitDurationMs      float64   `json:"db_wait_duration_ms"`
-	RequestsTotal         int64     `json:"requests_total"`
-	RequestsActive        int64     `json:"requests_active"`
-	ErrorsTotal           int64     `json:"errors_total"`
+	UptimeSeconds         int64   `json:"uptime_seconds"`
+	GoroutineCount        int     `json:"goroutine_count"`
+	HeapAllocBytes        int64   `json:"heap_alloc_bytes"`
+	HeapSysBytes          int64   `json:"heap_sys_bytes"`
+	StackInUseBytes       int64   `json:"stack_in_use_bytes"`
+	GCPauseTotalNs        int64   `json:"gc_pause_total_ns"`
+	GCRuns                int     `json:"gc_runs"`
+	GCLastPauseNs         int64   `json:"gc_last_pause_ns"`
+	NumCPU                int     `json:"num_cpu"`
+	ActiveWSConnections   int     `json:"active_ws_connections"`
+	ActiveCaptureSessions int     `json:"active_capture_sessions"`
+	SchedulerJobsActive   int     `json:"scheduler_jobs_active"`
+	DBOpenConnections     int     `json:"db_open_connections"`
+	DBIdleConnections     int     `json:"db_idle_connections"`
+	DBWaitCount           int64   `json:"db_wait_count"`
+	DBWaitDurationMs      float64 `json:"db_wait_duration_ms"`
+	RequestsTotal         int64   `json:"requests_total"`
+	RequestsActive        int64   `json:"requests_active"`
+	ErrorsTotal           int64   `json:"errors_total"`
 
-	PollerActiveWorkers     int   `json:"poller_active_workers"`
-	PollerQueuedCritical    int   `json:"poller_queued_critical"`
-	PollerQueuedNormal      int   `json:"poller_queued_normal"`
-	PollerQueuedLow         int   `json:"poller_queued_low"`
-	PollerJobsCompleted     int64 `json:"poller_jobs_completed"`
-	PollerErrorsTotal       int64 `json:"poller_errors_total"`
-	PollerAvgLatencyMs      int64 `json:"poller_avg_latency_ms"`
-	PollerUnreachableCount  int   `json:"poller_unreachable_count"`
-	PollerPausedCount       int   `json:"poller_paused_count"`
+	PollerActiveWorkers    int   `json:"poller_active_workers"`
+	PollerQueuedCritical   int   `json:"poller_queued_critical"`
+	PollerQueuedNormal     int   `json:"poller_queued_normal"`
+	PollerQueuedLow        int   `json:"poller_queued_low"`
+	PollerJobsCompleted    int64 `json:"poller_jobs_completed"`
+	PollerErrorsTotal      int64 `json:"poller_errors_total"`
+	PollerAvgLatencyMs     int64 `json:"poller_avg_latency_ms"`
+	PollerUnreachableCount int   `json:"poller_unreachable_count"`
+	PollerPausedCount      int   `json:"poller_paused_count"`
 
 	Timestamp time.Time `json:"timestamp"`
 }

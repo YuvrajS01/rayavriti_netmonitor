@@ -13,7 +13,7 @@ import (
 type DeviceState int
 
 const (
-	StateHealthy     DeviceState = iota
+	StateHealthy DeviceState = iota
 	StateUnreachable
 	StatePaused
 )
@@ -32,10 +32,21 @@ type ScheduleEntry struct {
 type ScheduleHeap []*ScheduleEntry
 
 func (h ScheduleHeap) Len() int           { return len(h) }
-func (h ScheduleHeap) Less(i, j int) bool  { return h[i].NextPollAt.Before(h[j].NextPollAt) }
-func (h ScheduleHeap) Swap(i, j int)       { h[i], h[j] = h[j], h[i]; h[i].index = i; h[j].index = j }
-func (h *ScheduleHeap) Push(x any)         { *h = append(*h, x.(*ScheduleEntry)); x.(*ScheduleEntry).index = len(*h) - 1 }
-func (h *ScheduleHeap) Pop() any           { old := *h; n := len(old); item := old[n-1]; old[n-1] = nil; item.index = -1; *h = old[:n-1]; return item }
+func (h ScheduleHeap) Less(i, j int) bool { return h[i].NextPollAt.Before(h[j].NextPollAt) }
+func (h ScheduleHeap) Swap(i, j int)      { h[i], h[j] = h[j], h[i]; h[i].index = i; h[j].index = j }
+func (h *ScheduleHeap) Push(x any) {
+	*h = append(*h, x.(*ScheduleEntry))
+	x.(*ScheduleEntry).index = len(*h) - 1
+}
+func (h *ScheduleHeap) Pop() any {
+	old := *h
+	n := len(old)
+	item := old[n-1]
+	old[n-1] = nil
+	item.index = -1
+	*h = old[:n-1]
+	return item
+}
 
 type PollDispatcher struct {
 	pool      *WorkerPool

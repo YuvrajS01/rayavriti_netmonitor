@@ -109,7 +109,6 @@ func New(db database.Database, registry *collectors.Registry, hub *websocket.Hub
 	// intervalSec controls the default poll interval, NOT the reconcile frequency.
 	// ReconcileInterval is set independently via DefaultSchedulerConfig (30s).
 
-
 	for _, o := range opts {
 		o(s)
 	}

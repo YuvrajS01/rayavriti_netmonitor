@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import type { Phase2Row } from '../api/phase2';
 
 interface Place extends Phase2Row { status?: Record<string, number>; device_count?: number; }
-interface Props { locations: Place[]; selectedId?: number | null; onSelect: (location: Place) => void; }
+interface Props { locations: Place[]; selectedId: number | null | undefined; onSelect: (location: Place) => void; }
 
 interface HierarchicalPlace extends Place {
   children: HierarchicalPlace[];
@@ -33,7 +33,7 @@ const renderStatusBar = (status: Record<string, number> = {}, total: number) => 
   );
 };
 
-function LocationNodeComponent({ node, selectedId, onSelect }: { node: HierarchicalPlace, selectedId: number | null, onSelect: (node: Place) => void }) {
+function LocationNodeComponent({ node, selectedId, onSelect }: { node: HierarchicalPlace, selectedId: number | null | undefined, onSelect: (node: Place) => void }) {
   const type = String(node.type).toLowerCase();
   const isSelected = Number(node.id) === selectedId;
   const total = node.device_count || 0;
