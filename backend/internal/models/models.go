@@ -13,6 +13,7 @@ type Device struct {
 	Port               int       `json:"port"`
 	Enabled            bool      `json:"enabled"`
 	Status             string    `json:"status"`
+	Priority           int       `json:"priority"`
 	Tags               []string  `json:"tags"`
 	SNMPCommunity      string    `json:"snmpCommunity,omitempty"`
 	SNMPVersion        string    `json:"snmpVersion,omitempty"`

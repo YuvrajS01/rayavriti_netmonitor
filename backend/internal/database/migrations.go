@@ -1070,4 +1070,19 @@ var migrations = []string{
 	`ALTER TABLE remote_instances ADD COLUMN IF NOT EXISTS sync_fingerprint TEXT NOT NULL DEFAULT '';
 	ALTER TABLE remote_instances ADD COLUMN IF NOT EXISTS service_mode TEXT NOT NULL DEFAULT 'active';
 	CREATE INDEX IF NOT EXISTS idx_remote_instances_fingerprint ON remote_instances(sync_fingerprint) WHERE sync_fingerprint <> '';`,
+
+	// V41: Add poller metrics columns to monitoring_app_health
+	`ALTER TABLE monitoring_app_health ADD COLUMN IF NOT EXISTS poller_active_workers INT NOT NULL DEFAULT 0;
+	ALTER TABLE monitoring_app_health ADD COLUMN IF NOT EXISTS poller_queued_critical INT NOT NULL DEFAULT 0;
+	ALTER TABLE monitoring_app_health ADD COLUMN IF NOT EXISTS poller_queued_normal INT NOT NULL DEFAULT 0;
+	ALTER TABLE monitoring_app_health ADD COLUMN IF NOT EXISTS poller_queued_low INT NOT NULL DEFAULT 0;
+	ALTER TABLE monitoring_app_health ADD COLUMN IF NOT EXISTS poller_jobs_completed BIGINT NOT NULL DEFAULT 0;
+	ALTER TABLE monitoring_app_health ADD COLUMN IF NOT EXISTS poller_errors_total BIGINT NOT NULL DEFAULT 0;
+	ALTER TABLE monitoring_app_health ADD COLUMN IF NOT EXISTS poller_avg_latency_ms BIGINT NOT NULL DEFAULT 0;
+	ALTER TABLE monitoring_app_health ADD COLUMN IF NOT EXISTS poller_unreachable_count INT NOT NULL DEFAULT 0;
+	ALTER TABLE monitoring_app_health ADD COLUMN IF NOT EXISTS poller_paused_count INT NOT NULL DEFAULT 0;`,
+
+	// V42: Add priority column to devices
+	`ALTER TABLE devices ADD COLUMN IF NOT EXISTS priority INT NOT NULL DEFAULT 1;
+	CREATE INDEX IF NOT EXISTS idx_devices_priority ON devices(priority) WHERE enabled = true;`,
 }

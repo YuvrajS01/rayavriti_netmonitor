@@ -1,0 +1,345 @@
+package scheduler
+
+import (
+	"container/heap"
+	"context"
+	"log/slog"
+	"sync"
+	"time"
+
+	"github.com/rayavriti/netmonitor-backend/internal/models"
+)
+
+type DeviceState int
+
+const (
+	StateHealthy DeviceState = iota
+	StateUnreachable
+	StatePaused
+)
+
+type ScheduleEntry struct {
+	DeviceID   int64
+	Device     models.Device
+	Priority   int
+	Interval   time.Duration
+	NextPollAt time.Time
+	State      DeviceState
+	Failures   int
+	index      int
+}
+
+type ScheduleHeap []*ScheduleEntry
+
+func (h ScheduleHeap) Len() int           { return len(h) }
+func (h ScheduleHeap) Less(i, j int) bool { return h[i].NextPollAt.Before(h[j].NextPollAt) }
+func (h ScheduleHeap) Swap(i, j int)      { h[i], h[j] = h[j], h[i]; h[i].index = i; h[j].index = j }
+func (h *ScheduleHeap) Push(x any) {
+	*h = append(*h, x.(*ScheduleEntry))
+	x.(*ScheduleEntry).index = len(*h) - 1
+}
+func (h *ScheduleHeap) Pop() any {
+	old := *h
+	n := len(old)
+	item := old[n-1]
+	old[n-1] = nil
+	item.index = -1
+	*h = old[:n-1]
+	return item
+}
+
+type PollDispatcher struct {
+	pool      *WorkerPool
+	schedule  *ScheduleHeap
+	deviceMap map[int64]*ScheduleEntry
+	mu        sync.RWMutex
+	interval  time.Duration
+	wg        sync.WaitGroup
+	cancel    context.CancelFunc
+	wakeup    chan struct{}
+}
+
+func NewPollDispatcher(pool *WorkerPool, defaultInterval time.Duration) *PollDispatcher {
+	h := &ScheduleHeap{}
+	heap.Init(h)
+	return &PollDispatcher{
+		pool:      pool,
+		schedule:  h,
+		deviceMap: make(map[int64]*ScheduleEntry),
+		interval:  defaultInterval,
+		wakeup:    make(chan struct{}, 1),
+	}
+}
+
+func (d *PollDispatcher) Start(ctx context.Context) {
+	ctx, d.cancel = context.WithCancel(ctx)
+	d.wg.Add(1)
+	go d.run(ctx)
+	slog.Info("poll dispatcher started")
+}
+
+func (d *PollDispatcher) Stop() {
+	if d.cancel != nil {
+		d.cancel()
+	}
+	d.wg.Wait()
+	slog.Info("poll dispatcher stopped")
+}
+
+func (d *PollDispatcher) Upsert(device models.Device, priority int, interval time.Duration) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	if interval <= 0 {
+		interval = d.interval
+	}
+	minInterval := 5 * time.Second
+	if interval < minInterval {
+		interval = minInterval
+	}
+
+	entry, exists := d.deviceMap[device.ID]
+	if exists {
+		// Update device data and priority without touching the schedule.
+		// Only reschedule if the poll interval actually changed.
+		entry.Device = device
+		entry.Priority = priority
+		intervalChanged := entry.Interval != interval
+		entry.Interval = interval
+		if intervalChanged && entry.State != StatePaused {
+			entry.NextPollAt = time.Now().Add(entry.effectiveInterval())
+			heap.Fix(d.schedule, entry.index)
+		}
+	} else {
+		entry = &ScheduleEntry{
+			DeviceID:   device.ID,
+			Device:     device,
+			Priority:   priority,
+			Interval:   interval,
+			NextPollAt: time.Now(),
+			State:      StateHealthy,
+		}
+		d.deviceMap[device.ID] = entry
+		heap.Push(d.schedule, entry)
+
+		// Only wake up the dispatcher for genuinely new devices.
+		select {
+		case d.wakeup <- struct{}{}:
+		default:
+		}
+	}
+}
+
+func (d *PollDispatcher) Remove(deviceID int64) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	entry, exists := d.deviceMap[deviceID]
+	if !exists {
+		return
+	}
+	heap.Remove(d.schedule, entry.index)
+	delete(d.deviceMap, deviceID)
+}
+
+func (d *PollDispatcher) Pause(deviceID int64) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	entry, exists := d.deviceMap[deviceID]
+	if !exists {
+		return
+	}
+	entry.State = StatePaused
+}
+
+func (d *PollDispatcher) Resume(deviceID int64) {
+	d.mu.Lock()
+
+	entry, exists := d.deviceMap[deviceID]
+	if !exists {
+		d.mu.Unlock()
+		return
+	}
+	entry.State = StateHealthy
+	entry.Failures = 0
+	entry.NextPollAt = time.Now()
+	heap.Fix(d.schedule, entry.index)
+
+	d.mu.Unlock()
+
+	select {
+	case d.wakeup <- struct{}{}:
+	default:
+	}
+}
+
+func (d *PollDispatcher) RecordSuccess(deviceID int64) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	entry, exists := d.deviceMap[deviceID]
+	if !exists {
+		return
+	}
+	if entry.State == StateUnreachable {
+		entry.State = StateHealthy
+		slog.Info("device recovered from unreachable state", "deviceID", deviceID)
+	}
+	entry.Failures = 0
+	entry.NextPollAt = time.Now().Add(entry.Interval)
+	heap.Fix(d.schedule, entry.index)
+}
+
+func (d *PollDispatcher) RecordFailure(deviceID int64) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	entry, exists := d.deviceMap[deviceID]
+	if !exists {
+		return
+	}
+	entry.Failures++
+	if entry.Failures >= 3 {
+		entry.State = StateUnreachable
+		slog.Warn("device marked unreachable", "deviceID", deviceID, "failures", entry.Failures)
+	}
+	entry.NextPollAt = time.Now().Add(entry.effectiveInterval())
+	heap.Fix(d.schedule, entry.index)
+}
+
+func (d *PollDispatcher) Count() int {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	return d.schedule.Len()
+}
+
+func (d *PollDispatcher) DeviceIDs() []int64 {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	ids := make([]int64, 0, len(d.deviceMap))
+	for id := range d.deviceMap {
+		ids = append(ids, id)
+	}
+	return ids
+}
+
+func (d *PollDispatcher) UnreachableCount() int {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	count := 0
+	for _, entry := range d.deviceMap {
+		if entry.State == StateUnreachable {
+			count++
+		}
+	}
+	return count
+}
+
+func (d *PollDispatcher) PausedCount() int {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	count := 0
+	for _, entry := range d.deviceMap {
+		if entry.State == StatePaused {
+			count++
+		}
+	}
+	return count
+}
+
+func (d *PollDispatcher) run(ctx context.Context) {
+	defer d.wg.Done()
+	timer := time.NewTimer(0)
+	defer timer.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-timer.C:
+		case <-d.wakeup:
+			if !timer.Stop() {
+				select {
+				case <-timer.C:
+				default:
+				}
+			}
+		}
+		d.dispatchDue()
+		d.rescheduleTimer(timer)
+	}
+}
+
+func (d *PollDispatcher) dispatchDue() {
+	d.mu.Lock()
+
+	now := time.Now()
+	var toEnqueue []PollJob
+
+	for d.schedule.Len() > 0 {
+		entry := (*d.schedule)[0]
+		if entry.NextPollAt.After(now) {
+			break
+		}
+		heap.Pop(d.schedule)
+
+		if entry.State == StatePaused {
+			entry.NextPollAt = now.Add(24 * time.Hour)
+			heap.Push(d.schedule, entry)
+			continue
+		}
+
+		priority := entry.Priority
+		if entry.State == StateUnreachable {
+			priority = 2
+		}
+
+		toEnqueue = append(toEnqueue, PollJob{
+			Device:     entry.Device,
+			Priority:   priority,
+			ScheduleAt: entry.NextPollAt,
+			Attempt:    entry.Failures,
+		})
+
+		entry.NextPollAt = now.Add(entry.effectiveInterval())
+		heap.Push(d.schedule, entry)
+	}
+
+	d.mu.Unlock()
+
+	for _, job := range toEnqueue {
+		d.pool.Enqueue(job)
+	}
+}
+
+func (d *PollDispatcher) rescheduleTimer(timer *time.Timer) {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
+	if d.schedule.Len() == 0 {
+		timer.Reset(time.Second)
+		return
+	}
+
+	now := time.Now()
+	next := (*d.schedule)[0].NextPollAt
+	wait := next.Sub(now)
+	if wait < 0 {
+		wait = 0
+	}
+	timer.Reset(wait)
+}
+
+func (e *ScheduleEntry) effectiveInterval() time.Duration {
+	switch {
+	case e.Failures >= 10:
+		return e.Interval * 8
+	case e.Failures >= 3:
+		return e.Interval * 4
+	case e.Failures >= 2:
+		return e.Interval * 2
+	default:
+		return e.Interval
+	}
+}

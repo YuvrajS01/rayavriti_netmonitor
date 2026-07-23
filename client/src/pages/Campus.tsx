@@ -8,6 +8,7 @@ import { getDevices } from '../api/client';
 import type { Device } from '../api/types';
 import { useToast } from '../components/ui/useToast';
 import CampusMap from '../components/CampusMap';
+import FloorPlanView from '../components/FloorPlanView';
 
 const statusColors: Record<string, string> = {
   up: 'bg-success',
@@ -130,7 +131,7 @@ export default function Campus() {
       ) : view === 'map' ? (
         <CampusMap locations={enriched} selectedId={selected ? Number(selected.id) : null} onSelect={handleSelect} />
       ) : view === 'floor' ? (
-        <Card variant="low" className="min-h-[440px] p-8 grid place-items-center text-center"><div><span className="material-symbols-outlined text-5xl text-primary">architecture</span><h2 className="font-headline text-xl font-semibold mt-4">Floor plan workspace</h2><p className="text-sm text-on-surface-variant mt-2 max-w-md">Use the campus map to explore live location health. Floor-plan positioning is ready for location-level device placement data.</p></div></Card>
+        <FloorPlanView location={selected} locations={locations as Phase2Row[]} devices={devices} />
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
           {/* Left Panel — Tree */}
