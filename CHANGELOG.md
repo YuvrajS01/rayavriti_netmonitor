@@ -5,6 +5,77 @@ All notable changes to Rayavriti NetMonitor will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.0.0] - 2026-07-23
+
+Core polling engine rewrite — major architectural overhaul replacing the goroutine-per-device model with a priority-based worker pool, timing wheel dispatcher, adaptive backoff, dependency-aware scheduling, and batch database operations. Also introduces hierarchical campus visualizations, real topology edges, and critical security vulnerability fixes.
+
+### Added — Backend
+
+#### Polling Engine Overhaul (Phases 1–7)
+
+- **Worker pool engine** (`a713ad8`) — Fixed-size goroutine pool with three priority queues (critical/normal/low) and priority-based worker selection, replacing the unbounded goroutine-per-device model.
+- **Poll dispatcher** (`a713ad8`) — Timing wheel using a min-heap schedule with a single shared timer instead of N per-device tickers; supports adaptive backoff on failures.
+- **Result pipeline** (`a713ad8`) — Fan-in pipeline with batch buffer (size + time flush triggers), DB writes, WebSocket broadcast, and alert evaluation.
+- **Collector meta interface** (`a713ad8`) — New `CollectorMeta` interface with `DefaultTimeout` and `Weight` methods for standardized collector behavior.
+- **Scheduler rewrite** (`a713ad8`) — Orchestrates WorkerPool + PollDispatcher + ResultPipeline, replaces the old goroutine-per-device model.
+- **Device state tracker** (`8f5cdf6`) — Per-device health tracking with adaptive backoff (1x→2x→4x→8x interval escalation) and rolling average response time.
+- **Dependency tree** (`8f5cdf6`) — PRTG-inspired parent/child dependency model with auto-pause/resume support; child devices are paused when parent is unreachable.
+- **Async remote collector** (`cbeb786`) — Replaced per-request `http.Client` with shared pooled transport (connection reuse); fan-out polling with bounded semaphore (max 10 concurrent).
+- **Batch metric insert** (`5ed8d28`) — New `RecordMetricsBatch` on the Database interface using `pgx.CopyFrom` for bulk COPY insert; `MetricBuffer.flush()` updated to use batch writes.
+- **Poller configuration env vars** (`1573fec`) — `POLLER_WORKER_COUNT`, `POLLER_MAX_WORKER_COUNT`, `POLLER_*_QUEUE_SIZE`, `POLLER_RESULT_BATCH_SIZE`, `POLLER_RESULT_FLUSH_MS`, `REMOTE_MAX_CONCURRENT`.
+- **Self-monitoring metrics** (`1573fec`) — Added `WorkerPool*` and `Poller*` optional stat providers; poller metrics fields in `SystemMetrics` struct; migration V41 for new monitoring columns.
+- **Device priority column** (`8aa4b46`) — New `priority INT` field on Device model (default 1); migration V42 with index.
+
+#### Frontend
+
+- **FloorPlanView component** (`f867768`) — Room view (location cards with device status) and Rack view (42U vertical rack diagram with device bars at rackPosition); status pulse animations; graceful empty states.
+- **Hierarchical CampusMap** (`d279ba9`) — Rewritten from a flat grid into a multi-level tree (campus → building → floor → room/rack); building cards with proportional status bars, device count badges, and click-to-select with highlight.
+- **Real topology edges in NetworkTopology** (`d497113`) — Now fetches dependency tree from `GET /api/v1/topology` and flattens into parent→child edges; category-aware node shapes (router=cross, switch=diamond, firewall=hexagon, server=rounded rect); dependency port labels; scroll-wheel zoom; animated particles change red on down endpoints; real edge count vs inferred.
+- **Typed API helpers** (`ed0e83c`) — `TopologyNode`/`LocationNode` interfaces; `getTopologyTree()`, `getLocationTree()`, `getLocationDevices()` API client functions.
+
+### Changed
+
+- **Scheduler architecture** (`a713ad8`, `de16af0`) — Complete rewrite from goroutine-per-device to WorkerPool + PollDispatcher + ResultPipeline orchestration.
+- **Dashboard and Campus pages** (`f867768`, `d279ba9`) — Campus page now uses FloorPlanView; CampusMap is now hierarchical.
+- **NetworkTopology data source** (`d497113`) — Switched from simulated edges to real `/api/v1/topology` dependency tree.
+- **Env dev example** (`8df92ee`) — Updated with new poller configuration variables.
+
+### Fixed
+
+- **Pollers not firing on reconcile** (`d0a522f`) — `Upsert` no longer unconditionally resets `NextPollAt`, which was pushing every device's next poll indefinitely into the future; only reschedules when interval actually changes.
+- **Poller memory leaks** (`de16af0`) — `reconcile()` now removes stale devices via `PollDispatcher.DeviceIDs()` instead of accumulating indefinitely; fixed `jobCount` tracking sync with dispatcher count.
+- **Result pipeline payload loss** (`de16af0`) — `ResultPipeline` now retains complete `CollectResult` payload (PacketLoss, CPUUsage, etc.) and persists device status changes.
+- **Worker pool deadlock** (`9b7445c`) — Fixed deadlock in `dispatchDue` by releasing lock before enqueue; fixed infinite loop on paused entries by scheduling them 24h ahead; fixed Resume not waking dispatcher.
+- **Lint/typecheck/build issues** (`44c70f9`) — Fixed ESLint `react-hooks/refs` violation, TypeScript type error, gofmt formatting (14 files), staticcheck QF1003; all builds lints and tests pass.
+- **npm vulnerabilities** (`714e355`) — Upgraded axios and brace-expansion to resolve high-severity vulnerabilities.
+- **Go vulnerability** (`ad233f5`) — Upgraded `golang.org/x/text` v0.38.0 → v0.39.0 to fix GO-2026-5970.
+
+### Removed
+
+- Old implementation docs (`20fcaac`) — Removed `remote_implement.md` and `review_codex.md` as they represent stale design documents superseded by implementation.
+
+### Tests
+
+- **Async poller tests** (`9b7445c`) — ~45 new tests covering WorkerPool, PollDispatcher, DeviceStateTracker, DependencyTree, ResultPipeline, and Scheduler (deadlock, infinite loop, wakeup edge cases).
+- **Existing test suite** (`44c70f9`) — All 108 frontend tests and all backend tests passing.
+
+### New Environment Variables
+
+- `POLLER_WORKER_COUNT` — Number of poller workers (default: 5)
+- `POLLER_MAX_WORKER_COUNT` — Max concurrent poller workers (default: 20)
+- `POLLER_CRITICAL_QUEUE_SIZE` — Critical priority queue capacity (default: 100)
+- `POLLER_NORMAL_QUEUE_SIZE` — Normal priority queue capacity (default: 200)
+- `POLLER_LOW_QUEUE_SIZE` — Low priority queue capacity (default: 300)
+- `POLLER_RESULT_BATCH_SIZE` — Result batch size before flush (default: 50)
+- `POLLER_RESULT_FLUSH_MS` — Result flush interval in ms (default: 1000)
+- `REMOTE_MAX_CONCURRENT` — Max concurrent remote polls (default: 10)
+- `COLLECTOR_INTERVAL_SEC` — Default poll frequency in seconds
+
+### Database Migrations
+
+- V41 — New columns in `monitoring_app_health` for poller self-monitoring metrics
+- V42 — `priority INT` column on `devices` table with index
+
 ## [3.9.0] - 2026-07-19
 
 Visual UI redesign release. Transforms the text-heavy, table-centric interface into an infographic-driven experience with interactive charts, force-directed topology maps, heatmaps, sparklines, Gantt timelines, and live data visualizations across all pages. Also fixes WebSocket realtime authentication, device modal AI Health score rendering, and campus multi-level location hierarchy.
