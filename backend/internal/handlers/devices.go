@@ -130,7 +130,7 @@ func (h *DeviceHandler) Create(w http.ResponseWriter, r *http.Request) {
 	if d.Protocol == "" {
 		d.Protocol = "ping"
 	}
-	validProtocols := map[string]bool{"ping": true, "http": true, "https": true, "snmp": true, "ssh": true, "port": true, "icmp": true}
+	validProtocols := map[string]bool{"ping": true, "http": true, "https": true, "snmp": true, "ssh": true, "port": true, "icmp": true, "camera": true, "biometric": true}
 	if !validProtocols[d.Protocol] {
 		httputil.SendError(w, http.StatusBadRequest, "protocol must be one of: ping, http, https, snmp, ssh, port, icmp")
 		return
@@ -145,6 +145,8 @@ func (h *DeviceHandler) Create(w http.ResponseWriter, r *http.Request) {
 			d.Port = 161
 		case "ssh":
 			d.Port = 22
+		case "camera", "biometric":
+			d.Port = 80
 		case "port":
 			httputil.SendError(w, http.StatusBadRequest, "port protocol requires a valid port number")
 			return
@@ -198,7 +200,7 @@ func (h *DeviceHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if patch.Protocol != "" {
-		validProtocols := map[string]bool{"ping": true, "http": true, "https": true, "snmp": true, "ssh": true, "port": true, "icmp": true}
+		validProtocols := map[string]bool{"ping": true, "http": true, "https": true, "snmp": true, "ssh": true, "port": true, "icmp": true, "camera": true, "biometric": true}
 		if !validProtocols[patch.Protocol] {
 			httputil.SendError(w, http.StatusBadRequest, "protocol must be one of: ping, http, https, snmp, ssh, port, icmp")
 			return
@@ -258,6 +260,9 @@ func (h *DeviceHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 	if patch.DeviceCategory != "" {
 		existing.DeviceCategory = patch.DeviceCategory
+	}
+	if patch.MonitorConfig != nil {
+		existing.MonitorConfig = patch.MonitorConfig
 	}
 	if patch.Manufacturer != "" {
 		existing.Manufacturer = patch.Manufacturer

@@ -1085,4 +1085,10 @@ var migrations = []string{
 	// V42: Add priority column to devices
 	`ALTER TABLE devices ADD COLUMN IF NOT EXISTS priority INT NOT NULL DEFAULT 1;
 	CREATE INDEX IF NOT EXISTS idx_devices_priority ON devices(priority) WHERE enabled = true;`,
+
+	// V43: Profile options for first-class security devices. Kept separate from
+	// credentials so discovery/API responses never expose secrets.
+	`ALTER TABLE devices ADD COLUMN IF NOT EXISTS monitor_config JSONB NOT NULL DEFAULT '{}';
+	CREATE INDEX IF NOT EXISTS idx_devices_security_categories ON devices(device_category)
+	WHERE device_category IN ('camera', 'nvr', 'biometric');`,
 }

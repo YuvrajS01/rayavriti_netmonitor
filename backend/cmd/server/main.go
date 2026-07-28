@@ -151,7 +151,9 @@ func run() error {
 	registry.Register(collectors.PortCollector{})
 	registry.Register(collectors.SNMPCollector{})
 	registry.Register(collectors.SystemCollector{})
-	logger.Info("Collectors registered", "count", 6)
+	registry.Register(collectors.CameraCollector{})
+	registry.Register(collectors.BiometricCollector{})
+	logger.Info("Collectors registered", "count", 8)
 
 	// 8. Initialize alert engine (used by scheduler for rule evaluation)
 	notifier := engine.NewNotifier()
