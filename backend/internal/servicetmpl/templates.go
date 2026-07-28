@@ -2,6 +2,7 @@ package servicetmpl
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -58,14 +59,15 @@ type AlertDef struct {
 }
 
 type Template struct {
-	Name        string        `json:"name"`
-	Description string        `json:"description"`
-	Category    string        `json:"category"`
-	DeviceProto string        `json:"deviceProtocol"`
-	DevicePort  int           `json:"devicePort"`
-	CategoryTag string        `json:"deviceCategory"`
-	Checks      []CheckConfig `json:"checks"`
-	Alerts      []AlertDef    `json:"alerts"`
+	Name          string         `json:"name"`
+	Description   string         `json:"description"`
+	Category      string         `json:"category"`
+	DeviceProto   string         `json:"deviceProtocol"`
+	DevicePort    int            `json:"devicePort"`
+	CategoryTag   string         `json:"deviceCategory"`
+	MonitorConfig map[string]any `json:"monitorConfig,omitempty"`
+	Checks        []CheckConfig  `json:"checks"`
+	Alerts        []AlertDef     `json:"alerts"`
 }
 
 type ApplyRequest struct {
@@ -186,32 +188,26 @@ var templates = map[string]*Template{
 		},
 	},
 	"cctv_nvr": {
-		Name:        "CCTV/NVR System",
-		Description: "Monitors CCTV NVR management interface and RTSP stream",
-		Category:    "Security",
-		DeviceProto: "http",
-		DevicePort:  80,
-		CategoryTag: "cctv",
-		Checks: []CheckConfig{
-			{Type: "http", Name: "NVR Web Interface", Enabled: true, Interval: 60, Config: map[string]any{"path": "/", "expected_status": 200}},
-			{Type: "port", Name: "RTSP Stream", Enabled: true, Interval: 30, Config: map[string]any{"port": 554}},
-		},
+		Name:          "CCTV/NVR System",
+		Description:   "First-class CCTV profile that checks the management interface and RTSP service",
+		Category:      "Security",
+		DeviceProto:   "camera",
+		DevicePort:    80,
+		CategoryTag:   "nvr",
+		MonitorConfig: map[string]any{"managementScheme": "http", "managementPath": "/", "rtspPort": 554, "rtspPath": "/"},
 		Alerts: []AlertDef{
 			{Name: "NVR Down", Severity: "critical", MetricField: "status", Operator: "eq", Value: "down", Duration: 0},
 			{Name: "RTSP Unreachable", Severity: "warning", MetricField: "status", Operator: "eq", Value: "down", Duration: 60},
 		},
 	},
 	"biometric_server": {
-		Name:        "Biometric Server",
-		Description: "Monitors biometric/attendance system availability",
-		Category:    "Security",
-		DeviceProto: "http",
-		DevicePort:  80,
-		CategoryTag: "server",
-		Checks: []CheckConfig{
-			{Type: "port", Name: "Management Port", Enabled: true, Interval: 30, Config: map[string]any{"port": 80}},
-			{Type: "http", Name: "Web Interface", Enabled: true, Interval: 60, Config: map[string]any{"path": "/", "expected_status": 200}},
-		},
+		Name:          "Biometric Server",
+		Description:   "First-class biometric profile that checks management and attendance services",
+		Category:      "Security",
+		DeviceProto:   "biometric",
+		DevicePort:    80,
+		CategoryTag:   "biometric",
+		MonitorConfig: map[string]any{"managementScheme": "http", "managementPath": "/", "attendancePort": 4370},
 		Alerts: []AlertDef{
 			{Name: "Biometric Server Down", Severity: "critical", MetricField: "status", Operator: "eq", Value: "down", Duration: 0},
 		},
@@ -333,12 +329,16 @@ func (s *Service) Apply(ctx context.Context, req ApplyRequest) (*ApplyResult, er
 	defer func() { _ = tx.Rollback(ctx) }()
 
 	var deviceID int64
+	monitorConfig, err := json.Marshal(tmpl.MonitorConfig)
+	if err != nil {
+		return nil, fmt.Errorf("marshal monitor config: %w", err)
+	}
 	err = tx.QueryRow(ctx, `
-		INSERT INTO devices (name, ip_address, protocol, port, enabled, tags, device_category, location_id, notes, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, true, $5, $6, $7, $8, $9, $10)
+		INSERT INTO devices (name, ip_address, protocol, port, enabled, tags, device_category, monitor_config, location_id, notes, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, true, $5, $6, $7, $8, $9, $10, $11)
 		RETURNING id`,
 		deviceName, req.Host, tmpl.DeviceProto, tmpl.DevicePort, true,
-		fmt.Sprintf(`["%s"]`, tmpl.CategoryTag), tmpl.CategoryTag, req.LocationID,
+		fmt.Sprintf(`["%s"]`, tmpl.CategoryTag), tmpl.CategoryTag, string(monitorConfig), req.LocationID,
 		fmt.Sprintf("Auto-created from template: %s", req.Template), now, now,
 	).Scan(&deviceID)
 	if err != nil {
