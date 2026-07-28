@@ -16,6 +16,7 @@ export default function DeviceAddModal({ open, onClose, onAdded }: Props) {
   const [port, setPort] = useState(443);
   const [snmpCommunity, setSnmpCommunity] = useState('public');
   const [snmpVersion, setSnmpVersion] = useState('2c');
+  const [securityCategory, setSecurityCategory] = useState<'camera' | 'nvr' | 'biometric'>('camera');
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [locations, setLocations] = useState<Phase2Row[]>([]);
@@ -87,6 +88,20 @@ export default function DeviceAddModal({ open, onClose, onAdded }: Props) {
         port,
         interval: Number(fd.get('interval') || 60),
       };
+	  if (protocol === 'camera' || protocol === 'biometric') {
+		const monitorConfig: Record<string, string | number> = {
+		  managementScheme: String(fd.get('managementScheme') || 'http'),
+		  managementPath: String(fd.get('managementPath') || '/'),
+		};
+		if (protocol === 'camera') {
+		  monitorConfig.rtspPort = Number(fd.get('rtspPort') || 554);
+		  monitorConfig.rtspPath = String(fd.get('rtspPath') || '/');
+		} else {
+		  monitorConfig.attendancePort = Number(fd.get('attendancePort') || 4370);
+		}
+		payload.deviceCategory = protocol === 'camera' ? securityCategory : 'biometric';
+		payload.monitorConfig = monitorConfig;
+	  }
       const locVal = fd.get('locationId') as string;
       if (locVal) payload.locationId = Number(locVal);
       if (protocol === 'snmp') {
@@ -149,6 +164,7 @@ export default function DeviceAddModal({ open, onClose, onAdded }: Props) {
                   if (next === 'snmp') setPort(161);
                   if (next === 'ping') setPort(0);
                   if (next === 'port') setPort(0);
+				  if (next === 'camera' || next === 'biometric') setPort(80);
                 }}
                 className={`${inputClass} w-full cursor-pointer`}
               >
@@ -158,11 +174,13 @@ export default function DeviceAddModal({ open, onClose, onAdded }: Props) {
                 <option value="port">TCP Port</option>
                 <option value="system">System</option>
                 <option value="snmp">SNMP</option>
+				<option value="camera">CCTV Camera / NVR</option>
+				<option value="biometric">Biometric terminal</option>
               </select>
             </div>
             <div>
               <label htmlFor="device-port" className="block text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant mb-1.5">Port</label>
-              {['https', 'http', 'snmp', 'port'].includes(protocol) ? (
+			  {['https', 'http', 'snmp', 'port', 'camera', 'biometric'].includes(protocol) ? (
                 <>
                   <input
                     id="device-port"
@@ -205,6 +223,26 @@ export default function DeviceAddModal({ open, onClose, onAdded }: Props) {
               </div>
             </div>
           )}
+
+		  {(protocol === 'camera' || protocol === 'biometric') && (
+			<div className="border-y border-outline-variant/20 py-4 space-y-4">
+			  <div className="flex items-center gap-2 text-primary">
+				<span className="material-symbols-outlined text-lg">{protocol === 'camera' ? 'videocam' : 'fingerprint'}</span>
+				<h3 className="text-xs font-semibold uppercase tracking-wide">{protocol === 'camera' ? 'CCTV profile' : 'Biometric profile'}</h3>
+			  </div>
+			  {protocol === 'camera' && <div>
+				<label htmlFor="security-category" className="block text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant mb-1.5">Device type</label>
+				<select id="security-category" value={securityCategory} onChange={(e) => setSecurityCategory(e.target.value as 'camera' | 'nvr')} className={`${inputClass} w-full cursor-pointer`}>
+				  <option value="camera">IP Camera</option><option value="nvr">NVR / DVR</option>
+				</select>
+			  </div>}
+			  <div className="grid grid-cols-2 gap-4">
+				<div><label htmlFor="management-scheme" className="block text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant mb-1.5">Management protocol</label><select id="management-scheme" name="managementScheme" className={`${inputClass} w-full`}><option value="http">HTTP</option><option value="https">HTTPS</option></select></div>
+				<div><label htmlFor="management-path" className="block text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant mb-1.5">Management path</label><input id="management-path" name="managementPath" defaultValue="/" className={`${inputClass} w-full`} /></div>
+			  </div>
+			  {protocol === 'camera' ? <div className="grid grid-cols-2 gap-4"><div><label htmlFor="rtsp-port" className="block text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant mb-1.5">RTSP port</label><input id="rtsp-port" name="rtspPort" type="number" min="1" max="65535" defaultValue={554} className={`${inputClass} w-full`} /></div><div><label htmlFor="rtsp-path" className="block text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant mb-1.5">RTSP path</label><input id="rtsp-path" name="rtspPath" defaultValue="/" className={`${inputClass} w-full`} /></div></div> : <div><label htmlFor="attendance-port" className="block text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant mb-1.5">Attendance port</label><input id="attendance-port" name="attendancePort" type="number" min="1" max="65535" defaultValue={4370} className={`${inputClass} w-full`} /><p className="mt-1 text-[10px] text-on-surface-variant">4370 is the standard ZKTeco-compatible terminal port.</p></div>}
+			</div>
+		  )}
 
           <div>
             <label htmlFor="device-interval" className="block text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant mb-1.5">Check Interval (seconds)</label>
