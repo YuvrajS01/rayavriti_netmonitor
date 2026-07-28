@@ -8,12 +8,13 @@ interface Props {
   open: boolean;
   onClose: () => void;
   onAdded: () => void;
+  initialProtocol?: 'camera' | 'biometric';
 }
 
-export default function DeviceAddModal({ open, onClose, onAdded }: Props) {
+export default function DeviceAddModal({ open, onClose, onAdded, initialProtocol }: Props) {
   const { addToast } = useToast();
-  const [protocol, setProtocol] = useState('https');
-  const [port, setPort] = useState(443);
+  const [protocol, setProtocol] = useState(initialProtocol || 'https');
+  const [port, setPort] = useState(initialProtocol ? 80 : 443);
   const [snmpCommunity, setSnmpCommunity] = useState('public');
   const [snmpVersion, setSnmpVersion] = useState('2c');
   const [securityCategory, setSecurityCategory] = useState<'camera' | 'nvr' | 'biometric'>('camera');
