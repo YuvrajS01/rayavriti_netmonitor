@@ -134,7 +134,7 @@ func probeManagement(ctx context.Context, host string, port int, scheme, path st
 	if err != nil {
 		return false, 0, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	// 401/403 are common for healthy management UIs and must not cause a false outage.
 	return resp.StatusCode < 500, resp.StatusCode, nil
 }
@@ -152,7 +152,7 @@ func probeRTSP(ctx context.Context, host string, port int, streamPath string) (b
 	if err != nil {
 		return false, 0, err
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 	path := streamPath
 	if !strings.HasPrefix(path, "/") {
 		path = "/" + path

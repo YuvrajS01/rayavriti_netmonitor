@@ -44,6 +44,7 @@ var oidRules = []rule{
 var textRules = []rule{
 	{"Cisco", []string{"cisco", "ios xe", "catalyst"}}, {"HPE", []string{"hewlett packard", "arubaos", "procurve"}},
 	{"Juniper", []string{"juniper", "junos"}}, {"Aruba", []string{"aruba networks"}}, {"Fortinet", []string{"fortinet", "fortigate"}},
+	//nolint:misspell
 	{"MikroTik", []string{"mikrotik", "routeros"}}, {"Ubiquiti", []string{"ubiquiti", "unifi", "edgeos"}},
 	{"TP-Link", []string{"tp-link", "tplink", "omada"}}, {"Huawei", []string{"huawei"}}, {"Dell", []string{"dell", "dell emc"}},
 	{"Hikvision", []string{"hikvision", "hik-connect"}}, {"Dahua", []string{"dahua"}},
