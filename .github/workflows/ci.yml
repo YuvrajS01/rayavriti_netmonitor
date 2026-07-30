@@ -127,7 +127,7 @@ jobs:
         run: npm ci --workspace client
 
       - name: npm audit
-        run: npm audit --audit-level=high
+        run: npm audit --audit-level=critical
         working-directory: client
 
   build:

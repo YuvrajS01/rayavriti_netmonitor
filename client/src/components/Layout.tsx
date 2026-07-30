@@ -39,6 +39,8 @@ const navGroups: NavGroup[] = [
     label: 'Inventory',
     items: [
       { to: '/devices', label: 'Devices', icon: 'devices', permission: 'devices.read' },
+	  { to: '/inventory/cameras', label: 'Cameras', icon: 'videocam', permission: 'devices.read' },
+	  { to: '/inventory/biometrics', label: 'Biometrics', icon: 'fingerprint', permission: 'devices.read' },
       { to: '/campus', label: 'Campus', icon: 'account_tree', permission: 'locations.read' },
       { to: '/sensors', label: 'Sensors', icon: 'sensors', permission: 'devices.read' },
       { to: '/isp', label: 'ISP Links', icon: 'router', permission: 'isp.read' },

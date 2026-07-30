@@ -255,6 +255,14 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
              </select>
            </div>
 
+		   {(device.manufacturer || device.model || device.deviceCategory) && (
+			 <div className="mb-6 border-y border-outline-variant/20 py-4 grid grid-cols-2 md:grid-cols-3 gap-4">
+			   {device.manufacturer && <div><p className="text-[10px] text-on-surface-variant uppercase tracking-wide">Vendor</p><p className="mt-1 font-semibold text-sm">{device.manufacturer}</p></div>}
+			   {device.model && <div><p className="text-[10px] text-on-surface-variant uppercase tracking-wide">Model</p><p className="mt-1 font-semibold text-sm">{device.model}</p></div>}
+			   {device.deviceCategory && <div><p className="text-[10px] text-on-surface-variant uppercase tracking-wide">Profile</p><p className="mt-1 font-semibold text-sm uppercase">{device.deviceCategory}</p></div>}
+			 </div>
+		   )}
+
            <div className="bg-surface-container-low rounded-lg p-4 border border-outline-variant/20 mb-6">
              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
                <div>

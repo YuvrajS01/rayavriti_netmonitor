@@ -38,6 +38,7 @@ export interface Device {
   snmpCommunity?: string | null;
   snmpVersion?: string | null;
   deviceCategory?: string;
+  monitorConfig?: Record<string, string | number | boolean>;
   manufacturer?: string;
   model?: string;
   serialNumber?: string;

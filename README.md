@@ -1,89 +1,112 @@
 <div align="center">
-  <h1>🌐 Rayavriti NetMonitor</h1>
+  <h1>Rayavriti NetMonitor</h1>
   <p><strong>Production-grade, real-time network monitoring and traffic visibility platform.</strong></p>
 
-  ![Version](https://img.shields.io/badge/Version-3.0.0-brightgreen?style=flat-square)
+  ![Version](https://img.shields.io/badge/Version-4.0.0-brightgreen?style=flat-square)
   ![Go](https://img.shields.io/badge/Go-1.26-00ADD8?style=flat-square&logo=go)
-  ![React](https://img.shields.io/badge/React-v19-blue?style=flat-square&logo=react)
+  ![React](https://img.shields.io/badge/React-19-blue?style=flat-square&logo=react)
   ![TypeScript](https://img.shields.io/badge/TypeScript-Strict-blue?style=flat-square&logo=typescript)
+  ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?style=flat-square&logo=postgresql)
+  ![TimescaleDB](https://img.shields.io/badge/TimescaleDB-Hypertables-FBB040?style=flat-square)
   ![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?style=flat-square&logo=docker)
   ![License](https://img.shields.io/badge/License-Proprietary-red?style=flat-square)
 </div>
 
 ---
 
-Rayavriti NetMonitor is a full-stack network monitoring platform built for local infrastructure visibility. It provides real-time device monitoring, packet capture, NetFlow/sFlow analysis, AI-powered anomaly detection, and a modern SPA dashboard — all deployable as a single Docker container.
+Rayavriti NetMonitor is a full-stack network monitoring platform built for local infrastructure visibility. It provides real-time device monitoring, packet capture, NetFlow/sFlow analysis, AI-powered anomaly detection, campus topology management, remote fleet coordination, and a modern infographic-driven SPA dashboard—all deployable via Docker Compose or bare metal.
 
-## ✨ Features
-
-- ⚡ **Real-Time Dashboard** — Live metrics, alerts, and device status via WebSockets
-- 🔍 **Packet Capture** — Real-time packet sniffing with protocol analysis (requires `libpcap`)
-- 📊 **Flow Analysis** — NetFlow v5/v9 and sFlow collection with top-talker and protocol breakdowns
-- 🤖 **AI Health Scoring** — Anomaly detection engine with historical trend analysis
-- 🏥 **Multi-Protocol Monitoring** — Ping (ICMP), HTTP, TCP port, SNMP, and system metrics
-- 🔔 **Alert Management** — Severity-based alerts with acknowledge/resolve workflow
-- 📈 **Reports & Export** — Time-series reports, device breakdowns, and CSV export
-- 🔒 **Authentication** — JWT-based auth with scrypt password hashing and API key support
-- 🐳 **Docker-Ready** — Single-container deployment with Docker Compose
+Designed for colleges, schools, offices, hostels, labs, and small campuses as a PRTG-inspired alternative with no per-device licensing.
 
 ---
 
-## 🏗️ Architecture
+## Features
 
-```text
-┌─────────────────────────────────────────────────────────┐
-│                    React 19 SPA                         │
-│  Redux Toolkit • Recharts • WebSocket • Vite + Tailwind │
-└────────────────────────┬────────────────────────────────┘
-                         │ WebSocket + REST API
-┌────────────────────────▼────────────────────────────────┐
-│                  Go Backend (go-chi)                     │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌───────────┐  │
-│  │ Scheduler│ │Collectors│ │ Anomaly  │ │ Retention │  │
-│  │  (cron)  │ │ping/http │ │  Engine  │ │ Scheduler │  │
-│  │          │ │snmp/port │ │  (AI)    │ │ (pruning) │  │
-│  └──────────┘ └──────────┘ └──────────┘ └───────────┘  │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐                │
-│  │ NetFlow  │ │  Packet  │ │   Flow   │                │
-│  │Collector │ │ Capture  │ │ Analyzer │                │
-│  └──────────┘ └──────────┘ └──────────┘                │
-└────────────────────────┬────────────────────────────────┘
-                         │
-            ┌────────────▼────────────┐
-            │  PostgreSQL + TimescaleDB │
-            │  Hypertables + Retention │
-            └─────────────────────────┘
+- **Real-Time Dashboard** — Live metrics, alerts, device status, and AI health scores via WebSockets
+- **Multi-Protocol Monitoring** — Ping (ICMP), HTTP/HTTPS, TCP port, SNMP (v1/v2c/v3), and system metrics (CPU/memory/disk)
+- **NetFlow/sFlow Analysis** — NetFlow v5/v9 and sFlow collection with top-talker, protocol breakdowns, Sankey diagrams, and treemaps
+- **Packet Capture** — Real-time packet sniffing with protocol analysis (requires `libpcap` + `CAP_NET_RAW`)
+- **AI Health Scoring** — Anomaly detection engine with z-score analysis, health scoring (availability/latency/alerts/stability/ports), and baseline cache
+- **Alert Engine** — Rule evaluation with severity-based alerts, acknowledge/resolve workflow, suppression rules, escalation policies, and multi-channel notifications
+- **Campus Topology** — Hierarchical location tree (campus/building/floor/room/rack), force-directed topology graph with real dependency edges, floor plan and rack views
+- **Auto-Discovery** — Subnet ICMP sweep, ARP lookup, OUI manufacturer identification, port scanning, SNMP probing, HTTP/SSH/TLS banner extraction
+- **Remote Fleet Management** — Centralized registry for multiple NetMonitor instances with encrypted API key storage, service modes (active/readonly/maintenance), and config sync
+- **RBAC** — 5 seeded roles (super_admin, network_admin, dept_admin, viewer, public) with 18 permission types and scope-based filtering
+- **Incident Management** — Full incident lifecycle with timeline tracking and SLA monitoring
+- **Reports & Export** — Time-series, device, alert, and ISP SLA reports in HTML/CSV with scheduled cron-based generation
+- **Backup & Restore** — pg_dump/psql management with SHA-256 checksums and auto-pruning
+- **Service Templates** — 13 pre-built college service templates (ERP, LMS, Email, DNS, CCTV, etc.)
+- **Maintenance Windows** — One-time and recurring maintenance scheduling with auto-snooze
+
+---
+
+## Architecture
+
+```
+                           React 19 SPA (Vite + Tailwind v4)
+              Redux Toolkit • Recharts • @visx • framer-motion • WebSocket
+                                    |
+                          REST + WebSocket (gorilla/ws)
+                                    |
+                        Go Backend (go-chi v5 + pgx v5)
+     ┌───────────┐ ┌───────────┐ ┌──────────┐ ┌────────────┐ ┌──────────┐
+     │  Polling  │ │Collectors │ │  Engine  │ │  Campus &  │ │  Remote  │
+     │  Engine   │ │ping/http  │ │  Alert   │ │ Discovery  │ │  Fleet   │
+     │ WorkerPool│ │snmp/port  │ │ Anomaly  │ │  Topology  │ │ Registry │
+     │Dispatcher │ │netflow    │ │ Health   │ │   Import   │ │  Config  │
+     │ResultPipe │ │capture    │ │Notifier  │ │            │ │   Sync   │
+     └───────────┘ └───────────┘ └──────────┘ └────────────┘ └──────────┘
+     ┌───────────┐ ┌───────────┐ ┌──────────┐ ┌────────────┐
+     │  Auth &   │ │    RBAC   │ │ WebSocket│ │  Reports & │
+     │   2FA     │ │   ACL     │ │   Hub    │ │   Backup   │
+     └───────────┘ └───────────┘ └──────────┘ └────────────┘
+                                    |
+                    ┌───────────────┴───────────────┐
+                    │       PostgreSQL 16 + TimescaleDB     │
+                    │   Hypertables • Retention Policies    │
+                    └───────────────────────────────────────┘
+                                    |
+                          Redis 7 (optional)
+                    Cache • Pub/Sub • Rate Limiting • Locks
 ```
 
 **Monorepo** using npm workspaces:
+
 ```
 rayavriti-netmonitor/
-├── client/           # React frontend (Vite + Tailwind CSS v4)
-├── backend/          # Go backend (go-chi + pgx + TimescaleDB)
-│   ├── cmd/server/   # Application entry point
-│   └── internal/     # Handlers, database, models, collectors
-├── simulator/        # Network device simulator for testing
-├── documentation/    # Product specs, API docs, deployment guide
-├── Dockerfile        # Multi-stage production build
-├── docker-compose.yml
-└── .env.example      # Configuration template
+├── backend/           # Go backend (24 internal packages)
+│   ├── cmd/server/    # Application entry point
+│   └── internal/      # auth, cache, collectors, campus, config, database,
+│                      # discovery, engine, handlers, rbac, remote, reports,
+│                      # scheduler, scanner, websocket, logging, backup, etc.
+├── client/            # React SPA (30 pages, 40+ components)
+│   └── src/
+│       ├── api/       # 15 API client modules
+│       ├── components/# Charts, dashboard widgets, UI library
+│       ├── pages/     # 30 route-driven page components
+│       └── store/     # Redux Toolkit state
+├── simulator/         # Network device simulator for testing
+├── documentation/     # API docs, deployment guide, specs
+├── Dockerfile         # 5-stage multi-stage build
+├── docker-compose.yml # Production orchestration
+└── bootstrap.sh       # One-curl-bootstrap installer
 ```
 
 ---
 
-## ⚙️ Prerequisites
+## Prerequisites
 
 | Requirement | Version | Notes |
 |---|---|---|
 | **Go** | 1.26+ | Backend runtime |
-| **Node.js** | 22.x | Frontend build (defined in `engines`) |
+| **Node.js** | 22.x / 24.x / 26.x | Frontend build |
 | **npm** | 9+ | Comes with Node.js |
 | **libpcap** | — | Required for packet capture (`apt install libpcap-dev`) |
 | **Docker** (optional) | 24+ | For containerized deployment |
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ### One-Line Install (any system)
 
@@ -91,17 +114,9 @@ rayavriti-netmonitor/
 curl -fsSL https://raw.githubusercontent.com/YuvrajS01/rayavriti_netmonitor/main/bootstrap.sh | bash
 ```
 
-This will:
-1. Check prerequisites (Docker/Node/Go)
-2. Clone the repo
-3. Prompt for dev or prod mode
-4. Prompt for Docker or bare-metal
-5. Configure environment variables
-6. Build and start everything
+Interactive prompts guide you through prerequisites, dev/prod mode, and Docker/bare-metal selection.
 
-### Manual Options
-
-#### Docker Production
+### Docker Production
 
 ```bash
 git clone <repository-url>
@@ -112,24 +127,17 @@ docker compose up -d
 # Open http://localhost:3000
 ```
 
-#### Docker Development
+### Docker Development
 
 ```bash
 git clone <repository-url>
 cd rayavriti-netmonitor
 cp .env.dev.example .env.dev
 docker compose -f docker-compose.dev.yml up --build
-# Open http://localhost:5173
+# Frontend: http://localhost:5173  Backend: http://localhost:3000
 ```
 
-Development services:
-
-| Service | Purpose | URL |
-|---|---|---|
-| `server` | Go API, WebSocket, collectors, hot reload (air) | `http://localhost:3000` |
-| `client` | Vite React dev server | `http://localhost:5173` |
-
-#### Bare Metal
+### Bare Metal
 
 ```bash
 git clone <repository-url>
@@ -141,68 +149,24 @@ cp .env.example .env
 ./backend/bin/netmonitor
 ```
 
-> **Note:** Packet capture and SNMP require root or `NET_RAW` capability:
+> **Note:** Packet capture and SNMP require root or `CAP_NET_RAW`:
 > ```bash
 > sudo setcap cap_net_raw+ep ./backend/bin/netmonitor
-> # or run with sudo
 > ```
-
----
-
-## 💻 Development
-
-```bash
-# Terminal 1 — Backend (with hot reload)
-npm run dev
-# May need sudo for packet capture
-
-# Terminal 2 — Frontend (Vite dev server)
-npm run dev:client
-# Opens at http://localhost:5173 (proxies API to :3000)
-```
 
 **Default dev credentials:** `admin` / `admin123` (only when `ADMIN_PASSWORD` is not set)
 
 ---
 
-## 🔧 Configuration
-
-All configuration is via environment variables. See [`.env.example`](.env.example) for the full list.
-
-### Required (Production)
-
-| Variable | Description |
-|---|---|
-| `JWT_SECRET` | JWT signing secret — minimum 32 chars. Generate: `openssl rand -base64 32` |
-| `ADMIN_PASSWORD` | Admin user password — hashed with scrypt on first boot |
-
-### Optional
-
-| Variable | Default | Description |
-|---|---|---|
-| `APP_ENV` | `development` | Set to `production` for production mode |
-| `PORT` | `3000` | HTTP server port |
-| `ADMIN_USERNAME` | `admin` | Admin username |
-| `DATABASE_URL` | — | PostgreSQL connection string |
-| `REDIS_URL` | — | Redis connection string (optional) |
-| `NETFLOW_PORT` | `2055` | UDP port for NetFlow/sFlow collector |
-| `METRICS_RETENTION_DAYS` | `30` | Auto-delete metrics older than N days |
-| `FLOW_RETENTION_DAYS` | `7` | Auto-delete flow records older than N days |
-| `ALERTS_RETENTION_DAYS` | `90` | Auto-delete resolved alerts older than N days |
-| `CAPTURE_ENABLED` | `true` | Enable packet capture feature |
-
----
-
-## 🛠️ Scripts
+## Scripts
 
 | Command | Description |
 |---|---|
-| `npm run setup` | One-command dev setup (Docker) |
-| `npm run setup:prod` | One-command production setup (Docker) |
+| `npm run setup` | One-command Docker dev setup |
+| `npm run setup:prod` | One-command Docker prod setup |
 | `npm run dev` | Start Go backend with hot reload (air) |
 | `npm run dev:client` | Start Vite dev server |
-| `npm run build` | Build Go backend and React client for production |
-| `npm run build:client` | Build client React bundle only |
+| `npm run build` | Build Go backend + React client for production |
 | `npm run start` | Start production server |
 | `npm run simulate` | Run network device simulator |
 | `cd backend && make test` | Run Go tests |
@@ -212,86 +176,77 @@ All configuration is via environment variables. See [`.env.example`](.env.exampl
 
 ---
 
-## 🐳 Docker Deployment
+## Configuration
 
-The production Docker setup uses **host networking** to allow the container to directly monitor local network devices.
+All configuration via environment variables. See [`.env.example`](.env.example) for the full list.
 
-```bash
-# Configure production environment
-cp .env.prod.example .env
+### Required (Production)
 
-# Build and start
-docker compose up -d
-
-# View logs
-docker compose logs -f netmonitor
-
-# Stop
-docker compose down
-
-# Rebuild after code changes
-docker compose up -d --build
-```
-
-**Important Docker notes:**
-- `network_mode: host` — Required for ping, SNMP, and packet capture to reach local devices
-- `cap_add: NET_RAW, NET_ADMIN` — Required for raw socket access
-- PostgreSQL + TimescaleDB data persists in the `postgres_data` Docker volume
-- Health check runs every 30s against `/health`
-
----
-
-## 🌿 Branching Model
-
-This repository uses a two-branch deployment flow:
-
-| Branch | Purpose |
+| Variable | Description |
 |---|---|
-| `main` | Production branch. Keep this always deployable. |
-| `develop` | Development integration branch. Merge completed feature work here first. |
-| `feature/<name>` | New product work, branched from `develop`. |
-| `fix/<name>` | Non-urgent fixes, branched from `develop`. |
-| `release/<version>` | Optional stabilization branch before merging to `main`. |
-| `hotfix/<name>` | Urgent production fixes, branched from `main`, then merged back to `develop`. |
+| `JWT_SECRET` | JWT signing secret — minimum 32 chars (`openssl rand -base64 32`) |
+| `ADMIN_PASSWORD` | Admin password — hashed with scrypt on first boot |
 
-Recommended flow:
+### Key Optional Variables
 
-```bash
-# Start feature work
-git checkout develop
-git pull origin develop
-git checkout -b feature/example
-
-# Open PR: feature/example -> develop
-
-# Release to production
-git checkout develop
-git checkout -b release/v1.1.0
-# Open PR: release/v1.1.0 -> main
-
-# After release, tag main
-git checkout main
-git pull origin main
-git tag v1.1.0
-git push origin v1.1.0
-```
-
-Protect both long-lived branches:
-
-| Branch | Required checks | Merge rule |
+| Variable | Default | Description |
 |---|---|---|
-| `main` | CI build, typecheck, Docker production image | PR approval, no direct pushes |
-| `develop` | CI build, typecheck, Docker dev/prod image builds | PR approval recommended |
+| `APP_ENV` | `development` | Set to `production` for production mode |
+| `PORT` | `3000` | HTTP server port |
+| `DATABASE_URL` | — | PostgreSQL connection string |
+| `REDIS_URL` | — | Redis connection string (optional) |
+| `NETFLOW_PORT` | `2055` | UDP port for NetFlow/sFlow collector |
+| `POLLER_WORKER_COUNT` | `10` | Worker pool size for device polling |
+| `POLLER_RESULT_BATCH_SIZE` | `50` | Batch flush size for metric writes |
+| `METRICS_RETENTION_DAYS` | `30` | Auto-delete metrics older than N days |
+| `FLOW_RETENTION_DAYS` | `7` | Auto-delete flow records older than N days |
+| `ALERTS_RETENTION_DAYS` | `90` | Auto-delete resolved alerts older than N days |
+| `CAPTURE_ENABLED` | `true` | Enable packet capture feature |
 
 ---
 
-## 📡 API
+## Polling Engine (v4.0)
 
-The server exposes a REST API at `/api` (legacy) and `/api/v1` (current).
+## Security devices and vendor identification
 
-**Authentication:** Include `Authorization: Bearer <token>` header, or `X-Api-Key: <key>` for API key auth.
+Rayavriti NetMonitor has first-class profiles for IP cameras/NVRs and biometric
+attendance terminals. Choose **CCTV Camera / NVR** or **Biometric terminal**
+when adding a device; the form records only non-secret endpoint settings.
 
-See [`documentation/api_documentation.md`](documentation/api_documentation.md) and [`documentation/postman_guide.md`](documentation/postman_guide.md) for full API reference.
+- Cameras check the management UI and send an RTSP `OPTIONS` request. HTTP
+  `401`/`403` and RTSP `401` responses count as healthy because the service is
+  reachable and correctly requires authentication.
+- Biometric terminals check their management UI and the attendance port,
+  defaulting to the ZKTeco-compatible port `4370`. A single failed endpoint is
+  reported as a warning; both unavailable is down.
+- Discovery identifies vendors from SNMP enterprise OIDs and descriptions,
+  management-page/TLS/SSH fingerprints, then MAC OUI as a fallback. Native
+  device fingerprints take precedence over MAC ownership, which avoids common
+  false positives from virtualized or rebranded hardware.
+
+`monitorConfig` is returned with a device and supports `managementScheme`,
+`managementPath`, `managementPort`, `rtspPort`, `rtspPath`, and
+`attendancePort`. Do not place passwords or stream credentials in it.
+
+The core polling engine was rewritten in v4.0.0 for production-scale reliability:
+
+| Component | Purpose |
+|---|---|
+| **WorkerPool** | Fixed-size goroutine pool with 3 priority queues (critical/normal/low) — prevents runaway goroutine growth |
+| **PollDispatcher** | Timing wheel with min-heap scheduling — accurate interval-based dispatch without busy-waiting |
+| **ResultPipeline** | Fan-in batch buffer with size+time flush thresholds, uses `pgx.CopyFrom` for bulk COPY inserts |
+| **DeviceStateTracker** | Per-device health tracking with adaptive backoff (1x → 2x → 4x → 8x interval escalation on failure) |
+| **DependencyTree** | PRTG-inspired parent/child model — auto-pauses dependents when parent is unreachable |
+
+---
+
+## API
+
+The server exposes REST APIs at `/api` (legacy) and `/api/v1` (current), plus WebSocket at `/ws`.
+
+**Authentication:** `Authorization: Bearer <token>` or `X-Api-Key: <key>` header.
+
+See `documentation/api_documentation.md` and `documentation/postman_guide.md` for full reference.
 
 ### Key Endpoints
 
@@ -303,20 +258,22 @@ See [`documentation/api_documentation.md`](documentation/api_documentation.md) a
 | `GET` | `/api/metrics/latest` | Get latest metrics per device |
 | `GET` | `/api/alerts` | List alerts |
 | `GET` | `/api/stats` | Dashboard statistics |
-| `GET` | `/api/v1/flows` | Query flow records |
-| `POST` | `/api/v1/capture/start` | Start packet capture |
-| `GET` | `/api/insights` | AI health scores |
+| `GET` | `/api/v1/flows` | Query flow records (NetFlow/sFlow) |
+| `POST` | `/api/v1/capture/start` | Start packet capture session |
+| `GET` | `/api/v1/health/scores` | AI-powered health scores |
+| `GET` | `/api/v1/topology` | Dependency tree topology |
+| `GET` | `/api/v1/campus` | Campus hierarchy |
+| `GET` | `/api/v1/remote` | Remote instance registry |
+| `POST` | `/api/v1/backup` | Trigger database backup |
 | `GET` | `/health` | Service health check |
 
 ---
 
-## 🗄️ Database
+## Database
 
-Rayavriti NetMonitor uses **PostgreSQL + TimescaleDB** for time-series data storage and high-performance queries.
+**PostgreSQL 16 + TimescaleDB** with automated retention policies.
 
 ### Hypertables
-
-The following tables are partitioned as TimescaleDB hypertables for efficient time-series operations:
 
 | Table | Time Column | Purpose |
 |---|---|---|
@@ -324,39 +281,69 @@ The following tables are partitioned as TimescaleDB hypertables for efficient ti
 | `flows` | `created_at` | NetFlow/sFlow records |
 | `capture_packets` | `timestamp` | Captured packet data |
 | `alert_history` | `created_at` | Alert lifecycle events |
+| `remote_snapshots` | `created_at` | Remote instance snapshots |
 
-### Data Retention
+### Retention (auto-prunes every 6h)
 
-Automated pruning runs every 6 hours via the Go retention scheduler:
-- **Metrics:** 30 days (configurable via `METRICS_RETENTION_DAYS`)
-- **Flow records:** 7 days (configurable via `FLOW_RETENTION_DAYS`)
-- **Resolved alerts:** 90 days (configurable via `ALERTS_RETENTION_DAYS`)
+- **Metrics:** 30 days
+- **Flow records:** 7 days
+- **Resolved alerts:** 90 days
 
 ---
 
-## 🔒 Security
+## Security
 
 - **Password hashing:** scrypt with random 32-byte salt (backward-compatible with legacy SHA-256)
-- **JWT authentication:** HS256 signed tokens with 15-minute access / 7-day refresh
-- **Security headers:** Go middleware (CORS, X-Frame-Options, rate limiting)
-- **CORS:** Restricted in production mode
-- **Request limits:** 1MB body size limit
-- **Rate limiting:** Per-IP request throttling
-- **Error handling:** Stack traces hidden in production, global error recovery middleware
-- **Structured logging:** Go slog with structured fields (machine-parsable in production)
+- **JWT authentication:** HS256 tokens (15-min access / 7-day refresh) with HttpOnly cookie support
+- **API key auth:** Alternative bearer token for headless/script access
+- **2FA support:** Two-factor authentication
+- **RBAC:** 5 roles, 18 permissions, scope-based filtering on all data queries
+- **Security headers:** CSP (no unsafe-inline in prod), HSTS, COOP, COOR, COEP
+- **Rate limiting:** Per-IP with Redis-backed sliding window (falls back to in-memory)
+- **Audit logging:** All auth and admin actions logged to `audit_log` table
+- **Structured logging:** Go slog with DB, file rotation (lumberjack), and WebSocket sinks
 
 ---
 
-## 🤝 Contributing
+## Docker Deployment
 
-1. **Design:** UI additions must follow the **neon-minimalist** design language
-2. **Architecture:** Backend services should integrate with the WebSocket event-driven architecture
-3. **Code Quality:** TypeScript strict mode is enabled for client; Go code must pass golangci-lint
-4. **Branching:** Create feature branches, never commit directly to `main`
-5. **Testing:** Run `make test` in backend and `npm run lint -w client` before submitting PRs
+```bash
+# Configure production environment
+cp .env.prod.example .env
+docker compose up -d
+```
+
+**Important notes:**
+- `network_mode: host` — Required for ping, SNMP, and packet capture
+- `cap_add: NET_RAW, NET_ADMIN` — Required for raw socket access
+- PostgreSQL + TimescaleDB data persists in `postgres_data` volume
+- Windows/macOS overrides available in `docker-compose.windows.yml`
 
 ---
 
-## 📄 License
+## Branching Model
+
+| Branch | Purpose |
+|---|---|
+| `main` | Production — always deployable |
+| `develop` | Development integration |
+| `feature/<name>` | New features, branched from `develop` |
+| `fix/<name>` | Non-urgent fixes, branched from `develop` |
+| `release/<version>` | Stabilization before merging to `main` |
+| `hotfix/<name>` | Urgent production fixes, branched from `main` |
+
+---
+
+## Contributing
+
+1. UI additions must follow the **sage-charcoal dark theme** design language
+2. Backend services should integrate with the WebSocket event-driven architecture
+3. TypeScript strict mode is enabled; Go code must pass golangci-lint
+4. Create feature branches, never commit directly to `main`
+5. Run `make test` + `make lint` in backend, and `npm run lint -w client` before submitting PRs
+
+---
+
+## License
 
 **Proprietary** — All rights reserved.

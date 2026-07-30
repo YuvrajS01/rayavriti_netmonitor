@@ -33,7 +33,11 @@ type Device struct {
 	Manufacturer       string    `json:"manufacturer,omitempty"`
 	Model              string    `json:"model,omitempty"`
 	DeviceCategory     string    `json:"deviceCategory,omitempty"`
-	Notes              string    `json:"notes,omitempty"`
+	// MonitorConfig holds non-secret profile options for specialized hardware
+	// (for example rtspPort for cameras or attendancePort for biometrics).
+	// Credentials must not be stored here; use the device's own access controls.
+	MonitorConfig map[string]any `json:"monitorConfig,omitempty"`
+	Notes         string         `json:"notes,omitempty"`
 }
 
 type Metric struct {
