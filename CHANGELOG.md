@@ -5,6 +5,53 @@ All notable changes to Rayavriti NetMonitor will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.1.0] - 2026-07-30
+
+Security device monitoring release. Adds purpose-built camera and biometric collectors with RTSP/attendance-service probing, vendor identification from device fingerprints, dedicated Security Inventory UI pages, and a new `monitor_config` JSONB column for profile-driven monitoring of specialized hardware.
+
+### Added — Backend
+
+#### Security Device Collectors
+- **Camera collector** (`c5dca7b`) — New `CameraCollector` that validates both the camera/NVR management HTTP endpoint and the RTSP stream endpoint. RTSP returns healthy on 401 (proves streaming is up while correctly refusing unauthenticated access). Supports configurable management port, scheme, path, RTSP port, and RTSP path via `monitor_config`.
+- **Biometric collector** (`c5dca7b`) — New `BiometricCollector` that validates the management HTTP endpoint and an attendance-service TCP port (configurable via `monitor_config`).
+- **Camera protocol support** (`c4f9939`) — `camera` and `biometric` added as valid device protocols in Create/Update handlers; default ports set to 80.
+
+#### Vendor Identification
+- **Vendor identification engine** (`c4f9939`) — New `vendorid` package that identifies network-device vendors from locally collected discovery evidence (MAC OUI, SNMP sysObjectID, HTTP title/Server header, TLS CN, SSH banner). Covers 17+ vendors: Cisco, HPE, Juniper, Aruba, Fortinet, MikroTik, Ubiquiti, TP-Link, Huawei, Dell, Hikvision, Dahua, Panasonic, Axis, Bosch, Canon, Sony. Zero external lookups — fast and private.
+- **Discovery enrichment** (`c4f9939`) — Scanner now calls `vendorid.Identify()` during discovery sweeps, attaching vendor name and confidence level to discovered devices.
+
+#### Database
+- **Migration V43** (`c5dca7b`) — `monitor_config JSONB` column on `devices` table for non-secret profile options (management port, RTSP port, attendance port, etc.); partial index on security device categories (`camera`, `nvr`, `biometric`).
+
+#### Service Templates
+- **Security device profiles** (`71908de`) — Updated service templates to correctly apply security device monitoring profiles for cameras and biometric terminals.
+
+### Added — Frontend
+
+#### Security Inventory Pages
+- **Security Inventory component** (`16e510e`) — New `SecurityInventory` page supporting both Camera Inventory and Biometric Inventory views; stat cards (registered, online, needs attention), card grid with status indicators, vendor/response display, and direct device add/modal access.
+- **Camera Inventory route** (`16e510e`) — `/security/cameras` route with `videocam` icon in sidebar.
+- **Biometric Inventory route** (`16e510e`) — `/security/biometrics` route with `fingerprint` icon in sidebar.
+- **Device modal updates** (`1c50dd0`) — Monitor config display integrated into DeviceModal for security devices.
+- **Device add modal updates** (`1c50dd0`) — Security device profile options (camera/biometric) with configurable monitor settings (management port, RTSP port, attendance port).
+- **Service Templates page** (`16e510e`) — Restored and updated template application for security device profiles.
+- **Logo SVGs** (`d8808bf`) — Added `logo-icon.svg` and `logo-lockup.svg` as public assets.
+
+### Fixed
+
+- **Lint issues in security_devices.go** (`64e115b`) — Fixed unchecked `Close()` calls (errcheck) in RTSP probe and management probe.
+- **misspell false positive** (`64e115b`) — Suppressed misspell linter for MikroTik RouterOS.
+- **npm audit threshold** (`64e115b`) — Lowered from `high` to `critical` to reduce CI noise on non-exploitable advisory warnings.
+
+### Changed
+
+- **react-router-dom bump** (`64e115b`) — Updated from `7.17.0` to `7.18.2` (transitive deps: nanoid 3.3.12→3.3.16, postcss 8.5.15→8.5.25).
+- **README.md** (`0ec7a7c`) — Updated project documentation.
+
+### Database Migrations
+
+- V43 — `monitor_config JSONB` column on `devices` table with partial index on security categories
+
 ## [4.0.0] - 2026-07-23
 
 Core polling engine rewrite — major architectural overhaul replacing the goroutine-per-device model with a priority-based worker pool, timing wheel dispatcher, adaptive backoff, dependency-aware scheduling, and batch database operations. Also introduces hierarchical campus visualizations, real topology edges, and critical security vulnerability fixes.
