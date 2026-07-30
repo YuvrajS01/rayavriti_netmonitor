@@ -38,6 +38,7 @@ const ISP = lazy(() => import('./pages/ISP'));
 const BackupPage = lazy(() => import('./pages/Backup'));
 const RemoteMonitoring = lazy(() => import('./pages/RemoteMonitoring'));
 const SystemMaintenance = lazy(() => import('./pages/SystemMaintenance'));
+const SecurityInventory = lazy(() => import('./pages/SecurityInventory'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 
 function PageLoader() {
@@ -105,6 +106,8 @@ function AppRoutes() {
 		<Route path="/system-maintenance" element={<SystemMaintenance />} />
         <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
         <Route path="/devices" element={<ProtectedRoute><Devices /></ProtectedRoute>} />
+		<Route path="/inventory/cameras" element={<ProtectedRoute><SecurityInventory profile="camera" /></ProtectedRoute>} />
+		<Route path="/inventory/biometrics" element={<ProtectedRoute><SecurityInventory profile="biometric" /></ProtectedRoute>} />
         <Route path="/devices/topology" element={<ProtectedRoute><NetworkTopology /></ProtectedRoute>} />
         <Route path="/sensors" element={<ProtectedRoute><Sensors /></ProtectedRoute>} />
         <Route path="/flows" element={<ProtectedRoute><FlowAnalysis /></ProtectedRoute>} />

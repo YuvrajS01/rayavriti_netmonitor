@@ -207,6 +207,27 @@ All configuration via environment variables. See [`.env.example`](.env.example) 
 
 ## Polling Engine (v4.0)
 
+## Security devices and vendor identification
+
+Rayavriti NetMonitor has first-class profiles for IP cameras/NVRs and biometric
+attendance terminals. Choose **CCTV Camera / NVR** or **Biometric terminal**
+when adding a device; the form records only non-secret endpoint settings.
+
+- Cameras check the management UI and send an RTSP `OPTIONS` request. HTTP
+  `401`/`403` and RTSP `401` responses count as healthy because the service is
+  reachable and correctly requires authentication.
+- Biometric terminals check their management UI and the attendance port,
+  defaulting to the ZKTeco-compatible port `4370`. A single failed endpoint is
+  reported as a warning; both unavailable is down.
+- Discovery identifies vendors from SNMP enterprise OIDs and descriptions,
+  management-page/TLS/SSH fingerprints, then MAC OUI as a fallback. Native
+  device fingerprints take precedence over MAC ownership, which avoids common
+  false positives from virtualized or rebranded hardware.
+
+`monitorConfig` is returned with a device and supports `managementScheme`,
+`managementPath`, `managementPort`, `rtspPort`, `rtspPath`, and
+`attendancePort`. Do not place passwords or stream credentials in it.
+
 The core polling engine was rewritten in v4.0.0 for production-scale reliability:
 
 | Component | Purpose |

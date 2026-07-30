@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rayavriti/netmonitor-backend/internal/vendorid"
 )
 
 const (
@@ -28,7 +29,7 @@ const (
 	arpRefreshDelay    = 500 * time.Millisecond
 )
 
-var commonPorts = []int{21, 22, 23, 25, 53, 80, 161, 443, 515, 554, 631, 9100, 8080, 8443, 2000, 5060, 1900}
+var commonPorts = []int{21, 22, 23, 25, 53, 80, 161, 443, 515, 554, 631, 9100, 4370, 8080, 8443, 2000, 5060, 1900}
 
 var ouiTable = map[string]string{
 	"00:01:42": "Cisco",
@@ -669,6 +670,16 @@ func (s *Scanner) Scan(ctx context.Context, jobID int64, subnet string, scanType
 			}
 
 			enrichFromProbes(dr)
+			// Device-native fingerprints supersede an OUI-only guess. This is
+			// particularly important for virtualized NICs and rebranded hardware.
+			identified := vendorid.Identify(vendorid.Evidence{
+				MACAddress: mac, SNMPSysObjectID: derefString(dr.SNMPSysObjectID),
+				SNMPDescription: derefString(dr.SNMPDescription), HTTPTitle: derefString(dr.HTTPTitle),
+				TLSCommonName: derefString(dr.TLSCertCN), SSHBanner: derefString(dr.SSHBanner),
+			})
+			if identified.Vendor != "" {
+				dr.Manufacturer = ptrString(identified.Vendor)
+			}
 			results[idx] = ipResult{result: dr}
 			devicesFound.Add(1)
 		}(i, ip)
@@ -767,6 +778,13 @@ func ptrString(s string) *string {
 		return nil
 	}
 	return &s
+}
+
+func derefString(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
 }
 
 type DiscoveryResult struct {
@@ -946,6 +964,9 @@ func guessCategoryFromPorts(ports []int) string {
 	}
 	if portSet[554] {
 		return "camera"
+	}
+	if portSet[4370] {
+		return "biometric"
 	}
 	if portSet[3389] {
 		return "workstation"
@@ -1407,6 +1428,9 @@ func guessCategoryFromProbes(dr *DiscoveryResult) string {
 		}
 		if strings.Contains(title, "camera") || strings.Contains(title, "nvr") || strings.Contains(title, "dvr") {
 			return "camera"
+		}
+		if strings.Contains(title, "biometric") || strings.Contains(title, "attendance") || strings.Contains(title, "zkteco") {
+			return "biometric"
 		}
 		if strings.Contains(title, "nas") || strings.Contains(title, "synology") || strings.Contains(title, "qnap") {
 			return "nas"

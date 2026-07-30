@@ -27,8 +27,8 @@ interface Template {
   deviceProtocol: string;
   devicePort: number;
   deviceCategory: string;
-  checks: TemplateCheck[];
-  alerts: TemplateAlert[];
+  checks?: TemplateCheck[] | null;
+  alerts?: TemplateAlert[] | null;
 }
 
 interface ApplyResult {
@@ -52,7 +52,14 @@ export default function ServiceTemplates() {
       setLoading(true);
       try {
         const res = await v1.get('/service-templates');
-        if (active) setTemplates(wrap<Template[]>(res.data).data || []);
+        if (active) {
+          const data = wrap<Template[]>(res.data).data;
+          setTemplates(Array.isArray(data) ? data.map((template) => ({
+            ...template,
+            checks: Array.isArray(template.checks) ? template.checks : [],
+            alerts: Array.isArray(template.alerts) ? template.alerts : [],
+          })) : []);
+        }
       } catch {
         if (active) addToast('Failed to load templates', 'error');
       }
@@ -106,8 +113,8 @@ export default function ServiceTemplates() {
                     </div>
                   </div>
                   <div className="flex gap-4 text-xs text-on-surface-variant">
-                    <span>{tmpl.checks.length} checks</span>
-                    <span>{tmpl.alerts.length} alerts</span>
+                    <span>{tmpl.checks?.length ?? 0} checks</span>
+                    <span>{tmpl.alerts?.length ?? 0} alerts</span>
                     <span className="uppercase">{tmpl.deviceProtocol}:{tmpl.devicePort}</span>
                   </div>
                 </Card>
@@ -132,9 +139,9 @@ export default function ServiceTemplates() {
 
             <div className="p-6 space-y-4 flex-1 min-h-0 overflow-y-auto">
               <div>
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant mb-2">Checks ({selected.checks.length})</h3>
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant mb-2">Checks ({selected.checks?.length ?? 0})</h3>
                 <div className="space-y-2">
-                  {selected.checks.map((chk) => (
+                  {(selected.checks ?? []).map((chk) => (
                     <div key={chk.name} className="flex items-center gap-3 text-sm">
                       <span className="material-symbols-outlined text-sm text-primary">check_circle</span>
                       <span className="flex-1">{chk.name}</span>
@@ -145,9 +152,9 @@ export default function ServiceTemplates() {
               </div>
 
               <div>
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant mb-2">Alert Rules ({selected.alerts.length})</h3>
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant mb-2">Alert Rules ({selected.alerts?.length ?? 0})</h3>
                 <div className="space-y-2">
-                  {selected.alerts.map((alert) => (
+                  {(selected.alerts ?? []).map((alert) => (
                     <div key={alert.name} className="flex items-center gap-3 text-sm">
                       <span className={`material-symbols-outlined text-sm ${alert.severity === 'critical' ? 'text-error' : 'text-warning'}`}>
                         {alert.severity === 'critical' ? 'dangerous' : 'warning'}
