@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"runtime/debug"
 	"sync"
 	"time"
 
@@ -104,6 +105,11 @@ func (e *AlertEngine) ReloadRules(_ context.Context) error {
 
 func (e *AlertEngine) absenceLoop(ctx context.Context) {
 	defer e.wg.Done()
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Error("panic recovered in absence loop", "panic", r, "stack", string(debug.Stack()))
+		}
+	}()
 	ticker := time.NewTicker(60 * time.Second)
 	defer ticker.Stop()
 	for {

@@ -51,7 +51,10 @@ func (HTTPCollector) Collect(ctx context.Context, device *models.Device) (*Resul
 	}
 
 	start := time.Now()
-	req, _ := http.NewRequestWithContext(ctx, "HEAD", url, nil)
+	req, err := http.NewRequestWithContext(ctx, "HEAD", url, nil)
+	if err != nil {
+		return &Result{Status: "down", Details: map[string]any{"error": "invalid request URL"}}, nil
+	}
 	req.Header.Set("User-Agent", "NetMonitor/1.0")
 
 	// For HTTPS, skip TLS verification for self-signed certs

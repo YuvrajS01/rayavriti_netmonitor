@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"log/slog"
+	"runtime/debug"
 	"sync"
 	"time"
 
@@ -35,6 +36,11 @@ func (e *AnomalyEngine) Start(ctx context.Context) {
 	e.wg.Add(1)
 	go func() {
 		defer e.wg.Done()
+		defer func() {
+			if r := recover(); r != nil {
+				e.logger.Error("panic recovered in anomaly engine loop", "panic", r, "stack", string(debug.Stack()))
+			}
+		}()
 		ticker := time.NewTicker(2 * time.Minute)
 		defer ticker.Stop()
 		for {

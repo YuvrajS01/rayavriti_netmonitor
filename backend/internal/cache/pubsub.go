@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
+	"runtime/debug"
 )
 
 const wsBroadcastChannel = "nm:ws:broadcast"
@@ -36,6 +37,11 @@ func (p *PubSubBridge) Publish(ctx context.Context, msg WSMessage) error {
 }
 
 func (p *PubSubBridge) Subscribe(ctx context.Context) {
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Error("panic recovered in pub/sub subscriber", "panic", r, "stack", string(debug.Stack()))
+		}
+	}()
 	sub := p.rdb.Client().Subscribe(ctx, wsBroadcastChannel)
 	ch := sub.Channel()
 	slog.Info("Redis Pub/Sub subscriber started", "channel", wsBroadcastChannel)

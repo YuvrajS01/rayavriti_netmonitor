@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"runtime/debug"
 	"slices"
 	"strings"
 	"sync"
@@ -338,6 +339,11 @@ func (h *Hub) ServeWS(w http.ResponseWriter, r *http.Request) {
 	// Send bootstrap data
 	if h.bootstrap != nil {
 		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					slog.Error("panic recovered in bootstrap producer", "user_id", c.info.UserID, "panic", r, "stack", string(debug.Stack()))
+				}
+			}()
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 			data, err := h.bootstrap(ctx, c.info.UserID, c.info.Username, c.info.Role)
@@ -365,6 +371,11 @@ func (h *Hub) ServeWS(w http.ResponseWriter, r *http.Request) {
 
 	// Writer goroutine with ping/pong
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("panic recovered in websocket writer", "user_id", c.info.UserID, "panic", r, "stack", string(debug.Stack()))
+			}
+		}()
 		ticker := time.NewTicker(pingPeriod)
 		defer func() {
 			ticker.Stop()
@@ -411,12 +422,19 @@ func (h *Hub) ServeWS(w http.ResponseWriter, r *http.Request) {
 		_ = conn.SetReadDeadline(time.Now().Add(pongWait))
 		return nil
 	})
-	for {
-		_, _, err := conn.ReadMessage()
-		if err != nil {
-			break
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("panic recovered in websocket reader", "user_id", c.info.UserID, "panic", r, "stack", string(debug.Stack()))
+			}
+		}()
+		for {
+			_, _, err := conn.ReadMessage()
+			if err != nil {
+				break
+			}
 		}
-	}
+	}()
 
 	h.mu.Lock()
 	delete(h.clients, c)

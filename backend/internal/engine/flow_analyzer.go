@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"log/slog"
+	"runtime/debug"
 	"sync"
 	"time"
 
@@ -44,6 +45,11 @@ func (fa *FlowAnalyzer) Stop() {
 
 func (fa *FlowAnalyzer) run(ctx context.Context) {
 	defer fa.wg.Done()
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Error("panic recovered in flow analyzer loop", "panic", r, "stack", string(debug.Stack()))
+		}
+	}()
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
 

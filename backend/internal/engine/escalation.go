@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"runtime/debug"
 	"sync"
 	"time"
 
@@ -96,6 +97,11 @@ func (e *EscalationEngine) CancelEscalation(alertID int64) {
 }
 
 func (e *EscalationEngine) runSteps(alert *models.Alert, steps []models.EscalationStep) {
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Error("panic recovered in escalation steps", "alert_id", alert.ID, "panic", r, "stack", string(debug.Stack()))
+		}
+	}()
 	ctx, cancel := context.WithTimeout(context.Background(), 24*time.Hour)
 	defer cancel()
 

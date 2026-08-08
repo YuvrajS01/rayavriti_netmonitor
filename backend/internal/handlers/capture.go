@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os/exec"
 	"regexp"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync"
@@ -270,6 +271,12 @@ func (h *CaptureHandler) ListSessions(w http.ResponseWriter, r *http.Request) {
 
 // runCapture launches tcpdump and parses its output into packets.
 func (h *CaptureHandler) runCapture(ctx context.Context, sessionID int64, iface, filter string) {
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Error("panic recovered in packet capture", "sessionID", sessionID, "panic", r, "stack", string(debug.Stack()))
+			h.stopSession(sessionID, "error", "capture panicked")
+		}
+	}()
 	// Apply duration quota
 	if h.cfg.MaxDurationSec > 0 {
 		var cancel context.CancelFunc

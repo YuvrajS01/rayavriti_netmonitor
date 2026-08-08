@@ -2,7 +2,9 @@ package scheduler
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
+	"runtime/debug"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -239,7 +241,7 @@ func (wp *WorkerPool) worker(ctx context.Context, id int) {
 
 func (wp *WorkerPool) executeJob(ctx context.Context, job PollJob) {
 	start := time.Now()
-	result := wp.execute(ctx, job)
+	result := wp.safeExecute(ctx, job)
 	duration := time.Since(start)
 
 	wp.metrics.TotalCompleted.Add(1)
@@ -250,8 +252,42 @@ func (wp *WorkerPool) executeJob(ctx context.Context, job PollJob) {
 	}
 
 	if wp.resultFn != nil {
-		wp.resultFn(result)
+		wp.deliverResult(result)
 	}
+}
+
+// safeExecute runs the poll job while recovering from any panic so that a
+// misbehaving collector can never take down the whole process.
+func (wp *WorkerPool) safeExecute(ctx context.Context, job PollJob) (result PollResult) {
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Error("panic recovered in poll job",
+				"deviceID", job.Device.ID, "device", job.Device.Name,
+				"panic", r, "stack", string(debug.Stack()))
+			now := time.Now()
+			result = PollResult{
+				Device:     job.Device,
+				Status:     "down",
+				Error:      fmt.Errorf("poll job panic: %v", r),
+				StartedAt:  now,
+				FinishedAt: now,
+			}
+		}
+	}()
+	return wp.execute(ctx, job)
+}
+
+// deliverResult forwards a poll result to the registered handler, recovering
+// from any panic in the handler so it cannot crash a worker goroutine.
+func (wp *WorkerPool) deliverResult(result PollResult) {
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Error("panic recovered in result handler",
+				"deviceID", result.Device.ID, "device", result.Device.Name,
+				"panic", r, "stack", string(debug.Stack()))
+		}
+	}()
+	wp.resultFn(result)
 }
 
 type WorkerPoolMetricsSnapshot struct {
