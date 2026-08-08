@@ -331,7 +331,7 @@ func (s *Scheduler) handlePollResult(pr PollResult) {
 		return
 	}
 
-	if pr.Error != nil {
+	if isDownResult(pr) {
 		s.dispatcher.RecordFailure(pr.Device.ID)
 		s.stateTracker.RecordFailure(pr.Device.ID, pr.Error)
 	} else {
@@ -341,6 +341,15 @@ func (s *Scheduler) handlePollResult(pr PollResult) {
 	}
 
 	s.pipeline.Submit(pr)
+}
+
+// isDownResult reports whether a poll result represents a device failure.
+// A "down" status means the device did not respond, regardless of whether the
+// collector surfaced it as an error or returned a plain down result. Treating
+// it as a failure drives adaptive backoff and unreachable-state tracking so
+// dead devices are polled less aggressively instead of at full rate forever.
+func isDownResult(pr PollResult) bool {
+	return pr.Error != nil || pr.Status == "down"
 }
 
 func (s *Scheduler) StateTracker() *DeviceStateTracker {

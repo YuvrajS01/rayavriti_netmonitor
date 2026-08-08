@@ -60,6 +60,31 @@ func TestPollDispatcher_PausedCount(t *testing.T) {
 	wp.Stop()
 }
 
+func TestIsDownResult(t *testing.T) {
+	t.Parallel()
+	dev := models.Device{ID: 7}
+	now := time.Now()
+
+	tests := []struct {
+		name   string
+		result PollResult
+		want   bool
+	}{
+		{"up is not a failure", PollResult{Device: dev, Status: "up"}, false},
+		{"warning is not a failure", PollResult{Device: dev, Status: "warning"}, false},
+		{"down without error is a failure", PollResult{Device: dev, Status: "down", StartedAt: now, FinishedAt: now}, true},
+		{"down with error is a failure", PollResult{Device: dev, Status: "down", Error: assert.AnError, StartedAt: now, FinishedAt: now}, true},
+		{"error only is a failure", PollResult{Device: dev, Error: assert.AnError, StartedAt: now, FinishedAt: now}, true},
+		{"empty status without error is not a failure", PollResult{Device: dev}, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, isDownResult(tt.result))
+		})
+	}
+}
+
 func TestPollDispatcher_DispatchCorrectPriority(t *testing.T) {
 	t.Parallel()
 	executed := make(chan int, 10)
