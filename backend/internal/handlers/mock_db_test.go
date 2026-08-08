@@ -46,7 +46,7 @@ type mockDB struct {
 	getStatusFlapsFn            func(ctx context.Context, deviceID int64, since time.Time) (int, error)
 	getPortChangesFn            func(ctx context.Context, deviceID int64, since time.Time) (int, error)
 	getAlertsByRuleSinceFn      func(ctx context.Context, ruleID int64, since time.Time) (int, error)
-	getAlertsFn                 func(ctx context.Context, status string, limit, offset int) ([]models.Alert, int, error)
+	getAlertsFn                 func(ctx context.Context, status string, limit, offset int, scope *database.ScopeFilter) ([]models.Alert, int, error)
 	getAlertFn                  func(ctx context.Context, id int64) (*models.Alert, error)
 	createAlertFn               func(ctx context.Context, a *models.Alert) (*models.Alert, error)
 	updateAlertStatusFn         func(ctx context.Context, id int64, status, by string) error
@@ -352,9 +352,9 @@ func (m *mockDB) GetRolePermissions(ctx context.Context, roleID int64) ([]string
 	return nil, nil
 }
 
-func (m *mockDB) GetAlerts(ctx context.Context, status string, limit, offset int) ([]models.Alert, int, error) {
+func (m *mockDB) GetAlerts(ctx context.Context, status string, limit, offset int, scope *database.ScopeFilter) ([]models.Alert, int, error) {
 	if m.getAlertsFn != nil {
-		return m.getAlertsFn(ctx, status, limit, offset)
+		return m.getAlertsFn(ctx, status, limit, offset, scope)
 	}
 	return nil, 0, nil
 }

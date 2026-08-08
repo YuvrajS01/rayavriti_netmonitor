@@ -74,6 +74,8 @@ func (h *DeviceHandler) List(w http.ResponseWriter, r *http.Request) {
 	f.Limit = pageSize
 	f.Offset = (page - 1) * pageSize
 
+	f.Scope = scopeFilterFromContext(r)
+
 	devices, total, err := h.db.GetDevicesFiltered(r.Context(), f)
 	if err != nil {
 		httputil.SendError(w, http.StatusInternalServerError, err.Error())

@@ -463,15 +463,26 @@ func scanMetricsWithDevice(rows pgx.Rows) ([]models.Metric, error) {
 
 // ── Alerts ────────────────────────────────────────────────────────────────────
 
-func (p *Postgres) GetAlerts(ctx context.Context, status string, limit, offset int) ([]models.Alert, int, error) {
+func (p *Postgres) GetAlerts(ctx context.Context, status string, limit, offset int, scope *ScopeFilter) ([]models.Alert, int, error) {
 	if limit <= 0 {
 		limit = 50
 	}
-	base := `FROM alerts`
 	args := []any{}
+	conditions := []string{}
+	argN := 1
 	if status != "" {
-		base += ` WHERE status=$1`
+		conditions = append(conditions, fmt.Sprintf("status=$%d", argN))
 		args = append(args, status)
+		argN++
+	}
+	if scope != nil {
+		if cond, ok := buildAlertScopeCondition(scope, &args, &argN); ok {
+			conditions = append(conditions, cond)
+		}
+	}
+	base := "FROM alerts"
+	if len(conditions) > 0 {
+		base += " WHERE " + strings.Join(conditions, " AND ")
 	}
 	var total int
 	countSQL := `SELECT COUNT(*) ` + base
@@ -481,8 +492,7 @@ func (p *Postgres) GetAlerts(ctx context.Context, status string, limit, offset i
 	listSQL := `SELECT id,COALESCE(device_id,0),COALESCE(device_name,''),severity,message,status,rule_id,
 	                   created_at,acknowledged_at,resolved_at,acknowledged_by,resolved_by ` +
 		base + ` ORDER BY created_at DESC`
-	n := len(args)
-	listSQL += fmt.Sprintf(` LIMIT $%d OFFSET $%d`, n+1, n+2)
+	listSQL += fmt.Sprintf(` LIMIT $%d OFFSET $%d`, argN, argN+1)
 	args = append(args, limit, offset)
 	rows, err := p.pool.Query(ctx, listSQL, args...)
 	if err != nil {
@@ -491,6 +501,28 @@ func (p *Postgres) GetAlerts(ctx context.Context, status string, limit, offset i
 	defer rows.Close()
 	alerts, err := scanAlerts(rows)
 	return alerts, total, err
+}
+
+// buildAlertScopeCondition renders a scope filter as a WHERE condition against
+// the alerts table. Location and subnet scopes are resolved through the
+// devices table since alerts only carry device_id.
+func buildAlertScopeCondition(scope *ScopeFilter, args *[]any, argN *int) (string, bool) {
+	subConds := []string{}
+	if len(scope.LocationIDs) > 0 {
+		*args = append(*args, scope.LocationIDs)
+		subConds = append(subConds, fmt.Sprintf("location_id = ANY($%d)", *argN))
+		*argN++
+	}
+	for _, cidr := range scope.SubnetCIDRs {
+		*args = append(*args, cidr)
+		subConds = append(subConds, fmt.Sprintf("ip_address <<= $%d", *argN))
+		*argN++
+	}
+	if len(subConds) == 0 {
+		return "FALSE", true
+	}
+	inner := "(" + strings.Join(subConds, " OR ") + ")"
+	return fmt.Sprintf("device_id IN (SELECT id FROM devices WHERE %s)", inner), true
 }
 
 func (p *Postgres) GetAlert(ctx context.Context, id int64) (*models.Alert, error) {

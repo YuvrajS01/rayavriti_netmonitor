@@ -76,6 +76,24 @@ func (p *Postgres) GetDevicesFiltered(ctx context.Context, f DeviceFilter) ([]mo
 		where = append(where, fmt.Sprintf("location_id=$%d", argN))
 		args = append(args, *f.LocationID)
 	}
+	if f.Scope != nil {
+		scopeConds := []string{}
+		if len(f.Scope.LocationIDs) > 0 {
+			where = append(where, fmt.Sprintf("location_id = ANY($%d)", argN))
+			args = append(args, f.Scope.LocationIDs)
+			argN++
+		}
+		for _, cidr := range f.Scope.SubnetCIDRs {
+			scopeConds = append(scopeConds, fmt.Sprintf("ip_address <<= $%d", argN))
+			args = append(args, cidr)
+			argN++
+		}
+		if len(scopeConds) > 0 {
+			where = append(where, "("+strings.Join(scopeConds, " OR ")+")")
+		} else if len(f.Scope.LocationIDs) == 0 {
+			where = append(where, "FALSE")
+		}
+	}
 
 	whereClause := ""
 	if len(where) > 0 {

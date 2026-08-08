@@ -3,12 +3,14 @@ package cache
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"sync"
 	"time"
 
 	"github.com/rayavriti/netmonitor-backend/internal/database"
 	"github.com/rayavriti/netmonitor-backend/internal/models"
+	"github.com/redis/go-redis/v9"
 )
 
 const metricsBufferKey = "nm:buffer:metrics"
@@ -73,13 +75,13 @@ func (b *MetricBuffer) flush(ctx context.Context) {
 	pipe := b.rdb.Client().Pipeline()
 	popCmd := pipe.LPopCount(ctx, metricsBufferKey, b.batchSize)
 	_, err := pipe.Exec(ctx)
-	if err != nil {
+	if err != nil && !errors.Is(err, redis.Nil) {
 		slog.Warn("MetricBuffer: failed to pop from Redis", "error", err)
 		return
 	}
 
 	items, err := popCmd.Result()
-	if err != nil {
+	if err != nil && !errors.Is(err, redis.Nil) {
 		slog.Warn("MetricBuffer: failed to read popped metrics", "error", err)
 		return
 	}

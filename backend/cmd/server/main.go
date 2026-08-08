@@ -117,7 +117,7 @@ func run() error {
 		if err != nil {
 			latestMetrics = nil
 		}
-		alerts, _, err := appDB.GetAlerts(ctx, "active", 50, 0)
+		alerts, _, err := appDB.GetAlerts(ctx, "active", 50, 0, nil)
 		if err != nil {
 			alerts = nil
 		}

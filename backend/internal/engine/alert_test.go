@@ -85,7 +85,7 @@ func (m *mockDB) ExportMetrics(ctx context.Context, from, to time.Time, deviceID
 func (m *mockDB) GetMetricsInWindow(ctx context.Context, deviceID int64, field string, from, to time.Time) ([]float64, error) {
 	return nil, nil
 }
-func (m *mockDB) GetAlerts(ctx context.Context, status string, limit, offset int) ([]models.Alert, int, error) {
+func (m *mockDB) GetAlerts(ctx context.Context, status string, limit, offset int, _ *database.ScopeFilter) ([]models.Alert, int, error) {
 	if m.getAlertsFn != nil {
 		return m.getAlertsFn(ctx, status, limit, offset)
 	}

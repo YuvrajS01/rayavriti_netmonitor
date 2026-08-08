@@ -7,12 +7,17 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/rayavriti/netmonitor-backend/internal/database"
 	"github.com/rayavriti/netmonitor-backend/internal/models"
+	"github.com/rayavriti/netmonitor-backend/internal/rbac"
 )
 
 func TestAlertList(t *testing.T) {
 	db := &mockDB{
-		getAlertsFn: func(ctx context.Context, status string, limit, offset int) ([]models.Alert, int, error) {
+		getAlertsFn: func(ctx context.Context, status string, limit, offset int, scope *database.ScopeFilter) ([]models.Alert, int, error) {
+			if scope != nil {
+				t.Fatalf("expected nil scope for admin, got %+v", scope)
+			}
 			return []models.Alert{{ID: 1, Severity: "critical", Status: "active"}}, 1, nil
 		},
 	}
@@ -24,9 +29,30 @@ func TestAlertList(t *testing.T) {
 	}
 }
 
+func TestAlertList_ScopeFilterApplied(t *testing.T) {
+	db := &mockDB{
+		getAlertsFn: func(ctx context.Context, status string, limit, offset int, scope *database.ScopeFilter) ([]models.Alert, int, error) {
+			if scope == nil {
+				t.Fatal("expected scope filter for scoped user")
+			}
+			if len(scope.SubnetCIDRs) != 1 || scope.SubnetCIDRs[0] != "10.0.0.0/24" {
+				t.Fatalf("expected subnet scope 10.0.0.0/24, got %v", scope.SubnetCIDRs)
+			}
+			return []models.Alert{{ID: 2, Status: "active"}}, 1, nil
+		},
+	}
+	h := NewAlertHandler(db)
+	w, req := authenticatedRequest("GET", "/api/v1/alerts", "")
+	sc := &rbac.ScopeContext{IsScoped: true, UserID: 7, Role: "user", Scopes: []rbac.UserScope{{Type: "subnet", Value: "10.0.0.0/24"}}}
+	h.List(w, rbac.WithScopeContext(req, sc))
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+}
+
 func TestAlertList_WithStatusFilter(t *testing.T) {
 	db := &mockDB{
-		getAlertsFn: func(ctx context.Context, status string, limit, offset int) ([]models.Alert, int, error) {
+		getAlertsFn: func(ctx context.Context, status string, limit, offset int, scope *database.ScopeFilter) ([]models.Alert, int, error) {
 			if status != "active" {
 				t.Fatalf("expected status=active, got %s", status)
 			}
@@ -43,7 +69,7 @@ func TestAlertList_WithStatusFilter(t *testing.T) {
 
 func TestAlertList_DBError(t *testing.T) {
 	db := &mockDB{
-		getAlertsFn: func(ctx context.Context, status string, limit, offset int) ([]models.Alert, int, error) {
+		getAlertsFn: func(ctx context.Context, status string, limit, offset int, scope *database.ScopeFilter) ([]models.Alert, int, error) {
 			return nil, 0, errors.New("db error")
 		},
 	}

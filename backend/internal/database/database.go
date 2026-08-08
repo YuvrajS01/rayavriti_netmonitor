@@ -23,6 +23,15 @@ type DeviceFilter struct {
 	Limit      int
 	Offset     int
 	LocationID *int64
+	Scope      *ScopeFilter
+}
+
+// ScopeFilter narrows a query to the tenant locations/subnets a scoped user is
+// allowed to see. It mirrors rbac.UserScope but lives here so the database
+// package does not import rbac (avoiding an import cycle through auth/cache).
+type ScopeFilter struct {
+	LocationIDs []string
+	SubnetCIDRs []string
 }
 
 type RefreshToken struct {
@@ -96,7 +105,7 @@ type Database interface {
 	GetMetricsInWindow(ctx context.Context, deviceID int64, field string, from, to time.Time) ([]float64, error)
 
 	// Alerts
-	GetAlerts(ctx context.Context, status string, limit, offset int) ([]models.Alert, int, error)
+	GetAlerts(ctx context.Context, status string, limit, offset int, scope *ScopeFilter) ([]models.Alert, int, error)
 	GetAlert(ctx context.Context, id int64) (*models.Alert, error)
 	CreateAlert(ctx context.Context, a *models.Alert) (*models.Alert, error)
 	UpdateAlertStatus(ctx context.Context, id int64, status, by string) error

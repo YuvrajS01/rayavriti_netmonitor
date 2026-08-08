@@ -89,7 +89,7 @@ func (m *mockRetDB2) ExportMetrics(ctx context.Context, from, to time.Time, devi
 func (m *mockRetDB2) GetMetricsInWindow(ctx context.Context, deviceID int64, field string, from, to time.Time) ([]float64, error) {
 	return nil, nil
 }
-func (m *mockRetDB2) GetAlerts(ctx context.Context, status string, limit, offset int) ([]models.Alert, int, error) {
+func (m *mockRetDB2) GetAlerts(ctx context.Context, status string, limit, offset int, _ *database.ScopeFilter) ([]models.Alert, int, error) {
 	return nil, 0, nil
 }
 func (m *mockRetDB2) GetAlert(ctx context.Context, id int64) (*models.Alert, error) { return nil, nil }

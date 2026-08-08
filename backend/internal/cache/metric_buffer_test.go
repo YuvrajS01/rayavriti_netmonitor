@@ -85,3 +85,21 @@ func TestMetricBuffer_FlushSuccess(t *testing.T) {
 	assert.Equal(t, int64(0), llen, "list should drain on success")
 	assert.Equal(t, 1, db.batches)
 }
+
+func TestMetricBuffer_FlushEmptyIsNotAnError(t *testing.T) {
+	rdb, _ := setupTestRedis(t)
+	ctx := context.Background()
+
+	b := NewMetricBuffer(rdb, &succeedingDB{}, 20, time.Minute)
+
+	_, err := rdb.Client().Del(ctx, metricsBufferKey).Result()
+	require.NoError(t, err)
+
+	// The buffer is empty; flushing should be a quiet no-op (redis.Nil must be
+	// treated as "nothing to do", not a failure that logs warnings on a loop).
+	b.flush(ctx)
+
+	llen, err := rdb.Client().LLen(ctx, metricsBufferKey).Result()
+	require.NoError(t, err)
+	assert.Equal(t, int64(0), llen)
+}

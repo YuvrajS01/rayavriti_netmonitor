@@ -148,7 +148,7 @@ func (c *CachedDatabase) DeleteAlert(ctx context.Context, id int64) error {
 }
 
 func (c *CachedDatabase) GetDevicesFiltered(ctx context.Context, f database.DeviceFilter) ([]models.Device, int, error) {
-	if f.Search == "" && f.Status == "" && f.Protocol == "" && f.Enabled == nil {
+	if f.Scope == nil && f.Search == "" && f.Status == "" && f.Protocol == "" && f.Enabled == nil {
 		devices, err := c.deviceCache.GetDevices(ctx)
 		if err != nil {
 			slog.Debug("Cache miss for filtered devices, falling through to DB", "error", err)
