@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/rayavriti/netmonitor-backend/internal/database"
 	"github.com/rayavriti/netmonitor-backend/internal/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -430,6 +431,58 @@ func TestProcessMetric_CreateAlertFails(t *testing.T) {
 
 	err := engine.ProcessMetric(context.Background(), device, metric, "up")
 	require.NoError(t, err)
+}
+
+// ── ProcessMetric: duplicate active alert (H2) ────────────────────────────────
+
+func TestProcessMetric_DuplicateActiveAlert_NoDoubleFire(t *testing.T) {
+	t.Parallel()
+	ruleID := int64(1)
+	var createCalls int
+	db := &mockDB{
+		getAlertRulesFn: func(ctx context.Context) ([]models.AlertRule, error) {
+			return []models.AlertRule{{
+				ID:             ruleID,
+				Name:           "High CPU",
+				Enabled:        true,
+				Severity:       "warning",
+				ConditionLogic: "all",
+				CooldownSec:    0,
+				Conditions: []models.AlertRuleCondition{{
+					ID: 1, Type: "threshold", MetricField: "cpu_usage", Operator: "gt", Value: "80",
+				}},
+			}}, nil
+		},
+		getAlertRuleStateFn: func(ctx context.Context, ruleID, deviceID int64) (*models.AlertRuleState, error) {
+			past := time.Now().Add(-2 * time.Minute)
+			return &models.AlertRuleState{
+				RuleID: ruleID, DeviceID: deviceID, State: "pending", FirstMetAt: &past,
+			}, nil
+		},
+		createAlertFn: func(ctx context.Context, a *models.Alert) (*models.Alert, error) {
+			createCalls++
+			return nil, database.ErrDuplicateActiveAlert
+		},
+		findActiveAlertByRuleAndDeviceFn: func(ctx context.Context, ruleID, deviceID int64) (*models.Alert, error) {
+			// First probe (pre-create) returns nothing so we reach CreateAlert;
+			// after the duplicate sentinel the engine re-queries and finds it.
+			if createCalls == 0 {
+				return nil, nil
+			}
+			return &models.Alert{ID: 99, Status: "active"}, nil
+		},
+		upsertAlertRuleStateFn: func(ctx context.Context, s *models.AlertRuleState) error {
+			return nil
+		},
+	}
+	engine := NewAlertEngine(db, nil, nil)
+	cpuVal := 95.0
+	device := &models.Device{ID: 1, Name: "Server-1"}
+	metric := &models.Metric{DeviceID: 1, CPUUsage: &cpuVal}
+
+	err := engine.ProcessMetric(context.Background(), device, metric, "up")
+	require.NoError(t, err)
+	assert.Equal(t, 1, createCalls)
 }
 
 // ── ProcessMetric: upsertState fails ──────────────────────────────────────────

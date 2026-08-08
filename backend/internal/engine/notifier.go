@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/smtp"
 	"time"
@@ -141,13 +142,54 @@ func (n *Notifier) sendEmail(ctx context.Context, ch models.NotificationChannel,
 	msg := fmt.Sprintf("From: %s\r\nTo: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n%s",
 		from, to, subject, body)
 
-	addr := fmt.Sprintf("%s:%s", host, port)
+	addr := net.JoinHostPort(host, func() string {
+		if port == "" {
+			return "25"
+		}
+		return port
+	}())
 	var auth smtp.Auth
 	if username != "" && password != "" {
 		auth = smtp.PlainAuth("", username, password, host)
 	}
 
-	return smtp.SendMail(addr, auth, from, []string{to}, []byte(msg))
+	conn, err := net.DialTimeout("tcp", addr, 10*time.Second)
+	if err != nil {
+		return fmt.Errorf("smtp dial: %w", err)
+	}
+	defer func() { _ = conn.Close() }()
+
+	deadline := time.Now().Add(10 * time.Second)
+	_ = conn.SetDeadline(deadline)
+
+	client, err := smtp.NewClient(conn, host)
+	if err != nil {
+		return fmt.Errorf("smtp handshake: %w", err)
+	}
+	defer func() { _ = client.Close() }()
+
+	if auth != nil {
+		if err := client.Auth(auth); err != nil {
+			return fmt.Errorf("smtp auth: %w", err)
+		}
+	}
+	if err := client.Mail(from); err != nil {
+		return fmt.Errorf("smtp mail: %w", err)
+	}
+	if err := client.Rcpt(to); err != nil {
+		return fmt.Errorf("smtp rcpt: %w", err)
+	}
+	wc, err := client.Data()
+	if err != nil {
+		return fmt.Errorf("smtp data: %w", err)
+	}
+	if _, err := wc.Write([]byte(msg)); err != nil {
+		return fmt.Errorf("smtp write: %w", err)
+	}
+	if err := wc.Close(); err != nil {
+		return fmt.Errorf("smtp close: %w", err)
+	}
+	return client.Quit()
 }
 
 func (n *Notifier) sendSlack(ctx context.Context, ch models.NotificationChannel, alert *models.Alert) error {

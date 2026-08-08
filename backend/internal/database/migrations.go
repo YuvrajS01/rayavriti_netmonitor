@@ -1091,4 +1091,11 @@ var migrations = []string{
 	`ALTER TABLE devices ADD COLUMN IF NOT EXISTS monitor_config JSONB NOT NULL DEFAULT '{}';
 	CREATE INDEX IF NOT EXISTS idx_devices_security_categories ON devices(device_category)
 	WHERE device_category IN ('camera', 'nvr', 'biometric');`,
+
+	// V44: Guard against duplicate active alerts for a rule/device pair. A
+	// partial unique index is PostgreSQL's last line of defense if two
+	// evaluations for the same rule+device get through the engine's keyed
+	// mutex or a restart resets the alert_rule_state cache.
+	`CREATE UNIQUE INDEX IF NOT EXISTS uq_alerts_active_rule_device
+	ON alerts(rule_id, device_id) WHERE status = 'active' AND rule_id IS NOT NULL;`,
 }

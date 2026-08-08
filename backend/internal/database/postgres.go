@@ -3,6 +3,7 @@ package database
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"math"
@@ -554,10 +555,20 @@ func (p *Postgres) CreateAlert(ctx context.Context, a *models.Alert) (*models.Al
 	var id int64
 	err := p.pool.QueryRow(ctx, `
 		INSERT INTO alerts(device_id,device_name,severity,message,status,rule_id)
-		VALUES($1,$2,$3,$4,$5,$6) RETURNING id`,
+		VALUES($1,$2,$3,$4,$5,$6)
+		ON CONFLICT (rule_id, device_id) WHERE status = 'active' AND rule_id IS NOT NULL
+		DO NOTHING
+		RETURNING id`,
 		a.DeviceID, a.DeviceName, a.Severity, a.Message, a.Status, a.RuleID,
 	).Scan(&id)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			// A duplicate active alert already exists for this rule/device —
+			// the keyed mutex in the engine normally prevents this, but a
+			// restart or multi-instance deployment can still race. The caller
+			// treats this as "already fired" and must not double-notify.
+			return nil, ErrDuplicateActiveAlert
+		}
 		return nil, err
 	}
 	return p.GetAlert(ctx, id)

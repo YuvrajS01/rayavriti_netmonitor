@@ -2,11 +2,17 @@ package database
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rayavriti/netmonitor-backend/internal/models"
 )
+
+// ErrDuplicateActiveAlert is returned by CreateAlert when an active alert
+// already exists for the same (rule_id, device_id). It signals "already fired"
+// so callers skip duplicate creation and double-notification.
+var ErrDuplicateActiveAlert = errors.New("duplicate active alert for rule/device")
 
 // PoolProvider is satisfied by *Postgres and any wrapper (e.g. *CachedDatabase).
 type PoolProvider interface {

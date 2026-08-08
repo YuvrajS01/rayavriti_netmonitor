@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"runtime/debug"
@@ -27,6 +28,29 @@ type AlertEngine struct {
 	baselineCache *BaselineCache
 	cancel        context.CancelFunc
 	wg            sync.WaitGroup
+
+	// ruleLocks serializes evaluation per (ruleID, deviceID) so the non-atomic
+	// read-modify-write on alert_rule_state and the findActive→Create alert
+	// TOCTOU race cannot fire the same rule twice under concurrency (pipeline
+	// goroutine + port-scan handler).
+	ruleLocks *keyedMutex
+
+	// notifQueue decouples notification delivery from the synchronous
+	// evaluation path. fireAlert enqueues; a bounded worker pool drains it so a
+	// slow webhook or SMTP host never blocks metric persistence.
+	notifQueue    chan notificationJob
+	notifWorkers  int
+	notifExitOnce sync.Once
+}
+
+const (
+	notifQueueSize   = 256
+	notifWorkerCount = 4
+)
+
+type notificationJob struct {
+	rule  *models.AlertRule
+	alert *models.Alert
 }
 
 func NewAlertEngine(db database.Database, hub *websocket.Hub, notifier *Notifier, opts ...AlertEngineOption) *AlertEngine {
@@ -35,6 +59,9 @@ func NewAlertEngine(db database.Database, hub *websocket.Hub, notifier *Notifier
 		hub:           hub,
 		notifier:      notifier,
 		baselineCache: NewBaselineCache(15 * time.Minute),
+		ruleLocks:     newKeyedMutex(),
+		notifQueue:    make(chan notificationJob, notifQueueSize),
+		notifWorkers:  notifWorkerCount,
 	}
 	for _, opt := range opts {
 		opt(e)
@@ -88,22 +115,42 @@ func (e *AlertEngine) ProcessMetric(ctx context.Context, device *models.Device, 
 		if !ruleAppliesToDevice(rule, device) {
 			continue
 		}
+		// Serialize the read-modify-write per (rule, device) so concurrent
+		// evaluations cannot both fire the same rule or create duplicate active
+		// alerts (H2).
+		unlock := e.ruleLocks.lock(ruleLockKey(rule.ID, device.ID))
 		e.evaluateRule(ctx, rule, device, metric, previousStatus)
+		unlock()
 	}
 	return nil
+}
+
+func ruleLockKey(ruleID, deviceID int64) string {
+	return fmt.Sprintf("%d:%d", ruleID, deviceID)
 }
 
 func (e *AlertEngine) Start(ctx context.Context) {
 	ctx, e.cancel = context.WithCancel(ctx)
 	e.wg.Add(1)
 	go e.absenceLoop(ctx)
-	slog.Info("Alert engine started")
+	for i := 0; i < e.notifWorkers; i++ {
+		e.wg.Add(1)
+		go e.notifWorker(ctx)
+	}
+	slog.Info("Alert engine started", "notif_workers", e.notifWorkers)
 }
 
 func (e *AlertEngine) Stop() {
 	if e.cancel != nil {
 		e.cancel()
 	}
+	// Stop draining the notification queue so in-flight jobs finish on the
+	// workers and no Send call ever blocks the evaluation path.
+	e.notifExitOnce.Do(func() {
+		if e.notifQueue != nil {
+			close(e.notifQueue)
+		}
+	})
 	e.wg.Wait()
 	slog.Info("Alert engine stopped")
 }
@@ -207,6 +254,9 @@ func (e *AlertEngine) checkAbsence(ctx context.Context, rule *models.AlertRule, 
 
 	created, err := e.db.CreateAlert(ctx, alert)
 	if err != nil {
+		if errors.Is(err, database.ErrDuplicateActiveAlert) {
+			return
+		}
 		slog.Warn("Failed to create absence alert", "rule_id", rule.ID, "device_id", device.ID, "error", err)
 		return
 	}
@@ -456,6 +506,17 @@ func (e *AlertEngine) fireAlert(
 
 	created, err := e.db.CreateAlert(ctx, alert)
 	if err != nil {
+		if errors.Is(err, database.ErrDuplicateActiveAlert) {
+			// A concurrent instance already fired this rule/device. Re-point
+			// the durable state at the existing alert without double-notifying.
+			if existing := e.findActiveAlertForRule(ctx, rule.ID, device.ID); existing != nil {
+				state.LastFiredAt = &now
+				state.ActiveAlertID = &existing.ID
+				state.State = "firing"
+				e.upsertState(ctx, state)
+			}
+			return
+		}
 		slog.Warn("Failed to create alert",
 			"rule_id", rule.ID, "device_id", device.ID, "error", err)
 		return
@@ -509,11 +570,49 @@ func buildAlertMessage(rule *models.AlertRule, device *models.Device, results []
 
 // ── notifications ────────────────────────────────────────────────────────────
 
-func (e *AlertEngine) sendNotifications(ctx context.Context, rule *models.AlertRule, alert *models.Alert) {
+// sendNotifications hands the alert to the bounded notification worker pool and
+// returns immediately. No notification I/O happens on the evaluation/pipeline
+// goroutine, so a slow webhook or stuck SMTP host cannot stall metric
+// persistence or alert evaluation (H3).
+func (e *AlertEngine) sendNotifications(_ context.Context, rule *models.AlertRule, alert *models.Alert) {
 	if e.notifier == nil || len(rule.ChannelIDs) == 0 {
 		return
 	}
+	select {
+	case e.notifQueue <- notificationJob{rule: rule, alert: alert}:
+		slog.Debug("Alert queued for notifications",
+			"alert_id", alert.ID, "rule_id", rule.ID, "device_id", alert.DeviceID)
+	default:
+		// Queue full: drop rather than block the monitoring pipeline. The
+		// alert itself and its history are already persisted.
+		slog.Warn("Notification queue full, dropping delivery",
+			"alert_id", alert.ID, "rule_id", rule.ID, "device_id", alert.DeviceID)
+	}
+}
 
+// notifWorker drains the notification queue with a per-delivery timeout so a
+// slow channel is bounded and isolated from other deliveries.
+func (e *AlertEngine) notifWorker(ctx context.Context) {
+	defer e.wg.Done()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case job, ok := <-e.notifQueue:
+			if !ok {
+				return
+			}
+			deliverCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+			e.deliverNotifications(deliverCtx, job.rule, job.alert)
+			cancel()
+		}
+	}
+}
+
+func (e *AlertEngine) deliverNotifications(ctx context.Context, rule *models.AlertRule, alert *models.Alert) {
+	// History writes must not be dropped just because the delivery deadline
+	// elapsed; use a context without cancellation for persistence.
+	histCtx := context.WithoutCancel(ctx)
 	channels, err := e.db.GetNotificationChannels(ctx)
 	if err != nil {
 		slog.Warn("Failed to load notification channels", "error", err)
@@ -541,7 +640,7 @@ func (e *AlertEngine) sendNotifications(ctx context.Context, rule *models.AlertR
 				"channel_name", ch.Name, "alert_id", alert.ID,
 				"error", err, "duration_ms", duration.Milliseconds(),
 			)
-			e.recordHistory(ctx, alert.ID, rule.ID, "notification_failed",
+			e.recordHistory(histCtx, alert.ID, rule.ID, "notification_failed",
 				fmt.Sprintf("channel:%s", ch.Name), map[string]any{
 					"channel_id":   ch.ID,
 					"channel_type": ch.Type,
@@ -553,7 +652,7 @@ func (e *AlertEngine) sendNotifications(ctx context.Context, rule *models.AlertR
 				"channel_name", ch.Name, "alert_id", alert.ID,
 				"duration_ms", duration.Milliseconds(),
 			)
-			e.recordHistory(ctx, alert.ID, rule.ID, "notified",
+			e.recordHistory(histCtx, alert.ID, rule.ID, "notified",
 				fmt.Sprintf("channel:%s", ch.Name), map[string]any{
 					"channel_id":   ch.ID,
 					"channel_type": ch.Type,
