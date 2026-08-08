@@ -122,11 +122,20 @@ func scanCaptureSessions(rows pgx.Rows) ([]models.CaptureSession, error) {
 }
 
 func (p *Postgres) GetCapturePackets(ctx context.Context, sessionID int64, limit, offset int) ([]models.CapturePacket, error) {
+	if limit <= 0 {
+		limit = 50
+	}
+	if limit > 1000 {
+		limit = 1000
+	}
+	if offset < 0 {
+		offset = 0
+	}
 	rows, err := p.pool.Query(ctx, `
 		SELECT id,session_id,timestamp,src_ip,dst_ip,src_port,dst_port,protocol,length,flags,payload
 		FROM capture_packets
 		WHERE session_id=$1
-		ORDER BY timestamp ASC
+		ORDER BY timestamp ASC, id ASC
 		LIMIT $2 OFFSET $3`, sessionID, limit, offset)
 	if err != nil {
 		return nil, err

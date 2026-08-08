@@ -81,6 +81,54 @@ func TestAlertList_DBError(t *testing.T) {
 	}
 }
 
+func TestAlertList_PaginationClamped(t *testing.T) {
+	db := &mockDB{
+		getAlertsFn: func(ctx context.Context, status string, limit, offset int, _ *database.ScopeFilter) ([]models.Alert, int, error) {
+			if limit > 200 {
+				t.Fatalf("expected limit clamped to <=200, got %d", limit)
+			}
+			if offset < 0 {
+				t.Fatalf("expected offset >= 0, got %d", offset)
+			}
+			return []models.Alert{}, 0, nil
+		},
+	}
+	h := NewAlertHandler(db)
+
+	t.Run("huge limit clamped", func(t *testing.T) {
+		w, req := authenticatedRequest("GET", "/api/v1/alerts?limit=1000000000&offset=0", "")
+		h.List(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d", w.Code)
+		}
+	})
+
+	t.Run("negative offset clamped", func(t *testing.T) {
+		w, req := authenticatedRequest("GET", "/api/v1/alerts?limit=100&offset=-50", "")
+		h.List(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d", w.Code)
+		}
+	})
+}
+
+func TestAlertGrouped_LimitClamped(t *testing.T) {
+	db := &mockDB{
+		getAlertsFn: func(ctx context.Context, channel string, limit, offset int, _ *database.ScopeFilter) ([]models.Alert, int, error) {
+			if limit > 1000 {
+				t.Fatalf("expected grouped limit clamped to <=1000, got %d", limit)
+			}
+			return []models.Alert{}, 0, nil
+		},
+	}
+	h := NewAlertHandler(db)
+	w, req := authenticatedRequest("GET", "/api/v1/alerts/grouped?limit=99999999", "")
+	h.Grouped(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+}
+
 func TestAlertGet_Valid(t *testing.T) {
 	db := &mockDB{
 		getAlertFn: func(ctx context.Context, id int64) (*models.Alert, error) {

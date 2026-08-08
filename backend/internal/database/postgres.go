@@ -467,6 +467,12 @@ func (p *Postgres) GetAlerts(ctx context.Context, status string, limit, offset i
 	if limit <= 0 {
 		limit = 50
 	}
+	if limit > 1000 {
+		limit = 1000
+	}
+	if offset < 0 {
+		offset = 0
+	}
 	args := []any{}
 	conditions := []string{}
 	argN := 1
@@ -491,7 +497,7 @@ func (p *Postgres) GetAlerts(ctx context.Context, status string, limit, offset i
 	}
 	listSQL := `SELECT id,COALESCE(device_id,0),COALESCE(device_name,''),severity,message,status,rule_id,
 	                   created_at,acknowledged_at,resolved_at,acknowledged_by,resolved_by ` +
-		base + ` ORDER BY created_at DESC`
+		base + ` ORDER BY created_at DESC, id DESC`
 	listSQL += fmt.Sprintf(` LIMIT $%d OFFSET $%d`, argN, argN+1)
 	args = append(args, limit, offset)
 	rows, err := p.pool.Query(ctx, listSQL, args...)
@@ -713,7 +719,7 @@ func (p *Postgres) CreateAPIKey(ctx context.Context, k *models.APIKey) (*models.
 func (p *Postgres) GetAPIKeysByUser(ctx context.Context, userID int64) ([]models.APIKey, error) {
 	rows, err := p.pool.Query(ctx, `
 		SELECT id,user_id,key_hash,description,created_at,last_used_at
-		FROM api_keys WHERE user_id=$1 ORDER BY created_at DESC`, userID)
+		FROM api_keys WHERE user_id=$1 ORDER BY created_at DESC, id DESC`, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -755,6 +761,12 @@ func (p *Postgres) GetFlows(ctx context.Context, from, to time.Time, limit, offs
 	if limit <= 0 {
 		limit = 100
 	}
+	if limit > 1000 {
+		limit = 1000
+	}
+	if offset < 0 {
+		offset = 0
+	}
 	var total int
 	if err := p.pool.QueryRow(ctx,
 		`SELECT COUNT(*) FROM flows WHERE created_at BETWEEN $1 AND $2`, from, to).Scan(&total); err != nil {
@@ -763,7 +775,7 @@ func (p *Postgres) GetFlows(ctx context.Context, from, to time.Time, limit, offs
 	rows, err := p.pool.Query(ctx, `
 		SELECT id,src_ip,dst_ip,src_port,dst_port,protocol,bytes,packets,duration,created_at
 		FROM flows WHERE created_at BETWEEN $1 AND $2
-		ORDER BY created_at DESC LIMIT $3 OFFSET $4`, from, to, limit, offset)
+		ORDER BY created_at DESC, id DESC LIMIT $3 OFFSET $4`, from, to, limit, offset)
 	if err != nil {
 		return nil, 0, err
 	}

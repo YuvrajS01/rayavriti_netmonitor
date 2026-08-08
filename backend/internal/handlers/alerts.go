@@ -21,6 +21,15 @@ func (h *AlertHandler) List(w http.ResponseWriter, r *http.Request) {
 	status := q.Get("status")
 	limit, _ := strconv.Atoi(q.Get("limit"))
 	offset, _ := strconv.Atoi(q.Get("offset"))
+	if limit <= 0 {
+		limit = 50
+	}
+	if limit > 200 {
+		limit = 200
+	}
+	if offset < 0 {
+		offset = 0
+	}
 	alerts, total, err := h.db.GetAlerts(r.Context(), status, limit, offset, scopeFilterFromContext(r))
 	if err != nil {
 		httputil.SendError(w, 500, err.Error())
@@ -195,6 +204,9 @@ func (h *AlertHandler) Grouped(w http.ResponseWriter, r *http.Request) {
 	limit, _ := strconv.Atoi(q.Get("limit"))
 	if limit <= 0 {
 		limit = 300
+	}
+	if limit > 1000 {
+		limit = 1000
 	}
 	alerts, _, err := h.db.GetAlerts(r.Context(), status, limit, 0, scopeFilterFromContext(r))
 	if err != nil {

@@ -213,7 +213,7 @@ func (p *Postgres) GetAlertsForReport(ctx context.Context, from, to time.Time, d
 		query += fmt.Sprintf(` AND device_id=$%d`, paramIdx)
 		args = append(args, *deviceID)
 	}
-	query += ` ORDER BY created_at DESC LIMIT 5000`
+	query += ` ORDER BY created_at DESC, id DESC LIMIT 5000`
 
 	rows, err := p.pool.Query(ctx, query, args...)
 	if err != nil {
