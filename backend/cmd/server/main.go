@@ -167,7 +167,7 @@ func run() error {
 	var metricBuf *cache.MetricBuffer
 	var pubSubBridge *cache.PubSubBridge
 	if rdb != nil {
-		metricBuf = cache.NewMetricBuffer(rdb, db, 100, 2*time.Second)
+		metricBuf = cache.NewMetricBuffer(rdb, appDB, 100, 2*time.Second)
 		metricBuf.Start(context.Background())
 		logger.Info("Metric buffer started")
 
