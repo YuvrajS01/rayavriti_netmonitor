@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -118,6 +119,9 @@ func (s *Server) Start() error {
 		user, err := s.db.GetUserByID(ctx, key.UserID)
 		if err != nil {
 			return nil, err
+		}
+		if !user.Enabled {
+			return nil, errors.New("user disabled")
 		}
 		// Load permissions for API key users, same as login
 		var permissions []string
@@ -329,9 +333,9 @@ func (s *Server) Start() error {
 			r.With(rbac.RequirePermission(models.PermSettingsWrite)).Post("/api/v1/backups", backupH.Create)
 			r.With(rbac.RequirePermission(models.PermSettingsWrite)).Get("/api/v1/backups/{id}", backupH.Get)
 			r.With(rbac.RequirePermission(models.PermSettingsWrite)).Get("/api/v1/backups/{id}/download", backupH.Download)
-			r.With(rbac.RequirePermission(models.PermSettingsWrite)).Post("/api/v1/backups/{id}/restore", backupH.Restore)
+			r.With(rbac.RequireAdmin()).Post("/api/v1/backups/{id}/restore", backupH.Restore)
 			r.With(rbac.RequirePermission(models.PermSettingsWrite)).Delete("/api/v1/backups/{id}", backupH.Delete)
-			r.With(rbac.RequirePermission(models.PermSettingsWrite)).Post("/api/v1/backups/upload", backupH.Upload)
+			r.With(rbac.RequireAdmin()).Post("/api/v1/backups/upload", backupH.Upload)
 		}
 
 		// --- Devices (devices.read / devices.write / devices.delete) ---

@@ -474,6 +474,7 @@ const (
 	PermReportsRead         = "reports.read"
 	PermReportsWrite        = "reports.write"
 	PermSettingsWrite       = "settings.write"
+	PermBackupRestore       = "backup.restore"
 	PermUsersManage         = "users.manage"
 	PermImportExecute       = "import.execute"
 	PermDiscoveryExecute    = "discovery.execute"

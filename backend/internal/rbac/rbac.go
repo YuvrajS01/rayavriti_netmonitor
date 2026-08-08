@@ -95,3 +95,33 @@ func RequireAnyPermission(permissions ...string) func(http.Handler) http.Handler
 		})
 	}
 }
+
+// RequireAdmin restricts access to admin or super_admin roles. Used for
+// high-risk operations (e.g. DB restore) that should never be granted to
+// scoped or read-only users.
+func RequireAdmin() func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			claims := auth.GetClaims(r.Context())
+			if claims == nil {
+				http.Error(w, `{"success":false,"error":"not authenticated"}`, http.StatusUnauthorized)
+				return
+			}
+			if claims.Role != "super_admin" && claims.Role != "admin" {
+				slog.Warn("RBAC: admin-only action denied",
+					"user", claims.Username,
+					"role", claims.Role,
+				)
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusForbidden)
+				_ = json.NewEncoder(w).Encode(map[string]any{
+					"success": false,
+					"error":   "forbidden",
+					"detail":  "admin role required",
+				})
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}

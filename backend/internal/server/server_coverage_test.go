@@ -19,7 +19,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type serverMockDB struct{}
+type serverMockDB struct {
+	apiKey   *models.APIKey
+	user     *models.User
+	rolePerm []string
+}
 
 func (m *serverMockDB) Connect(ctx context.Context) error       { return nil }
 func (m *serverMockDB) Close() error                            { return nil }
@@ -168,6 +172,9 @@ func (m *serverMockDB) GetUserByUsername(ctx context.Context, username string) (
 	return nil, nil
 }
 func (m *serverMockDB) GetUserByID(ctx context.Context, id int64) (*models.User, error) {
+	if m.user != nil {
+		return m.user, nil
+	}
 	return nil, nil
 }
 func (m *serverMockDB) CreateUser(ctx context.Context, u *models.User) (*models.User, error) {
@@ -178,6 +185,9 @@ func (m *serverMockDB) UpdateUser(ctx context.Context, id int64, u *models.User)
 }
 func (m *serverMockDB) DeleteUser(ctx context.Context, id int64) error { return nil }
 func (m *serverMockDB) GetAPIKey(ctx context.Context, keyHash string) (*models.APIKey, error) {
+	if m.apiKey != nil {
+		return m.apiKey, nil
+	}
 	return nil, nil
 }
 func (m *serverMockDB) GetAPIKeyByID(ctx context.Context, id int64) (*models.APIKey, error) {
@@ -291,7 +301,7 @@ func (m *serverMockDB) RecordSuppressedAlert(ctx context.Context, deviceID int64
 	return nil
 }
 func (m *serverMockDB) GetRolePermissions(ctx context.Context, roleID int64) ([]string, error) {
-	return nil, nil
+	return m.rolePerm, nil
 }
 func (m *serverMockDB) CleanupExpiredRefreshTokens(ctx context.Context) (int64, error) { return 0, nil }
 
@@ -495,6 +505,68 @@ func TestStart_ProtectedRoute_WithAuth(t *testing.T) {
 	require.NoError(t, err)
 	defer resp.Body.Close()
 	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+
+	_ = srv.Shutdown(context.Background())
+	<-errCh
+}
+
+func TestStart_DisabledUserAPIKeyRejected(t *testing.T) {
+	t.Parallel()
+	port := freePort(t)
+	cfg := testConfig(port)
+	db := &serverMockDB{
+		apiKey: &models.APIKey{ID: 1, UserID: 9, KeyHash: "stub-hash"},
+		user:   &models.User{ID: 9, Username: "gone-user", Role: "admin", Enabled: false},
+	}
+	hub := websocket.NewHub("test-secret", nil, nil)
+	logger := logging.New(cfg)
+
+	srv := New(cfg, db, hub, logger)
+	errCh := make(chan error, 1)
+	go func() { errCh <- srv.Start() }()
+	time.Sleep(200 * time.Millisecond)
+
+	// Even though the API key resolves to a real key, the owning account is
+	// disabled, so the credential must not authenticate.
+	req, err := http.NewRequest("GET", fmt.Sprintf("http://127.0.0.1:%d/api/v1/devices", port), nil)
+	require.NoError(t, err)
+	req.Header.Set("X-Api-Key", "some-raw-key")
+
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode, "disabled user's API key must not authenticate")
+
+	_ = srv.Shutdown(context.Background())
+	<-errCh
+}
+
+func TestStart_EnabledUserAPIKeyAccepted(t *testing.T) {
+	t.Parallel()
+	port := freePort(t)
+	cfg := testConfig(port)
+	roleID := int64(1)
+	db := &serverMockDB{
+		apiKey: &models.APIKey{ID: 1, UserID: 9, KeyHash: "stub-hash"},
+		user:   &models.User{ID: 9, Username: "active-user", Role: "admin", Enabled: true, RoleID: &roleID},
+	}
+	hub := websocket.NewHub("test-secret", nil, nil)
+	logger := logging.New(cfg)
+
+	srv := New(cfg, db, hub, logger)
+	errCh := make(chan error, 1)
+	go func() { errCh <- srv.Start() }()
+	time.Sleep(200 * time.Millisecond)
+
+	req, err := http.NewRequest("GET", fmt.Sprintf("http://127.0.0.1:%d/api/v1/devices", port), nil)
+	require.NoError(t, err)
+	req.Header.Set("X-Api-Key", "some-raw-key")
+
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	// Admin API key reaches the handler; the mock returns no devices for a 200.
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
 
 	_ = srv.Shutdown(context.Background())
 	<-errCh
