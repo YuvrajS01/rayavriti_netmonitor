@@ -60,6 +60,17 @@ func WithSuppressedAlertRecorder(sr SuppressedAlertRecorder) AlertEngineOption {
 	return func(e *AlertEngine) { e.suppressedRecorder = sr }
 }
 
+// WithBaselineCache injects a shared baseline cache (e.g. owned by the anomaly
+// engine) so that anomaly conditions read the same refreshed baselines instead
+// of an empty local cache that nothing ever populates.
+func WithBaselineCache(bc *BaselineCache) AlertEngineOption {
+	return func(e *AlertEngine) {
+		if bc != nil {
+			e.baselineCache = bc
+		}
+	}
+}
+
 func (e *AlertEngine) ProcessMetric(ctx context.Context, device *models.Device, metric *models.Metric, previousStatus string) error {
 	rules, err := e.db.GetAlertRules(ctx)
 	if err != nil {

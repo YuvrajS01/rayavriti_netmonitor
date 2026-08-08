@@ -64,6 +64,15 @@ func (e *AnomalyEngine) Stop() {
 	e.wg.Wait()
 }
 
+// SetBaselineCache replaces the engine's baseline cache. The anomaly engine
+// shares its cache with the alert engine so that anomaly-condition rules are
+// evaluated against the same refreshed baselines.
+func (e *AnomalyEngine) SetBaselineCache(bc *BaselineCache) {
+	if bc != nil {
+		e.baselineCache = bc
+	}
+}
+
 func (e *AnomalyEngine) GetBaseline(deviceID int64, field string) *AnomalyBaseline {
 	return e.baselineCache.Get(deviceID, field)
 }

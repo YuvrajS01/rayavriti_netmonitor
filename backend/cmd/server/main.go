@@ -155,13 +155,20 @@ func run() error {
 	registry.Register(collectors.BiometricCollector{})
 	logger.Info("Collectors registered", "count", 8)
 
-	// 8. Initialize alert engine (used by scheduler for rule evaluation)
+	// 8. Initialize alert engine (used by scheduler for rule evaluation).
+	// The anomaly engine below owns the baseline cache and shares it with the
+	// alert engine so anomaly-condition rules read refreshed baselines.
+	baselineCache := engine.NewBaselineCache(15 * time.Minute)
 	notifier := engine.NewNotifier()
-	alertOpts := []engine.AlertEngineOption{}
+	alertOpts := []engine.AlertEngineOption{
+		engine.WithBaselineCache(baselineCache),
+	}
 	if rdb != nil {
 		alertOpts = append(alertOpts, engine.WithAlertStateCache(cache.NewAlertStateCache(rdb, db)))
 	}
 	alertEng := engine.NewAlertEngine(appDB, hub, notifier, alertOpts...)
+	alertEng.Start(context.Background())
+	logger.Info("Alert engine started")
 
 	// 8.5 Initialize metric buffer and Pub/Sub bridge (if Redis available)
 	var metricBuf *cache.MetricBuffer
@@ -210,8 +217,9 @@ func run() error {
 	sched.Start(context.Background())
 	logger.Info("Scheduler started")
 
-	// 10. Initialize anomaly engine
+	// 10. Initialize anomaly engine (shares its baseline cache with the alert engine)
 	anomalyEng := engine.NewAnomalyEngine(db, slog.Default())
+	anomalyEng.SetBaselineCache(baselineCache)
 	anomalyEng.Start(context.Background())
 	logger.Info("Anomaly engine started")
 
@@ -282,6 +290,7 @@ func run() error {
 		metricBuf.Stop()
 	}
 	anomalyEng.Stop()
+	alertEng.Stop()
 	retSched.Stop()
 	hub.Stop()
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
