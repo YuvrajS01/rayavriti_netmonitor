@@ -281,19 +281,15 @@ func (h *DeviceHandler) Update(w http.ResponseWriter, r *http.Request) {
 	if patch.Notes != "" {
 		existing.Notes = patch.Notes
 	}
-	if patch.ParentDeviceID != nil {
-		existing.ParentDeviceID = patch.ParentDeviceID
-	}
-	if patch.DependencyPort != "" {
-		existing.DependencyPort = patch.DependencyPort
-	}
+	existing.LocationID = patch.LocationID
+	existing.ParentDeviceID = patch.ParentDeviceID
+	existing.DependencyPort = patch.DependencyPort
 	if patch.RackPosition != "" {
 		existing.RackPosition = patch.RackPosition
 	}
 	if patch.AssetTag != "" {
 		existing.AssetTag = patch.AssetTag
 	}
-	existing.LocationID = patch.LocationID
 	updated, err := h.db.UpdateDevice(r.Context(), id, existing)
 	if err != nil {
 		httputil.SendError(w, http.StatusInternalServerError, err.Error())

@@ -6,7 +6,6 @@ import { useSocket } from '../hooks/useSocket';
 import type { Device, Metric } from '../api/types';
 import SectionHeader from '../components/ui/SectionHeader';
 import Card from '../components/ui/Card';
-import DeviceModal from '../components/DeviceModal';
 
 const COLOR: Record<string, string> = {
   up: '#9bc86e', ok: '#9bc86e',
@@ -531,18 +530,6 @@ export default function NetworkTopology() {
           )}
         </Card>
       </div>
-
-      {selected && (
-        <DeviceModal
-          device={selected}
-          onClose={() => setSelected(null)}
-          onDeleted={() => {
-            const id = selected.id;
-            setSelected(null);
-            setDevices((prev) => prev.filter((d) => d.id !== id));
-          }}
-        />
-      )}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip, Legend } from 'recharts';
-import { getDeviceMetrics, deleteDevice, getDevicePorts, scanDevicePorts, getHealthScore } from '../api/client';
+import { getDeviceMetrics, deleteDevice, getDevicePorts, scanDevicePorts, getHealthScore, getDevices } from '../api/client';
 import { listPhase2, type Phase2Row } from '../api/phase2';
 import { v1 } from '../api/http';
 import { useSocket } from '../hooks/useSocket';
@@ -69,6 +69,9 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
   const [ports, setPorts] = useState<PortScanResult[]>([]);
   const [locations, setLocations] = useState<Phase2Row[]>([]);
   const [locationId, setLocationId] = useState<string>(device.locationId != null ? String(device.locationId) : '');
+  const [allDevices, setAllDevices] = useState<Device[]>([]);
+  const [parentDeviceId, setParentDeviceId] = useState<string>(device.parentDeviceId != null ? String(device.parentDeviceId) : '');
+  const [dependencyPort, setDependencyPort] = useState<string>(device.dependencyPort || '');
   const [loading, setLoading] = useState(true);
   const [scanning, setScanning] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -108,15 +111,17 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
 
   const loadData = useCallback(async () => {
     try {
-      const [metricRes, portRes, locRes, healthRes] = await Promise.all([
+      const [metricRes, portRes, locRes, devRes, healthRes] = await Promise.all([
         getDeviceMetrics(device.id, 50),
         getDevicePorts(device.id),
         listPhase2('/locations'),
+        getDevices(),
         getHealthScore(device.id).catch(() => null),
       ]);
       setMetrics((metricRes.data || []).reverse());
       setPorts(portRes.data || []);
       setLocations(locRes.data || []);
+      setAllDevices(devRes.data || []);
       setHealthScore(healthRes?.data?.score ?? null);
     } catch {
       // ignore
@@ -165,14 +170,41 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
     }
   };
 
+  const persistDependencyFields = async (locId: string, parentId: string, port: string) => {
+    await v1.put(`/devices/${device.id}`, {
+      locationId: locId ? Number(locId) : null,
+      parentDeviceId: parentId ? Number(parentId) : null,
+      dependencyPort: port,
+    });
+  };
+
   const handleLocationChange = async (newLocId: string) => {
+    const prev = locationId;
     setLocationId(newLocId);
     try {
-      await v1.put(`/devices/${device.id}`, {
-        locationId: newLocId ? Number(newLocId) : null,
-      });
+      await persistDependencyFields(newLocId, parentDeviceId, dependencyPort);
     } catch {
-      setLocationId(device.locationId != null ? String(device.locationId) : '');
+      setLocationId(device.locationId != null ? String(device.locationId) : prev || '');
+    }
+  };
+
+  const handleParentChange = async (newParentId: string) => {
+    const prev = parentDeviceId;
+    setParentDeviceId(newParentId);
+    try {
+      await persistDependencyFields(locationId, newParentId, dependencyPort);
+    } catch {
+      setParentDeviceId(device.parentDeviceId != null ? String(device.parentDeviceId) : prev || '');
+    }
+  };
+
+  const handleDependencyPortChange = async (port: string) => {
+    const prev = dependencyPort;
+    setDependencyPort(port);
+    try {
+      await persistDependencyFields(locationId, parentDeviceId, port);
+    } catch {
+      setDependencyPort(device.dependencyPort || prev || '');
     }
   };
 
@@ -254,6 +286,31 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
                ))}
              </select>
            </div>
+
+            <div className="bg-surface-container-low p-4 rounded-lg mb-6">
+              <label className="block text-[10px] text-on-surface-variant uppercase tracking-wide mb-1.5">Parent Device (dependency)</label>
+              <select
+                value={parentDeviceId}
+                onChange={(e) => handleParentChange(e.target.value)}
+                className="bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-3 py-2 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary w-full cursor-pointer"
+              >
+                <option value="">None (root)</option>
+                {allDevices
+                  .filter((d) => d.id !== device.id)
+                  .map((d) => (
+                    <option key={d.id} value={String(d.id)}>
+                      {d.name} ({d.ipAddress})
+                    </option>
+                  ))}
+              </select>
+              <label className="block text-[10px] text-on-surface-variant uppercase tracking-wide mb-1.5 mt-3">Dependency port</label>
+              <input
+                value={dependencyPort}
+                onChange={(e) => handleDependencyPortChange(e.target.value)}
+                placeholder="e.g. eth0, 1/0/1"
+                className="bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-3 py-2 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary w-full"
+              />
+            </div>
 
 		   {(device.manufacturer || device.model || device.deviceCategory) && (
 			 <div className="mb-6 border-y border-outline-variant/20 py-4 grid grid-cols-2 md:grid-cols-3 gap-4">
