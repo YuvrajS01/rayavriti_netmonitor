@@ -182,14 +182,28 @@ function RackVisual({
   const RACK_UNITS = 42;
   const units = Array.from({ length: RACK_UNITS }, (_, i) => RACK_UNITS - i);
 
+  // Place devices that have a rack position; auto-assign the rest to free
+  // bottom-up slots so a rack with devices never renders as an empty diagram.
   const devicesByUnit = useMemo(() => {
     const map = new Map<number, Device>();
+    const unplaced: Device[] = [];
     devices.forEach((d) => {
       const u = parseRackPosition(d.rackPosition);
       if (u && u >= 1 && u <= RACK_UNITS) {
         map.set(u, d);
+      } else {
+        unplaced.push(d);
       }
     });
+    if (unplaced.length > 0) {
+      let next = 1;
+      for (const d of unplaced) {
+        while (next <= RACK_UNITS && map.has(next)) next += 1;
+        if (next > RACK_UNITS) break;
+        map.set(next, d);
+        next += 1;
+      }
+    }
     return map;
   }, [devices]);
 

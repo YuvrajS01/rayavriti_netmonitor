@@ -47,30 +47,96 @@ export default function Campus() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Enrich locations with device counts and status from the device list.
+  // Enrich locations with device counts and status aggregated recursively from
+  // the whole subtree (rack → floor → building → campus), matching the backend
+  // GetTreeWithStatus semantic.
   const enriched = useMemo(() => {
-    const statusByLoc: Record<number, Record<string, number>> = {};
+    const empty = { up: 0, down: 0, warning: 0, maintenance: 0, unknown: 0 };
+    const idToLoc = new Map<number, Phase2Row>();
+    for (const loc of locations) idToLoc.set(Number(loc.id), loc);
+
+    // Direct (own) counts per location.
+    const own: Record<number, Record<string, number>> = {};
+    for (const loc of locations) own[Number(loc.id)] = { ...empty };
     for (const d of devices) {
       if (d.locationId == null) continue;
-      if (!statusByLoc[d.locationId]) {
-        statusByLoc[d.locationId] = { up: 0, down: 0, warning: 0, maintenance: 0, unknown: 0 };
-      }
-      const key = d.status in statusByLoc[d.locationId] ? d.status : 'unknown';
-      statusByLoc[d.locationId][key]++;
+      if (!own[d.locationId]) continue;
+      const key = d.status in own[d.locationId] ? d.status : 'unknown';
+      own[d.locationId][key]++;
     }
+
+    // Child index for upward aggregation.
+    const kids = new Map<number, number[]>();
+    for (const loc of locations) {
+      const pid = loc.parent_id != null ? Number(loc.parent_id) : null;
+      if (pid != null && idToLoc.has(pid)) {
+        const lst = kids.get(pid);
+        if (lst) lst.push(Number(loc.id));
+        else kids.set(pid, [Number(loc.id)]);
+      }
+    }
+
+    // Post-order: each node's totals include all descendants.
+    const subtotal = new Map<number, Record<string, number>>();
+    const aggregate = (locId: number): Record<string, number> => {
+      const st = { ...(own[locId] || empty) };
+      for (const cid of kids.get(locId) || []) {
+        const cs = aggregate(cid);
+        for (const k of Object.keys(st) as (keyof typeof st)[]) st[k] += cs[k];
+      }
+      subtotal.set(locId, st);
+      return st;
+    };
+    for (const loc of locations) {
+      const pid = loc.parent_id != null ? Number(loc.parent_id) : null;
+      if (pid == null || !idToLoc.has(pid)) aggregate(Number(loc.id));
+    }
+
     return locations.map((loc) => {
       const locId = Number(loc.id);
-      const st = statusByLoc[locId] || { up: 0, down: 0, warning: 0, maintenance: 0, unknown: 0 };
+      const st = subtotal.get(locId) || own[locId] || { ...empty };
       const total = Object.values(st).reduce((a, b) => a + b, 0);
       return { ...loc, status: st, device_count: total };
     });
   }, [locations, devices]);
 
+  // Device IDs at or under each location (inclusive), for the detail table so a
+  // floor/campus selection lists devices that live in descendant racks/rooms.
+  const descendantIds = useMemo(() => {
+    const idToLoc = new Map<number, Phase2Row>();
+    for (const loc of locations) idToLoc.set(Number(loc.id), loc);
+    const kids = new Map<number, number[]>();
+    for (const loc of locations) {
+      const pid = loc.parent_id != null ? Number(loc.parent_id) : null;
+      if (pid != null && idToLoc.has(pid)) {
+        const lst = kids.get(pid);
+        if (lst) lst.push(Number(loc.id));
+        else kids.set(pid, [Number(loc.id)]);
+      }
+    }
+    const out = new Map<number, Set<number>>();
+    const collect = (locId: number): Set<number> => {
+      const set = new Set<number>([locId]);
+      for (const cid of kids.get(locId) || []) {
+        for (const id of collect(cid)) set.add(id);
+      }
+      out.set(locId, set);
+      return set;
+    };
+    for (const loc of locations) {
+      const pid = loc.parent_id != null ? Number(loc.parent_id) : null;
+      if (pid == null || !idToLoc.has(pid)) collect(Number(loc.id));
+    }
+    return out;
+  }, [locations]);
+
   const selectedDevices = useMemo(() => {
     if (!selected) return [];
     const locId = Number(selected.id);
-    return devices.filter((d) => d.locationId === locId);
-  }, [selected, devices]);
+    const scope = descendantIds.get(locId);
+    if (!scope) return [];
+    return devices.filter((d) => d.locationId != null && scope.has(d.locationId));
+  }, [selected, devices, descendantIds]);
 
   // Aggregate stats.
   const stats = useMemo(() => {
