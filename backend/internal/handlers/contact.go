@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -96,7 +97,11 @@ func (h *ContactHandler) EscalationStart(w http.ResponseWriter, r *http.Request)
 	}
 
 	if err := h.escalation.StartEscalation(r.Context(), &alert, body.PolicyID); err != nil {
-		httputil.SendError(w, http.StatusInternalServerError, err.Error())
+		if errors.Is(err, engine.ErrEscalationDisabled) {
+			httputil.SendError(w, http.StatusNotImplemented, "escalation engine is disabled")
+			return
+		}
+		httputil.SendInternalError(w, err)
 		return
 	}
 

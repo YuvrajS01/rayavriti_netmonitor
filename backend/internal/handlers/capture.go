@@ -34,6 +34,7 @@ type CaptureHandler struct {
 	mu     sync.Mutex
 	cancel context.CancelFunc
 	stats  captureStats
+	wg     sync.WaitGroup // tracks the runCapture goroutine
 }
 
 type captureStats struct {
@@ -111,7 +112,11 @@ func (h *CaptureHandler) Start(w http.ResponseWriter, r *http.Request) {
 	h.cancel = cancel
 	h.mu.Unlock()
 
-	go h.runCapture(ctx, created.ID, body.Interface, body.Filter)
+	h.wg.Add(1)
+	go func() {
+		defer h.wg.Done()
+		h.runCapture(ctx, created.ID, body.Interface, body.Filter)
+	}()
 
 	h.hub.Broadcast(websocket.Message{
 		Type: websocket.EventCaptureStatus,
@@ -119,6 +124,17 @@ func (h *CaptureHandler) Start(w http.ResponseWriter, r *http.Request) {
 	})
 
 	httputil.SendCreated(w, created)
+}
+
+// Shutdown cancels any running capture and waits for the goroutine to exit.
+// Called during graceful server shutdown to ensure tcpdump is killed.
+func (h *CaptureHandler) Shutdown() {
+	h.mu.Lock()
+	if h.cancel != nil {
+		h.cancel()
+	}
+	h.mu.Unlock()
+	h.wg.Wait()
 }
 
 func (h *CaptureHandler) Stop(w http.ResponseWriter, r *http.Request) {
@@ -365,7 +381,8 @@ func (h *CaptureHandler) runCapture(ctx context.Context, sessionID int64, iface,
 	}
 
 	// finalizePacket attaches accumulated hex data and adds the packet to the batch.
-	finalizePacket := func() {
+	// Returns true if the byte limit was reached and the scan loop should stop.
+	finalizePacket := func() bool {
 		if currentPkt != nil {
 			if h.cfg.PayloadEnabled && len(hexLines) > 0 {
 				currentPkt.Payload = strings.Join(hexLines, " ")
@@ -382,13 +399,14 @@ func (h *CaptureHandler) runCapture(ctx context.Context, sessionID int64, iface,
 
 			if exceeded {
 				slog.Info("capture stopped: byte limit reached", "limit", h.cfg.MaxBytes)
-				return
+				return true
 			}
 
 			batch = append(batch, *currentPkt)
 			currentPkt = nil
 			hexLines = nil
 		}
+		return false
 	}
 
 	for scanner.Scan() {
@@ -396,7 +414,9 @@ func (h *CaptureHandler) runCapture(ctx context.Context, sessionID int64, iface,
 
 		if isTcpdumpHeader(line) {
 			// New packet header: finalize previous packet
-			finalizePacket()
+			if finalizePacket() {
+				break
+			}
 
 			// Check packet quota
 			if h.cfg.MaxPackets > 0 {
@@ -429,7 +449,7 @@ func (h *CaptureHandler) runCapture(ctx context.Context, sessionID int64, iface,
 
 		select {
 		case <-batchTimer.C:
-			finalizePacket()
+			_ = finalizePacket()
 			flushBatch()
 			batchTimer.Reset(500 * time.Millisecond)
 		default:
@@ -437,14 +457,14 @@ func (h *CaptureHandler) runCapture(ctx context.Context, sessionID int64, iface,
 
 		select {
 		case <-ctx.Done():
-			finalizePacket()
+			_ = finalizePacket()
 			flushBatch()
 			return
 		default:
 		}
 	}
 
-	finalizePacket()
+	_ = finalizePacket()
 	flushBatch()
 
 	if err := cmd.Wait(); err != nil {

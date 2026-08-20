@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log/slog"
 	"math"
 	"strings"
 	"time"
@@ -973,7 +972,7 @@ func (p *Postgres) GetDashboardStats(ctx context.Context) (map[string]any, error
 			(SELECT AVG(response_time) FROM metrics WHERE timestamp > $1)
 	`, since).Scan(&totalDevices, &onlineDevices, &offlineDevices, &activeAlerts, &totalMetrics24h, &avgRT)
 	if err != nil {
-		slog.Error("dashboard_stats query failed", "error", err)
+		return nil, fmt.Errorf("dashboard_stats query failed: %w", err)
 	}
 
 	return map[string]any{

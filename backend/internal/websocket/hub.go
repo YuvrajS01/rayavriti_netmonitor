@@ -109,6 +109,8 @@ type Hub struct {
 	publisher   func(ctx context.Context, msg Message)
 	scopeFilter ScopeFilterFunc
 	db          *pgxpool.Pool
+	stopOnce    sync.Once
+	stopped     bool
 }
 
 // ScopeFilterFunc determines whether a client should receive a message.
@@ -198,6 +200,12 @@ func (h *Hub) Broadcast(msg Message) {
 		h.publisher(context.Background(), msg)
 		return
 	}
+	h.mu.RLock()
+	stopped := h.stopped
+	h.mu.RUnlock()
+	if stopped {
+		return
+	}
 	select {
 	case h.broadcast <- msg:
 	default:
@@ -208,6 +216,12 @@ func (h *Hub) Broadcast(msg Message) {
 // BroadcastLocal sends a message to locally connected clients only (no Redis publish).
 // Used by the Pub/Sub subscriber to deliver messages from other instances.
 func (h *Hub) BroadcastLocal(msg Message) {
+	h.mu.RLock()
+	stopped := h.stopped
+	h.mu.RUnlock()
+	if stopped {
+		return
+	}
 	select {
 	case h.broadcast <- msg:
 	default:
@@ -222,16 +236,21 @@ func (h *Hub) SetPublisher(fn func(ctx context.Context, msg Message)) {
 }
 
 func (h *Hub) Stop() {
-	close(h.broadcast)
-	h.mu.Lock()
-	for c := range h.clients {
-		c.mu.Lock()
-		c.dead = true
-		c.mu.Unlock()
-		_ = c.conn.Close()
-	}
-	h.mu.Unlock()
-	slog.Info("WebSocket hub stopped")
+	h.stopOnce.Do(func() {
+		h.mu.Lock()
+		h.stopped = true
+		h.mu.Unlock()
+		close(h.broadcast)
+		h.mu.Lock()
+		for c := range h.clients {
+			c.mu.Lock()
+			c.dead = true
+			c.mu.Unlock()
+			_ = c.conn.Close()
+		}
+		h.mu.Unlock()
+		slog.Info("WebSocket hub stopped")
+	})
 }
 
 func (h *Hub) ConnectionCount() int {

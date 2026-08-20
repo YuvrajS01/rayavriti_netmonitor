@@ -41,6 +41,7 @@ type Server struct {
 	cancel          context.CancelFunc
 	remoteCollector *remote.Collector
 	serviceMode     *atomic.Value
+	captureHandler  *handlers.CaptureHandler
 }
 
 func New(cfg *config.Config, db database.Database, hub *websocket.Hub, logger *logging.Logger, opts ...ServerOption) *Server {
@@ -149,6 +150,7 @@ func (s *Server) Start() error {
 		MaxPackets:     s.cfg.Collector.CaptureMaxPackets,
 		MaxBytes:       s.cfg.Collector.CaptureMaxBytes,
 	})
+	s.captureHandler = capture
 	ports := handlers.NewPortsHandler(s.db)
 	dashboard := handlers.NewDashboardHandler(s.db)
 	simulator := handlers.NewSimulatorHandler(s.db)
@@ -644,6 +646,9 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	}
 	if s.remoteCollector != nil {
 		s.remoteCollector.Stop()
+	}
+	if s.captureHandler != nil {
+		s.captureHandler.Shutdown()
 	}
 	if s.httpServer != nil {
 		return s.httpServer.Shutdown(ctx)

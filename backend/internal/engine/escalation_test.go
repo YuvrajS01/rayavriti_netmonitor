@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -112,8 +113,8 @@ func TestRunCount(t *testing.T) {
 func TestStartEscalation_Disabled(t *testing.T) {
 	engine := NewEscalationEngine(nil, nil, nil, &EscalationConfig{Enabled: false})
 	err := engine.StartEscalation(context.Background(), &models.Alert{ID: 1}, 1)
-	if err != nil {
-		t.Errorf("expected nil error when disabled, got %v", err)
+	if !errors.Is(err, ErrEscalationDisabled) {
+		t.Errorf("expected ErrEscalationDisabled when disabled, got %v", err)
 	}
 }
 
