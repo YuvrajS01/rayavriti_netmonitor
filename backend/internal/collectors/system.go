@@ -19,12 +19,23 @@ type SystemCollector struct{}
 
 func (SystemCollector) Name() string { return "system" }
 
-func (SystemCollector) Collect(_ context.Context, _ *models.Device) (*Result, error) {
-	// CPU usage (averaged over 1 second, per-CPU = false for total)
+func (SystemCollector) Collect(ctx context.Context, _ *models.Device) (*Result, error) {
+	// cpu.Percent blocks for 1 second synchronously; run it in a goroutine
+	// so the poll aborts early if ctx is cancelled (M26 — previously the
+	// 1s sleep was uninterruptible, blocking worker shutdown).
+	cpuPercentsCh := make(chan []float64, 1)
+	go func() {
+		pcts, _ := cpu.Percent(time.Second, false)
+		cpuPercentsCh <- pcts
+	}()
 	cpuPercent := 0.0
-	cpuPercents, err := cpu.Percent(time.Second, false)
-	if err == nil && len(cpuPercents) > 0 {
-		cpuPercent = math.Round(cpuPercents[0]*10) / 10
+	select {
+	case cpuPercents := <-cpuPercentsCh:
+		if len(cpuPercents) > 0 {
+			cpuPercent = math.Round(cpuPercents[0]*10) / 10
+		}
+	case <-ctx.Done():
+		return nil, ctx.Err()
 	}
 	cpuCores, _ := cpu.Counts(true)
 
