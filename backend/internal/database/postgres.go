@@ -81,12 +81,26 @@ func (p *Postgres) Ping(ctx context.Context) error {
 }
 
 func (p *Postgres) RunMigrations(ctx context.Context) error {
-	// ensure tracking table exists first
+	// Ensure the tracking table exists first (migration V1).
 	if _, err := p.pool.Exec(ctx, migrations[0]); err != nil {
 		return fmt.Errorf("create schema_migrations: %w", err)
 	}
+
+	// Acquire a session-level advisory lock so only one instance runs
+	// migrations at a time (C8). This prevents a TOCTOU race where two
+	// instances both pass the EXISTS check and apply the same migration
+	// concurrently. The lock is automatically released when the session
+	// (connection) returns to the pool.
+	if _, err := p.pool.Exec(ctx, `SELECT pg_advisory_lock(727280)`); err != nil {
+		return fmt.Errorf("acquire migration advisory lock: %w", err)
+	}
+	defer func() {
+		_, _ = p.pool.Exec(ctx, `SELECT pg_advisory_unlock(727280)`)
+	}()
+
 	for i, sql := range migrations[1:] {
 		version := int64(i + 2) // 1-based, but index 0 is already applied above
+
 		var exists bool
 		err := p.pool.QueryRow(ctx,
 			`SELECT EXISTS(SELECT 1 FROM schema_migrations WHERE version=$1)`, version).Scan(&exists)
@@ -96,60 +110,39 @@ func (p *Postgres) RunMigrations(ctx context.Context) error {
 		if exists {
 			continue
 		}
-		// split on semicolons for multi-statement migrations
-		for _, stmt := range splitStatements(sql) {
-			if _, err := p.pool.Exec(ctx, stmt); err != nil {
-				// TimescaleDB hypertable errors are non-fatal if table already partitioned
-				if strings.Contains(err.Error(), "already a hypertable") {
-					continue
-				}
-				return fmt.Errorf("migration %d: %w\nSQL: %s", version, err, stmt)
-			}
+
+		// Apply the entire migration in a single transaction (C8) and let
+		// Postgres parse multi-statement SQL natively (N6 — the old
+		// splitStatements helper could not handle dollar-quoting $$ ... $$
+		// or block comments, risking silent schema corruption).
+		tx, err := p.pool.Begin(ctx)
+		if err != nil {
+			return fmt.Errorf("begin tx for migration %d: %w", version, err)
 		}
-		if _, err := p.pool.Exec(ctx,
+		if _, err := tx.Exec(ctx, sql); err != nil {
+			_ = tx.Rollback(ctx)
+			// TimescaleDB hypertable errors are non-fatal if the table
+			// is already partitioned.
+			if strings.Contains(err.Error(), "already a hypertable") {
+				// Record the version so we don't retry on every startup.
+				if _, err := p.pool.Exec(ctx,
+					`INSERT INTO schema_migrations(version) VALUES($1) ON CONFLICT DO NOTHING`, version); err != nil {
+					return fmt.Errorf("record migration %d (hypertable skip): %w", version, err)
+				}
+				continue
+			}
+			return fmt.Errorf("migration %d: %w\nSQL: %s", version, err, sql)
+		}
+		if _, err := tx.Exec(ctx,
 			`INSERT INTO schema_migrations(version) VALUES($1) ON CONFLICT DO NOTHING`, version); err != nil {
+			_ = tx.Rollback(ctx)
 			return fmt.Errorf("record migration %d: %w", version, err)
+		}
+		if err := tx.Commit(ctx); err != nil {
+			return fmt.Errorf("commit migration %d: %w", version, err)
 		}
 	}
 	return nil
-}
-
-func splitStatements(sql string) []string {
-	var stmts []string
-	var current strings.Builder
-	inSingleQuote := false
-	inDoubleQuote := false
-
-	for i := 0; i < len(sql); i++ {
-		c := sql[i]
-		switch {
-		case c == '\'' && !inDoubleQuote:
-			if i+1 < len(sql) && sql[i+1] == '\'' {
-				current.WriteByte(c)
-				current.WriteByte(c)
-				i++ // skip escaped quote
-			} else {
-				inSingleQuote = !inSingleQuote
-				current.WriteByte(c)
-			}
-		case c == '"' && !inSingleQuote:
-			inDoubleQuote = !inDoubleQuote
-			current.WriteByte(c)
-		case c == ';' && !inSingleQuote && !inDoubleQuote:
-			s := strings.TrimSpace(current.String())
-			if s != "" {
-				stmts = append(stmts, s)
-			}
-			current.Reset()
-		default:
-			current.WriteByte(c)
-		}
-	}
-	s := strings.TrimSpace(current.String())
-	if s != "" {
-		stmts = append(stmts, s)
-	}
-	return stmts
 }
 
 // ── Devices ──────────────────────────────────────────────────────────────────
