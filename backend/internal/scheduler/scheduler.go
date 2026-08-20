@@ -54,9 +54,11 @@ type Scheduler struct {
 	pipeline     *ResultPipeline
 	stateTracker *DeviceStateTracker
 
-	cancel context.CancelFunc
-	wg     sync.WaitGroup
-	config SchedulerConfig
+	cancel    context.CancelFunc
+	wg        sync.WaitGroup
+	config    SchedulerConfig
+	startOnce sync.Once
+	started   atomic.Bool
 
 	jobCount atomic.Int64
 }
@@ -142,28 +144,31 @@ func New(db database.Database, registry *collectors.Registry, hub *websocket.Hub
 }
 
 func (s *Scheduler) Start(ctx context.Context) {
-	ctx, s.cancel = context.WithCancel(ctx)
+	s.startOnce.Do(func() {
+		ctx, s.cancel = context.WithCancel(ctx)
 
-	s.pool.Start(ctx)
-	s.dispatcher.Start(ctx)
-	s.pipeline.Start(ctx)
+		s.pool.Start(ctx)
+		s.dispatcher.Start(ctx)
+		s.pipeline.Start(ctx)
 
-	devices, err := s.db.GetEnabledDevices(ctx)
-	if err != nil {
-		slog.Error("failed to fetch enabled devices on start", "error", err)
-	} else {
-		for _, d := range devices {
-			s.scheduleDevice(d)
+		devices, err := s.db.GetEnabledDevices(ctx)
+		if err != nil {
+			slog.Error("failed to fetch enabled devices on start", "error", err)
+		} else {
+			for _, d := range devices {
+				s.scheduleDevice(d)
+			}
 		}
-	}
 
-	s.wg.Add(1)
-	go s.reconcileLoop(ctx)
+		s.wg.Add(1)
+		go s.reconcileLoop(ctx)
 
-	slog.Info("async scheduler started",
-		"workers", s.config.WorkerCount,
-		"devices", s.dispatcher.Count(),
-		"reconcileInterval", s.config.ReconcileInterval)
+		s.started.Store(true)
+		slog.Info("async scheduler started",
+			"workers", s.config.WorkerCount,
+			"devices", s.dispatcher.Count(),
+			"reconcileInterval", s.config.ReconcileInterval)
+	})
 }
 
 func (s *Scheduler) Stop() {
