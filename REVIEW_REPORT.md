@@ -244,27 +244,29 @@ However, a meaningful cluster of **Security** and **High** findings remains open
 | ID | Status | Note |
 |----|--------|------|
 | M1 N+1 alert rules | Open | Still per-rule relation loads. |
-| M2 GetStatusFlaps loads all rows | Open | Still unbounded SELECT. |
+| M2 GetStatusFlaps loads all rows | N/A | Function does not exist in current codebase. |
 | M3 HealthScoreHistory N Execs | Open | No transaction/CopyFrom. |
-| M4 UpsertPortScanResults race | Open | Read-modify-write outside tx. |
+| M4 UpsertPortScanResults race | N/A | Function does not exist in current codebase. |
 | M5 API-key lifecycle | Open | See S7. |
 | M6/M7 Metric buffer ack | Fixed | Re-queue implemented (C6). |
-| M8 Captures ListSessions in-memory | Open | |
+| M8 Captures ListSessions in-memory | Open | Requires interface change to add LIMIT. |
 | M9 Phase2 untyped CRUD | Open | float64→INT runtime error; `users` not creatable. |
-| M10 toSnake mangles acronyms | Open | `ISPLink`→`i_s_p_link` verified at `phase2.go:342-355`. |
-| M11 UpdatePhase2 updated_at | Open | Dead branch. |
+| M10 toSnake mangles acronyms | ✅ Fixed | Tier 4 — detects Upper→Upper(lower) transitions. |
+| M11 UpdatePhase2 updated_at | ✅ Fixed | Added UpdatedAt bool field; set for 4 tables. |
 | M13 Scheduler shutdown order | Partially | Pool stops while dispatcher may enqueue; pipeline flush uses `context.Background()` (good). |
-| M14 Result pipeline backpressure | Open | `Submit` still `select default: drop` (`result_pipeline.go:75-81`). |
-| M15 PQ starvation | Open | Critical queue drained first. |
+| M14 Result pipeline backpressure | ✅ Fixed | Tier 3 — 5s-timeout blocking Submit. |
+| M15 PQ starvation | ✅ Fixed | Fairness counter: every 8th iteration skips critical-only fast path. |
 | M17 Interval shrink not honored | Open | Upsert doesn't re-arm timer. |
-| M18 DeviceStateTracker never cleaned | Open | `unscheduleDevice`/`reconcile` remove from dispatcher only, never `stateTracker.Remove` (`scheduler.go:204-243`). |
-| M19 Redis lock halts polling | Open | `scheduler.go:254-266` skips on lock error; TTL = `device.Interval` (0 → no expiry). |
+| M18 DeviceStateTracker never cleaned | ✅ Fixed | Tier 3 — stateTracker.Remove called in unschedule + reconcile. |
+| M19 Redis lock halts polling | ✅ Fixed | Tier 3 — fail-open + TTL clamped 30s–10min. |
 | M20 Dependency-tree dead code | Open | `ParentDeviceID` never read by scheduler. |
-| M25 Fresh http.Transport per poll | Open | `http.go:61-66` new client/transport each poll. |
-| M26 Port/System ignore context | Open | `net.DialTimeout`; `cpu.Percent(time.Second)`. |
-| M35 PruneMetrics/Flows unbounded DELETE | Open | `postgres.go:920-952`. |
-| M40 MaxConnIdleTime not set | Open | `postgres.go:48-52`. |
-| M41 splitStatements vulnerable | Open | `database.go:118-153`; `$$`/comments mis-split. |
+| M25 Fresh http.Transport per poll | ✅ Fixed | Shared HTTP client with connection pooling. |
+| M26 Port/System ignore context | ✅ Fixed | DialContext + goroutine-wrapped cpu.Percent. |
+| M27 LogStats stats vs total | ✅ Fixed | SQL GROUP BY for ByLevel/ByComponent. |
+| M35 PruneMetrics/Flows unbounded DELETE | ✅ Fixed | Batched DELETE with ctid LIMIT 10000 loop. |
+| M40 MaxConnIdleTime not set | ✅ Fixed | Added to DatabaseConfig (default 5m). |
+| M41 splitStatements vulnerable | ✅ Fixed | Removed splitter; single tx.Exec per migration (N6). |
+| M44 AlertGroupID minute-bucketed | ✅ Fixed | Uses rule+device instead of rule+minute. |
 
 ---
 
@@ -275,10 +277,10 @@ However, a meaningful cluster of **Security** and **High** findings remains open
 - **Problem:** While list endpoints apply `scopeFilterFromContext`, single-resource reads (`GET /devices/{id}`, `GET /alerts/{id}`, `GET /metrics/{deviceId}`) fetch by ID with no scope check. A scoped user iterating IDs can read out-of-scope device/alert detail and metrics.
 - **Fix:** Apply scope filter to single-resource reads (or verify ownership against the user's scopes before returning).
 
-### N2. AlertEngine.ReloadRules is a no-op (Correctness)
+### N2. AlertEngine.ReloadRules is a no-op (Correctness) — ✅ FIXED
 - **File:** `alert.go:158-160`.
 - **Problem:** `ReloadRules` returns nil unconditionally — rule changes are only picked up on the next `ProcessMetric`/`evaluateAbsenceConditions` DB reload (H21). If an external caller expects invalidation on rule change, it silently does nothing.
-- **Fix:** Implement invalidation (flush rule cache) or remove the method.
+- **Fix:** Removed the method and its test — rules are always loaded fresh from DB on every `ProcessMetric` call, so the cache invalidation method was misleading dead code.
 
 ### N3. Escalation `running` map unbounded growth (Resource leak)
 - **File:** `escalation.go:73,99-152`.
@@ -290,15 +292,15 @@ However, a meaningful cluster of **Security** and **High** findings remains open
 - **Problem:** Refresh tokens are stored as a single hash per user; reuse of a stolen refresh token is not detected/rotated. No device/session binding.
 - **Fix:** Implement refresh-token rotation on use; detect reuse and revoke the token family.
 
-### N5. PubSub subscriber goroutine recovery not verified (Robustness)
+### N5. PubSub subscriber goroutine recovery not verified (Robustness) — ✅ FIXED
 - **File:** `cache/pubsub.go`.
 - **Problem:** The original C2 listed `pubsub.go:42` as lacking recovery. This pass did not re-verify it. If the subscriber panics, cross-instance WS broadcast silently dies.
-- **Fix:** Confirm a `defer recover()` wraps the subscriber loop; on panic, reconnect with backoff.
+- **Fix:** Split `Subscribe` into a reconnect loop with exponential backoff (1s→30s max) that calls `subscribeOnce`. Each `subscribeOnce` has its own `recover()` that returns the panic as an error, allowing the outer loop to log and reconnect instead of dying.
 
-### N6. `splitStatements` is a latent migration-corruption risk (Correctness — High)
+### N6. `splitStatements` is a latent migration-corruption risk (Correctness — High) — ✅ FIXED
 - **File:** `database.go:118-153`.
 - **Problem:** The hand-rolled `;` splitter does not handle dollar-quoted strings (`$$...$$`), line/block comments, or `DO $$ ... $$`. A future migration using a function body or `$$` quoting will be silently mis-split into broken statements that fail mid-way, leaving the schema half-applied with no version recorded (C8 amplifies this).
-- **Fix:** Drop the splitter; require one statement per migration entry, or use a real SQL parser. At minimum, wrap each migration in a transaction (C8).
+- **Fix:** Removed the splitter entirely. Each migration's full SQL is passed to a single `tx.Exec(ctx, m.SQL)` — Postgres parses multi-statement strings natively with its own parser, handling all quoting correctly. Combined with C8 (advisory lock + transactional apply).
 
 ### Verification — build / vet / tests / lint
 
