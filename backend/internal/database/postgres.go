@@ -928,8 +928,24 @@ func (p *Postgres) PruneMetrics(ctx context.Context, olderThan time.Time) (int64
 			return t.RowsAffected(), nil
 		}
 	}
-	t, err := p.pool.Exec(ctx, `DELETE FROM metrics WHERE timestamp < $1`, olderThan)
-	return t.RowsAffected(), err
+	// Batch the DELETE to avoid a single massive transaction that locks
+	// rows and spikes WAL (M35 — previously one unbounded DELETE).
+	var total int64
+	const batchSize = 10000
+	for {
+		t, err := p.pool.Exec(ctx,
+			`DELETE FROM metrics WHERE ctid IN (SELECT ctid FROM metrics WHERE timestamp < $1 LIMIT $2)`,
+			olderThan, batchSize)
+		if err != nil {
+			return total, err
+		}
+		n := t.RowsAffected()
+		total += n
+		if n < batchSize {
+			break
+		}
+	}
+	return total, nil
 }
 
 func (p *Postgres) PruneFlows(ctx context.Context, olderThan time.Time) (int64, error) {
@@ -945,8 +961,23 @@ func (p *Postgres) PruneFlows(ctx context.Context, olderThan time.Time) (int64, 
 			return t.RowsAffected(), nil
 		}
 	}
-	t, err := p.pool.Exec(ctx, `DELETE FROM flows WHERE created_at < $1`, olderThan)
-	return t.RowsAffected(), err
+	// Batch the DELETE to avoid a single massive transaction (M35).
+	var total int64
+	const batchSize = 10000
+	for {
+		t, err := p.pool.Exec(ctx,
+			`DELETE FROM flows WHERE ctid IN (SELECT ctid FROM flows WHERE created_at < $1 LIMIT $2)`,
+			olderThan, batchSize)
+		if err != nil {
+			return total, err
+		}
+		n := t.RowsAffected()
+		total += n
+		if n < batchSize {
+			break
+		}
+	}
+	return total, nil
 }
 
 func (p *Postgres) PruneAlerts(ctx context.Context, olderThan time.Time) (int64, error) {
