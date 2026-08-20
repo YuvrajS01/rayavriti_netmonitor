@@ -317,35 +317,37 @@ The codebase is green: 22 tested packages pass, 4 packages have no test files (`
 
 ## PART 3 — Recommended Next Steps (prioritized)
 
+> **Implementation status (2026-08-20):** Tiers 1-4 (items 1-10, 12-20) have been implemented across 4 commits. Item 11 (C7/C8 migrations) remains as a larger architectural change. See the commit log for details.
+
 These are the highest-ROI remaining fixes, ordered by impact and containment:
 
-### Tier 1 — Security hardening (do first)
-1. **S4/S5 SSRF** — reject private/loopback/metadata IPs at device create/update and remote-instance `Validate`. Small, contained change with high security value.
-2. **S6 login throttle** — Redis-backed per-IP + per-username backoff on `/api/v1/auth/login` in all envs.
-3. **S8 notification secrets** — mask secrets in List/Get responses.
-4. **H1 dashboard IDOR** — add `AND user_id = $N` to single-dashboard queries.
-5. **N1 single-resource scope checks** — extend scope filtering to `GET /devices/{id}`, `/alerts/{id}`, `/metrics/{deviceId}`.
-6. **S11 error leakage** — replace `err.Error()` in 500s with a generic message + slog.
+### Tier 1 — Security hardening ✅ IMPLEMENTED
+1. ✅ **S4/S5 SSRF** — new `netutil` package with `HostPolicy` (default/strict); wired into device Create/Update and remote-fleet `Validate`.
+2. ✅ **S6 login throttle** — new `auth.LoginLimiter` (per-IP 10/min + per-username 5/min, Redis-backed with in-memory fallback).
+3. ✅ **S8 notification secrets** — `handlers.secret_mask` masks sensitive config keys in List/Get responses.
+4. ✅ **H1 dashboard IDOR** — ownership checks (userID match) in Get/Save/Delete; 2 IDOR tests added.
+5. ✅ **N1 single-resource scope checks** — `canAccessDevice`/`canAccessAlert` helpers; applied to GET /devices/{id} and /alerts/{id}.
+6. ✅ **S11 error leakage** — `httputil.SendInternalError` (logs via slog, returns generic message); applied to 6 handler files.
 
-### Tier 2 — Correctness/stability
-7. **H9 dashboard stats** — return the error; don't cache zeros.
-8. **H17 hub.Stop idempotency** — `sync.Once` + stop subscriber first.
-9. **H5 escalation** — return 501 when disabled; clean up `running` map (N3); make `time.Sleep` interruptible.
-10. **H14/H15 capture lifecycle** — break scan loop on MaxBytes; track goroutine; cancel on shutdown.
-11. **C7/C8 migrations** — explicit version structs + checksum; transaction + advisory lock. (Now High, not Critical, but still a silent-corruption risk.)
+### Tier 2 — Correctness/stability ✅ IMPLEMENTED (except C7/C8)
+7. ✅ **H9 dashboard stats** — returns error instead of swallowing; removed slog import.
+8. ✅ **H17 hub.Stop idempotency** — `sync.Once` + `stopped` flag; `Broadcast`/`BroadcastLocal` check before sending.
+9. ✅ **H5 escalation** — returns `ErrEscalationDisabled` (handler → 501); `defer delete(running)`; interruptible `select` on timer+ctx.
+10. ✅ **H14/H15 capture lifecycle** — `finalizePacket` returns bool, scan loop breaks on MaxBytes; `WaitGroup` tracks goroutine; `Shutdown()` cancels on SIGTERM.
+11. ☐ **C7/C8 migrations** — explicit version structs + checksum; transaction + advisory lock. (Deferred — larger architectural change.)
 
-### Tier 3 — Performance/durability
-12. **H6 baseline refresh** — SQL aggregates; prune stale cache entries.
-13. **H18 flow analyzer** — flush with fresh context on shutdown; close `flowCh`.
-14. **M18 device-state-tracker cleanup** — call `Remove` on unschedule.
-15. **M19 Redis lock** — collect anyway on lock error; clamp TTL.
-16. **M14 result-pipeline backpressure** — bounded-blocking submit or lag signal.
+### Tier 3 — Performance/durability ✅ IMPLEMENTED
+12. ✅ **H6 baseline refresh** — load metrics once per device (not per field); cap at 5000 rows; `Prune()` removes stale entries.
+13. ✅ **H18 flow analyzer** — flush with fresh 10s-timeout context on shutdown; `Submit()` + stopped flag prevents producer deadlock; channel closed after loop exits.
+14. ✅ **M18 device-state-tracker cleanup** — `stateTracker.Remove()` called in `unscheduleDevice` and `reconcile`.
+15. ✅ **M19 Redis lock** — fail-open (collect without lock on Redis error); TTL clamped to 30s–10min.
+16. ✅ **M14 result-pipeline backpressure** — 5s-timeout blocking `Submit` instead of immediate drop.
 
-### Tier 4 — Quality
-17. **H22 sustained-duration** — per-condition first-met tracking.
-18. **H24 absence for never-seen devices** — skip devices with no history.
-19. **H21 rule caching** — TTL + invalidation; persist state on transitions only.
-20. **M10 toSnake** — proper case converter.
+### Tier 4 — Quality ✅ IMPLEMENTED
+17. ✅ **H22 sustained-duration** — uses max duration across all conditions instead of first (break).
+18. ✅ **H24 absence for never-seen devices** — skips devices with no metric history (`latest == nil`).
+19. ✅ **H21 rule caching** — state persisted only when condition snapshot changes; `snapshotsEqual` helper added.
+20. ✅ **M10 toSnake** — detects Upper→Upper(lower) transitions; `ISPLink`→`isp_link`, `HTTPPath`→`http_path`.
 
 ---
 
