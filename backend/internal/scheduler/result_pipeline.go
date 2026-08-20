@@ -119,10 +119,9 @@ func (rp *ResultPipeline) run(ctx context.Context) {
 
 func (rp *ResultPipeline) processBatch(ctx context.Context, batch []PollResult) {
 	metrics := make([]*models.Metric, 0, len(batch))
-	now := time.Now()
 
 	for _, pr := range batch {
-		metric := rp.buildMetric(pr, now)
+		metric := rp.buildMetric(pr)
 		metrics = append(metrics, metric)
 
 		if rp.hub != nil {
@@ -151,17 +150,25 @@ func (rp *ResultPipeline) processBatch(ctx context.Context, batch []PollResult) 
 	}
 }
 
-func (rp *ResultPipeline) buildMetric(pr PollResult, now time.Time) *models.Metric {
+func (rp *ResultPipeline) buildMetric(pr PollResult) *models.Metric {
 	status := pr.Status
 	if status == "" {
 		status = pr.Device.Status
+	}
+
+	// Use the actual poll completion time, not the batch processing time,
+	// so metrics from polls that completed seconds apart have accurate
+	// timestamps (M37 — previously all metrics in a batch shared now).
+	ts := pr.FinishedAt
+	if ts.IsZero() {
+		ts = time.Now()
 	}
 
 	metric := &models.Metric{
 		DeviceID:   pr.Device.ID,
 		DeviceName: pr.Device.Name,
 		Protocol:   pr.Device.Protocol,
-		Timestamp:  now,
+		Timestamp:  ts,
 		Status:     status,
 	}
 
