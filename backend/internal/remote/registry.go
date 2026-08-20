@@ -14,6 +14,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rayavriti/netmonitor-backend/internal/netutil"
 )
 
 type Store struct {
@@ -57,6 +58,13 @@ func Validate(input CreateInstance) error {
 	u, err := url.ParseRequestURI(strings.TrimSpace(input.URL))
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
 		return fmt.Errorf("url must be an absolute http(s) URL")
+	}
+	// SSRF prevention: the remote-fleet fetcher reaches out to arbitrary
+	// external URLs, so apply the strict policy that also rejects private
+	// ranges (prevents probing internal infrastructure via a registered
+	// remote instance).
+	if err := netutil.ValidateHost(u.Hostname(), netutil.StrictHostPolicy()); err != nil {
+		return fmt.Errorf("remote instance URL host not allowed: %w", err)
 	}
 	if input.PollIntervalS != 0 && (input.PollIntervalS < 10 || input.PollIntervalS > 3600) {
 		return fmt.Errorf("pollIntervalS must be between 10 and 3600")

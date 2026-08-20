@@ -135,7 +135,7 @@ func (s *Server) Start() error {
 
 	// Handlers
 	health := handlers.NewHealthHandler(s.db)
-	authH := handlers.NewAuthHandler(s.db, s.cfg)
+	authH := handlers.NewAuthHandler(s.db, s.cfg).WithLoginLimiter(auth.NewLoginLimiter(ctx, s.rdb))
 	device := handlers.NewDeviceHandler(s.db).WithAlertEngine(s.alertEng)
 	metric := handlers.NewMetricHandler(s.db)
 	alert := handlers.NewAlertHandler(s.db)

@@ -18,7 +18,7 @@ func (h *DashboardHandler) List(w http.ResponseWriter, r *http.Request) {
 	claims := auth.GetClaims(r.Context())
 	ds, err := h.db.GetDashboards(r.Context(), claims.UserID)
 	if err != nil {
-		httputil.SendError(w, 500, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	httputil.SendOK(w, ds)
@@ -32,6 +32,12 @@ func (h *DashboardHandler) Get(w http.ResponseWriter, r *http.Request) {
 	}
 	d, err := h.db.GetDashboard(r.Context(), id)
 	if err != nil {
+		httputil.SendError(w, 404, "not found")
+		return
+	}
+	// IDOR prevention: only the owner can read their dashboard.
+	claims := auth.GetClaims(r.Context())
+	if d.UserID != claims.UserID {
 		httputil.SendError(w, 404, "not found")
 		return
 	}
@@ -49,10 +55,20 @@ func (h *DashboardHandler) Save(w http.ResponseWriter, r *http.Request) {
 	if idStr := chi.URLParam(r, "id"); idStr != "" {
 		id, _ := parseID(idStr)
 		d.ID = id
+		// IDOR prevention: verify ownership before updating an existing dashboard.
+		existing, err := h.db.GetDashboard(r.Context(), id)
+		if err != nil {
+			httputil.SendError(w, 404, "not found")
+			return
+		}
+		if existing.UserID != claims.UserID {
+			httputil.SendError(w, 404, "not found")
+			return
+		}
 	}
 	saved, err := h.db.SaveDashboard(r.Context(), &d)
 	if err != nil {
-		httputil.SendError(w, 500, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	httputil.SendOK(w, saved)
@@ -64,8 +80,19 @@ func (h *DashboardHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		httputil.SendError(w, 400, "invalid id")
 		return
 	}
+	// IDOR prevention: verify ownership before deleting.
+	claims := auth.GetClaims(r.Context())
+	existing, err := h.db.GetDashboard(r.Context(), id)
+	if err != nil {
+		httputil.SendError(w, 404, "not found")
+		return
+	}
+	if existing.UserID != claims.UserID {
+		httputil.SendError(w, 404, "not found")
+		return
+	}
 	if err := h.db.DeleteDashboard(r.Context(), id); err != nil {
-		httputil.SendError(w, 500, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	httputil.SendOK(w, map[string]string{"message": "deleted"})

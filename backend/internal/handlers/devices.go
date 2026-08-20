@@ -14,6 +14,7 @@ import (
 	"github.com/rayavriti/netmonitor-backend/internal/database"
 	"github.com/rayavriti/netmonitor-backend/internal/httputil"
 	"github.com/rayavriti/netmonitor-backend/internal/models"
+	"github.com/rayavriti/netmonitor-backend/internal/netutil"
 	"github.com/rayavriti/netmonitor-backend/internal/scanner"
 )
 
@@ -78,7 +79,7 @@ func (h *DeviceHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	devices, total, err := h.db.GetDevicesFiltered(r.Context(), f)
 	if err != nil {
-		httputil.SendError(w, http.StatusInternalServerError, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 
@@ -97,6 +98,11 @@ func (h *DeviceHandler) Get(w http.ResponseWriter, r *http.Request) {
 	}
 	d, err := h.db.GetDevice(r.Context(), id)
 	if err != nil {
+		httputil.SendError(w, http.StatusNotFound, "device not found")
+		return
+	}
+	// N1: scope check on single-resource read.
+	if !canAccessDevice(r, d) {
 		httputil.SendError(w, http.StatusNotFound, "device not found")
 		return
 	}
@@ -167,11 +173,19 @@ func (h *DeviceHandler) Create(w http.ResponseWriter, r *http.Request) {
 	if d.Interval == 0 {
 		d.Interval = 60
 	}
+	// SSRF prevention: reject loopback, link-local (incl. cloud metadata
+	// 169.254.169.254), and unspecified addresses. Private ranges are
+	// permitted because monitoring internal infrastructure is the core use
+	// case.
+	if err := netutil.ValidateHost(d.IPAddress, netutil.DefaultHostPolicy()); err != nil {
+		httputil.SendError(w, http.StatusBadRequest, "ipAddress is not allowed: "+err.Error())
+		return
+	}
 	d.Enabled = true
 	d.Status = "unknown"
 	created, err := h.db.CreateDevice(r.Context(), &d)
 	if err != nil {
-		httputil.SendError(w, http.StatusInternalServerError, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	httputil.SendCreated(w, created)
@@ -189,7 +203,7 @@ func (h *DeviceHandler) Update(w http.ResponseWriter, r *http.Request) {
 			httputil.SendError(w, http.StatusNotFound, "device not found")
 			return
 		}
-		httputil.SendError(w, http.StatusInternalServerError, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	var patch models.Device
@@ -232,6 +246,11 @@ func (h *DeviceHandler) Update(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		existing.IPAddress = normalizeHost(origIP)
+		// SSRF prevention: reject loopback/link-local/unspecified targets.
+		if err := netutil.ValidateHost(existing.IPAddress, netutil.DefaultHostPolicy()); err != nil {
+			httputil.SendError(w, http.StatusBadRequest, "ipAddress is not allowed: "+err.Error())
+			return
+		}
 	}
 	if patch.Protocol != "" {
 		existing.Protocol = patch.Protocol
@@ -292,7 +311,7 @@ func (h *DeviceHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 	updated, err := h.db.UpdateDevice(r.Context(), id, existing)
 	if err != nil {
-		httputil.SendError(w, http.StatusInternalServerError, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	httputil.SendOK(w, updated)
@@ -309,7 +328,7 @@ func (h *DeviceHandler) Delete(w http.ResponseWriter, r *http.Request) {
 			httputil.SendError(w, http.StatusNotFound, "device not found")
 			return
 		}
-		httputil.SendError(w, http.StatusInternalServerError, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	httputil.SendOK(w, map[string]string{"message": "deleted"})

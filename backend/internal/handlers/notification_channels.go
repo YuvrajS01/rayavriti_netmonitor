@@ -22,13 +22,13 @@ func NewNotificationChannelHandler(db database.Database) *NotificationChannelHan
 func (h *NotificationChannelHandler) List(w http.ResponseWriter, r *http.Request) {
 	channels, err := h.db.GetNotificationChannels(r.Context())
 	if err != nil {
-		httputil.SendError(w, 500, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	if channels == nil {
 		channels = []models.NotificationChannel{}
 	}
-	httputil.SendOK(w, channels)
+	httputil.SendOK(w, maskChannels(channels))
 }
 
 func (h *NotificationChannelHandler) Get(w http.ResponseWriter, r *http.Request) {
@@ -42,7 +42,7 @@ func (h *NotificationChannelHandler) Get(w http.ResponseWriter, r *http.Request)
 		httputil.SendError(w, 404, "notification channel not found")
 		return
 	}
-	httputil.SendOK(w, ch)
+	httputil.SendOK(w, maskChannel(ch))
 }
 
 func (h *NotificationChannelHandler) Create(w http.ResponseWriter, r *http.Request) {
@@ -65,7 +65,7 @@ func (h *NotificationChannelHandler) Create(w http.ResponseWriter, r *http.Reque
 	ch.Enabled = true
 	created, err := h.db.CreateNotificationChannel(r.Context(), &ch)
 	if err != nil {
-		httputil.SendError(w, 500, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	httputil.SendCreated(w, created)
@@ -88,7 +88,7 @@ func (h *NotificationChannelHandler) Update(w http.ResponseWriter, r *http.Reque
 	}
 	updated, err := h.db.UpdateNotificationChannel(r.Context(), id, &ch)
 	if err != nil {
-		httputil.SendError(w, 500, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	httputil.SendOK(w, updated)
@@ -101,7 +101,7 @@ func (h *NotificationChannelHandler) Delete(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	if err := h.db.DeleteNotificationChannel(r.Context(), id); err != nil {
-		httputil.SendError(w, 500, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	httputil.SendOK(w, map[string]bool{"deleted": true})

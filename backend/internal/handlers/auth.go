@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"fmt"
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -15,12 +16,19 @@ import (
 )
 
 type AuthHandler struct {
-	db  database.Database
-	cfg *config.Config
+	db           database.Database
+	cfg          *config.Config
+	loginLimiter *auth.LoginLimiter
 }
 
 func NewAuthHandler(db database.Database, cfg *config.Config) *AuthHandler {
 	return &AuthHandler{db: db, cfg: cfg}
+}
+
+// WithLoginLimiter attaches a brute-force throttle to the login endpoints.
+func (h *AuthHandler) WithLoginLimiter(ll *auth.LoginLimiter) *AuthHandler {
+	h.loginLimiter = ll
+	return h
 }
 
 func (h *AuthHandler) authenticate(w http.ResponseWriter, r *http.Request, includeExpires bool) {
@@ -32,6 +40,17 @@ func (h *AuthHandler) authenticate(w http.ResponseWriter, r *http.Request, inclu
 		httputil.SendError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
+
+	// Brute-force throttle: per-IP + per-username sliding window.
+	if h.loginLimiter != nil {
+		ip := clientIP(r)
+		allowed, reason := h.loginLimiter.Allow(ip, body.Username)
+		if !allowed {
+			httputil.SendError(w, http.StatusTooManyRequests, reason)
+			return
+		}
+	}
+
 	user, err := h.db.GetUserByUsername(r.Context(), body.Username)
 	if err != nil || !auth.CheckPassword(body.Password, user.PasswordHash) {
 		httputil.SendError(w, http.StatusUnauthorized, "invalid credentials")
@@ -40,6 +59,11 @@ func (h *AuthHandler) authenticate(w http.ResponseWriter, r *http.Request, inclu
 	if !user.Enabled {
 		httputil.SendError(w, http.StatusForbidden, "account disabled")
 		return
+	}
+
+	// Successful authentication: clear the per-username throttle counter.
+	if h.loginLimiter != nil {
+		h.loginLimiter.ResetSuccess(body.Username)
 	}
 
 	// Load permissions from the roles table
@@ -442,4 +466,22 @@ func permissionsForRole(role string) []string {
 	default:
 		return nil
 	}
+}
+
+// clientIP extracts the client IP from a request, accounting for
+// X-Forwarded-For when the request is behind a reverse proxy.
+func clientIP(r *http.Request) string {
+	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+		for i := 0; i < len(xff); i++ {
+			if xff[i] == ',' {
+				return strings.TrimSpace(xff[:i])
+			}
+		}
+		return strings.TrimSpace(xff)
+	}
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return r.RemoteAddr
+	}
+	return host
 }
