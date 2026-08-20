@@ -339,12 +339,25 @@ func rowsToMaps(rows pgx.Rows) ([]map[string]any, error) {
 	return out, rows.Err()
 }
 
+// toSnake converts a camelCase or PascalCase string to snake_case.
+// Handles acronyms correctly: consecutive capitals are treated as a single
+// acronym (e.g. "ISPLink" → "isp_link", "HTTPPath" → "http_path").
 func toSnake(s string) string {
 	var b strings.Builder
-	for i, r := range s {
+	runes := []rune(s)
+	for i, r := range runes {
 		if r >= 'A' && r <= 'Z' {
 			if i > 0 {
-				b.WriteByte('_')
+				prev := runes[i-1]
+				nextIsLower := i+1 < len(runes) && runes[i+1] >= 'a' && runes[i+1] <= 'z'
+				if prev >= 'a' && prev <= 'z' {
+					// lower→Upper: new word (camelCase boundary)
+					b.WriteByte('_')
+				} else if prev >= 'A' && prev <= 'Z' && nextIsLower {
+					// Upper→Upper(lower): this capital is the start of a
+					// new word after an acronym (e.g. the 'L' in "ISPLink").
+					b.WriteByte('_')
+				}
 			}
 			b.WriteRune(r + ('a' - 'A'))
 			continue

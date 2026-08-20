@@ -219,14 +219,17 @@ func (e *AlertEngine) checkAbsence(ctx context.Context, rule *models.AlertRule, 
 		return
 	}
 
+	// Skip devices with no metric history: a newly added device should not
+	// fire an absence alert on the first tick. The absence clock starts at
+	// first-seen (H24).
+	if latest == nil {
+		return
+	}
+
 	metric := &models.Metric{
 		DeviceID:  device.ID,
-		Timestamp: time.Now().Add(-24 * time.Hour),
-		Status:    "unknown",
-	}
-	if latest != nil {
-		metric.Timestamp = latest.Timestamp
-		metric.Status = latest.Status
+		Timestamp: latest.Timestamp,
+		Status:    latest.Status,
 	}
 
 	cr := EvaluateCondition(condition, metric, "", nil)
@@ -357,11 +360,14 @@ func (e *AlertEngine) handleConditionMet(
 	now time.Time,
 	results []ConditionResult,
 ) {
+	// Use the maximum duration across all conditions so that every condition
+	// must sustain for at least its own duration before firing. This is more
+	// correct than the previous behavior which used only the first condition's
+	// duration and ignored the rest (H22).
 	sustainedDuration := rule.CooldownSec
 	for _, cond := range rule.Conditions {
-		if cond.DurationSeconds > 0 {
+		if cond.DurationSeconds > sustainedDuration {
 			sustainedDuration = cond.DurationSeconds
-			break
 		}
 	}
 
@@ -385,16 +391,19 @@ func (e *AlertEngine) handleConditionMet(
 				return
 			}
 		}
-		state.LastEvaluatedAt = &now
-		state.ConditionSnapshot = snapshotFromResults(results)
-		e.upsertState(ctx, state)
+		// Only persist state if the condition snapshot changed to avoid
+		// writing on every single evaluation (H21).
+		newSnapshot := snapshotFromResults(results)
+		if !snapshotsEqual(state.ConditionSnapshot, newSnapshot) {
+			state.LastEvaluatedAt = &now
+			state.ConditionSnapshot = newSnapshot
+			e.upsertState(ctx, state)
+		}
 
 	case "resolved":
 		if state.LastResolvedAt != nil {
 			cooldownLeft := float64(rule.CooldownSec) - now.Sub(*state.LastResolvedAt).Seconds()
 			if cooldownLeft > 0 {
-				state.LastEvaluatedAt = &now
-				e.upsertState(ctx, state)
 				return
 			}
 		}
@@ -702,4 +711,23 @@ func (e *AlertEngine) upsertState(ctx context.Context, s *models.AlertRuleState)
 
 func snapshotFromResults(results []ConditionResult) map[string]any {
 	return map[string]any{"results": results}
+}
+
+// snapshotsEqual returns true if two condition snapshots represent the same
+// set of condition results. Used to avoid redundant state writes (H21).
+func snapshotsEqual(a, b map[string]any) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	aResults, aOK := a["results"].([]ConditionResult)
+	bResults, bOK := b["results"].([]ConditionResult)
+	if !aOK || !bOK || len(aResults) != len(bResults) {
+		return false
+	}
+	for i := range aResults {
+		if aResults[i] != bResults[i] {
+			return false
+		}
+	}
+	return true
 }
