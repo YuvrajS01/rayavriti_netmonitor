@@ -259,7 +259,10 @@ func (s *Server) Start() error {
 				}
 				return false
 			default:
-				return true
+				// Default: deny non-device events to scoped users (M34 —
+				// previously defaulted to true, leaking all non-device
+				// events to location-scoped users).
+				return false
 			}
 		})
 	}
