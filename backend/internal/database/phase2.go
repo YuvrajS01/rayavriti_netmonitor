@@ -13,28 +13,29 @@ import (
 )
 
 type phase2Resource struct {
-	Table   string
-	Select  string
-	Cols    map[string]bool
-	OrderBy string
+	Table     string
+	Select    string
+	Cols      map[string]bool
+	OrderBy   string
+	UpdatedAt bool // true if the table has an updated_at column
 }
 
 var phase2Resources = map[string]phase2Resource{
-	"locations":                    {Table: "locations", OrderBy: "sort_order ASC, id ASC", Cols: colset("name", "type", "parent_id", "code", "description", "address", "latitude", "longitude", "floor_number", "contact_person_id", "metadata", "sort_order", "enabled")},
+	"locations":                    {Table: "locations", OrderBy: "sort_order ASC, id ASC", Cols: colset("name", "type", "parent_id", "code", "description", "address", "latitude", "longitude", "floor_number", "contact_person_id", "metadata", "sort_order", "enabled"), UpdatedAt: true},
 	"subnets":                      {Table: "subnets", OrderBy: "id ASC", Cols: colset("name", "vlan_id", "cidr", "gateway", "description", "location_id", "dns_servers", "dhcp_enabled")},
 	"suppressed_alerts":            {Table: "suppressed_alerts", OrderBy: "created_at DESC", Cols: colset("device_id", "rule_id", "suppression_reason", "root_cause_device_id", "root_cause_alert_id", "would_have_fired_at", "released_at")},
 	"discovery_jobs":               {Table: "discovery_jobs", OrderBy: "started_at DESC", Cols: colset("subnet", "scan_type", "status", "location_id", "initiated_by", "total_ips_scanned", "devices_found", "devices_new", "devices_known", "completed_at", "error_message")},
 	"discovery_results":            {Table: "discovery_results", OrderBy: "discovered_at DESC", Cols: colset("job_id", "ip_address", "mac_address", "manufacturer", "hostname", "device_description", "guessed_category", "guessed_os", "open_ports", "snmp_reachable", "response_time_ms", "status", "approved_device_id")},
 	"status_page_services":         {Table: "status_page_services", OrderBy: "display_order ASC, id ASC", Cols: colset("name", "description", "group_name", "aggregation", "display_order", "show_response_time", "show_uptime", "enabled")},
-	"status_page_incidents":        {Table: "status_page_incidents", OrderBy: "started_at DESC", Cols: colset("title", "message", "severity", "status", "started_at", "resolved_at", "created_by")},
+	"status_page_incidents":        {Table: "status_page_incidents", OrderBy: "started_at DESC", Cols: colset("title", "message", "severity", "status", "started_at", "resolved_at", "created_by"), UpdatedAt: true},
 	"status_page_incident_updates": {Table: "status_page_incident_updates", OrderBy: "created_at ASC", Cols: colset("incident_id", "status", "message", "created_by")},
-	"maintenance_windows":          {Table: "maintenance_windows", OrderBy: "created_at DESC", Cols: colset("name", "description", "scope_type", "scope_value", "schedule_type", "start_time", "end_time", "recurrence_rule", "recurrence_start_time", "recurrence_end_time", "recurrence_timezone", "suppress_alerts", "suppress_notifications", "show_maintenance_status", "created_by", "enabled")},
+	"maintenance_windows":          {Table: "maintenance_windows", OrderBy: "created_at DESC", Cols: colset("name", "description", "scope_type", "scope_value", "schedule_type", "start_time", "end_time", "recurrence_rule", "recurrence_start_time", "recurrence_end_time", "recurrence_timezone", "suppress_alerts", "suppress_notifications", "show_maintenance_status", "created_by", "enabled"), UpdatedAt: true},
 	"contacts":                     {Table: "contacts", OrderBy: "name ASC", Cols: colset("name", "designation", "department", "email", "phone", "telegram_chat_id", "whatsapp_number", "preferred_channel", "notification_enabled", "quiet_hours_start", "quiet_hours_end", "user_id", "enabled")},
 	"device_contacts":              {Table: "device_contacts", OrderBy: "id ASC", Cols: colset("device_id", "location_id", "contact_id", "role", "notify_on")},
 	"escalation_policies":          {Table: "escalation_policies", OrderBy: "id ASC", Cols: colset("name", "description", "scope_type", "scope_value", "enabled")},
 	"escalation_steps":             {Table: "escalation_steps", OrderBy: "policy_id ASC, step_order ASC", Cols: colset("policy_id", "step_order", "contact_id", "delay_minutes", "notify_via", "repeat_count", "repeat_interval_minutes")},
 	"oncall_schedules":             {Table: "oncall_schedules", OrderBy: "id ASC", Cols: colset("name", "policy_id", "rotation_type", "participants", "current_index", "rotation_time", "timezone", "enabled")},
-	"incidents":                    {Table: "incidents", OrderBy: "started_at DESC", Cols: colset("title", "description", "severity", "status", "root_cause", "root_cause_category", "resolution", "source", "source_alert_id", "assigned_to", "location_id", "impact_description", "affected_device_count", "started_at", "acknowledged_at", "resolved_at", "closed_at", "duration_seconds", "sla_breached", "created_by")},
+	"incidents":                    {Table: "incidents", OrderBy: "started_at DESC", Cols: colset("title", "description", "severity", "status", "root_cause", "root_cause_category", "resolution", "source", "source_alert_id", "assigned_to", "location_id", "impact_description", "affected_device_count", "started_at", "acknowledged_at", "resolved_at", "closed_at", "duration_seconds", "sla_breached", "created_by"), UpdatedAt: true},
 	"incident_timeline":            {Table: "incident_timeline", OrderBy: "created_at ASC", Cols: colset("incident_id", "entry_type", "old_value", "new_value", "message", "author")},
 	"sla_definitions":              {Table: "sla_definitions", OrderBy: "id ASC", Cols: colset("name", "severity", "response_time_minutes", "resolution_time_minutes", "enabled")},
 	"roles":                        {Table: "roles", OrderBy: "id ASC", Cols: colset("name", "display_name", "description", "permissions", "is_system")},
@@ -236,7 +237,7 @@ func (p *Postgres) UpdatePhase2(ctx context.Context, resource string, id int64, 
 	}
 	args = append(args, id)
 	query := fmt.Sprintf("UPDATE %s SET %s WHERE id=$%d", res.Table, strings.Join(sets, ","), len(args))
-	if res.Cols["updated_at"] {
+	if res.UpdatedAt {
 		query = fmt.Sprintf("UPDATE %s SET %s,updated_at=NOW() WHERE id=$%d", res.Table, strings.Join(sets, ","), len(args))
 	}
 	if _, err := p.pool.Exec(ctx, query, args...); err != nil {

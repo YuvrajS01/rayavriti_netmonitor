@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"math"
 	"strings"
 	"time"
@@ -25,6 +26,7 @@ type DatabaseConfig struct {
 	MaxConns          int32
 	MinConns          int32
 	MaxConnLifetime   time.Duration
+	MaxConnIdleTime   time.Duration
 	HealthCheckPeriod time.Duration
 }
 
@@ -34,6 +36,7 @@ func NewPostgres(dsn string, cfg *DatabaseConfig) *Postgres {
 			MaxConns:          20,
 			MinConns:          2,
 			MaxConnLifetime:   time.Hour,
+			MaxConnIdleTime:   5 * time.Minute,
 			HealthCheckPeriod: 30 * time.Second,
 		}
 	}
@@ -48,6 +51,7 @@ func (p *Postgres) Connect(ctx context.Context) error {
 	cfg.MaxConns = p.cfg.MaxConns
 	cfg.MinConns = p.cfg.MinConns
 	cfg.MaxConnLifetime = p.cfg.MaxConnLifetime
+	cfg.MaxConnIdleTime = p.cfg.MaxConnIdleTime
 	cfg.HealthCheckPeriod = p.cfg.HealthCheckPeriod
 	pool, err := pgxpool.NewWithConfig(ctx, cfg)
 	if err != nil {
@@ -58,7 +62,9 @@ func (p *Postgres) Connect(ctx context.Context) error {
 		return err
 	}
 	var hasTS bool
-	_ = p.pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM pg_extension WHERE extname='timescaledb')`).Scan(&hasTS)
+	if err := p.pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM pg_extension WHERE extname='timescaledb')`).Scan(&hasTS); err != nil {
+		slog.Warn("failed to check TimescaleDB extension; falling back to unbounded DELETE pruning", "error", err)
+	}
 	p.hasTimescaleDB = hasTS
 	return nil
 }

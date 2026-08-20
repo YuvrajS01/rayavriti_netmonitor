@@ -155,10 +155,6 @@ func (e *AlertEngine) Stop() {
 	slog.Info("Alert engine stopped")
 }
 
-func (e *AlertEngine) ReloadRules(_ context.Context) error {
-	return nil
-}
-
 // ── absence background loop ──────────────────────────────────────────────────
 
 func (e *AlertEngine) absenceLoop(ctx context.Context) {

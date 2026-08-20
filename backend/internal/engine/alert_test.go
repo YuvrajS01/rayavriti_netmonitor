@@ -392,14 +392,6 @@ func TestAlertEngine_StartStop(t *testing.T) {
 	engine.Stop()
 }
 
-func TestAlertEngine_ReloadRules(t *testing.T) {
-	t.Parallel()
-	db := &mockDB{}
-	engine := NewAlertEngine(db, nil, nil)
-	err := engine.ReloadRules(context.Background())
-	require.NoError(t, err)
-}
-
 func TestSnapshotFromResults(t *testing.T) {
 	t.Parallel()
 	results := []ConditionResult{

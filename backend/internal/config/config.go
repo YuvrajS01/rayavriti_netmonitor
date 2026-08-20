@@ -41,6 +41,7 @@ type DatabaseConfig struct {
 	MaxConns          int
 	MinConns          int
 	MaxConnLifetime   time.Duration
+	MaxConnIdleTime   time.Duration
 	HealthCheckPeriod time.Duration
 }
 
@@ -169,6 +170,7 @@ func Load() (*Config, error) {
 			MaxConns:          envInt("DB_MAX_CONNS", 20),
 			MinConns:          envInt("DB_MIN_CONNS", 2),
 			MaxConnLifetime:   envDuration("DB_MAX_CONN_LIFETIME", 1*time.Hour),
+			MaxConnIdleTime:   envDuration("DB_MAX_CONN_IDLE_TIME", 5*time.Minute),
 			HealthCheckPeriod: envDuration("DB_HEALTH_CHECK_PERIOD", 30*time.Second),
 		},
 		Redis: RedisConfig{
