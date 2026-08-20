@@ -203,6 +203,9 @@ func (s *Scheduler) scheduleDevice(d models.Device) {
 
 func (s *Scheduler) unscheduleDevice(deviceID int64) {
 	s.dispatcher.Remove(deviceID)
+	// Clean up state tracker entry so deleted/disabled devices don't
+	// accumulate forever in the map (M18).
+	s.stateTracker.Remove(deviceID)
 	s.jobCount.Store(int64(s.dispatcher.Count()))
 }
 
@@ -239,6 +242,7 @@ func (s *Scheduler) reconcile(ctx context.Context) {
 		if !currentIDs[id] {
 			slog.Info("device removed or disabled, unscheduling", "device_id", id)
 			s.dispatcher.Remove(id)
+			s.stateTracker.Remove(id)
 		}
 	}
 	s.jobCount.Store(int64(s.dispatcher.Count()))
@@ -253,16 +257,29 @@ func (s *Scheduler) collectAndReturnResult(ctx context.Context, job PollJob) Pol
 
 	if s.rdb != nil {
 		lockKey := fmt.Sprintf("collect:%d", job.Device.ID)
-		locked, release, err := s.rdb.TryLock(ctx, lockKey, time.Duration(job.Device.Interval)*time.Second)
-		if err != nil || !locked {
-			if err != nil {
-				slog.Warn("distributed lock failed", "deviceID", job.Device.ID, "error", err)
-			}
+		// Clamp TTL to a sane range so a device with interval=0 doesn't
+		// create a lock with no expiry (which would permanently block
+		// all other instances from polling it after a crash).
+		lockTTL := time.Duration(job.Device.Interval) * time.Second
+		if lockTTL < 30*time.Second {
+			lockTTL = 30 * time.Second
+		}
+		if lockTTL > 10*time.Minute {
+			lockTTL = 10 * time.Minute
+		}
+		locked, release, err := s.rdb.TryLock(ctx, lockKey, lockTTL)
+		if err != nil {
+			// Redis is briefly down: collect anyway rather than skipping
+			// all polling. The worst case is a duplicate poll across
+			// instances, which is far better than silently halting.
+			slog.Warn("distributed lock failed, collecting without lock", "deviceID", job.Device.ID, "error", err)
+		} else if !locked {
 			result.Error = fmt.Errorf("skipped: could not acquire lock")
 			result.FinishedAt = time.Now()
 			return result
+		} else {
+			defer release()
 		}
-		defer release()
 	}
 
 	c, ok := s.registry.Get(job.Device.Protocol)

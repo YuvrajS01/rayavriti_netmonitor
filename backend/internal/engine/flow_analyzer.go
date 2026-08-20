@@ -17,6 +17,9 @@ type FlowAnalyzer struct {
 	flowCh chan []models.Flow
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
+
+	mu      sync.Mutex
+	stopped bool
 }
 
 func NewFlowAnalyzer(db database.Database, bufSize int) *FlowAnalyzer {
@@ -33,7 +36,7 @@ func (fa *FlowAnalyzer) IngestChannel() chan<- []models.Flow { return fa.flowCh 
 func (fa *FlowAnalyzer) Start(ctx context.Context) {
 	ctx, fa.cancel = context.WithCancel(ctx)
 	fa.wg.Add(1)
-	go fa.run(ctx)
+	go fa.run(ctx) //nolint:gosec // ctx is the engine's lifecycle context, not a request context
 }
 
 func (fa *FlowAnalyzer) Stop() {
@@ -41,6 +44,33 @@ func (fa *FlowAnalyzer) Stop() {
 		fa.cancel()
 	}
 	fa.wg.Wait()
+	// Close the channel after the run loop has exited so producers
+	// checking the stopped flag can stop sending. Closing before the
+	// loop exits would risk a panic on send-to-closed-channel.
+	fa.mu.Lock()
+	fa.stopped = true
+	close(fa.flowCh)
+	fa.mu.Unlock()
+}
+
+// Submit attempts to send a batch of flows into the analyzer. Returns false
+// if the analyzer has been stopped so the caller can discard the batch
+// instead of blocking forever on a channel that will never be drained.
+func (fa *FlowAnalyzer) Submit(batch []models.Flow) bool {
+	fa.mu.Lock()
+	if fa.stopped {
+		fa.mu.Unlock()
+		return false
+	}
+	fa.mu.Unlock()
+
+	select {
+	case fa.flowCh <- batch:
+		return true
+	default:
+		slog.Warn("FlowAnalyzer: flow channel full, dropping batch", "count", len(batch))
+		return false
+	}
 }
 
 func (fa *FlowAnalyzer) run(ctx context.Context) {
@@ -55,11 +85,11 @@ func (fa *FlowAnalyzer) run(ctx context.Context) {
 
 	var pending []models.Flow
 
-	flush := func() {
+	flush := func(flushCtx context.Context) {
 		if len(pending) == 0 {
 			return
 		}
-		if err := fa.db.RecordFlows(ctx, pending); err != nil {
+		if err := fa.db.RecordFlows(flushCtx, pending); err != nil {
 			slog.Warn("FlowAnalyzer: failed to persist flows", "error", err, "count", len(pending))
 		}
 		pending = pending[:0]
@@ -68,15 +98,26 @@ func (fa *FlowAnalyzer) run(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			flush()
+			// Flush the final batch with a fresh short-timeout context
+			// so the insert isn't cancelled by the shutdown context.
+			flushCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			flush(flushCtx)
+			cancel()
 			return
-		case batch := <-fa.flowCh:
+		case batch, ok := <-fa.flowCh:
+			if !ok {
+				// Channel closed by Stop(): flush remaining and exit.
+				flushCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+				flush(flushCtx)
+				cancel()
+				return
+			}
 			pending = append(pending, batch...)
 			if len(pending) >= 500 {
-				flush()
+				flush(ctx)
 			}
 		case <-ticker.C:
-			flush()
+			flush(ctx)
 		}
 	}
 }

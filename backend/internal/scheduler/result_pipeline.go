@@ -73,10 +73,16 @@ func (rp *ResultPipeline) Stop() {
 }
 
 func (rp *ResultPipeline) Submit(pr PollResult) {
+	// Use a short timeout instead of immediate drop so that a transient
+	// DB slowdown causes the dispatcher to slow down (backpressure) rather
+	// than silently discarding poll results. If the pipeline is truly stuck
+	// for more than 5 seconds, we drop rather than block the worker pool.
+	timer := time.NewTimer(5 * time.Second)
+	defer timer.Stop()
 	select {
 	case rp.resultCh <- pr:
-	default:
-		slog.Warn("result pipeline channel full, dropping result", "deviceID", pr.Device.ID)
+	case <-timer.C:
+		slog.Warn("result pipeline full after 5s, dropping result", "deviceID", pr.Device.ID)
 	}
 }
 
