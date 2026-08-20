@@ -497,7 +497,10 @@ func (e *AlertEngine) fireAlert(
 	}
 
 	alertMsg := buildAlertMessage(rule, device, results)
-	groupID := fmt.Sprintf("%d-%d", rule.ID, now.Unix()/60)
+	// Group ID is rule+device so all alerts from the same rule on the same
+	// device share a group (M44 — previously used rule+minute bucket which
+	// collided across rules in the same minute and differed across restarts).
+	groupID := fmt.Sprintf("%d-%d", rule.ID, device.ID)
 
 	alert := &models.Alert{
 		DeviceID:   device.ID,
