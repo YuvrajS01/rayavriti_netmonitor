@@ -172,6 +172,8 @@ func (wp *WorkerPool) worker(ctx context.Context, id int) {
 	defer wp.metrics.ActiveWorkers.Add(-1)
 	defer wp.wg.Done()
 
+	var fairnessCounter int
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -182,33 +184,42 @@ func (wp *WorkerPool) worker(ctx context.Context, id int) {
 		var job PollJob
 		var ok bool
 
-		select {
-		case job, ok = <-wp.criticalQ:
-			if !ok {
-				return
-			}
-			wp.metrics.QueuedCritical.Add(-1)
-			wp.executeJob(ctx, job)
-			continue
-		default:
-		}
+		// Every 8th iteration, skip the critical-only fast paths so
+		// normal/low jobs get a fair chance even under a sustained burst
+		// of critical jobs (M15 — previously critical could starve
+		// normal/low indefinitely).
+		fairnessCounter++
+		fairSkip := fairnessCounter%8 == 0
 
-		select {
-		case job, ok = <-wp.criticalQ:
-			if !ok {
-				return
+		if !fairSkip {
+			select {
+			case job, ok = <-wp.criticalQ:
+				if !ok {
+					return
+				}
+				wp.metrics.QueuedCritical.Add(-1)
+				wp.executeJob(ctx, job)
+				continue
+			default:
 			}
-			wp.metrics.QueuedCritical.Add(-1)
-			wp.executeJob(ctx, job)
-			continue
-		case job, ok = <-wp.normalQ:
-			if !ok {
-				return
+
+			select {
+			case job, ok = <-wp.criticalQ:
+				if !ok {
+					return
+				}
+				wp.metrics.QueuedCritical.Add(-1)
+				wp.executeJob(ctx, job)
+				continue
+			case job, ok = <-wp.normalQ:
+				if !ok {
+					return
+				}
+				wp.metrics.QueuedNormal.Add(-1)
+				wp.executeJob(ctx, job)
+				continue
+			default:
 			}
-			wp.metrics.QueuedNormal.Add(-1)
-			wp.executeJob(ctx, job)
-			continue
-		default:
 		}
 
 		select {
