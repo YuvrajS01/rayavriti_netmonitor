@@ -272,10 +272,10 @@ However, a meaningful cluster of **Security** and **High** findings remains open
 
 ## PART 2 — New / Additional Findings (not in original plan)
 
-### N1. Scope filtering not applied to single-resource reads (Security — High)
+### N1. Scope filtering not applied to single-resource reads (Security — High) — ✅ FIXED
 - **Files:** `handlers/devices.go:92-104` (`Get`), `handlers/alerts.go:41-49` (`Get`), metrics/flows/reports handlers.
 - **Problem:** While list endpoints apply `scopeFilterFromContext`, single-resource reads (`GET /devices/{id}`, `GET /alerts/{id}`, `GET /metrics/{deviceId}`) fetch by ID with no scope check. A scoped user iterating IDs can read out-of-scope device/alert detail and metrics.
-- **Fix:** Apply scope filter to single-resource reads (or verify ownership against the user's scopes before returning).
+- **Fix:** Applied `canAccessDevice` and `canAccessAlert` scope checks in the Tier 1 security commit. Scoped users now get 404 on out-of-scope single-resource reads.
 
 ### N2. AlertEngine.ReloadRules is a no-op (Correctness) — ✅ FIXED
 - **File:** `alert.go:158-160`.
