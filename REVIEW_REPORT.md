@@ -250,7 +250,7 @@ However, a meaningful cluster of **Security** and **High** findings remains open
 | M5 API-key lifecycle | ✅ Fixed | Migration V45 adds expiry/revocation; RevokeAPIKey method. |
 | M6/M7 Metric buffer ack | Fixed | Re-queue implemented (C6). |
 | M8 Captures ListSessions in-memory | ✅ Fixed | Added LIMIT 500 to SQL query. |
-| M9 Phase2 untyped CRUD | Open | float64→INT runtime error; `users` not creatable. |
+| M9 Phase2 untyped CRUD | ✅ Fixed | float64→int64 conversion in normalizePhase2Value. |
 | M10 toSnake mangles acronyms | ✅ Fixed | Tier 4 — detects Upper→Upper(lower) transitions. |
 | M11 UpdatePhase2 updated_at | ✅ Fixed | Added UpdatedAt bool field; set for 4 tables. |
 | M13 Scheduler shutdown order | ✅ Fixed | Corrected: dispatcher→pipeline→pool. |
