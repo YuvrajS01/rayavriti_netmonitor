@@ -100,15 +100,25 @@ func (d *PollDispatcher) Upsert(device models.Device, priority int, interval tim
 
 	entry, exists := d.deviceMap[device.ID]
 	if exists {
-		// Update device data and priority without touching the schedule.
-		// Only reschedule if the poll interval actually changed.
+		// Update device data and priority. If the poll interval changed,
+		// reschedule and wake up the dispatcher so a shorter interval
+		// takes effect immediately (M17 — previously the timer wasn't
+		// re-armed until the old timer fired).
 		entry.Device = device
 		entry.Priority = priority
 		intervalChanged := entry.Interval != interval
+		oldInterval := entry.Interval
 		entry.Interval = interval
 		if intervalChanged && entry.State != StatePaused {
 			entry.NextPollAt = time.Now().Add(entry.effectiveInterval())
 			heap.Fix(d.schedule, entry.index)
+			// Wake up if the new interval is shorter so the timer re-arms
+			if interval < oldInterval {
+				select {
+				case d.wakeup <- struct{}{}:
+				default:
+				}
+			}
 		}
 	} else {
 		entry = &ScheduleEntry{

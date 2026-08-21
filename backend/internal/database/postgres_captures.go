@@ -57,7 +57,8 @@ func (p *Postgres) GetCaptureSessions(ctx context.Context) ([]models.CaptureSess
 		SELECT id,interface_name,filter,status,COALESCE(started_by,''),
 		       total_packets,total_bytes,protocols,
 		       started_at,stopped_at,COALESCE(error_message,'')
-		FROM capture_sessions ORDER BY started_at DESC`)
+		FROM capture_sessions ORDER BY started_at DESC
+		LIMIT 500`)
 	if err != nil {
 		return nil, err
 	}
