@@ -5,6 +5,7 @@ package collectors
 import (
 	"context"
 	"log/slog"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -26,6 +27,7 @@ type CaptureCollector struct {
 	Interface string
 	Filter    string
 	running   atomic.Bool
+	mu        sync.Mutex // M24 — protects stats and startTime
 	stats     PacketStats
 	startTime time.Time
 }
@@ -42,8 +44,10 @@ func (c *CaptureCollector) Start(ctx context.Context) error {
 	if c.running.Swap(true) {
 		return nil // already running
 	}
+	c.mu.Lock()
 	c.startTime = time.Now()
 	c.stats = PacketStats{TopProtocols: map[string]int64{}}
+	c.mu.Unlock()
 	slog.Info("Packet capture started (stub — build with pcap tag for live capture)",
 		"interface", c.Interface, "filter", c.Filter)
 	go func() {
@@ -58,4 +62,8 @@ func (c *CaptureCollector) Stop() { c.running.Store(false) }
 
 func (c *CaptureCollector) IsRunning() bool { return c.running.Load() }
 
-func (c *CaptureCollector) Stats() PacketStats { return c.stats }
+func (c *CaptureCollector) Stats() PacketStats {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.stats
+}
