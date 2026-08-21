@@ -257,11 +257,11 @@ func (h *AuthHandler) V1Logout(w http.ResponseWriter, r *http.Request) {
 	}
 	// Clear cookies
 	secure := h.cfg.App.AppEnv == "production"
-	auth.ClearRefreshCookie(w)
+	auth.ClearRefreshCookie(w, secure)
 	if secure {
 		w.Header().Set("Access-Control-Allow-Credentials", "true")
 	}
-	auth.ClearAccessCookie(w)
+	auth.ClearAccessCookie(w, secure)
 	httputil.SendOK(w, map[string]bool{"loggedOut": true})
 }
 
