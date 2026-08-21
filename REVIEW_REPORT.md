@@ -243,23 +243,23 @@ However, a meaningful cluster of **Security** and **High** findings remains open
 
 | ID | Status | Note |
 |----|--------|------|
-| M1 N+1 alert rules | Open | Still per-rule relation loads. |
+| M1 N+1 alert rules | ✅ Fixed | Batch load conditions+channels with ANY($1). |
 | M2 GetStatusFlaps loads all rows | N/A | Function does not exist in current codebase. |
-| M3 HealthScoreHistory N Execs | Open | No transaction/CopyFrom. |
+| M3 HealthScoreHistory N Execs | ✅ Fixed | Single INSERT with UNNEST batch. |
 | M4 UpsertPortScanResults race | N/A | Function does not exist in current codebase. |
-| M5 API-key lifecycle | Open | See S7. |
+| M5 API-key lifecycle | ✅ Fixed | Migration V45 adds expiry/revocation; RevokeAPIKey method. |
 | M6/M7 Metric buffer ack | Fixed | Re-queue implemented (C6). |
-| M8 Captures ListSessions in-memory | Open | Requires interface change to add LIMIT. |
+| M8 Captures ListSessions in-memory | ✅ Fixed | Added LIMIT 500 to SQL query. |
 | M9 Phase2 untyped CRUD | Open | float64→INT runtime error; `users` not creatable. |
 | M10 toSnake mangles acronyms | ✅ Fixed | Tier 4 — detects Upper→Upper(lower) transitions. |
 | M11 UpdatePhase2 updated_at | ✅ Fixed | Added UpdatedAt bool field; set for 4 tables. |
-| M13 Scheduler shutdown order | Partially | Pool stops while dispatcher may enqueue; pipeline flush uses `context.Background()` (good). |
+| M13 Scheduler shutdown order | ✅ Fixed | Corrected: dispatcher→pipeline→pool. |
 | M14 Result pipeline backpressure | ✅ Fixed | Tier 3 — 5s-timeout blocking Submit. |
 | M15 PQ starvation | ✅ Fixed | Fairness counter: every 8th iteration skips critical-only fast path. |
-| M17 Interval shrink not honored | Open | Upsert doesn't re-arm timer. |
+| M17 Interval shrink not honored | ✅ Fixed | Upsert sends wakeup when interval shrinks. |
 | M18 DeviceStateTracker never cleaned | ✅ Fixed | Tier 3 — stateTracker.Remove called in unschedule + reconcile. |
 | M19 Redis lock halts polling | ✅ Fixed | Tier 3 — fail-open + TTL clamped 30s–10min. |
-| M20 Dependency-tree dead code | Open | `ParentDeviceID` never read by scheduler. |
+| M20 Dependency-tree dead code | ✅ Fixed | Removed dead DependencyTree type and 9 tests. |
 | M25 Fresh http.Transport per poll | ✅ Fixed | Shared HTTP client with connection pooling. |
 | M26 Port/System ignore context | ✅ Fixed | DialContext + goroutine-wrapped cpu.Percent. |
 | M27 LogStats stats vs total | ✅ Fixed | SQL GROUP BY for ByLevel/ByComponent. |
@@ -287,10 +287,10 @@ However, a meaningful cluster of **Security** and **High** findings remains open
 - **Problem:** Each fired alert inserts into `e.running[alert.ID]`; `runSteps` never deletes its entry on completion (only sets `cancelled`). Over time the map grows without bound.
 - **Fix:** `defer delete(e.running, alert.ID)` in `runSteps`.
 
-### N4. Refresh-token storage not rotation-protected (Security — Medium)
+### N4. Refresh-token storage not rotation-protected (Security — Medium) — ✅ FIXED
 - **File:** `auth.go:63-66`.
 - **Problem:** Refresh tokens are stored as a single hash per user; reuse of a stolen refresh token is not detected/rotated. No device/session binding.
-- **Fix:** Implement refresh-token rotation on use; detect reuse and revoke the token family.
+- **Fix:** Rotation was already implemented (old token deleted, new one issued). Added reuse detection: when a valid JWT refresh token is not found in the DB (already rotated), the entire token family for that user is revoked via `DeleteRefreshTokensByUser`, forcing re-authentication and invalidating an attacker's chain.
 
 ### N5. PubSub subscriber goroutine recovery not verified (Robustness) — ✅ FIXED
 - **File:** `cache/pubsub.go`.
