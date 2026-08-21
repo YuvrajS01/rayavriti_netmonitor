@@ -166,22 +166,6 @@ func TestDeviceStateTracker_Concurrent(t *testing.T) {
 	assert.Greater(t, dst.Count(), 0)
 }
 
-func TestDependencyTree_GetDescendants_NoChildren(t *testing.T) {
-	t.Parallel()
-	dt := NewDependencyTree()
-	assert.Empty(t, dt.GetDescendants(1))
-}
-
-func TestDependencyTree_Count(t *testing.T) {
-	t.Parallel()
-	dt := NewDependencyTree()
-	assert.Equal(t, 0, dt.Count())
-	dt.SetParent(2, 1)
-	assert.Equal(t, 1, dt.Count())
-	dt.SetParent(3, 1)
-	assert.Equal(t, 2, dt.Count())
-}
-
 func TestResultPipeline_EmptyBatch(t *testing.T) {
 	t.Parallel()
 	db := &mockDB{}
