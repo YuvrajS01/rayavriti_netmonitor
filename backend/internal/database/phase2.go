@@ -318,6 +318,14 @@ func normalizePhase2Value(v any) any {
 	case map[string]any, []any:
 		b, _ := json.Marshal(t)
 		return string(b)
+	case float64:
+		// JSON unmarshal produces float64 for all numbers. Convert whole
+		// numbers to int64 so they insert into BIGINT/INT columns
+		// correctly (M9 — previously float64→INT caused runtime errors).
+		if t == float64(int64(t)) {
+			return int64(t)
+		}
+		return t
 	default:
 		return v
 	}
