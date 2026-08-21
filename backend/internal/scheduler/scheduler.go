@@ -176,9 +176,14 @@ func (s *Scheduler) Stop() {
 		s.cancel()
 	}
 
-	s.pool.Stop()
+	// Shutdown order (M13 — previously pool.Stop ran while the
+	// dispatcher could still enqueue, and a stuck worker blocked
+	// forever): stop dispatcher first so no new jobs are enqueued,
+	// then stop the pipeline (flush with context.Background()), then
+	// stop the worker pool so in-flight jobs complete.
 	s.dispatcher.Stop()
 	s.pipeline.Stop()
+	s.pool.Stop()
 	s.wg.Wait()
 
 	slog.Info("async scheduler stopped")
