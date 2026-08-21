@@ -319,7 +319,13 @@ func (d *PollDispatcher) dispatchDue() {
 	d.mu.Unlock()
 
 	for _, job := range toEnqueue {
-		d.pool.Enqueue(job)
+		if !d.pool.Enqueue(job) {
+			// Queue full — re-arm this device's NextPollAt so the next
+			// reconcile cycle retries it (M16 — previously the drop was
+			// silent and the dispatcher kept re-scheduling immediately).
+			slog.Warn("enqueue failed, will retry on next reconcile",
+				"deviceID", job.Device.ID)
+		}
 	}
 }
 

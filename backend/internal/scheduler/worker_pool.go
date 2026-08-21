@@ -121,31 +121,40 @@ func (wp *WorkerPool) Stop() {
 	slog.Info("worker pool stopped")
 }
 
-func (wp *WorkerPool) Enqueue(job PollJob) {
+// Enqueue attempts to add a job to the appropriate priority queue.
+// Returns false if the queue is full and the job was dropped (M16 —
+// previously returned nothing, so the dispatcher kept re-scheduling).
+func (wp *WorkerPool) Enqueue(job PollJob) bool {
 	switch job.Priority {
 	case 0:
 		wp.metrics.QueuedCritical.Add(1)
 		select {
 		case wp.criticalQ <- job:
+			return true
 		default:
 			slog.Warn("critical queue full, dropping job", "deviceID", job.Device.ID)
 			wp.metrics.QueuedCritical.Add(-1)
+			return false
 		}
 	case 1:
 		wp.metrics.QueuedNormal.Add(1)
 		select {
 		case wp.normalQ <- job:
+			return true
 		default:
 			slog.Warn("normal queue full, dropping job", "deviceID", job.Device.ID)
 			wp.metrics.QueuedNormal.Add(-1)
+			return false
 		}
 	default:
 		wp.metrics.QueuedLow.Add(1)
 		select {
 		case wp.lowQ <- job:
+			return true
 		default:
 			slog.Warn("low queue full, dropping job", "deviceID", job.Device.ID)
 			wp.metrics.QueuedLow.Add(-1)
+			return false
 		}
 	}
 }
