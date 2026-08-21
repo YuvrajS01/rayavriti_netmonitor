@@ -167,6 +167,13 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 	tokenHash := auth.HashToken(rt)
 	existing, err := h.db.GetRefreshToken(r.Context(), tokenHash)
 	if err != nil || existing == nil {
+		// N4: Refresh-token reuse detection. A valid JWT that's not in
+		// the DB means it was already rotated — an attacker is replaying
+		// a stolen token. Revoke the entire token family for this user
+		// to invalidate the attacker's chain.
+		if claims.UserID > 0 {
+			_ = h.db.DeleteRefreshTokensByUser(r.Context(), claims.UserID)
+		}
 		httputil.SendError(w, http.StatusUnauthorized, "refresh token revoked")
 		return
 	}
