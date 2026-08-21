@@ -692,9 +692,11 @@ func (p *Postgres) DeleteUser(ctx context.Context, id int64) error {
 func (p *Postgres) GetAPIKey(ctx context.Context, keyHash string) (*models.APIKey, error) {
 	var k models.APIKey
 	err := p.pool.QueryRow(ctx, `
-		SELECT id,user_id,key_hash,description,created_at,last_used_at
-		FROM api_keys WHERE key_hash=$1`, keyHash).Scan(
-		&k.ID, &k.UserID, &k.KeyHash, &k.Description, &k.CreatedAt, &k.LastUsedAt)
+		SELECT id,user_id,key_hash,description,created_at,last_used_at,expires_at,revoked_at
+		FROM api_keys
+		WHERE key_hash=$1 AND revoked_at IS NULL
+		  AND (expires_at IS NULL OR expires_at > NOW())`, keyHash).Scan(
+		&k.ID, &k.UserID, &k.KeyHash, &k.Description, &k.CreatedAt, &k.LastUsedAt, &k.ExpiresAt, &k.RevokedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -704,9 +706,9 @@ func (p *Postgres) GetAPIKey(ctx context.Context, keyHash string) (*models.APIKe
 func (p *Postgres) GetAPIKeyByID(ctx context.Context, id int64) (*models.APIKey, error) {
 	var k models.APIKey
 	err := p.pool.QueryRow(ctx, `
-		SELECT id,user_id,key_hash,description,created_at,last_used_at
+		SELECT id,user_id,key_hash,description,created_at,last_used_at,expires_at,revoked_at
 		FROM api_keys WHERE id=$1`, id).Scan(
-		&k.ID, &k.UserID, &k.KeyHash, &k.Description, &k.CreatedAt, &k.LastUsedAt)
+		&k.ID, &k.UserID, &k.KeyHash, &k.Description, &k.CreatedAt, &k.LastUsedAt, &k.ExpiresAt, &k.RevokedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -716,8 +718,9 @@ func (p *Postgres) GetAPIKeyByID(ctx context.Context, id int64) (*models.APIKey,
 func (p *Postgres) CreateAPIKey(ctx context.Context, k *models.APIKey) (*models.APIKey, error) {
 	var id int64
 	err := p.pool.QueryRow(ctx, `
-		INSERT INTO api_keys(user_id,key_hash,description) VALUES($1,$2,$3) RETURNING id`,
-		k.UserID, k.KeyHash, nullStr(k.Description)).Scan(&id)
+		INSERT INTO api_keys(user_id,key_hash,description,expires_at)
+		VALUES($1,$2,$3,$4) RETURNING id`,
+		k.UserID, k.KeyHash, nullStr(k.Description), nullTime(k.ExpiresAt)).Scan(&id)
 	if err != nil {
 		return nil, err
 	}
@@ -727,7 +730,7 @@ func (p *Postgres) CreateAPIKey(ctx context.Context, k *models.APIKey) (*models.
 
 func (p *Postgres) GetAPIKeysByUser(ctx context.Context, userID int64) ([]models.APIKey, error) {
 	rows, err := p.pool.Query(ctx, `
-		SELECT id,user_id,key_hash,description,created_at,last_used_at
+		SELECT id,user_id,key_hash,description,created_at,last_used_at,expires_at,revoked_at
 		FROM api_keys WHERE user_id=$1 ORDER BY created_at DESC, id DESC`, userID)
 	if err != nil {
 		return nil, err
@@ -736,7 +739,7 @@ func (p *Postgres) GetAPIKeysByUser(ctx context.Context, userID int64) ([]models
 	var out []models.APIKey
 	for rows.Next() {
 		var k models.APIKey
-		if err := rows.Scan(&k.ID, &k.UserID, &k.KeyHash, &k.Description, &k.CreatedAt, &k.LastUsedAt); err != nil {
+		if err := rows.Scan(&k.ID, &k.UserID, &k.KeyHash, &k.Description, &k.CreatedAt, &k.LastUsedAt, &k.ExpiresAt, &k.RevokedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, k)
@@ -746,6 +749,11 @@ func (p *Postgres) GetAPIKeysByUser(ctx context.Context, userID int64) ([]models
 
 func (p *Postgres) DeleteAPIKey(ctx context.Context, id int64) error {
 	_, err := p.pool.Exec(ctx, `DELETE FROM api_keys WHERE id=$1`, id)
+	return err
+}
+
+func (p *Postgres) RevokeAPIKey(ctx context.Context, id int64) error {
+	_, err := p.pool.Exec(ctx, `UPDATE api_keys SET revoked_at=NOW(), updated_at=NOW() WHERE id=$1 AND revoked_at IS NULL`, id)
 	return err
 }
 
@@ -1029,4 +1037,8 @@ func nullInt(n int) *int {
 		return nil
 	}
 	return &n
+}
+
+func nullTime(t *time.Time) *time.Time {
+	return t
 }

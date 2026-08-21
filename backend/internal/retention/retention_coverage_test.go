@@ -178,6 +178,7 @@ func (m *mockRetDB2) GetAPIKeysByUser(ctx context.Context, userID int64) ([]mode
 	return nil, nil
 }
 func (m *mockRetDB2) DeleteAPIKey(ctx context.Context, id int64) error           { return nil }
+func (m *mockRetDB2) RevokeAPIKey(ctx context.Context, id int64) error           { return nil }
 func (m *mockRetDB2) RecordFlows(ctx context.Context, flows []models.Flow) error { return nil }
 func (m *mockRetDB2) GetFlows(ctx context.Context, from, to time.Time, limit, offset int) ([]models.Flow, int, error) {
 	return nil, 0, nil

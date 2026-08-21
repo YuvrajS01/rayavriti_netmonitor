@@ -1098,4 +1098,11 @@ var migrations = []string{
 	// mutex or a restart resets the alert_rule_state cache.
 	`CREATE UNIQUE INDEX IF NOT EXISTS uq_alerts_active_rule_device
 	ON alerts(rule_id, device_id) WHERE status = 'active' AND rule_id IS NOT NULL;`,
+
+	// V45: API key lifecycle — add expiry and revocation columns to
+	// api_keys so keys can be time-limited and revoked without deletion
+	// (M5 — previously keys had no expiry and could only be deleted).
+	`ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ;
+	 ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS revoked_at TIMESTAMPTZ;
+	 ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();`,
 }

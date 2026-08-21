@@ -207,6 +207,7 @@ func (m *mockDB) GetAPIKeysByUser(ctx context.Context, userID int64) ([]models.A
 	return nil, nil
 }
 func (m *mockDB) DeleteAPIKey(ctx context.Context, id int64) error           { return nil }
+func (m *mockDB) RevokeAPIKey(ctx context.Context, id int64) error           { return nil }
 func (m *mockDB) RecordFlows(ctx context.Context, flows []models.Flow) error { return nil }
 func (m *mockDB) GetFlows(ctx context.Context, from, to time.Time, limit, offset int) ([]models.Flow, int, error) {
 	return nil, 0, nil

@@ -155,6 +155,7 @@ type Database interface {
 	CreateAPIKey(ctx context.Context, k *models.APIKey) (*models.APIKey, error)
 	GetAPIKeysByUser(ctx context.Context, userID int64) ([]models.APIKey, error)
 	DeleteAPIKey(ctx context.Context, id int64) error
+	RevokeAPIKey(ctx context.Context, id int64) error
 
 	// Refresh Tokens
 	CreateRefreshToken(ctx context.Context, tokenHash string, userID int64, expiresAt time.Time) error

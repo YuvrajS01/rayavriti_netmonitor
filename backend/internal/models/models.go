@@ -146,6 +146,8 @@ type APIKey struct {
 	Description string     `json:"description"`
 	CreatedAt   time.Time  `json:"createdAt"`
 	LastUsedAt  *time.Time `json:"lastUsedAt,omitempty"`
+	ExpiresAt   *time.Time `json:"expiresAt,omitempty"`
+	RevokedAt   *time.Time `json:"revokedAt,omitempty"`
 }
 
 type Flow struct {
