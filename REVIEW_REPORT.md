@@ -280,8 +280,10 @@ However, a meaningful cluster of **Security** and **High** findings remains open
 | M40 MaxConnIdleTime not set | ✅ Fixed | Added to DatabaseConfig (default 5m). |
 | M41 splitStatements vulnerable | ✅ Fixed | Removed splitter; single tx.Exec per migration (N6). |
 | M44 AlertGroupID minute-bucketed | ✅ Fixed | Uses rule+device instead of rule+minute. |
-
-**Remaining open:** M29 (legacy handlers in-memory filter — admin-only, capped at 1000 rows), M21 (ActiveWorkers misnamed — cosmetic), Phase2 ResourceStore rename (cosmetic).
+| M12 Phase2Summary 9 COUNTs | ✅ Fixed | Consolidated into 1 query with scalar subselects. |
+| M21 ActiveWorkers misnamed | ✅ Fixed | Added BusyWorkers metric; removed dead maxWorkers + Attempt. |
+| M29 Legacy handlers in-memory filter | ✅ Fixed | Dead code — deleted legacy_handlers.go (263 lines). |
+| S11/M31 Raw DB errors to clients | ✅ Fixed | 88 handlers now use SendInternalError (logs internally, generic response). |
 
 ---
 
