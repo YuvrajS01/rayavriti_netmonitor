@@ -639,8 +639,35 @@ func (e *AlertEngine) deliverNotifications(ctx context.Context, rule *models.Ale
 		}
 
 		start := time.Now()
-		err := e.notifier.Send(ctx, ch, alert)
+		// M43: Retry notification delivery with exponential backoff so a
+		// transient SMTP/webhook failure doesn't permanently drop the alert.
+		var deliveryErr error
+		maxRetries := 3
+		cancelled := false
+		for attempt := 0; attempt <= maxRetries; attempt++ {
+			deliveryErr = e.notifier.Send(ctx, ch, alert)
+			if deliveryErr == nil {
+				break
+			}
+			if attempt < maxRetries {
+				backoff := time.Duration(1<<attempt) * time.Second // 1s, 2s, 4s
+				slog.Warn("Notification delivery retry",
+					"channel_id", ch.ID, "channel_type", ch.Type,
+					"attempt", attempt+1, "max_retries", maxRetries,
+					"backoff", backoff, "error", deliveryErr)
+				select {
+				case <-ctx.Done():
+					deliveryErr = ctx.Err()
+					cancelled = true
+				case <-time.After(backoff):
+				}
+				if cancelled {
+					break
+				}
+			}
+		}
 		duration := time.Since(start)
+		err := deliveryErr
 
 		if err != nil {
 			slog.Warn("Notification delivery failed",
