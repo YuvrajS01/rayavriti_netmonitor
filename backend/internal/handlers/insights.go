@@ -77,7 +77,7 @@ type InsightItem struct {
 func (h *InsightHandler) Current(w http.ResponseWriter, r *http.Request) {
 	scores, err := h.db.GetHealthScores(r.Context())
 	if err != nil {
-		httputil.SendError(w, 500, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 
@@ -95,7 +95,7 @@ func (h *InsightHandler) Current(w http.ResponseWriter, r *http.Request) {
 
 	devices, err := h.db.GetDevices(r.Context())
 	if err != nil {
-		httputil.SendError(w, 500, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	deviceMap := make(map[int64]string, len(devices))
@@ -202,7 +202,7 @@ func (h *InsightHandler) History(w http.ResponseWriter, r *http.Request) {
 
 	points, err := h.db.GetNetworkHealthHistory(r.Context(), hours)
 	if err != nil {
-		httputil.SendError(w, 500, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 

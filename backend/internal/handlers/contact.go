@@ -58,7 +58,7 @@ func (h *ContactHandler) ResolveContacts(w http.ResponseWriter, r *http.Request)
 
 	contacts, err := h.resolver.ResolveForDevice(r.Context(), deviceID, nil, severity)
 	if err != nil {
-		httputil.SendError(w, http.StatusInternalServerError, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	httputil.SendOK(w, contacts)
@@ -172,7 +172,7 @@ func (h *ContactHandler) NotificationLog(w http.ResponseWriter, r *http.Request)
 
 	rows, err := h.pool.Query(r.Context(), query, args...)
 	if err != nil {
-		httputil.SendError(w, http.StatusInternalServerError, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	defer rows.Close()
@@ -200,13 +200,13 @@ func (h *ContactHandler) NotificationLog(w http.ResponseWriter, r *http.Request)
 			&e.MessagePreview, &e.Status, &e.ErrorMessage,
 			&e.AttemptCount, &e.EscalationStep, &e.SentAt, &e.CreatedAt,
 		); err != nil {
-			httputil.SendError(w, http.StatusInternalServerError, err.Error())
+			httputil.SendInternalError(w, err)
 			return
 		}
 		entries = append(entries, e)
 	}
 	if err := rows.Err(); err != nil {
-		httputil.SendError(w, http.StatusInternalServerError, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	httputil.SendOK(w, entries)

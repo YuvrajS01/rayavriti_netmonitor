@@ -50,7 +50,7 @@ func (h *CampusHandler) ListLocations(w http.ResponseWriter, r *http.Request) {
 	if format == "tree" || format == "tree_with_status" {
 		tree, err := h.locations.GetTreeWithStatus(r.Context())
 		if err != nil {
-			httputil.SendError(w, http.StatusInternalServerError, err.Error())
+			httputil.SendInternalError(w, err)
 			return
 		}
 		httputil.SendOK(w, tree)
@@ -59,7 +59,7 @@ func (h *CampusHandler) ListLocations(w http.ResponseWriter, r *http.Request) {
 
 	locs, err := h.locations.GetAll(r.Context())
 	if err != nil {
-		httputil.SendError(w, http.StatusInternalServerError, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	httputil.SendOK(w, locs)
@@ -97,7 +97,7 @@ func (h *CampusHandler) GetLocationTree(w http.ResponseWriter, r *http.Request) 
 	}
 	subtree, err := h.locations.GetSubtree(r.Context(), id)
 	if err != nil {
-		httputil.SendError(w, http.StatusInternalServerError, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	if subtree == nil {
@@ -148,7 +148,7 @@ func (h *CampusHandler) UpdateLocation(w http.ResponseWriter, r *http.Request) {
 	}
 	updated, err := h.locations.Update(r.Context(), id, &loc)
 	if err != nil {
-		httputil.SendError(w, http.StatusInternalServerError, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	httputil.SendOK(w, updated)
@@ -166,7 +166,7 @@ func (h *CampusHandler) DeleteLocation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.locations.Delete(r.Context(), id); err != nil {
-		httputil.SendError(w, http.StatusInternalServerError, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	httputil.SendOK(w, map[string]string{"deleted": strconv.FormatInt(id, 10)})
@@ -214,7 +214,7 @@ func (h *CampusHandler) LocationStatus(w http.ResponseWriter, r *http.Request) {
 	}
 	status, err := h.locations.GetLocationStatus(r.Context(), id)
 	if err != nil {
-		httputil.SendError(w, http.StatusInternalServerError, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	httputil.SendOK(w, status)
@@ -233,7 +233,7 @@ func (h *CampusHandler) LocationDevices(w http.ResponseWriter, r *http.Request) 
 	}
 	ids, err := h.locations.GetDevicesAtLocation(r.Context(), id, false)
 	if err != nil {
-		httputil.SendError(w, http.StatusInternalServerError, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	httputil.SendOK(w, map[string]any{"deviceIds": ids})
@@ -249,7 +249,7 @@ func (h *CampusHandler) DependencyTree(w http.ResponseWriter, r *http.Request) {
 	}
 	tree, err := h.topology.BuildDependencyTree(r.Context())
 	if err != nil {
-		httputil.SendError(w, http.StatusInternalServerError, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	httputil.SendOK(w, tree)
@@ -268,7 +268,7 @@ func (h *CampusHandler) DeviceDependencies(w http.ResponseWriter, r *http.Reques
 	}
 	ancestors, descendants, err := h.topology.GetDeviceDependencies(r.Context(), id)
 	if err != nil {
-		httputil.SendError(w, http.StatusInternalServerError, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	httputil.SendOK(w, map[string]any{
@@ -285,7 +285,7 @@ func (h *CampusHandler) RootCauseOutages(w http.ResponseWriter, r *http.Request)
 	}
 	outages, err := h.topology.GetRootCauseOutages(r.Context())
 	if err != nil {
-		httputil.SendError(w, http.StatusInternalServerError, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	httputil.SendOK(w, outages)
@@ -332,7 +332,7 @@ func (h *CampusHandler) ImportPreview(w http.ResponseWriter, r *http.Request) {
 
 	preview, err := h.importer.Validate(r.Context(), rows)
 	if err != nil {
-		httputil.SendError(w, http.StatusInternalServerError, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	httputil.SendOK(w, preview)
@@ -351,7 +351,7 @@ func (h *CampusHandler) ImportExecute(w http.ResponseWriter, r *http.Request) {
 	}
 	result, err := h.importer.Execute(r.Context(), rows)
 	if err != nil {
-		httputil.SendError(w, http.StatusInternalServerError, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	httputil.SendCreated(w, result)

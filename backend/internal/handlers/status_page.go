@@ -34,7 +34,7 @@ func (h *StatusPageHandler) PublicStatusJSON(w http.ResponseWriter, r *http.Requ
 	ctx := r.Context()
 	services, err := h.getEnabledServices(ctx)
 	if err != nil {
-		httputil.SendError(w, http.StatusInternalServerError, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 
@@ -208,7 +208,7 @@ func (h *StatusPageHandler) AddServiceDevice(w http.ResponseWriter, r *http.Requ
 		serviceID, body.DeviceID,
 	)
 	if err != nil {
-		httputil.SendError(w, http.StatusInternalServerError, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	httputil.SendCreated(w, map[string]any{"serviceId": serviceID, "deviceId": body.DeviceID})
@@ -235,7 +235,7 @@ func (h *StatusPageHandler) RemoveServiceDevice(w http.ResponseWriter, r *http.R
 		serviceID, deviceID,
 	)
 	if err != nil {
-		httputil.SendError(w, http.StatusInternalServerError, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	httputil.SendOK(w, map[string]bool{"deleted": true})
@@ -258,7 +258,7 @@ func (h *StatusPageHandler) ListServiceDevices(w http.ResponseWriter, r *http.Re
 		 JOIN devices d ON d.id = spsd.device_id
 		 WHERE spsd.service_id=$1`, serviceID)
 	if err != nil {
-		httputil.SendError(w, http.StatusInternalServerError, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	defer rows.Close()
@@ -322,7 +322,7 @@ func (h *StatusPageHandler) ListIncidentUpdates(w http.ResponseWriter, r *http.R
 		`SELECT id, incident_id, status, message, created_by, created_at
 		 FROM status_page_incident_updates WHERE incident_id=$1 ORDER BY created_at ASC`, incidentID)
 	if err != nil {
-		httputil.SendError(w, http.StatusInternalServerError, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	defer rows.Close()

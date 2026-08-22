@@ -102,7 +102,7 @@ func (h *CaptureHandler) Start(w http.ResponseWriter, r *http.Request) {
 	created, err := h.db.CreateCaptureSession(r.Context(), session)
 	if err != nil {
 		atomic.StoreInt32(&h.running, 0)
-		httputil.SendError(w, 500, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 
@@ -160,7 +160,7 @@ func (h *CaptureHandler) Stop(w http.ResponseWriter, r *http.Request) {
 	h.mu.Unlock()
 
 	if err := h.db.StopCaptureSession(r.Context(), id, stats); err != nil {
-		httputil.SendError(w, 500, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	atomic.StoreInt32(&h.running, 0)
@@ -266,7 +266,7 @@ func (h *CaptureHandler) GetPackets(w http.ResponseWriter, r *http.Request) {
 	offset := httputil.QueryParamInt(r, "offset", 0, 0, 0)
 	packets, err := h.db.GetCapturePackets(r.Context(), id, limit, offset)
 	if err != nil {
-		httputil.SendError(w, 500, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	httputil.SendOK(w, packets)
@@ -276,7 +276,7 @@ func (h *CaptureHandler) ListSessions(w http.ResponseWriter, r *http.Request) {
 	limit := httputil.QueryParamInt(r, "limit", 50, 1, 200)
 	sessions, err := h.db.GetCaptureSessions(r.Context())
 	if err != nil {
-		httputil.SendError(w, 500, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	if limit < len(sessions) {

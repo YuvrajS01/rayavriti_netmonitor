@@ -76,7 +76,7 @@ func (h *RoleHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 	rows, err := h.phase2.ListPhase2(r.Context(), "roles", nil)
 	if err != nil {
-		httputil.SendError(w, http.StatusInternalServerError, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	httputil.SendOK(w, rows)
@@ -264,7 +264,7 @@ func (h *UserScopeHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 	rows, err := h.phase2.ListPhase2(r.Context(), "user_scopes", filters)
 	if err != nil {
-		httputil.SendError(w, http.StatusInternalServerError, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	httputil.SendOK(w, rows)

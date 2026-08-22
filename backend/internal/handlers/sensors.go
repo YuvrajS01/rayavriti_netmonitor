@@ -25,7 +25,7 @@ func (h *SensorHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 	sensors, err := h.db.GetSensors(r.Context(), deviceID)
 	if err != nil {
-		httputil.SendError(w, 500, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	if sensors == nil {
@@ -74,7 +74,7 @@ func (h *SensorHandler) Create(w http.ResponseWriter, r *http.Request) {
 	s.Enabled = true
 	created, err := h.db.CreateSensor(r.Context(), &s)
 	if err != nil {
-		httputil.SendError(w, 500, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	httputil.SendCreated(w, created)
@@ -98,7 +98,7 @@ func (h *SensorHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 	updated, err := h.db.UpdateSensor(r.Context(), id, &s)
 	if err != nil {
-		httputil.SendError(w, 500, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	httputil.SendOK(w, updated)
@@ -112,7 +112,7 @@ func (h *SensorHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.db.DeleteSensor(r.Context(), id); err != nil {
-		httputil.SendError(w, 500, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	httputil.SendOK(w, map[string]bool{"deleted": true})

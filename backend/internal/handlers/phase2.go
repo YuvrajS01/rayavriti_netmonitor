@@ -37,7 +37,7 @@ func (h *Phase2Handler) Summary(w http.ResponseWriter, r *http.Request) {
 	}
 	summary, err := h.phase2.Phase2Summary(r.Context())
 	if err != nil {
-		httputil.SendError(w, http.StatusInternalServerError, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	httputil.SendOK(w, summary)
@@ -78,7 +78,7 @@ func (h *Phase2Handler) List(resource string) http.HandlerFunc {
 		if cursor != "" || r.URL.Query().Get("cursor") != "" || r.URL.Query().Get("Cursor") != "" {
 			rows, nextCursor, hasMore, err := h.phase2.ListPhase2Cursor(r.Context(), resource, filters, cursor, limit)
 			if err != nil {
-				httputil.SendError(w, http.StatusInternalServerError, err.Error())
+				httputil.SendInternalError(w, err)
 				return
 			}
 			httputil.SendOK(w, map[string]any{
@@ -91,7 +91,7 @@ func (h *Phase2Handler) List(resource string) http.HandlerFunc {
 
 		rows, err := h.phase2.ListPhase2(r.Context(), resource, filters)
 		if err != nil {
-			httputil.SendError(w, http.StatusInternalServerError, err.Error())
+			httputil.SendInternalError(w, err)
 			return
 		}
 		if resource == "locations" && r.URL.Query().Get("format") == "tree" {
@@ -190,7 +190,7 @@ func (h *Phase2Handler) LocationStatus(w http.ResponseWriter, r *http.Request) {
 	}
 	devices, err := h.db.GetDevices(r.Context())
 	if err != nil {
-		httputil.SendError(w, http.StatusInternalServerError, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	status := map[string]int{"up": 0, "down": 0, "warning": 0, "maintenance": 0, "unknown": 0}
@@ -213,12 +213,12 @@ func (h *Phase2Handler) Topology(w http.ResponseWriter, r *http.Request) {
 	}
 	locations, err := h.phase2.ListPhase2(r.Context(), "locations", nil)
 	if err != nil {
-		httputil.SendError(w, http.StatusInternalServerError, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	devices, err := h.db.GetDevices(r.Context())
 	if err != nil {
-		httputil.SendError(w, http.StatusInternalServerError, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	links := []map[string]any{}
@@ -244,7 +244,7 @@ func (h *Phase2Handler) PublicStatusJSON(w http.ResponseWriter, r *http.Request)
 	}
 	services, err := h.phase2.ListPhase2(r.Context(), "status_page_services", map[string]string{"enabled": "true"})
 	if err != nil {
-		httputil.SendError(w, http.StatusInternalServerError, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	incidents, _ := h.phase2.ListPhase2(r.Context(), "status_page_incidents", nil)
