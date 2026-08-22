@@ -243,6 +243,7 @@ However, a meaningful cluster of **Security** and **High** findings remains open
 
 | ID | Status | Note |
 |----|--------|------|
+| C7 Migration versioning positional | ✅ Fixed | Explicit structs + SHA-256 checksums; drift detection on startup. |
 | M1 N+1 alert rules | ✅ Fixed | Batch load conditions+channels with ANY($1). |
 | M2 GetStatusFlaps loads all rows | N/A | Function does not exist in current codebase. |
 | M3 HealthScoreHistory N Execs | ✅ Fixed | Single INSERT with UNNEST batch. |
@@ -256,17 +257,31 @@ However, a meaningful cluster of **Security** and **High** findings remains open
 | M13 Scheduler shutdown order | ✅ Fixed | Corrected: dispatcher→pipeline→pool. |
 | M14 Result pipeline backpressure | ✅ Fixed | Tier 3 — 5s-timeout blocking Submit. |
 | M15 PQ starvation | ✅ Fixed | Fairness counter: every 8th iteration skips critical-only fast path. |
+| M16 Enqueue drops with no feedback | ✅ Fixed | Enqueue returns bool; caller logs and retries on next reconcile. |
 | M17 Interval shrink not honored | ✅ Fixed | Upsert sends wakeup when interval shrinks. |
 | M18 DeviceStateTracker never cleaned | ✅ Fixed | Tier 3 — stateTracker.Remove called in unschedule + reconcile. |
 | M19 Redis lock halts polling | ✅ Fixed | Tier 3 — fail-open + TTL clamped 30s–10min. |
 | M20 Dependency-tree dead code | ✅ Fixed | Removed dead DependencyTree type and 9 tests. |
+| M22 Scheduler.Start not idempotent | ✅ Fixed | sync.Once + atomic.Bool started flag. |
+| M23 NetFlow collector dead code | ✅ Fixed | Buffer 2048→65535, backoff on persistent error. |
+| M24 packet_capture races | ✅ Fixed | sync.Mutex on stats/startTime. |
 | M25 Fresh http.Transport per poll | ✅ Fixed | Shared HTTP client with connection pooling. |
 | M26 Port/System ignore context | ✅ Fixed | DialContext + goroutine-wrapped cpu.Percent. |
 | M27 LogStats stats vs total | ✅ Fixed | SQL GROUP BY for ByLevel/ByComponent. |
+| M28 Status page N+1 | ✅ Fixed | Batch device statuses + incident services via ANY($1). |
+| M30 percentile O(n²) sort | ✅ Fixed | Replaced insertion sort with sort.Float64s. |
+| M32 ClearCookie forces Secure | ✅ Fixed | Accepts secure param matching Set functions. |
+| M34 WebSocket scope default allow | ✅ Fixed | Default deny for scoped users. |
+| M36 TimescaleDB detection error | ✅ Fixed | Logs warning instead of silent swallow. |
+| M37 Batch timestamps shared | ✅ Fixed | Uses pr.FinishedAt instead of batch processing time. |
+| M38 AlertStateCache write-through | ✅ Fixed | Invalidate on upsert instead of write-through. |
+| M43 SMTP/notifications no retry | ✅ Fixed | Exponential backoff (1s, 2s, 4s, max 3 retries). |
 | M35 PruneMetrics/Flows unbounded DELETE | ✅ Fixed | Batched DELETE with ctid LIMIT 10000 loop. |
 | M40 MaxConnIdleTime not set | ✅ Fixed | Added to DatabaseConfig (default 5m). |
 | M41 splitStatements vulnerable | ✅ Fixed | Removed splitter; single tx.Exec per migration (N6). |
 | M44 AlertGroupID minute-bucketed | ✅ Fixed | Uses rule+device instead of rule+minute. |
+
+**Remaining open:** M29 (legacy handlers in-memory filter — admin-only, capped at 1000 rows), M21 (ActiveWorkers misnamed — cosmetic), Phase2 ResourceStore rename (cosmetic).
 
 ---
 
