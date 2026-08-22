@@ -256,38 +256,25 @@ func (p *Postgres) DeletePhase2(ctx context.Context, resource string, id int64) 
 }
 
 func (p *Postgres) Phase2Summary(ctx context.Context) (Phase2Summary, error) {
-	count := func(table string) (int, error) {
-		var n int
-		err := p.pool.QueryRow(ctx, "SELECT COUNT(*) FROM "+table).Scan(&n)
-		return n, err
-	}
+	// M12: Consolidated 9 sequential COUNT queries into a single query
+	// using scalar subselects — one round-trip instead of nine.
 	var out Phase2Summary
-	var err error
-	if out.Locations, err = count("locations"); err != nil {
-		return out, err
-	}
-	if out.Subnets, err = count("subnets"); err != nil {
-		return out, err
-	}
-	if out.Contacts, err = count("contacts"); err != nil {
-		return out, err
-	}
-	if out.Incidents, err = count("incidents"); err != nil {
-		return out, err
-	}
-	if out.MaintenanceWindows, err = count("maintenance_windows"); err != nil {
-		return out, err
-	}
-	if out.StatusServices, err = count("status_page_services"); err != nil {
-		return out, err
-	}
-	if out.DiscoveryJobs, err = count("discovery_jobs"); err != nil {
-		return out, err
-	}
-	if out.ISPLinks, err = count("isp_links"); err != nil {
-		return out, err
-	}
-	out.ScheduledReports, err = count("scheduled_reports")
+	err := p.pool.QueryRow(ctx, `
+		SELECT
+			(SELECT COUNT(*) FROM locations),
+			(SELECT COUNT(*) FROM subnets),
+			(SELECT COUNT(*) FROM contacts),
+			(SELECT COUNT(*) FROM incidents),
+			(SELECT COUNT(*) FROM maintenance_windows),
+			(SELECT COUNT(*) FROM status_page_services),
+			(SELECT COUNT(*) FROM discovery_jobs),
+			(SELECT COUNT(*) FROM isp_links),
+			(SELECT COUNT(*) FROM scheduled_reports)
+	`).Scan(
+		&out.Locations, &out.Subnets, &out.Contacts, &out.Incidents,
+		&out.MaintenanceWindows, &out.StatusServices, &out.DiscoveryJobs,
+		&out.ISPLinks, &out.ScheduledReports,
+	)
 	return out, err
 }
 
