@@ -1,7 +1,6 @@
 package monitoring
 
 import (
-	"context"
 	"encoding/csv"
 	"net/http"
 	"strconv"
@@ -17,15 +16,6 @@ import (
 type MonitoringHandler struct {
 	store   *Store
 	runtime *logging.RuntimeControls
-	legacy  legacyQueryDB
-}
-
-type legacyQueryDB interface {
-	GetRecentHTTPRequests(ctx context.Context, limit int) ([]HTTPRequest, error)
-	GetRecentDBQueries(ctx context.Context, limit int) ([]DBQuery, error)
-	GetRecentCollectorRuns(ctx context.Context, limit int) ([]CollectorRun, error)
-	GetRecentSystemMetrics(ctx context.Context, limit int) ([]SystemMetrics, error)
-	GetRecentAuditLog(ctx context.Context, limit int) ([]AuditLogEntry, error)
 }
 
 func NewMonitoringHandler(source any, runtime ...*logging.RuntimeControls) *MonitoringHandler {
@@ -35,10 +25,6 @@ func NewMonitoringHandler(source any, runtime ...*logging.RuntimeControls) *Moni
 	}
 	if store, ok := source.(*Store); ok {
 		h.store = store
-		return h
-	}
-	if legacy, ok := source.(legacyQueryDB); ok {
-		h.legacy = legacy
 	}
 	return h
 }
@@ -49,7 +35,7 @@ func parseIntQuery(r *http.Request, key string, def int) int {
 
 func (h *MonitoringHandler) SystemLogs(w http.ResponseWriter, r *http.Request) {
 	if h.store == nil {
-		h.legacySystemLogs(w, r)
+		httputil.SendError(w, http.StatusNotImplemented, "monitoring store unavailable")
 		return
 	}
 	q := parseLogQuery(r)
@@ -67,7 +53,7 @@ func (h *MonitoringHandler) SystemLogs(w http.ResponseWriter, r *http.Request) {
 
 func (h *MonitoringHandler) SystemLogsStats(w http.ResponseWriter, r *http.Request) {
 	if h.store == nil {
-		h.legacySystemLogsStats(w, r)
+		httputil.SendError(w, http.StatusNotImplemented, "monitoring store unavailable")
 		return
 	}
 	stats, err := h.store.LogStats(r.Context(), parseLogQuery(r))
