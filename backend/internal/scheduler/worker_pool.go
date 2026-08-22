@@ -17,11 +17,11 @@ type PollJob struct {
 	Device     models.Device
 	Priority   int
 	ScheduleAt time.Time
-	Attempt    int
 }
 
 type WorkerPoolMetrics struct {
 	ActiveWorkers  atomic.Int64
+	BusyWorkers    atomic.Int64
 	QueuedCritical atomic.Int64
 	QueuedNormal   atomic.Int64
 	QueuedLow      atomic.Int64
@@ -32,16 +32,15 @@ type WorkerPoolMetrics struct {
 }
 
 type WorkerPool struct {
-	workers    int
-	maxWorkers int
-	criticalQ  chan PollJob
-	normalQ    chan PollJob
-	lowQ       chan PollJob
-	wg         sync.WaitGroup
-	metrics    *WorkerPoolMetrics
-	execute    func(context.Context, PollJob) PollResult
-	resultFn   func(PollResult)
-	cancel     context.CancelFunc
+	workers   int
+	criticalQ chan PollJob
+	normalQ   chan PollJob
+	lowQ      chan PollJob
+	wg        sync.WaitGroup
+	metrics   *WorkerPoolMetrics
+	execute   func(context.Context, PollJob) PollResult
+	resultFn  func(PollResult)
+	cancel    context.CancelFunc
 }
 
 type PollResult struct {
@@ -90,13 +89,12 @@ func NewWorkerPool(cfg WorkerPoolConfig, executeFn func(context.Context, PollJob
 	}
 
 	return &WorkerPool{
-		workers:    cfg.WorkerCount,
-		maxWorkers: cfg.MaxWorkerCount,
-		criticalQ:  make(chan PollJob, cfg.CriticalQueueSize),
-		normalQ:    make(chan PollJob, cfg.NormalQueueSize),
-		lowQ:       make(chan PollJob, cfg.LowQueueSize),
-		metrics:    &WorkerPoolMetrics{},
-		execute:    executeFn,
+		workers:   cfg.WorkerCount,
+		criticalQ: make(chan PollJob, cfg.CriticalQueueSize),
+		normalQ:   make(chan PollJob, cfg.NormalQueueSize),
+		lowQ:      make(chan PollJob, cfg.LowQueueSize),
+		metrics:   &WorkerPoolMetrics{},
+		execute:   executeFn,
 	}
 }
 
@@ -110,7 +108,7 @@ func (wp *WorkerPool) Start(ctx context.Context) {
 		wp.wg.Add(1)
 		go wp.worker(ctx, i)
 	}
-	slog.Info("worker pool started", "workers", wp.workers, "maxWorkers", wp.maxWorkers)
+	slog.Info("worker pool started", "workers", wp.workers)
 }
 
 func (wp *WorkerPool) Stop() {
@@ -167,6 +165,7 @@ func (wp *WorkerPool) Metrics() WorkerPoolMetricsSnapshot {
 	}
 	return WorkerPoolMetricsSnapshot{
 		ActiveWorkers:  int(m.ActiveWorkers.Load()),
+		BusyWorkers:    int(m.BusyWorkers.Load()),
 		QueuedCritical: int(m.QueuedCritical.Load()),
 		QueuedNormal:   int(m.QueuedNormal.Load()),
 		QueuedLow:      int(m.QueuedLow.Load()),
@@ -261,7 +260,9 @@ func (wp *WorkerPool) worker(ctx context.Context, id int) {
 
 func (wp *WorkerPool) executeJob(ctx context.Context, job PollJob) {
 	start := time.Now()
+	wp.metrics.BusyWorkers.Add(1)
 	result := wp.safeExecute(ctx, job)
+	wp.metrics.BusyWorkers.Add(-1)
 	duration := time.Since(start)
 
 	wp.metrics.TotalCompleted.Add(1)
@@ -312,6 +313,7 @@ func (wp *WorkerPool) deliverResult(result PollResult) {
 
 type WorkerPoolMetricsSnapshot struct {
 	ActiveWorkers  int
+	BusyWorkers    int
 	QueuedCritical int
 	QueuedNormal   int
 	QueuedLow      int

@@ -309,7 +309,6 @@ func (d *PollDispatcher) dispatchDue() {
 			Device:     entry.Device,
 			Priority:   priority,
 			ScheduleAt: entry.NextPollAt,
-			Attempt:    entry.Failures,
 		})
 
 		entry.NextPollAt = now.Add(entry.effectiveInterval())
