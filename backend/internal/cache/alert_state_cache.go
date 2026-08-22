@@ -38,8 +38,13 @@ func (c *AlertStateCache) GetAlertRuleState(ctx context.Context, ruleID, deviceI
 func (c *AlertStateCache) UpsertAlertRuleState(ctx context.Context, s *models.AlertRuleState) error {
 	err := c.db.UpsertAlertRuleState(ctx, s)
 	if err == nil {
+		// Invalidate the cache entry instead of writing through (M38 —
+		// write-through left a 5-min TTL entry that could go stale if
+		// another instance or direct DB write changes the state). With
+		// invalidation, the next read always fetches the fresh value
+		// from the DB and re-populates the cache.
 		key := fmt.Sprintf("nm:alert:state:%d:%d", s.RuleID, s.DeviceID)
-		_ = c.rdb.Set(ctx, key, s, 5*time.Minute)
+		_ = c.rdb.Del(ctx, key)
 	}
 	return err
 }
