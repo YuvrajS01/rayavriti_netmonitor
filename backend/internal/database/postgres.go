@@ -87,10 +87,15 @@ func (p *Postgres) Ping(ctx context.Context) error {
 }
 
 func (p *Postgres) RunMigrations(ctx context.Context) error {
-	// Ensure the tracking table exists first (migration V1).
-	if _, err := p.pool.Exec(ctx, migrations[0]); err != nil {
+	// Ensure the tracking table exists first (migration V1). Use a raw
+	// exec since the table may not exist yet and we can't query it.
+	if _, err := p.pool.Exec(ctx, migrations[0].SQL); err != nil {
 		return fmt.Errorf("create schema_migrations: %w", err)
 	}
+
+	// Add the checksum column if it doesn't exist (for deployments that
+	// already have schema_migrations from before C7). This is idempotent.
+	_, _ = p.pool.Exec(ctx, `ALTER TABLE schema_migrations ADD COLUMN IF NOT EXISTS checksum TEXT`)
 
 	// Acquire a session-level advisory lock so only one instance runs
 	// migrations at a time (C8). This prevents a TOCTOU race where two
@@ -104,43 +109,66 @@ func (p *Postgres) RunMigrations(ctx context.Context) error {
 		_, _ = p.pool.Exec(ctx, `SELECT pg_advisory_unlock(727280)`)
 	}()
 
-	for i, sql := range migrations[1:] {
-		version := int64(i + 2) // 1-based, but index 0 is already applied above
+	// Validate strict version ordering (C7 — positional indexing is gone;
+	// versions are explicit and must be strictly increasing).
+	for i := 1; i < len(migrations); i++ {
+		if migrations[i].Version <= migrations[i-1].Version {
+			return fmt.Errorf("migration version ordering violation: V%d after V%d",
+				migrations[i].Version, migrations[i-1].Version)
+		}
+	}
 
+	for _, m := range migrations {
+		version := int64(m.Version)
+
+		// Check if this migration was already applied.
 		var exists bool
+		var recordedChecksum *string
 		err := p.pool.QueryRow(ctx,
-			`SELECT EXISTS(SELECT 1 FROM schema_migrations WHERE version=$1)`, version).Scan(&exists)
+			`SELECT EXISTS(SELECT 1 FROM schema_migrations WHERE version=$1),
+			        (SELECT checksum FROM schema_migrations WHERE version=$1)`,
+			version).Scan(&exists, &recordedChecksum)
 		if err != nil {
 			return fmt.Errorf("check migration %d: %w", version, err)
 		}
 		if exists {
+			// C7: Verify the checksum of an already-applied migration
+			// matches what we have now. A mismatch means someone edited
+			// an already-applied migration, which is silent schema drift.
+			if recordedChecksum != nil && *recordedChecksum != "" {
+				if *recordedChecksum != m.Checksum() {
+					return fmt.Errorf("migration %d checksum mismatch: the SQL was modified after it was applied (recorded=%s, current=%s) — this indicates schema drift",
+						version, *recordedChecksum, m.Checksum())
+				}
+			}
 			continue
 		}
 
 		// Apply the entire migration in a single transaction (C8) and let
-		// Postgres parse multi-statement SQL natively (N6 — the old
-		// splitStatements helper could not handle dollar-quoting $$ ... $$
-		// or block comments, risking silent schema corruption).
+		// Postgres parse multi-statement SQL natively (N6).
 		tx, err := p.pool.Begin(ctx)
 		if err != nil {
 			return fmt.Errorf("begin tx for migration %d: %w", version, err)
 		}
-		if _, err := tx.Exec(ctx, sql); err != nil {
+		if _, err := tx.Exec(ctx, m.SQL); err != nil {
 			_ = tx.Rollback(ctx)
 			// TimescaleDB hypertable errors are non-fatal if the table
 			// is already partitioned.
 			if strings.Contains(err.Error(), "already a hypertable") {
-				// Record the version so we don't retry on every startup.
+				// Record the version (with checksum) so we don't retry.
 				if _, err := p.pool.Exec(ctx,
-					`INSERT INTO schema_migrations(version) VALUES($1) ON CONFLICT DO NOTHING`, version); err != nil {
+					`INSERT INTO schema_migrations(version, checksum) VALUES($1, $2) ON CONFLICT DO NOTHING`,
+					version, m.Checksum()); err != nil {
 					return fmt.Errorf("record migration %d (hypertable skip): %w", version, err)
 				}
 				continue
 			}
-			return fmt.Errorf("migration %d: %w\nSQL: %s", version, err, sql)
+			return fmt.Errorf("migration %d: %w\nSQL: %s", version, err, m.SQL)
 		}
+		// Record the version with its checksum (C7).
 		if _, err := tx.Exec(ctx,
-			`INSERT INTO schema_migrations(version) VALUES($1) ON CONFLICT DO NOTHING`, version); err != nil {
+			`INSERT INTO schema_migrations(version, checksum) VALUES($1, $2) ON CONFLICT DO NOTHING`,
+			version, m.Checksum()); err != nil {
 			_ = tx.Rollback(ctx)
 			return fmt.Errorf("record migration %d: %w", version, err)
 		}

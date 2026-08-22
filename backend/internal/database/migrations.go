@@ -1,16 +1,41 @@
 package database
 
-// migrations is an ordered list of SQL migrations. Each entry is applied exactly once,
-// tracked by its 1-based index (version) in the schema_migrations table.
-var migrations = []string{
+import (
+	"crypto/sha256"
+	"fmt"
+)
+
+// Migration is a single database migration with an explicit version number
+// and SQL body. Versions must be strictly increasing (C7 — previously
+// migrations were positional []string, so inserting one in the middle
+// silently shifted all subsequent versions and caused permanent schema
+// drift with no detection).
+type Migration struct {
+	Version int
+	SQL     string
+}
+
+// Checksum returns the hex-encoded SHA-256 hash of the migration SQL.
+// This is stored in schema_migrations so tampering or accidental edits
+// to an already-applied migration are detected on startup (C7).
+func (m Migration) Checksum() string {
+	h := sha256.Sum256([]byte(m.SQL))
+	return fmt.Sprintf("%x", h)
+}
+
+// migrations is an ordered list of SQL migrations. Each entry is applied
+// exactly once, tracked by its explicit Version in the schema_migrations
+// table. Versions must be strictly increasing.
+var migrations = []Migration{
 	// V1: migration tracking table
-	`CREATE TABLE IF NOT EXISTS schema_migrations (
+	{Version: 1, SQL: `CREATE TABLE IF NOT EXISTS schema_migrations (
 		version    BIGINT PRIMARY KEY,
+		checksum   TEXT,
 		applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-	)`,
+	)`},
 
 	// V2: users
-	`CREATE TABLE IF NOT EXISTS users (
+	{Version: 2, SQL: `CREATE TABLE IF NOT EXISTS users (
 		id            BIGSERIAL PRIMARY KEY,
 		username      TEXT UNIQUE NOT NULL,
 		password_hash TEXT NOT NULL,
@@ -22,20 +47,20 @@ var migrations = []string{
 		last_login_at TIMESTAMPTZ,
 		created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 		role_id       BIGINT
-	)`,
+	)`},
 
 	// V3: api_keys
-	`CREATE TABLE IF NOT EXISTS api_keys (
+	{Version: 3, SQL: `CREATE TABLE IF NOT EXISTS api_keys (
 		id           BIGSERIAL PRIMARY KEY,
 		user_id      BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
 		key_hash     TEXT UNIQUE NOT NULL,
 		description  TEXT,
 		created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 		last_used_at TIMESTAMPTZ
-	)`,
+	)`},
 
 	// V4: devices
-	`CREATE TABLE IF NOT EXISTS devices (
+	{Version: 4, SQL: `CREATE TABLE IF NOT EXISTS devices (
 		id                   BIGSERIAL PRIMARY KEY,
 		name                 TEXT NOT NULL,
 		ip_address           TEXT NOT NULL,
@@ -60,10 +85,10 @@ var migrations = []string{
 		notes                TEXT,
 		created_at           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 		updated_at           TIMESTAMPTZ NOT NULL DEFAULT NOW()
-	)`,
+	)`},
 
 	// V5: metrics hypertable
-	`CREATE TABLE IF NOT EXISTS metrics (
+	{Version: 5, SQL: `CREATE TABLE IF NOT EXISTS metrics (
 		id            BIGSERIAL,
 		device_id     BIGINT NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
 		timestamp     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -77,10 +102,10 @@ var migrations = []string{
 		details       JSONB,
 		PRIMARY KEY (id, timestamp)
 	);
-	SELECT create_hypertable('metrics', 'timestamp', if_not_exists => TRUE);`,
+	SELECT create_hypertable('metrics', 'timestamp', if_not_exists => TRUE);`},
 
 	// V6: alerts
-	`CREATE TABLE IF NOT EXISTS alerts (
+	{Version: 6, SQL: `CREATE TABLE IF NOT EXISTS alerts (
 		id              BIGSERIAL PRIMARY KEY,
 		device_id       BIGINT REFERENCES devices(id) ON DELETE SET NULL,
 		device_name     TEXT,
@@ -93,10 +118,10 @@ var migrations = []string{
 		resolved_at     TIMESTAMPTZ,
 		acknowledged_by TEXT,
 		resolved_by     TEXT
-	)`,
+	)`},
 
 	// V7: flows hypertable
-	`CREATE TABLE IF NOT EXISTS flows (
+	{Version: 7, SQL: `CREATE TABLE IF NOT EXISTS flows (
 		id         BIGSERIAL,
 		src_ip     INET,
 		dst_ip     INET,
@@ -109,26 +134,26 @@ var migrations = []string{
 		created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 		PRIMARY KEY (id, created_at)
 	);
-	SELECT create_hypertable('flows', 'created_at', if_not_exists => TRUE);`,
+	SELECT create_hypertable('flows', 'created_at', if_not_exists => TRUE);`},
 
 	// V8: dashboards
-	`CREATE TABLE IF NOT EXISTS dashboards (
+	{Version: 8, SQL: `CREATE TABLE IF NOT EXISTS dashboards (
 		id         BIGSERIAL PRIMARY KEY,
 		user_id    BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
 		name       TEXT NOT NULL,
 		layout     JSONB NOT NULL DEFAULT '{}',
 		created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 		updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-	)`,
+	)`},
 
 	// V9: indexes
-	`CREATE INDEX IF NOT EXISTS idx_devices_ip      ON devices(ip_address);
+	{Version: 9, SQL: `CREATE INDEX IF NOT EXISTS idx_devices_ip      ON devices(ip_address);
 	CREATE INDEX IF NOT EXISTS idx_metrics_device   ON metrics(device_id, timestamp DESC);
 	CREATE INDEX IF NOT EXISTS idx_alerts_device    ON alerts(device_id, status, created_at DESC);
-	CREATE INDEX IF NOT EXISTS idx_flows_ips        ON flows(src_ip, dst_ip, created_at DESC);`,
+	CREATE INDEX IF NOT EXISTS idx_flows_ips        ON flows(src_ip, dst_ip, created_at DESC);`},
 
 	// V10: alert_rules (enriched for rule-based alert engine)
-	`CREATE TABLE IF NOT EXISTS alert_rules (
+	{Version: 10, SQL: `CREATE TABLE IF NOT EXISTS alert_rules (
 		id               BIGSERIAL PRIMARY KEY,
 		name             TEXT NOT NULL,
 		description      TEXT,
@@ -143,15 +168,15 @@ var migrations = []string{
 		created_by       BIGINT REFERENCES users(id) ON DELETE SET NULL,
 		created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 		updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
-	)`,
+	)`},
 
 	// V11: default admin user (password set via seed, placeholder hash here)
-	`INSERT INTO users (username, password_hash, role, enabled)
+	{Version: 11, SQL: `INSERT INTO users (username, password_hash, role, enabled)
 	VALUES ('admin', 'PLACEHOLDER', 'admin', TRUE)
-	ON CONFLICT (username) DO NOTHING`,
+	ON CONFLICT (username) DO NOTHING`},
 
 	// V12: port_scan_results
-	`CREATE TABLE IF NOT EXISTS port_scan_results (
+	{Version: 12, SQL: `CREATE TABLE IF NOT EXISTS port_scan_results (
 		id             BIGSERIAL PRIMARY KEY,
 		device_id      BIGINT NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
 		port           INT NOT NULL,
@@ -164,10 +189,10 @@ var migrations = []string{
 		last_changed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 		scanned_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 		UNIQUE(device_id, port, protocol)
-	)`,
+	)`},
 
 	// V13: monitoring_http_requests hypertable
-	`CREATE TABLE IF NOT EXISTS monitoring_http_requests (
+	{Version: 13, SQL: `CREATE TABLE IF NOT EXISTS monitoring_http_requests (
 		id            BIGSERIAL,
 		request_id    TEXT,
 		method        TEXT NOT NULL,
@@ -181,10 +206,10 @@ var migrations = []string{
 		timestamp     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 		PRIMARY KEY (id, timestamp)
 	);
-	SELECT create_hypertable('monitoring_http_requests', 'timestamp', if_not_exists => TRUE);`,
+	SELECT create_hypertable('monitoring_http_requests', 'timestamp', if_not_exists => TRUE);`},
 
 	// V14: monitoring_db_queries hypertable
-	`CREATE TABLE IF NOT EXISTS monitoring_db_queries (
+	{Version: 14, SQL: `CREATE TABLE IF NOT EXISTS monitoring_db_queries (
 		id             BIGSERIAL,
 		trace_id       TEXT,
 		operation      TEXT NOT NULL,
@@ -195,10 +220,10 @@ var migrations = []string{
 		timestamp      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 		PRIMARY KEY (id, timestamp)
 	);
-	SELECT create_hypertable('monitoring_db_queries', 'timestamp', if_not_exists => TRUE);`,
+	SELECT create_hypertable('monitoring_db_queries', 'timestamp', if_not_exists => TRUE);`},
 
 	// V15: monitoring_collector_runs hypertable
-	`CREATE TABLE IF NOT EXISTS monitoring_collector_runs (
+	{Version: 15, SQL: `CREATE TABLE IF NOT EXISTS monitoring_collector_runs (
 		id          BIGSERIAL,
 		device_id   BIGINT NOT NULL,
 		protocol    TEXT NOT NULL,
@@ -208,10 +233,10 @@ var migrations = []string{
 		timestamp   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 		PRIMARY KEY (id, timestamp)
 	);
-	SELECT create_hypertable('monitoring_collector_runs', 'timestamp', if_not_exists => TRUE);`,
+	SELECT create_hypertable('monitoring_collector_runs', 'timestamp', if_not_exists => TRUE);`},
 
 	// V16: monitoring_system_metrics hypertable
-	`CREATE TABLE IF NOT EXISTS monitoring_system_metrics (
+	{Version: 16, SQL: `CREATE TABLE IF NOT EXISTS monitoring_system_metrics (
 		id              BIGSERIAL,
 		memory_used_mb  DOUBLE PRECISION NOT NULL,
 		goroutines      INT NOT NULL,
@@ -220,10 +245,10 @@ var migrations = []string{
 		timestamp       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 		PRIMARY KEY (id, timestamp)
 	);
-	SELECT create_hypertable('monitoring_system_metrics', 'timestamp', if_not_exists => TRUE);`,
+	SELECT create_hypertable('monitoring_system_metrics', 'timestamp', if_not_exists => TRUE);`},
 
 	// V17: monitoring_alerts hypertable
-	`CREATE TABLE IF NOT EXISTS monitoring_alerts (
+	{Version: 17, SQL: `CREATE TABLE IF NOT EXISTS monitoring_alerts (
 		id         BIGSERIAL,
 		alert_id   BIGINT NOT NULL,
 		rule_id    BIGINT,
@@ -234,10 +259,10 @@ var migrations = []string{
 		timestamp  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 		PRIMARY KEY (id, timestamp)
 	);
-	SELECT create_hypertable('monitoring_alerts', 'timestamp', if_not_exists => TRUE);`,
+	SELECT create_hypertable('monitoring_alerts', 'timestamp', if_not_exists => TRUE);`},
 
 	// V18: sensors table
-	`CREATE TABLE IF NOT EXISTS sensors (
+	{Version: 18, SQL: `CREATE TABLE IF NOT EXISTS sensors (
 		id          BIGSERIAL PRIMARY KEY,
 		device_id   BIGINT NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
 		name        TEXT NOT NULL,
@@ -248,10 +273,10 @@ var migrations = []string{
 		created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 		updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 	);
-	CREATE INDEX IF NOT EXISTS idx_sensors_device ON sensors(device_id);`,
+	CREATE INDEX IF NOT EXISTS idx_sensors_device ON sensors(device_id);`},
 
 	// V19: capture_sessions table
-	`CREATE TABLE IF NOT EXISTS capture_sessions (
+	{Version: 19, SQL: `CREATE TABLE IF NOT EXISTS capture_sessions (
 		id              BIGSERIAL PRIMARY KEY,
 		interface_name  TEXT NOT NULL,
 		filter          TEXT NOT NULL DEFAULT '',
@@ -263,10 +288,10 @@ var migrations = []string{
 		started_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 		stopped_at      TIMESTAMPTZ,
 		error_message   TEXT
-	)`,
+	)`},
 
 	// V20: alert_rule_conditions table
-	`CREATE TABLE IF NOT EXISTS alert_rule_conditions (
+	{Version: 20, SQL: `CREATE TABLE IF NOT EXISTS alert_rule_conditions (
 		id               BIGSERIAL PRIMARY KEY,
 		rule_id          BIGINT NOT NULL REFERENCES alert_rules(id) ON DELETE CASCADE,
 		type             TEXT NOT NULL,
@@ -276,27 +301,27 @@ var migrations = []string{
 		duration_seconds INT DEFAULT 0,
 		config           JSONB NOT NULL DEFAULT '{}'
 	);
-	CREATE INDEX IF NOT EXISTS idx_conditions_rule ON alert_rule_conditions(rule_id);`,
+	CREATE INDEX IF NOT EXISTS idx_conditions_rule ON alert_rule_conditions(rule_id);`},
 
 	// V21: notification_channels table
-	`CREATE TABLE IF NOT EXISTS notification_channels (
+	{Version: 21, SQL: `CREATE TABLE IF NOT EXISTS notification_channels (
 		id         BIGSERIAL PRIMARY KEY,
 		name       TEXT NOT NULL,
 		type       TEXT NOT NULL,
 		config     JSONB NOT NULL DEFAULT '{}',
 		enabled    BOOLEAN NOT NULL DEFAULT TRUE,
 		created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-	)`,
+	)`},
 
 	// V22: alert_rule_channels (many-to-many)
-	`CREATE TABLE IF NOT EXISTS alert_rule_channels (
+	{Version: 22, SQL: `CREATE TABLE IF NOT EXISTS alert_rule_channels (
 		rule_id    BIGINT NOT NULL REFERENCES alert_rules(id) ON DELETE CASCADE,
 		channel_id BIGINT NOT NULL REFERENCES notification_channels(id) ON DELETE CASCADE,
 		PRIMARY KEY (rule_id, channel_id)
-	)`,
+	)`},
 
 	// V23: alert_history hypertable
-	`CREATE TABLE IF NOT EXISTS alert_history (
+	{Version: 23, SQL: `CREATE TABLE IF NOT EXISTS alert_history (
 		id         BIGSERIAL,
 		alert_id   BIGINT NOT NULL,
 		rule_id    BIGINT,
@@ -307,10 +332,10 @@ var migrations = []string{
 		PRIMARY KEY (id, created_at)
 	);
 	SELECT create_hypertable('alert_history', 'created_at', if_not_exists => TRUE);
-	CREATE INDEX IF NOT EXISTS idx_alert_history_alert ON alert_history(alert_id, created_at DESC);`,
+	CREATE INDEX IF NOT EXISTS idx_alert_history_alert ON alert_history(alert_id, created_at DESC);`},
 
 	// V24: alert_rule_state (durable per-rule/per-device state)
-	`CREATE TABLE IF NOT EXISTS alert_rule_state (
+	{Version: 24, SQL: `CREATE TABLE IF NOT EXISTS alert_rule_state (
 		rule_id            BIGINT NOT NULL REFERENCES alert_rules(id) ON DELETE CASCADE,
 		device_id          BIGINT NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
 		state              TEXT NOT NULL DEFAULT 'idle',
@@ -321,10 +346,10 @@ var migrations = []string{
 		active_alert_id    BIGINT,
 		condition_snapshot JSONB,
 		PRIMARY KEY (rule_id, device_id)
-	)`,
+	)`},
 
 	// V25: monitoring_audit_log table
-	`CREATE TABLE IF NOT EXISTS monitoring_audit_log (
+	{Version: 25, SQL: `CREATE TABLE IF NOT EXISTS monitoring_audit_log (
 		id            BIGSERIAL PRIMARY KEY,
 		request_id    TEXT,
 		event_type    TEXT NOT NULL,
@@ -339,10 +364,10 @@ var migrations = []string{
 	);
 	CREATE INDEX IF NOT EXISTS idx_mon_audit_time   ON monitoring_audit_log(created_at);
 	CREATE INDEX IF NOT EXISTS idx_mon_audit_event  ON monitoring_audit_log(event_type);
-	CREATE INDEX IF NOT EXISTS idx_mon_audit_actor  ON monitoring_audit_log(actor);`,
+	CREATE INDEX IF NOT EXISTS idx_mon_audit_actor  ON monitoring_audit_log(actor);`},
 
 	// V26: monitoring_app_health table
-	`CREATE TABLE IF NOT EXISTS monitoring_app_health (
+	{Version: 26, SQL: `CREATE TABLE IF NOT EXISTS monitoring_app_health (
 		id                      BIGSERIAL PRIMARY KEY,
 		uptime_seconds          BIGINT NOT NULL,
 		goroutine_count         INT NOT NULL,
@@ -365,10 +390,10 @@ var migrations = []string{
 		errors_total            BIGINT NOT NULL DEFAULT 0,
 		created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
 	);
-	CREATE INDEX IF NOT EXISTS idx_mon_health_time ON monitoring_app_health(created_at);`,
+	CREATE INDEX IF NOT EXISTS idx_mon_health_time ON monitoring_app_health(created_at);`},
 
 	// V27: monitoring_alert_activity table
-	`CREATE TABLE IF NOT EXISTS monitoring_alert_activity (
+	{Version: 27, SQL: `CREATE TABLE IF NOT EXISTS monitoring_alert_activity (
 		id            BIGSERIAL,
 		trace_id      TEXT,
 		rule_id       BIGINT,
@@ -389,18 +414,18 @@ var migrations = []string{
 	SELECT create_hypertable('monitoring_alert_activity', 'created_at', if_not_exists => TRUE);
 	CREATE INDEX IF NOT EXISTS idx_mon_alert_act_rule   ON monitoring_alert_activity(rule_id);
 	CREATE INDEX IF NOT EXISTS idx_mon_alert_act_device ON monitoring_alert_activity(device_id);
-	CREATE INDEX IF NOT EXISTS idx_mon_alert_act_action ON monitoring_alert_activity(action);`,
+	CREATE INDEX IF NOT EXISTS idx_mon_alert_act_action ON monitoring_alert_activity(action);`},
 
 	// V28: additional indexes for Phase 2
-	`CREATE INDEX IF NOT EXISTS idx_alerts_status     ON alerts(status, created_at DESC);
+	{Version: 28, SQL: `CREATE INDEX IF NOT EXISTS idx_alerts_status     ON alerts(status, created_at DESC);
 	CREATE INDEX IF NOT EXISTS idx_alerts_rule        ON alerts(rule_id);
 	CREATE INDEX IF NOT EXISTS idx_metrics_status     ON metrics(device_id, status, timestamp DESC);
 	CREATE INDEX IF NOT EXISTS idx_devices_status     ON devices(status, enabled);
 	CREATE INDEX IF NOT EXISTS idx_port_scan_device   ON port_scan_results(device_id, scanned_at DESC);
-	CREATE INDEX IF NOT EXISTS idx_capture_status     ON capture_sessions(status);`,
+	CREATE INDEX IF NOT EXISTS idx_capture_status     ON capture_sessions(status);`},
 
 	// V29: capture_packets table (was missing — queried by GetCapturePackets)
-	`CREATE TABLE IF NOT EXISTS capture_packets (
+	{Version: 29, SQL: `CREATE TABLE IF NOT EXISTS capture_packets (
 		id          BIGSERIAL,
 		session_id  BIGINT NOT NULL REFERENCES capture_sessions(id) ON DELETE CASCADE,
 		timestamp   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -415,13 +440,13 @@ var migrations = []string{
 		PRIMARY KEY (id, timestamp)
 	);
 	SELECT create_hypertable('capture_packets', 'timestamp', if_not_exists => TRUE);
-	CREATE INDEX IF NOT EXISTS idx_capture_packets_session ON capture_packets(session_id, timestamp ASC);`,
+	CREATE INDEX IF NOT EXISTS idx_capture_packets_session ON capture_packets(session_id, timestamp ASC);`},
 
 	// V30: add port column to devices
-	`ALTER TABLE devices ADD COLUMN IF NOT EXISTS port INT NOT NULL DEFAULT 0;`,
+	{Version: 30, SQL: `ALTER TABLE devices ADD COLUMN IF NOT EXISTS port INT NOT NULL DEFAULT 0;`},
 
 	// V31: refresh_tokens table for DB-backed session revocation
-	`CREATE TABLE IF NOT EXISTS refresh_tokens (
+	{Version: 31, SQL: `CREATE TABLE IF NOT EXISTS refresh_tokens (
 		id           BIGSERIAL PRIMARY KEY,
 		token_hash   TEXT NOT NULL UNIQUE,
 		user_id      BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -429,10 +454,10 @@ var migrations = []string{
 		created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
 	);
 	CREATE INDEX IF NOT EXISTS idx_refresh_tokens_hash ON refresh_tokens(token_hash);
-	CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user ON refresh_tokens(user_id);`,
+	CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user ON refresh_tokens(user_id);`},
 
 	// V32: enable TimescaleDB extension and recreate hypertables
-	`CREATE EXTENSION IF NOT EXISTS timescaledb;
+	{Version: 32, SQL: `CREATE EXTENSION IF NOT EXISTS timescaledb;
 	SELECT create_hypertable('metrics', 'timestamp', if_not_exists => TRUE);
 	SELECT create_hypertable('flows', 'created_at', if_not_exists => TRUE);
 	SELECT create_hypertable('alert_history', 'created_at', if_not_exists => TRUE);
@@ -442,10 +467,10 @@ var migrations = []string{
 	SELECT create_hypertable('monitoring_collector_runs', 'timestamp', if_not_exists => TRUE);
 	SELECT create_hypertable('monitoring_system_metrics', 'timestamp', if_not_exists => TRUE);
 	SELECT create_hypertable('monitoring_alerts', 'timestamp', if_not_exists => TRUE);
-	SELECT create_hypertable('monitoring_alert_activity', 'created_at', if_not_exists => TRUE);`,
+	SELECT create_hypertable('monitoring_alert_activity', 'created_at', if_not_exists => TRUE);`},
 
 	// V33: health_scores (latest snapshot per device), health_score_history (time series), alerts.group_id
-	`CREATE TABLE IF NOT EXISTS health_scores (
+	{Version: 33, SQL: `CREATE TABLE IF NOT EXISTS health_scores (
 		device_id      BIGINT PRIMARY KEY REFERENCES devices(id) ON DELETE CASCADE,
 		score          REAL NOT NULL,
 		label          TEXT NOT NULL,
@@ -466,10 +491,10 @@ var migrations = []string{
 	);
 	CREATE INDEX IF NOT EXISTS idx_hsh_device_time ON health_score_history(device_id, computed_at DESC);
 
-	ALTER TABLE alerts ADD COLUMN IF NOT EXISTS group_id TEXT;`,
+	ALTER TABLE alerts ADD COLUMN IF NOT EXISTS group_id TEXT;`},
 
 	// V34: Phase 2 campus-grade schema additions
-	`CREATE TABLE IF NOT EXISTS roles (
+	{Version: 34, SQL: `CREATE TABLE IF NOT EXISTS roles (
 		id           BIGSERIAL PRIMARY KEY,
 		name         TEXT NOT NULL UNIQUE,
 		display_name TEXT NOT NULL,
@@ -929,10 +954,10 @@ var migrations = []string{
 	ALTER TABLE discovery_results ADD COLUMN IF NOT EXISTS snmp_description TEXT;
 	ALTER TABLE discovery_results ADD COLUMN IF NOT EXISTS snmp_sys_object_id TEXT;
 
-	UPDATE locations SET metadata = '{}' WHERE metadata IS NULL;`,
+	UPDATE locations SET metadata = '{}' WHERE metadata IS NULL;`},
 
 	// V35: Add new RBAC permissions to system roles
-	`UPDATE roles SET permissions = '["*"]' WHERE name = 'super_admin' AND is_system = TRUE;
+	{Version: 35, SQL: `UPDATE roles SET permissions = '["*"]' WHERE name = 'super_admin' AND is_system = TRUE;
 
 	UPDATE roles SET permissions = '["devices.read","devices.write","devices.delete","alerts.read","alerts.create","alerts.acknowledge","alerts.resolve","alert_rules.write","incidents.write","maintenance.write","contacts.write","notifications.manage","reports.read","reports.write","import.execute","discovery.execute","capture.execute","status_page.manage","sla.manage","system.monitoring"]'
 	WHERE name = 'network_admin' AND is_system = TRUE;
@@ -941,10 +966,10 @@ var migrations = []string{
 	WHERE name = 'dept_admin' AND is_system = TRUE;
 
 	UPDATE roles SET permissions = '["devices.read","alerts.read"]'
-	WHERE name = 'viewer' AND is_system = TRUE;`,
+	WHERE name = 'viewer' AND is_system = TRUE;`},
 
 	// V36: Queryable operational logs and temporary verbose logging sessions
-	`CREATE TABLE IF NOT EXISTS system_log_events (
+	{Version: 36, SQL: `CREATE TABLE IF NOT EXISTS system_log_events (
 		id                 BIGSERIAL,
 		timestamp          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 		level              TEXT NOT NULL,
@@ -999,10 +1024,10 @@ var migrations = []string{
 		SELECT jsonb_agg(DISTINCT value)
 		FROM jsonb_array_elements_text(permissions || '["system.logs"]'::jsonb) AS t(value)
 	)
-	WHERE name = 'network_admin' AND is_system = TRUE;`,
+	WHERE name = 'network_admin' AND is_system = TRUE;`},
 
 	// V37: backups table
-	`CREATE TABLE IF NOT EXISTS backups (
+	{Version: 37, SQL: `CREATE TABLE IF NOT EXISTS backups (
 		id           BIGSERIAL PRIMARY KEY,
 		filename     TEXT NOT NULL,
 		path         TEXT NOT NULL,
@@ -1018,10 +1043,10 @@ var migrations = []string{
 	);
 	CREATE INDEX IF NOT EXISTS idx_backups_status ON backups(status);
 	CREATE INDEX IF NOT EXISTS idx_backups_type   ON backups(type);
-	CREATE INDEX IF NOT EXISTS idx_backups_created ON backups(created_at DESC);`,
+	CREATE INDEX IF NOT EXISTS idx_backups_created ON backups(created_at DESC);`},
 
 	// V38: Remote monitoring registry and snapshots
-	`CREATE TABLE IF NOT EXISTS remote_instances (
+	{Version: 38, SQL: `CREATE TABLE IF NOT EXISTS remote_instances (
 		id BIGSERIAL PRIMARY KEY,
 		name TEXT NOT NULL,
 		url TEXT NOT NULL,
@@ -1057,22 +1082,22 @@ var migrations = []string{
 	UPDATE roles SET permissions = (
 		SELECT jsonb_agg(DISTINCT value)
 		FROM jsonb_array_elements_text(permissions || '["remote.manage"]'::jsonb) AS t(value)
-	) WHERE name = 'network_admin' AND is_system = TRUE;`,
+	) WHERE name = 'network_admin' AND is_system = TRUE;`},
 
 	// V39: System configuration for explicit service-mode coordination
-	`CREATE TABLE IF NOT EXISTS sys_config (
+	{Version: 39, SQL: `CREATE TABLE IF NOT EXISTS sys_config (
 		key TEXT PRIMARY KEY,
 		value TEXT NOT NULL DEFAULT '',
 		updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-	);`,
+	);`},
 
 	// V40: Remote service-mode assignments by synchronized fingerprint
-	`ALTER TABLE remote_instances ADD COLUMN IF NOT EXISTS sync_fingerprint TEXT NOT NULL DEFAULT '';
+	{Version: 40, SQL: `ALTER TABLE remote_instances ADD COLUMN IF NOT EXISTS sync_fingerprint TEXT NOT NULL DEFAULT '';
 	ALTER TABLE remote_instances ADD COLUMN IF NOT EXISTS service_mode TEXT NOT NULL DEFAULT 'active';
-	CREATE INDEX IF NOT EXISTS idx_remote_instances_fingerprint ON remote_instances(sync_fingerprint) WHERE sync_fingerprint <> '';`,
+	CREATE INDEX IF NOT EXISTS idx_remote_instances_fingerprint ON remote_instances(sync_fingerprint) WHERE sync_fingerprint <> '';`},
 
 	// V41: Add poller metrics columns to monitoring_app_health
-	`ALTER TABLE monitoring_app_health ADD COLUMN IF NOT EXISTS poller_active_workers INT NOT NULL DEFAULT 0;
+	{Version: 41, SQL: `ALTER TABLE monitoring_app_health ADD COLUMN IF NOT EXISTS poller_active_workers INT NOT NULL DEFAULT 0;
 	ALTER TABLE monitoring_app_health ADD COLUMN IF NOT EXISTS poller_queued_critical INT NOT NULL DEFAULT 0;
 	ALTER TABLE monitoring_app_health ADD COLUMN IF NOT EXISTS poller_queued_normal INT NOT NULL DEFAULT 0;
 	ALTER TABLE monitoring_app_health ADD COLUMN IF NOT EXISTS poller_queued_low INT NOT NULL DEFAULT 0;
@@ -1080,29 +1105,29 @@ var migrations = []string{
 	ALTER TABLE monitoring_app_health ADD COLUMN IF NOT EXISTS poller_errors_total BIGINT NOT NULL DEFAULT 0;
 	ALTER TABLE monitoring_app_health ADD COLUMN IF NOT EXISTS poller_avg_latency_ms BIGINT NOT NULL DEFAULT 0;
 	ALTER TABLE monitoring_app_health ADD COLUMN IF NOT EXISTS poller_unreachable_count INT NOT NULL DEFAULT 0;
-	ALTER TABLE monitoring_app_health ADD COLUMN IF NOT EXISTS poller_paused_count INT NOT NULL DEFAULT 0;`,
+	ALTER TABLE monitoring_app_health ADD COLUMN IF NOT EXISTS poller_paused_count INT NOT NULL DEFAULT 0;`},
 
 	// V42: Add priority column to devices
-	`ALTER TABLE devices ADD COLUMN IF NOT EXISTS priority INT NOT NULL DEFAULT 1;
-	CREATE INDEX IF NOT EXISTS idx_devices_priority ON devices(priority) WHERE enabled = true;`,
+	{Version: 42, SQL: `ALTER TABLE devices ADD COLUMN IF NOT EXISTS priority INT NOT NULL DEFAULT 1;
+	CREATE INDEX IF NOT EXISTS idx_devices_priority ON devices(priority) WHERE enabled = true;`},
 
 	// V43: Profile options for first-class security devices. Kept separate from
 	// credentials so discovery/API responses never expose secrets.
-	`ALTER TABLE devices ADD COLUMN IF NOT EXISTS monitor_config JSONB NOT NULL DEFAULT '{}';
+	{Version: 43, SQL: `ALTER TABLE devices ADD COLUMN IF NOT EXISTS monitor_config JSONB NOT NULL DEFAULT '{}';
 	CREATE INDEX IF NOT EXISTS idx_devices_security_categories ON devices(device_category)
-	WHERE device_category IN ('camera', 'nvr', 'biometric');`,
+	WHERE device_category IN ('camera', 'nvr', 'biometric');`},
 
 	// V44: Guard against duplicate active alerts for a rule/device pair. A
 	// partial unique index is PostgreSQL's last line of defense if two
 	// evaluations for the same rule+device get through the engine's keyed
 	// mutex or a restart resets the alert_rule_state cache.
-	`CREATE UNIQUE INDEX IF NOT EXISTS uq_alerts_active_rule_device
-	ON alerts(rule_id, device_id) WHERE status = 'active' AND rule_id IS NOT NULL;`,
+	{Version: 44, SQL: `CREATE UNIQUE INDEX IF NOT EXISTS uq_alerts_active_rule_device
+	ON alerts(rule_id, device_id) WHERE status = 'active' AND rule_id IS NOT NULL;`},
 
 	// V45: API key lifecycle — add expiry and revocation columns to
 	// api_keys so keys can be time-limited and revoked without deletion
 	// (M5 — previously keys had no expiry and could only be deleted).
-	`ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ;
+	{Version: 45, SQL: `ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ;
 	 ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS revoked_at TIMESTAMPTZ;
-	 ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();`,
+	 ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();`},
 }
