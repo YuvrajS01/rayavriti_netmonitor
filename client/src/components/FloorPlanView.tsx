@@ -1,11 +1,11 @@
 import { useMemo } from 'react';
-import type { Phase2Row } from '../api/phase2';
+import type { ResourceRow } from '../api/resources';
 import type { Device } from '../api/types';
 import Card from './ui/Card';
 
 interface FloorPlanViewProps {
-  location: Phase2Row | null;
-  locations: Phase2Row[];
+  location: ResourceRow | null;
+  locations: ResourceRow[];
   devices: Device[];
   onDeviceClick?: (device: Device) => void;
 }
@@ -113,7 +113,7 @@ function RoomVisual({
   devices,
   onClick,
 }: {
-  location: Phase2Row;
+  location: ResourceRow;
   devices: Device[];
   onClick?: (d: Device) => void;
 }) {
@@ -175,7 +175,7 @@ function RackVisual({
   devices,
   onClick,
 }: {
-  location: Phase2Row;
+  location: ResourceRow;
   devices: Device[];
   onClick?: (d: Device) => void;
 }) {

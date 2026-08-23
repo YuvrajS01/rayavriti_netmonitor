@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import { getDeviceMetrics, deleteDevice, getDevicePorts, scanDevicePorts, getHealthScore, getDevices } from '../api/client';
-import { listPhase2, type Phase2Row } from '../api/phase2';
+import { listResources, type ResourceRow } from '../api/resources';
 import { v1 } from '../api/http';
 import { useSocket } from '../hooks/useSocket';
 import type { Device, Metric, MetricMessagePayload, PortScanResult, TrafficInterfaceSample } from '../api/types';
@@ -67,7 +67,7 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
   const previousFocus = useRef<HTMLElement | null>(null);
   const [metrics, setMetrics] = useState<Metric[]>([]);
   const [ports, setPorts] = useState<PortScanResult[]>([]);
-  const [locations, setLocations] = useState<Phase2Row[]>([]);
+  const [locations, setLocations] = useState<ResourceRow[]>([]);
   const [locationId, setLocationId] = useState<string>(device.locationId != null ? String(device.locationId) : '');
   const [allDevices, setAllDevices] = useState<Device[]>([]);
   const [parentDeviceId, setParentDeviceId] = useState<string>(device.parentDeviceId != null ? String(device.parentDeviceId) : '');
@@ -114,7 +114,7 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
       const [metricRes, portRes, locRes, devRes, healthRes] = await Promise.all([
         getDeviceMetrics(device.id, 50),
         getDevicePorts(device.id),
-        listPhase2('/locations'),
+        listResources('/locations'),
         getDevices(),
         getHealthScore(device.id).catch(() => null),
       ]);

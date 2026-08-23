@@ -1,8 +1,8 @@
 import { v1, wrap } from './http';
 
-export type Phase2Row = Record<string, unknown>;
+export type ResourceRow = Record<string, unknown>;
 
-export interface Phase2Summary {
+export interface ResourceSummary {
   locations: number;
   subnets: number;
   contacts: number;
@@ -46,24 +46,24 @@ export interface LocationNode {
   children?: LocationNode[];
 }
 
-export async function getPhase2Summary() {
+export async function getResourceSummary() {
   const res = await v1.get('/phase2/summary');
-  return wrap<Phase2Summary>(res.data);
+  return wrap<ResourceSummary>(res.data);
 }
 
-export async function listPhase2(path: string) {
+export async function listResources(path: string) {
   const res = await v1.get(path);
-  return wrap<Phase2Row[]>(res.data);
+  return wrap<ResourceRow[]>(res.data);
 }
 
-export async function createPhase2(path: string, payload: Phase2Row) {
+export async function createResource(path: string, payload: ResourceRow) {
   const res = await v1.post(path, payload);
-  return wrap<Phase2Row>(res.data);
+  return wrap<ResourceRow>(res.data);
 }
 
-export async function updatePhase2(path: string, id: number | string, payload: Phase2Row) {
+export async function updateResource(path: string, id: number | string, payload: ResourceRow) {
   const res = await v1.put(`${path}/${id}`, payload);
-  return wrap<Phase2Row>(res.data);
+  return wrap<ResourceRow>(res.data);
 }
 
 /** Fetch the device dependency tree from /api/v1/topology */

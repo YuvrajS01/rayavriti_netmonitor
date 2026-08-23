@@ -232,11 +232,11 @@ func run() error {
 	logger.Info("Retention scheduler started")
 
 	// 11.5 Initialize ISP collector and scheduled report runner
-	ispCollector := reports.NewISPCollector(db.Pool(), cfg.Phase2.ISPMonitorInterval)
+	ispCollector := reports.NewISPCollector(db.Pool(), cfg.Integrations.ISPMonitorInterval)
 	ispCollector.Start(context.Background())
-	logger.Info("ISP collector started", "interval_sec", cfg.Phase2.ISPMonitorInterval)
+	logger.Info("ISP collector started", "interval_sec", cfg.Integrations.ISPMonitorInterval)
 
-	reportGen := reports.NewGenerator(db.Pool(), cfg.Phase2.ReportOutputDir)
+	reportGen := reports.NewGenerator(db.Pool(), cfg.Integrations.ReportOutputDir)
 	reportScheduler := reports.NewScheduledRunner(db.Pool(), reportGen, time.Minute)
 	reportScheduler.Start(context.Background())
 	logger.Info("Scheduled report runner started")

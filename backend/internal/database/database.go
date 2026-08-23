@@ -48,7 +48,7 @@ type RefreshToken struct {
 	CreatedAt time.Time
 }
 
-type Phase2Summary struct {
+type ResourceSummary struct {
 	Locations          int `json:"locations"`
 	Subnets            int `json:"subnets"`
 	Contacts           int `json:"contacts"`
@@ -60,14 +60,14 @@ type Phase2Summary struct {
 	ScheduledReports   int `json:"scheduledReports"`
 }
 
-type Phase2Store interface {
-	ListPhase2(ctx context.Context, resource string, filters map[string]string) ([]map[string]any, error)
-	ListPhase2Cursor(ctx context.Context, resource string, filters map[string]string, cursor string, limit int) ([]map[string]any, string, bool, error)
-	GetPhase2(ctx context.Context, resource string, id int64) (map[string]any, error)
-	CreatePhase2(ctx context.Context, resource string, values map[string]any) (map[string]any, error)
-	UpdatePhase2(ctx context.Context, resource string, id int64, values map[string]any) (map[string]any, error)
-	DeletePhase2(ctx context.Context, resource string, id int64) error
-	Phase2Summary(ctx context.Context) (Phase2Summary, error)
+type ResourceStore interface {
+	ListResources(ctx context.Context, resource string, filters map[string]string) ([]map[string]any, error)
+	ListResourcesCursor(ctx context.Context, resource string, filters map[string]string, cursor string, limit int) ([]map[string]any, string, bool, error)
+	GetResource(ctx context.Context, resource string, id int64) (map[string]any, error)
+	CreateResource(ctx context.Context, resource string, values map[string]any) (map[string]any, error)
+	UpdateResource(ctx context.Context, resource string, id int64, values map[string]any) (map[string]any, error)
+	DeleteResource(ctx context.Context, resource string, id int64) error
+	ResourceSummary(ctx context.Context) (ResourceSummary, error)
 }
 
 type Database interface {

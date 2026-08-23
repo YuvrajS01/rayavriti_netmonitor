@@ -15,7 +15,7 @@ type Config struct {
 	Auth      AuthConfig
 	Collector CollectorConfig
 	Logging   LoggingConfig
-	Phase2    Phase2Config
+	Integrations IntegrationsConfig
 	Backup    BackupConfig
 	Remote    RemoteConfig
 	Telemetry TelemetryConfig
@@ -94,7 +94,7 @@ type LoggingConfig struct {
 	SlowRequestMs  int
 }
 
-type Phase2Config struct {
+type IntegrationsConfig struct {
 	TelegramBotToken       string
 	TelegramDefaultChatID  string
 	TelegramMode           string
@@ -225,7 +225,7 @@ func Load() (*Config, error) {
 			SlowQueryMs:    envInt("LOG_SLOW_QUERY_MS", 100),
 			SlowRequestMs:  envInt("LOG_SLOW_REQUEST_MS", 1000),
 		},
-		Phase2: Phase2Config{
+		Integrations: IntegrationsConfig{
 			TelegramBotToken:       envStr("TELEGRAM_BOT_TOKEN", envStr("TELEGRAM_TOKEN", "")),
 			TelegramDefaultChatID:  envStr("TELEGRAM_DEFAULT_CHAT_ID", envStr("TELEGRAM_CHAT_ID", "")),
 			TelegramMode:           envStr("TELEGRAM_MODE", "polling"),

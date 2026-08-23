@@ -3,7 +3,7 @@ import SectionHeader from '../components/ui/SectionHeader';
 import Card from '../components/ui/Card';
 import EmptyState from '../components/ui/EmptyState';
 import LocationTree from '../components/LocationTree';
-import { listPhase2, type Phase2Row } from '../api/phase2';
+import { listResources, type ResourceRow } from '../api/resources';
 import { getDevices } from '../api/client';
 import type { Device } from '../api/types';
 import { useToast } from '../components/ui/useToast';
@@ -21,9 +21,9 @@ const statusColors: Record<string, string> = {
 
 export default function Campus() {
   const { addToast } = useToast();
-  const [locations, setLocations] = useState<Phase2Row[]>([]);
+  const [locations, setLocations] = useState<ResourceRow[]>([]);
   const [devices, setDevices] = useState<Device[]>([]);
-  const [selected, setSelected] = useState<Phase2Row | null>(null);
+  const [selected, setSelected] = useState<ResourceRow | null>(null);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<'tree' | 'map' | 'floor'>('tree');
 
@@ -32,7 +32,7 @@ export default function Campus() {
       setLoading(true);
       try {
         const [locRes, devRes] = await Promise.all([
-          listPhase2('/locations'),
+          listResources('/locations'),
           getDevices(),
         ]);
         setLocations(locRes.data || []);
@@ -52,7 +52,7 @@ export default function Campus() {
   // GetTreeWithStatus semantic.
   const enriched = useMemo(() => {
     const empty = { up: 0, down: 0, warning: 0, maintenance: 0, unknown: 0 };
-    const idToLoc = new Map<number, Phase2Row>();
+    const idToLoc = new Map<number, ResourceRow>();
     for (const loc of locations) idToLoc.set(Number(loc.id), loc);
 
     // Direct (own) counts per location.
@@ -103,7 +103,7 @@ export default function Campus() {
   // Device IDs at or under each location (inclusive), for the detail table so a
   // floor/campus selection lists devices that live in descendant racks/rooms.
   const descendantIds = useMemo(() => {
-    const idToLoc = new Map<number, Phase2Row>();
+    const idToLoc = new Map<number, ResourceRow>();
     for (const loc of locations) idToLoc.set(Number(loc.id), loc);
     const kids = new Map<number, number[]>();
     for (const loc of locations) {
@@ -145,7 +145,7 @@ export default function Campus() {
     return { total: locations.length, buildings, devices: devices.length, down: totalDown };
   }, [locations, devices]);
 
-  const handleSelect = useCallback((loc: Phase2Row) => setSelected(loc), []);
+  const handleSelect = useCallback((loc: ResourceRow) => setSelected(loc), []);
 
   if (loading) {
     return (
@@ -197,7 +197,7 @@ export default function Campus() {
       ) : view === 'map' ? (
         <CampusMap locations={enriched} selectedId={selected ? Number(selected.id) : null} onSelect={handleSelect} />
       ) : view === 'floor' ? (
-        <FloorPlanView location={selected} locations={locations as Phase2Row[]} devices={devices} />
+        <FloorPlanView location={selected} locations={locations as ResourceRow[]} devices={devices} />
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
           {/* Left Panel — Tree */}
@@ -234,7 +234,7 @@ export default function Campus() {
                     {/* Status badges */}
                     <div className="flex items-center gap-2 shrink-0">
                       {(() => {
-                        const st = (selected as Phase2Row & { status?: Record<string, number> }).status;
+                        const st = (selected as ResourceRow & { status?: Record<string, number> }).status;
                         if (!st) return null;
                         return (
                           <>

@@ -4,7 +4,7 @@ import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import EmptyState from '../components/ui/EmptyState';
 import LocationTree from '../components/LocationTree';
-import { listPhase2, createPhase2, updatePhase2, type Phase2Row } from '../api/phase2';
+import { listResources, createResource, updateResource, type ResourceRow } from '../api/resources';
 import { v1 } from '../api/http';
 import { getDevices } from '../api/client';
 import { useToast } from '../components/ui/useToast';
@@ -24,8 +24,8 @@ const emptyForm = {
 
 export default function LocationManager() {
   const { addToast } = useToast();
-  const [locations, setLocations] = useState<Phase2Row[]>([]);
-  const [selected, setSelected] = useState<Phase2Row | null>(null);
+  const [locations, setLocations] = useState<ResourceRow[]>([]);
+  const [selected, setSelected] = useState<ResourceRow | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [isCreating, setIsCreating] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -35,7 +35,7 @@ export default function LocationManager() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const res = await listPhase2('/locations');
+      const res = await listResources('/locations');
       setLocations(res.data || []);
     } catch {
       setLocations([]);
@@ -48,7 +48,7 @@ export default function LocationManager() {
     (async () => {
       setLoading(true);
       try {
-        const res = await listPhase2('/locations');
+        const res = await listResources('/locations');
         if (active) setLocations(res.data || []);
       } catch {
         if (active) setLocations([]);
@@ -58,7 +58,7 @@ export default function LocationManager() {
     return () => { active = false; };
   }, []);
 
-  const handleSelect = useCallback((loc: Phase2Row) => {
+  const handleSelect = useCallback((loc: ResourceRow) => {
     setSelected(loc);
     setIsCreating(false);
     setForm({
@@ -100,10 +100,10 @@ export default function LocationManager() {
       };
 
       if (isCreating) {
-        await createPhase2('/locations', payload);
+        await createResource('/locations', payload);
         addToast('Location created', 'success');
       } else if (selected) {
-        await updatePhase2('/locations', Number(selected.id), payload);
+        await updateResource('/locations', Number(selected.id), payload);
         addToast('Location updated', 'success');
       }
       await loadData();

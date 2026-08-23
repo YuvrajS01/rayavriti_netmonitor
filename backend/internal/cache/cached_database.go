@@ -10,9 +10,9 @@ import (
 	"github.com/rayavriti/netmonitor-backend/internal/models"
 )
 
-// phase2Inner checks if the embedded Database also implements Phase2Store.
-func phase2Inner(db database.Database) (database.Phase2Store, bool) {
-	ps, ok := db.(database.Phase2Store)
+// resourceStoreInner checks if the embedded Database also implements ResourceStore.
+func resourceStoreInner(db database.Database) (database.ResourceStore, bool) {
+	ps, ok := db.(database.ResourceStore)
 	return ps, ok
 }
 
@@ -167,62 +167,62 @@ func (c *CachedDatabase) GetDevicesFiltered(ctx context.Context, f database.Devi
 	return c.Database.GetDevicesFiltered(ctx, f)
 }
 
-// Phase2Store delegation — the inner Database (typically *Postgres) implements
-// Phase2Store, but the interface embedding in CachedDatabase hides those methods.
-// We explicitly delegate so that db.(database.Phase2Store) succeeds.
+// ResourceStore delegation — the inner Database (typically *Postgres) implements
+// ResourceStore, but the interface embedding in CachedDatabase hides those methods.
+// We explicitly delegate so that db.(database.ResourceStore) succeeds.
 
-func (c *CachedDatabase) ListPhase2(ctx context.Context, resource string, filters map[string]string) ([]map[string]any, error) {
-	ps, ok := phase2Inner(c.Database)
+func (c *CachedDatabase) ListResources(ctx context.Context, resource string, filters map[string]string) ([]map[string]any, error) {
+	ps, ok := resourceStoreInner(c.Database)
 	if !ok {
-		return nil, fmt.Errorf("inner database does not implement Phase2Store")
+		return nil, fmt.Errorf("inner database does not implement ResourceStore")
 	}
-	return ps.ListPhase2(ctx, resource, filters)
+	return ps.ListResources(ctx, resource, filters)
 }
 
-func (c *CachedDatabase) ListPhase2Cursor(ctx context.Context, resource string, filters map[string]string, cursor string, limit int) ([]map[string]any, string, bool, error) {
-	ps, ok := phase2Inner(c.Database)
+func (c *CachedDatabase) ListResourcesCursor(ctx context.Context, resource string, filters map[string]string, cursor string, limit int) ([]map[string]any, string, bool, error) {
+	ps, ok := resourceStoreInner(c.Database)
 	if !ok {
-		return nil, "", false, fmt.Errorf("inner database does not implement Phase2Store")
+		return nil, "", false, fmt.Errorf("inner database does not implement ResourceStore")
 	}
-	return ps.ListPhase2Cursor(ctx, resource, filters, cursor, limit)
+	return ps.ListResourcesCursor(ctx, resource, filters, cursor, limit)
 }
 
-func (c *CachedDatabase) GetPhase2(ctx context.Context, resource string, id int64) (map[string]any, error) {
-	ps, ok := phase2Inner(c.Database)
+func (c *CachedDatabase) GetResource(ctx context.Context, resource string, id int64) (map[string]any, error) {
+	ps, ok := resourceStoreInner(c.Database)
 	if !ok {
-		return nil, fmt.Errorf("inner database does not implement Phase2Store")
+		return nil, fmt.Errorf("inner database does not implement ResourceStore")
 	}
-	return ps.GetPhase2(ctx, resource, id)
+	return ps.GetResource(ctx, resource, id)
 }
 
-func (c *CachedDatabase) CreatePhase2(ctx context.Context, resource string, values map[string]any) (map[string]any, error) {
-	ps, ok := phase2Inner(c.Database)
+func (c *CachedDatabase) CreateResource(ctx context.Context, resource string, values map[string]any) (map[string]any, error) {
+	ps, ok := resourceStoreInner(c.Database)
 	if !ok {
-		return nil, fmt.Errorf("inner database does not implement Phase2Store")
+		return nil, fmt.Errorf("inner database does not implement ResourceStore")
 	}
-	return ps.CreatePhase2(ctx, resource, values)
+	return ps.CreateResource(ctx, resource, values)
 }
 
-func (c *CachedDatabase) UpdatePhase2(ctx context.Context, resource string, id int64, values map[string]any) (map[string]any, error) {
-	ps, ok := phase2Inner(c.Database)
+func (c *CachedDatabase) UpdateResource(ctx context.Context, resource string, id int64, values map[string]any) (map[string]any, error) {
+	ps, ok := resourceStoreInner(c.Database)
 	if !ok {
-		return nil, fmt.Errorf("inner database does not implement Phase2Store")
+		return nil, fmt.Errorf("inner database does not implement ResourceStore")
 	}
-	return ps.UpdatePhase2(ctx, resource, id, values)
+	return ps.UpdateResource(ctx, resource, id, values)
 }
 
-func (c *CachedDatabase) DeletePhase2(ctx context.Context, resource string, id int64) error {
-	ps, ok := phase2Inner(c.Database)
+func (c *CachedDatabase) DeleteResource(ctx context.Context, resource string, id int64) error {
+	ps, ok := resourceStoreInner(c.Database)
 	if !ok {
-		return fmt.Errorf("inner database does not implement Phase2Store")
+		return fmt.Errorf("inner database does not implement ResourceStore")
 	}
-	return ps.DeletePhase2(ctx, resource, id)
+	return ps.DeleteResource(ctx, resource, id)
 }
 
-func (c *CachedDatabase) Phase2Summary(ctx context.Context) (database.Phase2Summary, error) {
-	ps, ok := phase2Inner(c.Database)
+func (c *CachedDatabase) ResourceSummary(ctx context.Context) (database.ResourceSummary, error) {
+	ps, ok := resourceStoreInner(c.Database)
 	if !ok {
-		return database.Phase2Summary{}, fmt.Errorf("inner database does not implement Phase2Store")
+		return database.ResourceSummary{}, fmt.Errorf("inner database does not implement ResourceStore")
 	}
-	return ps.Phase2Summary(ctx)
+	return ps.ResourceSummary(ctx)
 }

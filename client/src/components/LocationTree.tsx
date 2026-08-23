@@ -1,15 +1,15 @@
 import { useMemo, useState, useCallback } from 'react';
-import type { Phase2Row } from '../api/phase2';
+import type { ResourceRow } from '../api/resources';
 
 interface LocationTreeProps {
-  locations: Phase2Row[];
-  onSelect?: (location: Phase2Row) => void;
+  locations: ResourceRow[];
+  onSelect?: (location: ResourceRow) => void;
   selectedId?: number | null;
   showStatus?: boolean;
   showDeviceCount?: boolean;
 }
 
-interface TreeNode extends Phase2Row {
+interface TreeNode extends ResourceRow {
   _children: TreeNode[];
   _depth: number;
 }
@@ -25,7 +25,7 @@ const typeIcons: Record<string, string> = {
   site: 'location_city',
 };
 
-function buildNodes(flat: Phase2Row[]): TreeNode[] {
+function buildNodes(flat: ResourceRow[]): TreeNode[] {
   const byId = new Map<number, TreeNode>();
   for (const loc of flat) {
     const id = Number(loc.id);
@@ -97,7 +97,7 @@ function TreeItem({
 }: {
   node: TreeNode;
   selectedId?: number | null;
-  onSelect?: (loc: Phase2Row) => void;
+  onSelect?: (loc: ResourceRow) => void;
   showStatus?: boolean;
   showDeviceCount?: boolean;
   searchOpen: Set<number>;

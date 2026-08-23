@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { getDevices, getLatestMetrics } from '../api/client';
-import { getTopologyTree, type TopologyNode } from '../api/phase2';
+import { getTopologyTree, type TopologyNode } from '../api/resources';
 import { useSocket } from '../hooks/useSocket';
 import type { Device, Metric } from '../api/types';
 import SectionHeader from '../components/ui/SectionHeader';

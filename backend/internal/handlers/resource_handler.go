@@ -13,29 +13,29 @@ import (
 	"github.com/rayavriti/netmonitor-backend/internal/httputil"
 )
 
-type Phase2Handler struct {
+type ResourceHandler struct {
 	db     database.Database
-	phase2 database.Phase2Store
+	store database.ResourceStore
 }
 
-func NewPhase2Handler(db database.Database) *Phase2Handler {
-	phase2, _ := db.(database.Phase2Store)
-	return &Phase2Handler{db: db, phase2: phase2}
+func NewResourceHandler(db database.Database) *ResourceHandler {
+	store, _ := db.(database.ResourceStore)
+	return &ResourceHandler{db: db, store: store}
 }
 
-func (h *Phase2Handler) requireStore(w http.ResponseWriter) bool {
-	if h.phase2 == nil {
-		httputil.SendError(w, http.StatusNotImplemented, "phase 2 storage is not available")
+func (h *ResourceHandler) requireStore(w http.ResponseWriter) bool {
+	if h.store == nil {
+		httputil.SendError(w, http.StatusNotImplemented, "resource storage is not available")
 		return false
 	}
 	return true
 }
 
-func (h *Phase2Handler) Summary(w http.ResponseWriter, r *http.Request) {
+func (h *ResourceHandler) Summary(w http.ResponseWriter, r *http.Request) {
 	if !h.requireStore(w) {
 		return
 	}
-	summary, err := h.phase2.Phase2Summary(r.Context())
+	summary, err := h.store.ResourceSummary(r.Context())
 	if err != nil {
 		httputil.SendInternalError(w, err)
 		return
@@ -43,7 +43,7 @@ func (h *Phase2Handler) Summary(w http.ResponseWriter, r *http.Request) {
 	httputil.SendOK(w, summary)
 }
 
-func (h *Phase2Handler) List(resource string) http.HandlerFunc {
+func (h *ResourceHandler) List(resource string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		filters := map[string]string{}
 		for key, vals := range r.URL.Query() {
@@ -76,7 +76,7 @@ func (h *Phase2Handler) List(resource string) http.HandlerFunc {
 		}
 
 		if cursor != "" || r.URL.Query().Get("cursor") != "" || r.URL.Query().Get("Cursor") != "" {
-			rows, nextCursor, hasMore, err := h.phase2.ListPhase2Cursor(r.Context(), resource, filters, cursor, limit)
+			rows, nextCursor, hasMore, err := h.store.ListResourcesCursor(r.Context(), resource, filters, cursor, limit)
 			if err != nil {
 				httputil.SendInternalError(w, err)
 				return
@@ -89,7 +89,7 @@ func (h *Phase2Handler) List(resource string) http.HandlerFunc {
 			return
 		}
 
-		rows, err := h.phase2.ListPhase2(r.Context(), resource, filters)
+		rows, err := h.store.ListResources(r.Context(), resource, filters)
 		if err != nil {
 			httputil.SendInternalError(w, err)
 			return
@@ -102,7 +102,7 @@ func (h *Phase2Handler) List(resource string) http.HandlerFunc {
 	}
 }
 
-func (h *Phase2Handler) Get(resource string) http.HandlerFunc {
+func (h *ResourceHandler) Get(resource string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id, err := parseID(chi.URLParam(r, "id"))
 		if err != nil {
@@ -112,7 +112,7 @@ func (h *Phase2Handler) Get(resource string) http.HandlerFunc {
 		if !h.requireStore(w) {
 			return
 		}
-		item, err := h.phase2.GetPhase2(r.Context(), resource, id)
+		item, err := h.store.GetResource(r.Context(), resource, id)
 		if err != nil {
 			httputil.SendError(w, http.StatusNotFound, "not found")
 			return
@@ -121,7 +121,7 @@ func (h *Phase2Handler) Get(resource string) http.HandlerFunc {
 	}
 }
 
-func (h *Phase2Handler) Create(resource string) http.HandlerFunc {
+func (h *ResourceHandler) Create(resource string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var body map[string]any
 		if err := httputil.ParseJSON(r, &body); err != nil {
@@ -131,7 +131,7 @@ func (h *Phase2Handler) Create(resource string) http.HandlerFunc {
 		if !h.requireStore(w) {
 			return
 		}
-		item, err := h.phase2.CreatePhase2(r.Context(), resource, body)
+		item, err := h.store.CreateResource(r.Context(), resource, body)
 		if err != nil {
 			httputil.SendError(w, http.StatusBadRequest, err.Error())
 			return
@@ -140,7 +140,7 @@ func (h *Phase2Handler) Create(resource string) http.HandlerFunc {
 	}
 }
 
-func (h *Phase2Handler) Update(resource string) http.HandlerFunc {
+func (h *ResourceHandler) Update(resource string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id, err := parseID(chi.URLParam(r, "id"))
 		if err != nil {
@@ -155,7 +155,7 @@ func (h *Phase2Handler) Update(resource string) http.HandlerFunc {
 		if !h.requireStore(w) {
 			return
 		}
-		item, err := h.phase2.UpdatePhase2(r.Context(), resource, id, body)
+		item, err := h.store.UpdateResource(r.Context(), resource, id, body)
 		if err != nil {
 			httputil.SendError(w, http.StatusBadRequest, err.Error())
 			return
@@ -164,7 +164,7 @@ func (h *Phase2Handler) Update(resource string) http.HandlerFunc {
 	}
 }
 
-func (h *Phase2Handler) Delete(resource string) http.HandlerFunc {
+func (h *ResourceHandler) Delete(resource string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id, err := parseID(chi.URLParam(r, "id"))
 		if err != nil {
@@ -174,7 +174,7 @@ func (h *Phase2Handler) Delete(resource string) http.HandlerFunc {
 		if !h.requireStore(w) {
 			return
 		}
-		if err := h.phase2.DeletePhase2(r.Context(), resource, id); err != nil {
+		if err := h.store.DeleteResource(r.Context(), resource, id); err != nil {
 			httputil.SendError(w, http.StatusBadRequest, err.Error())
 			return
 		}
@@ -182,7 +182,7 @@ func (h *Phase2Handler) Delete(resource string) http.HandlerFunc {
 	}
 }
 
-func (h *Phase2Handler) LocationStatus(w http.ResponseWriter, r *http.Request) {
+func (h *ResourceHandler) LocationStatus(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(chi.URLParam(r, "id"))
 	if err != nil {
 		httputil.SendError(w, http.StatusBadRequest, "invalid id")
@@ -207,11 +207,11 @@ func (h *Phase2Handler) LocationStatus(w http.ResponseWriter, r *http.Request) {
 	httputil.SendOK(w, status)
 }
 
-func (h *Phase2Handler) Topology(w http.ResponseWriter, r *http.Request) {
+func (h *ResourceHandler) Topology(w http.ResponseWriter, r *http.Request) {
 	if !h.requireStore(w) {
 		return
 	}
-	locations, err := h.phase2.ListPhase2(r.Context(), "locations", nil)
+	locations, err := h.store.ListResources(r.Context(), "locations", nil)
 	if err != nil {
 		httputil.SendInternalError(w, err)
 		return
@@ -238,16 +238,16 @@ func (h *Phase2Handler) Topology(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (h *Phase2Handler) PublicStatusJSON(w http.ResponseWriter, r *http.Request) {
+func (h *ResourceHandler) PublicStatusJSON(w http.ResponseWriter, r *http.Request) {
 	if !h.requireStore(w) {
 		return
 	}
-	services, err := h.phase2.ListPhase2(r.Context(), "status_page_services", map[string]string{"enabled": "true"})
+	services, err := h.store.ListResources(r.Context(), "status_page_services", map[string]string{"enabled": "true"})
 	if err != nil {
 		httputil.SendInternalError(w, err)
 		return
 	}
-	incidents, _ := h.phase2.ListPhase2(r.Context(), "status_page_incidents", nil)
+	incidents, _ := h.store.ListResources(r.Context(), "status_page_incidents", nil)
 	groups := map[string][]map[string]any{}
 	overall := "operational"
 	for _, svc := range services {
@@ -290,12 +290,12 @@ func (h *Phase2Handler) PublicStatusJSON(w http.ResponseWriter, r *http.Request)
 	})
 }
 
-func (h *Phase2Handler) PublicStatusHTML(w http.ResponseWriter, r *http.Request) {
+func (h *ResourceHandler) PublicStatusHTML(w http.ResponseWriter, r *http.Request) {
 	if !h.requireStore(w) {
 		return
 	}
-	services, _ := h.phase2.ListPhase2(r.Context(), "status_page_services", map[string]string{"enabled": "true"})
-	incidents, _ := h.phase2.ListPhase2(r.Context(), "status_page_incidents", nil)
+	services, _ := h.store.ListResources(r.Context(), "status_page_services", map[string]string{"enabled": "true"})
+	incidents, _ := h.store.ListResources(r.Context(), "status_page_incidents", nil)
 
 	groups := map[string][]map[string]any{}
 	overall := "operational"

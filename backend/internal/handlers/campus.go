@@ -15,7 +15,7 @@ import (
 )
 
 // CampusHandler provides typed HTTP handlers for campus topology,
-// locations, and device import — replacing generic Phase2 handlers for these routes.
+// locations, and device import — replacing generic resource handlers for these routes.
 type CampusHandler struct {
 	locations *campus.LocationService
 	topology  *campus.TopologyService

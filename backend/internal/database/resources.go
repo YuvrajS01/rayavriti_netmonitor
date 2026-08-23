@@ -12,7 +12,7 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-type phase2Resource struct {
+type resourceDefinition struct {
 	Table     string
 	Select    string
 	Cols      map[string]bool
@@ -20,7 +20,7 @@ type phase2Resource struct {
 	UpdatedAt bool // true if the table has an updated_at column
 }
 
-var phase2Resources = map[string]phase2Resource{
+var resourceRegistry = map[string]resourceDefinition{
 	"locations":                    {Table: "locations", OrderBy: "sort_order ASC, id ASC", Cols: colset("name", "type", "parent_id", "code", "description", "address", "latitude", "longitude", "floor_number", "contact_person_id", "metadata", "sort_order", "enabled"), UpdatedAt: true},
 	"subnets":                      {Table: "subnets", OrderBy: "id ASC", Cols: colset("name", "vlan_id", "cidr", "gateway", "description", "location_id", "dns_servers", "dhcp_enabled")},
 	"suppressed_alerts":            {Table: "suppressed_alerts", OrderBy: "created_at DESC", Cols: colset("device_id", "rule_id", "suppression_reason", "root_cause_device_id", "root_cause_alert_id", "would_have_fired_at", "released_at")},
@@ -56,16 +56,16 @@ func colset(cols ...string) map[string]bool {
 	return out
 }
 
-func getPhase2Resource(resource string) (phase2Resource, error) {
-	res, ok := phase2Resources[resource]
+func getResourceDefinition(resource string) (resourceDefinition, error) {
+	res, ok := resourceRegistry[resource]
 	if !ok {
-		return phase2Resource{}, fmt.Errorf("unknown phase2 resource %q", resource)
+		return resourceDefinition{}, fmt.Errorf("unknown resource %q", resource)
 	}
 	return res, nil
 }
 
-func (p *Postgres) ListPhase2(ctx context.Context, resource string, filters map[string]string) ([]map[string]any, error) {
-	res, err := getPhase2Resource(resource)
+func (p *Postgres) ListResources(ctx context.Context, resource string, filters map[string]string) ([]map[string]any, error) {
+	res, err := getResourceDefinition(resource)
 	if err != nil {
 		return nil, err
 	}
@@ -97,10 +97,10 @@ func (p *Postgres) ListPhase2(ctx context.Context, resource string, filters map[
 	return rowsToMaps(rows)
 }
 
-// ListPhase2Cursor returns a paginated list using cursor-based pagination.
+// ListResourcesCursor returns a paginated list using cursor-based pagination.
 // Returns (rows, nextCursor, hasMore, error). The cursor is a base64-encoded ID.
-func (p *Postgres) ListPhase2Cursor(ctx context.Context, resource string, filters map[string]string, cursor string, limit int) ([]map[string]any, string, bool, error) {
-	res, err := getPhase2Resource(resource)
+func (p *Postgres) ListResourcesCursor(ctx context.Context, resource string, filters map[string]string, cursor string, limit int) ([]map[string]any, string, bool, error) {
+	res, err := getResourceDefinition(resource)
 	if err != nil {
 		return nil, "", false, err
 	}
@@ -177,8 +177,8 @@ func (p *Postgres) ListPhase2Cursor(ctx context.Context, resource string, filter
 	return allRows, nextCursor, hasMore, nil
 }
 
-func (p *Postgres) GetPhase2(ctx context.Context, resource string, id int64) (map[string]any, error) {
-	res, err := getPhase2Resource(resource)
+func (p *Postgres) GetResource(ctx context.Context, resource string, id int64) (map[string]any, error) {
+	res, err := getResourceDefinition(resource)
 	if err != nil {
 		return nil, err
 	}
@@ -201,12 +201,12 @@ func (p *Postgres) GetPhase2(ctx context.Context, resource string, id int64) (ma
 	return items[0], nil
 }
 
-func (p *Postgres) CreatePhase2(ctx context.Context, resource string, values map[string]any) (map[string]any, error) {
-	res, err := getPhase2Resource(resource)
+func (p *Postgres) CreateResource(ctx context.Context, resource string, values map[string]any) (map[string]any, error) {
+	res, err := getResourceDefinition(resource)
 	if err != nil {
 		return nil, err
 	}
-	cols, args := filteredPhase2Values(res, values)
+	cols, args := filteredResourceValues(res, values)
 	if len(cols) == 0 {
 		return nil, fmt.Errorf("no valid fields for %s", resource)
 	}
@@ -219,17 +219,17 @@ func (p *Postgres) CreatePhase2(ctx context.Context, resource string, values map
 	if err := p.pool.QueryRow(ctx, query, args...).Scan(&id); err != nil {
 		return nil, err
 	}
-	return p.GetPhase2(ctx, resource, id)
+	return p.GetResource(ctx, resource, id)
 }
 
-func (p *Postgres) UpdatePhase2(ctx context.Context, resource string, id int64, values map[string]any) (map[string]any, error) {
-	res, err := getPhase2Resource(resource)
+func (p *Postgres) UpdateResource(ctx context.Context, resource string, id int64, values map[string]any) (map[string]any, error) {
+	res, err := getResourceDefinition(resource)
 	if err != nil {
 		return nil, err
 	}
-	cols, args := filteredPhase2Values(res, values)
+	cols, args := filteredResourceValues(res, values)
 	if len(cols) == 0 {
-		return p.GetPhase2(ctx, resource, id)
+		return p.GetResource(ctx, resource, id)
 	}
 	sets := make([]string, len(cols))
 	for i, col := range cols {
@@ -243,11 +243,11 @@ func (p *Postgres) UpdatePhase2(ctx context.Context, resource string, id int64, 
 	if _, err := p.pool.Exec(ctx, query, args...); err != nil {
 		return nil, err
 	}
-	return p.GetPhase2(ctx, resource, id)
+	return p.GetResource(ctx, resource, id)
 }
 
-func (p *Postgres) DeletePhase2(ctx context.Context, resource string, id int64) error {
-	res, err := getPhase2Resource(resource)
+func (p *Postgres) DeleteResource(ctx context.Context, resource string, id int64) error {
+	res, err := getResourceDefinition(resource)
 	if err != nil {
 		return err
 	}
@@ -255,10 +255,10 @@ func (p *Postgres) DeletePhase2(ctx context.Context, resource string, id int64) 
 	return err
 }
 
-func (p *Postgres) Phase2Summary(ctx context.Context) (Phase2Summary, error) {
+func (p *Postgres) ResourceSummary(ctx context.Context) (ResourceSummary, error) {
 	// M12: Consolidated 9 sequential COUNT queries into a single query
 	// using scalar subselects — one round-trip instead of nine.
-	var out Phase2Summary
+	var out ResourceSummary
 	err := p.pool.QueryRow(ctx, `
 		SELECT
 			(SELECT COUNT(*) FROM locations),
@@ -278,7 +278,7 @@ func (p *Postgres) Phase2Summary(ctx context.Context) (Phase2Summary, error) {
 	return out, err
 }
 
-func filteredPhase2Values(res phase2Resource, values map[string]any) ([]string, []any) {
+func filteredResourceValues(res resourceDefinition, values map[string]any) ([]string, []any) {
 	// Build mapping from snake_case column name to the original request key
 	// so we can look up values correctly even when keys are camelCase.
 	colToOriginal := make(map[string]string, len(values))
@@ -295,12 +295,12 @@ func filteredPhase2Values(res phase2Resource, values map[string]any) ([]string, 
 	sort.Strings(cols)
 	args := make([]any, 0, len(cols))
 	for _, col := range cols {
-		args = append(args, normalizePhase2Value(values[colToOriginal[col]]))
+		args = append(args, normalizeResourceValue(values[colToOriginal[col]]))
 	}
 	return cols, args
 }
 
-func normalizePhase2Value(v any) any {
+func normalizeResourceValue(v any) any {
 	switch t := v.(type) {
 	case map[string]any, []any:
 		b, _ := json.Marshal(t)
