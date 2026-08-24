@@ -58,6 +58,10 @@ services:
       context: .
       target: production
     container_name: rayavriti-netmonitor
+    # M45: Give the server 35s to drain WS connections and flush
+    # pending writes before Docker sends SIGKILL. The server's
+    # graceful shutdown (hub.Stop + srv.Shutdown) has a 30s timeout.
+    stop_grace_period: 35s
     # Host networking is required for:
     #  - Monitoring local network devices (ping, SNMP, port scans)
     #  - Receiving NetFlow/sFlow on UDP 2055

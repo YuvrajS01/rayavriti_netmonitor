@@ -27,8 +27,66 @@ func (p *Postgres) GetAlertRules(ctx context.Context) ([]models.AlertRule, error
 		return nil, err
 	}
 
-	for i := range rules {
-		if err := p.loadAlertRuleRelations(ctx, &rules[i]); err != nil {
+	// Batch-load conditions and channels for all rules at once (M1 —
+	// previously called loadAlertRuleRelations per rule, causing 2N+1
+	// queries).
+	if len(rules) > 0 {
+		ruleIDs := make([]int64, len(rules))
+		ruleIndex := make(map[int64]int, len(rules))
+		for i := range rules {
+			ruleIDs[i] = rules[i].ID
+			ruleIndex[rules[i].ID] = i
+			rules[i].Conditions = []models.AlertRuleCondition{}
+			rules[i].ChannelIDs = []int64{}
+		}
+
+		// Batch load conditions
+		condRows, err := p.pool.Query(ctx, `
+			SELECT id, rule_id, type, metric_field, operator, value, duration_seconds, config
+			FROM alert_rule_conditions
+			WHERE rule_id = ANY($1) ORDER BY id`, ruleIDs)
+		if err != nil {
+			return nil, fmt.Errorf("query conditions: %w", err)
+		}
+		for condRows.Next() {
+			var c models.AlertRuleCondition
+			var cfgRaw []byte
+			if err := condRows.Scan(&c.ID, &c.RuleID, &c.Type, &c.MetricField,
+				&c.Operator, &c.Value, &c.DurationSeconds, &cfgRaw); err != nil {
+				condRows.Close()
+				return nil, err
+			}
+			if cfgRaw != nil {
+				_ = json.Unmarshal(cfgRaw, &c.Config)
+			}
+			if idx, ok := ruleIndex[c.RuleID]; ok {
+				rules[idx].Conditions = append(rules[idx].Conditions, c)
+			}
+		}
+		condRows.Close()
+		if err := condRows.Err(); err != nil {
+			return nil, err
+		}
+
+		// Batch load channel links
+		chRows, err := p.pool.Query(ctx, `
+			SELECT rule_id, channel_id FROM alert_rule_channels
+			WHERE rule_id = ANY($1) ORDER BY channel_id`, ruleIDs)
+		if err != nil {
+			return nil, fmt.Errorf("query channel links: %w", err)
+		}
+		for chRows.Next() {
+			var ruleID, chID int64
+			if err := chRows.Scan(&ruleID, &chID); err != nil {
+				chRows.Close()
+				return nil, err
+			}
+			if idx, ok := ruleIndex[ruleID]; ok {
+				rules[idx].ChannelIDs = append(rules[idx].ChannelIDs, chID)
+			}
+		}
+		chRows.Close()
+		if err := chRows.Err(); err != nil {
 			return nil, err
 		}
 	}

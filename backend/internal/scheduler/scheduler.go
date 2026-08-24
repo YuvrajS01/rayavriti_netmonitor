@@ -54,9 +54,11 @@ type Scheduler struct {
 	pipeline     *ResultPipeline
 	stateTracker *DeviceStateTracker
 
-	cancel context.CancelFunc
-	wg     sync.WaitGroup
-	config SchedulerConfig
+	cancel    context.CancelFunc
+	wg        sync.WaitGroup
+	config    SchedulerConfig
+	startOnce sync.Once
+	started   atomic.Bool
 
 	jobCount atomic.Int64
 }
@@ -142,28 +144,31 @@ func New(db database.Database, registry *collectors.Registry, hub *websocket.Hub
 }
 
 func (s *Scheduler) Start(ctx context.Context) {
-	ctx, s.cancel = context.WithCancel(ctx)
+	s.startOnce.Do(func() {
+		ctx, s.cancel = context.WithCancel(ctx)
 
-	s.pool.Start(ctx)
-	s.dispatcher.Start(ctx)
-	s.pipeline.Start(ctx)
+		s.pool.Start(ctx)
+		s.dispatcher.Start(ctx)
+		s.pipeline.Start(ctx)
 
-	devices, err := s.db.GetEnabledDevices(ctx)
-	if err != nil {
-		slog.Error("failed to fetch enabled devices on start", "error", err)
-	} else {
-		for _, d := range devices {
-			s.scheduleDevice(d)
+		devices, err := s.db.GetEnabledDevices(ctx)
+		if err != nil {
+			slog.Error("failed to fetch enabled devices on start", "error", err)
+		} else {
+			for _, d := range devices {
+				s.scheduleDevice(d)
+			}
 		}
-	}
 
-	s.wg.Add(1)
-	go s.reconcileLoop(ctx)
+		s.wg.Add(1)
+		go s.reconcileLoop(ctx)
 
-	slog.Info("async scheduler started",
-		"workers", s.config.WorkerCount,
-		"devices", s.dispatcher.Count(),
-		"reconcileInterval", s.config.ReconcileInterval)
+		s.started.Store(true)
+		slog.Info("async scheduler started",
+			"workers", s.config.WorkerCount,
+			"devices", s.dispatcher.Count(),
+			"reconcileInterval", s.config.ReconcileInterval)
+	})
 }
 
 func (s *Scheduler) Stop() {
@@ -171,9 +176,14 @@ func (s *Scheduler) Stop() {
 		s.cancel()
 	}
 
-	s.pool.Stop()
+	// Shutdown order (M13 — previously pool.Stop ran while the
+	// dispatcher could still enqueue, and a stuck worker blocked
+	// forever): stop dispatcher first so no new jobs are enqueued,
+	// then stop the pipeline (flush with context.Background()), then
+	// stop the worker pool so in-flight jobs complete.
 	s.dispatcher.Stop()
 	s.pipeline.Stop()
+	s.pool.Stop()
 	s.wg.Wait()
 
 	slog.Info("async scheduler stopped")
@@ -203,6 +213,9 @@ func (s *Scheduler) scheduleDevice(d models.Device) {
 
 func (s *Scheduler) unscheduleDevice(deviceID int64) {
 	s.dispatcher.Remove(deviceID)
+	// Clean up state tracker entry so deleted/disabled devices don't
+	// accumulate forever in the map (M18).
+	s.stateTracker.Remove(deviceID)
 	s.jobCount.Store(int64(s.dispatcher.Count()))
 }
 
@@ -239,6 +252,7 @@ func (s *Scheduler) reconcile(ctx context.Context) {
 		if !currentIDs[id] {
 			slog.Info("device removed or disabled, unscheduling", "device_id", id)
 			s.dispatcher.Remove(id)
+			s.stateTracker.Remove(id)
 		}
 	}
 	s.jobCount.Store(int64(s.dispatcher.Count()))
@@ -253,16 +267,29 @@ func (s *Scheduler) collectAndReturnResult(ctx context.Context, job PollJob) Pol
 
 	if s.rdb != nil {
 		lockKey := fmt.Sprintf("collect:%d", job.Device.ID)
-		locked, release, err := s.rdb.TryLock(ctx, lockKey, time.Duration(job.Device.Interval)*time.Second)
-		if err != nil || !locked {
-			if err != nil {
-				slog.Warn("distributed lock failed", "deviceID", job.Device.ID, "error", err)
-			}
+		// Clamp TTL to a sane range so a device with interval=0 doesn't
+		// create a lock with no expiry (which would permanently block
+		// all other instances from polling it after a crash).
+		lockTTL := time.Duration(job.Device.Interval) * time.Second
+		if lockTTL < 30*time.Second {
+			lockTTL = 30 * time.Second
+		}
+		if lockTTL > 10*time.Minute {
+			lockTTL = 10 * time.Minute
+		}
+		locked, release, err := s.rdb.TryLock(ctx, lockKey, lockTTL)
+		if err != nil {
+			// Redis is briefly down: collect anyway rather than skipping
+			// all polling. The worst case is a duplicate poll across
+			// instances, which is far better than silently halting.
+			slog.Warn("distributed lock failed, collecting without lock", "deviceID", job.Device.ID, "error", err)
+		} else if !locked {
 			result.Error = fmt.Errorf("skipped: could not acquire lock")
 			result.FinishedAt = time.Now()
 			return result
+		} else {
+			defer release()
 		}
-		defer release()
 	}
 
 	c, ok := s.registry.Get(job.Device.Protocol)
@@ -331,7 +358,7 @@ func (s *Scheduler) handlePollResult(pr PollResult) {
 		return
 	}
 
-	if pr.Error != nil {
+	if isDownResult(pr) {
 		s.dispatcher.RecordFailure(pr.Device.ID)
 		s.stateTracker.RecordFailure(pr.Device.ID, pr.Error)
 	} else {
@@ -341,6 +368,15 @@ func (s *Scheduler) handlePollResult(pr PollResult) {
 	}
 
 	s.pipeline.Submit(pr)
+}
+
+// isDownResult reports whether a poll result represents a device failure.
+// A "down" status means the device did not respond, regardless of whether the
+// collector surfaced it as an error or returned a plain down result. Treating
+// it as a failure drives adaptive backoff and unreachable-state tracking so
+// dead devices are polled less aggressively instead of at full rate forever.
+func isDownResult(pr PollResult) bool {
+	return pr.Error != nil || pr.Status == "down"
 }
 
 func (s *Scheduler) StateTracker() *DeviceStateTracker {

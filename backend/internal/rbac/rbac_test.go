@@ -155,3 +155,42 @@ func TestRequireAnyPermission_HTTP(t *testing.T) {
 		})
 	}
 }
+
+func TestRequireAdmin_HTTP(t *testing.T) {
+	noopHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	tests := []struct {
+		name       string
+		role       string
+		wantStatus int
+	}{
+		{"admin allowed", "admin", http.StatusOK},
+		{"super_admin allowed", "super_admin", http.StatusOK},
+		{"viewer denied even with permissions", "viewer", http.StatusForbidden},
+		{"empty role denied", "", http.StatusUnauthorized},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, "/api/test", nil)
+			if tt.role != "" {
+				ctx := context.WithValue(req.Context(), auth.ClaimsKey, &auth.Claims{
+					UserID:   1,
+					Username: "testuser",
+					Role:     tt.role,
+				})
+				req = req.WithContext(ctx)
+			}
+
+			w := httptest.NewRecorder()
+			handler := RequireAdmin()(noopHandler)
+			handler.ServeHTTP(w, req)
+
+			if w.Code != tt.wantStatus {
+				t.Errorf("status = %d, want %d, body: %s", w.Code, tt.wantStatus, w.Body.String())
+			}
+		})
+	}
+}

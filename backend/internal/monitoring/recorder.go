@@ -106,6 +106,7 @@ type SystemMetrics struct {
 	ErrorsTotal           int64   `json:"errors_total"`
 
 	PollerActiveWorkers    int   `json:"poller_active_workers"`
+	PollerBusyWorkers      int   `json:"poller_busy_workers"`
 	PollerQueuedCritical   int   `json:"poller_queued_critical"`
 	PollerQueuedNormal     int   `json:"poller_queued_normal"`
 	PollerQueuedLow        int   `json:"poller_queued_low"`

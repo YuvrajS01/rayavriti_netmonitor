@@ -2,6 +2,7 @@ package httputil
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"regexp"
 	"strconv"
@@ -55,6 +56,15 @@ func SendCreated(w http.ResponseWriter, data any) {
 func SendError(w http.ResponseWriter, status int, message string) {
 	code := httpStatusToCode(status)
 	respond(w, status, Response{Success: false, Error: &APIError{Code: code, Message: message}})
+}
+
+// SendInternalError logs the underlying error and returns a generic 500
+// response to the client. Use this instead of SendError(w, 500, err.Error())
+// to avoid leaking raw driver/SQL errors that can expose schema names,
+// constraint details, and DSN fragments.
+func SendInternalError(w http.ResponseWriter, err error) {
+	slog.Error("internal server error", "error", err)
+	respond(w, http.StatusInternalServerError, Response{Success: false, Error: &APIError{Code: "INTERNAL_ERROR", Message: "internal server error"}})
 }
 
 func SendErrorWithCode(w http.ResponseWriter, status int, code, message string) {

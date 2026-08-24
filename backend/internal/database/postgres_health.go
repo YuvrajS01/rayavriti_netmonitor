@@ -114,26 +114,35 @@ func (p *Postgres) InsertHealthScoreHistory(ctx context.Context, entries []model
 	if len(entries) == 0 {
 		return nil
 	}
-	for _, e := range entries {
-		var factorsJSON []byte
+
+	// Batch insert all entries in a single query using UNNEST (M3 —
+	// previously executed one INSERT per entry, causing N round-trips).
+	values := make([][]byte, len(entries))
+	deviceIDs := make([]int64, len(entries))
+	scores := make([]float64, len(entries))
+	labels := make([]string, len(entries))
+
+	for i, e := range entries {
+		deviceIDs[i] = e.DeviceID
+		scores[i] = e.Score
+		labels[i] = e.Label
 		if e.Factors != nil {
-			var err error
-			factorsJSON, err = json.Marshal(e.Factors)
+			b, err := json.Marshal(e.Factors)
 			if err != nil {
-				factorsJSON = []byte("{}")
+				b = []byte("{}")
 			}
+			values[i] = b
 		} else {
-			factorsJSON = []byte("{}")
-		}
-		_, err := p.pool.Exec(ctx, `
-			INSERT INTO health_score_history (device_id, score, label, factors, computed_at)
-			VALUES ($1, $2, $3, $4, NOW())`,
-			e.DeviceID, e.Score, e.Label, factorsJSON)
-		if err != nil {
-			return err
+			values[i] = []byte("{}")
 		}
 	}
-	return nil
+
+	_, err := p.pool.Exec(ctx, `
+		INSERT INTO health_score_history (device_id, score, label, factors, computed_at)
+		SELECT * FROM UNNEST($1::bigint[], $2::float8[], $3::text[], $4::jsonb[]) AS t(device_id, score, label, factors)
+		CROSS JOIN (SELECT NOW() AS computed_at)`,
+		deviceIDs, scores, labels, values)
+	return err
 }
 
 func (p *Postgres) GetMetricsSince(ctx context.Context, deviceID int64, since time.Time) ([]models.Metric, error) {

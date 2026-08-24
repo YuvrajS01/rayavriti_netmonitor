@@ -75,7 +75,7 @@ func (h *IncidentHandler) CreateIncident(w http.ResponseWriter, r *http.Request)
 		len(body.AffectedDeviceIDs), h.actorID(r),
 	).Scan(&incidentID)
 	if err != nil {
-		httputil.SendError(w, http.StatusInternalServerError, "failed to create incident: "+err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 
@@ -123,7 +123,7 @@ func (h *IncidentHandler) AcknowledgeIncident(w http.ResponseWriter, r *http.Req
 		return
 	}
 	if err != nil {
-		httputil.SendError(w, http.StatusInternalServerError, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	if currentStatus != "open" {
@@ -134,7 +134,7 @@ func (h *IncidentHandler) AcknowledgeIncident(w http.ResponseWriter, r *http.Req
 	_, err = h.pool.Exec(r.Context(),
 		`UPDATE incidents SET status='acknowledged', acknowledged_at=NOW(), updated_at=NOW() WHERE id=$1`, id)
 	if err != nil {
-		httputil.SendError(w, http.StatusInternalServerError, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 
@@ -176,7 +176,7 @@ func (h *IncidentHandler) ResolveIncident(w http.ResponseWriter, r *http.Request
 		return
 	}
 	if err != nil {
-		httputil.SendError(w, http.StatusInternalServerError, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	if currentStatus == "resolved" || currentStatus == "closed" {
@@ -193,7 +193,7 @@ func (h *IncidentHandler) ResolveIncident(w http.ResponseWriter, r *http.Request
 		body.Resolution, body.RootCause, body.RootCauseCategory, duration, slaBreached, id,
 	)
 	if err != nil {
-		httputil.SendError(w, http.StatusInternalServerError, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 
@@ -225,7 +225,7 @@ func (h *IncidentHandler) CloseIncident(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	if err != nil {
-		httputil.SendError(w, http.StatusInternalServerError, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	if currentStatus != "resolved" {
@@ -236,7 +236,7 @@ func (h *IncidentHandler) CloseIncident(w http.ResponseWriter, r *http.Request) 
 	_, err = h.pool.Exec(r.Context(),
 		`UPDATE incidents SET status='closed', closed_at=NOW(), updated_at=NOW() WHERE id=$1`, id)
 	if err != nil {
-		httputil.SendError(w, http.StatusInternalServerError, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 
@@ -275,14 +275,14 @@ func (h *IncidentHandler) AssignIncident(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	if err != nil {
-		httputil.SendError(w, http.StatusInternalServerError, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 
 	_, err = h.pool.Exec(r.Context(),
 		`UPDATE incidents SET assigned_to=$1, updated_at=NOW() WHERE id=$2`, body.AssignedTo, id)
 	if err != nil {
-		httputil.SendError(w, http.StatusInternalServerError, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 
@@ -342,7 +342,7 @@ func (h *IncidentHandler) AddTimelineEntry(w http.ResponseWriter, r *http.Reques
 		id, body.EntryType, body.OldValue, body.NewValue, body.Message, h.actorString(r),
 	).Scan(&entryID)
 	if err != nil {
-		httputil.SendError(w, http.StatusInternalServerError, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 
@@ -370,7 +370,7 @@ func (h *IncidentHandler) GetTimeline(w http.ResponseWriter, r *http.Request) {
 		`SELECT id, incident_id, entry_type, old_value, new_value, message, author, created_at
 		 FROM incident_timeline WHERE incident_id=$1 ORDER BY created_at ASC`, id)
 	if err != nil {
-		httputil.SendError(w, http.StatusInternalServerError, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	defer rows.Close()
@@ -415,7 +415,7 @@ func (h *IncidentHandler) GetIncidentDevices(w http.ResponseWriter, r *http.Requ
 		 JOIN devices d ON d.id = id2.device_id
 		 WHERE id2.incident_id=$1`, id)
 	if err != nil {
-		httputil.SendError(w, http.StatusInternalServerError, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	defer rows.Close()
@@ -490,7 +490,7 @@ func (h *IncidentHandler) GetSLAReport(w http.ResponseWriter, r *http.Request) {
 		 LEFT JOIN incidents i ON i.severity = s.severity
 		 GROUP BY s.id ORDER BY s.id`)
 	if err != nil {
-		httputil.SendError(w, http.StatusInternalServerError, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	defer rows.Close()

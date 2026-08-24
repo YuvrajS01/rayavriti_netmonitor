@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"runtime/debug"
 	"sync"
 	"time"
 
@@ -21,6 +22,9 @@ type EscalationEngine struct {
 	mu      sync.Mutex
 	running map[int64]*escalationRun
 }
+
+// ErrEscalationDisabled is returned when the escalation engine is not enabled.
+var ErrEscalationDisabled = fmt.Errorf("escalation engine is disabled")
 
 // EscalationConfig holds escalation settings from environment.
 type EscalationConfig struct {
@@ -55,7 +59,7 @@ func NewEscalationEngine(pool *pgxpool.Pool, resolver *ContactResolver, notifier
 // StartEscalation begins multi-step escalation for a newly fired alert.
 func (e *EscalationEngine) StartEscalation(ctx context.Context, alert *models.Alert, policyID int64) error {
 	if !e.config.Enabled {
-		return nil
+		return ErrEscalationDisabled
 	}
 
 	steps, err := e.getSteps(ctx, policyID)
@@ -96,6 +100,19 @@ func (e *EscalationEngine) CancelEscalation(alertID int64) {
 }
 
 func (e *EscalationEngine) runSteps(alert *models.Alert, steps []models.EscalationStep) {
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Error("panic recovered in escalation steps", "alert_id", alert.ID, "panic", r, "stack", string(debug.Stack()))
+		}
+	}()
+	// Clean up the running entry when escalation completes or is cancelled
+	// so the map doesn't grow unbounded (N3).
+	defer func() {
+		e.mu.Lock()
+		delete(e.running, alert.ID)
+		e.mu.Unlock()
+	}()
+
 	ctx, cancel := context.WithTimeout(context.Background(), 24*time.Hour)
 	defer cancel()
 
@@ -106,14 +123,22 @@ func (e *EscalationEngine) runSteps(alert *models.Alert, steps []models.Escalati
 			delay = time.Minute
 		}
 
-		time.Sleep(delay)
+		// Interruptible sleep: wakes immediately if cancelled or the
+		// context expires, instead of blocking for the full delay.
+		timer := time.NewTimer(delay)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return
+		case <-timer.C:
+		}
 
 		e.mu.Lock()
 		run, ok := e.running[alert.ID]
 		cancelled := ok && run.cancelled
 		e.mu.Unlock()
 
-		if cancelled {
+		if cancelled || !ok {
 			return
 		}
 

@@ -31,7 +31,7 @@ func NewBackupHandler(manager *backup.Manager) *BackupHandler {
 func (h *BackupHandler) List(w http.ResponseWriter, r *http.Request) {
 	backups, err := h.manager.ListBackups(r.Context())
 	if err != nil {
-		httputil.SendError(w, http.StatusInternalServerError, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	if backups == nil {
@@ -63,7 +63,7 @@ func (h *BackupHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	b, err := h.manager.CreateBackup(r.Context(), backup.TypeManual, createdBy)
 	if err != nil {
-		httputil.SendError(w, http.StatusInternalServerError, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	httputil.SendCreated(w, b)
@@ -100,7 +100,7 @@ func (h *BackupHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.manager.DeleteBackup(r.Context(), id); err != nil {
-		httputil.SendError(w, http.StatusInternalServerError, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	httputil.SendOK(w, map[string]string{"message": "backup deleted"})
@@ -120,7 +120,7 @@ func (h *BackupHandler) Restore(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.manager.RestoreBackup(r.Context(), id, restoredBy); err != nil {
-		httputil.SendError(w, http.StatusInternalServerError, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	httputil.SendOK(w, map[string]string{"message": "restore completed successfully"})
@@ -193,7 +193,7 @@ func (h *BackupHandler) Upload(w http.ResponseWriter, r *http.Request) {
 
 	// Run restore
 	if err := h.manager.RestoreFromFile(r.Context(), tmpFile.Name(), restoredBy); err != nil {
-		httputil.SendError(w, http.StatusInternalServerError, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	httputil.SendOK(w, map[string]string{"message": "restore from uploaded file completed successfully"})
@@ -203,7 +203,7 @@ func (h *BackupHandler) ListFiles(w http.ResponseWriter, r *http.Request) {
 	dir := h.manager.GetBackupDir()
 	files, err := backup.ListSQLFiles(dir)
 	if err != nil {
-		httputil.SendError(w, http.StatusInternalServerError, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	if files == nil {

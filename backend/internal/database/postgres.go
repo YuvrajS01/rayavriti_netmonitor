@@ -3,6 +3,7 @@ package database
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"math"
@@ -25,6 +26,7 @@ type DatabaseConfig struct {
 	MaxConns          int32
 	MinConns          int32
 	MaxConnLifetime   time.Duration
+	MaxConnIdleTime   time.Duration
 	HealthCheckPeriod time.Duration
 }
 
@@ -34,6 +36,7 @@ func NewPostgres(dsn string, cfg *DatabaseConfig) *Postgres {
 			MaxConns:          20,
 			MinConns:          2,
 			MaxConnLifetime:   time.Hour,
+			MaxConnIdleTime:   5 * time.Minute,
 			HealthCheckPeriod: 30 * time.Second,
 		}
 	}
@@ -48,6 +51,7 @@ func (p *Postgres) Connect(ctx context.Context) error {
 	cfg.MaxConns = p.cfg.MaxConns
 	cfg.MinConns = p.cfg.MinConns
 	cfg.MaxConnLifetime = p.cfg.MaxConnLifetime
+	cfg.MaxConnIdleTime = p.cfg.MaxConnIdleTime
 	cfg.HealthCheckPeriod = p.cfg.HealthCheckPeriod
 	pool, err := pgxpool.NewWithConfig(ctx, cfg)
 	if err != nil {
@@ -58,7 +62,9 @@ func (p *Postgres) Connect(ctx context.Context) error {
 		return err
 	}
 	var hasTS bool
-	_ = p.pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM pg_extension WHERE extname='timescaledb')`).Scan(&hasTS)
+	if err := p.pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM pg_extension WHERE extname='timescaledb')`).Scan(&hasTS); err != nil {
+		slog.Warn("failed to check TimescaleDB extension; falling back to unbounded DELETE pruning", "error", err)
+	}
 	p.hasTimescaleDB = hasTS
 	return nil
 }
@@ -81,75 +87,96 @@ func (p *Postgres) Ping(ctx context.Context) error {
 }
 
 func (p *Postgres) RunMigrations(ctx context.Context) error {
-	// ensure tracking table exists first
-	if _, err := p.pool.Exec(ctx, migrations[0]); err != nil {
+	// Ensure the tracking table exists first (migration V1). Use a raw
+	// exec since the table may not exist yet and we can't query it.
+	if _, err := p.pool.Exec(ctx, migrations[0].SQL); err != nil {
 		return fmt.Errorf("create schema_migrations: %w", err)
 	}
-	for i, sql := range migrations[1:] {
-		version := int64(i + 2) // 1-based, but index 0 is already applied above
+
+	// Add the checksum column if it doesn't exist (for deployments that
+	// already have schema_migrations from before C7). This is idempotent.
+	_, _ = p.pool.Exec(ctx, `ALTER TABLE schema_migrations ADD COLUMN IF NOT EXISTS checksum TEXT`)
+
+	// Acquire a session-level advisory lock so only one instance runs
+	// migrations at a time (C8). This prevents a TOCTOU race where two
+	// instances both pass the EXISTS check and apply the same migration
+	// concurrently. The lock is automatically released when the session
+	// (connection) returns to the pool.
+	if _, err := p.pool.Exec(ctx, `SELECT pg_advisory_lock(727280)`); err != nil {
+		return fmt.Errorf("acquire migration advisory lock: %w", err)
+	}
+	defer func() {
+		_, _ = p.pool.Exec(ctx, `SELECT pg_advisory_unlock(727280)`)
+	}()
+
+	// Validate strict version ordering (C7 — positional indexing is gone;
+	// versions are explicit and must be strictly increasing).
+	for i := 1; i < len(migrations); i++ {
+		if migrations[i].Version <= migrations[i-1].Version {
+			return fmt.Errorf("migration version ordering violation: V%d after V%d",
+				migrations[i].Version, migrations[i-1].Version)
+		}
+	}
+
+	for _, m := range migrations {
+		version := int64(m.Version)
+
+		// Check if this migration was already applied.
 		var exists bool
+		var recordedChecksum *string
 		err := p.pool.QueryRow(ctx,
-			`SELECT EXISTS(SELECT 1 FROM schema_migrations WHERE version=$1)`, version).Scan(&exists)
+			`SELECT EXISTS(SELECT 1 FROM schema_migrations WHERE version=$1),
+			        (SELECT checksum FROM schema_migrations WHERE version=$1)`,
+			version).Scan(&exists, &recordedChecksum)
 		if err != nil {
 			return fmt.Errorf("check migration %d: %w", version, err)
 		}
 		if exists {
+			// C7: Verify the checksum of an already-applied migration
+			// matches what we have now. A mismatch means someone edited
+			// an already-applied migration, which is silent schema drift.
+			if recordedChecksum != nil && *recordedChecksum != "" {
+				if *recordedChecksum != m.Checksum() {
+					return fmt.Errorf("migration %d checksum mismatch: the SQL was modified after it was applied (recorded=%s, current=%s) — this indicates schema drift",
+						version, *recordedChecksum, m.Checksum())
+				}
+			}
 			continue
 		}
-		// split on semicolons for multi-statement migrations
-		for _, stmt := range splitStatements(sql) {
-			if _, err := p.pool.Exec(ctx, stmt); err != nil {
-				// TimescaleDB hypertable errors are non-fatal if table already partitioned
-				if strings.Contains(err.Error(), "already a hypertable") {
-					continue
-				}
-				return fmt.Errorf("migration %d: %w\nSQL: %s", version, err, stmt)
-			}
+
+		// Apply the entire migration in a single transaction (C8) and let
+		// Postgres parse multi-statement SQL natively (N6).
+		tx, err := p.pool.Begin(ctx)
+		if err != nil {
+			return fmt.Errorf("begin tx for migration %d: %w", version, err)
 		}
-		if _, err := p.pool.Exec(ctx,
-			`INSERT INTO schema_migrations(version) VALUES($1) ON CONFLICT DO NOTHING`, version); err != nil {
+		if _, err := tx.Exec(ctx, m.SQL); err != nil {
+			_ = tx.Rollback(ctx)
+			// TimescaleDB hypertable errors are non-fatal if the table
+			// is already partitioned.
+			if strings.Contains(err.Error(), "already a hypertable") {
+				// Record the version (with checksum) so we don't retry.
+				if _, err := p.pool.Exec(ctx,
+					`INSERT INTO schema_migrations(version, checksum) VALUES($1, $2) ON CONFLICT DO NOTHING`,
+					version, m.Checksum()); err != nil {
+					return fmt.Errorf("record migration %d (hypertable skip): %w", version, err)
+				}
+				continue
+			}
+			return fmt.Errorf("migration %d: %w\nSQL: %s", version, err, m.SQL)
+		}
+		// Record the version with its checksum (C7).
+		if _, err := tx.Exec(ctx,
+			`INSERT INTO schema_migrations(version, checksum) VALUES($1, $2) ON CONFLICT DO NOTHING`,
+			version, m.Checksum()); err != nil {
+			_ = tx.Rollback(ctx)
 			return fmt.Errorf("record migration %d: %w", version, err)
+		}
+		if err := tx.Commit(ctx); err != nil {
+			return fmt.Errorf("commit migration %d: %w", version, err)
 		}
 	}
 	return nil
-}
-
-func splitStatements(sql string) []string {
-	var stmts []string
-	var current strings.Builder
-	inSingleQuote := false
-	inDoubleQuote := false
-
-	for i := 0; i < len(sql); i++ {
-		c := sql[i]
-		switch {
-		case c == '\'' && !inDoubleQuote:
-			if i+1 < len(sql) && sql[i+1] == '\'' {
-				current.WriteByte(c)
-				current.WriteByte(c)
-				i++ // skip escaped quote
-			} else {
-				inSingleQuote = !inSingleQuote
-				current.WriteByte(c)
-			}
-		case c == '"' && !inSingleQuote:
-			inDoubleQuote = !inDoubleQuote
-			current.WriteByte(c)
-		case c == ';' && !inSingleQuote && !inDoubleQuote:
-			s := strings.TrimSpace(current.String())
-			if s != "" {
-				stmts = append(stmts, s)
-			}
-			current.Reset()
-		default:
-			current.WriteByte(c)
-		}
-	}
-	s := strings.TrimSpace(current.String())
-	if s != "" {
-		stmts = append(stmts, s)
-	}
-	return stmts
 }
 
 // ── Devices ──────────────────────────────────────────────────────────────────
@@ -463,15 +490,32 @@ func scanMetricsWithDevice(rows pgx.Rows) ([]models.Metric, error) {
 
 // ── Alerts ────────────────────────────────────────────────────────────────────
 
-func (p *Postgres) GetAlerts(ctx context.Context, status string, limit, offset int) ([]models.Alert, int, error) {
+func (p *Postgres) GetAlerts(ctx context.Context, status string, limit, offset int, scope *ScopeFilter) ([]models.Alert, int, error) {
 	if limit <= 0 {
 		limit = 50
 	}
-	base := `FROM alerts`
+	if limit > 1000 {
+		limit = 1000
+	}
+	if offset < 0 {
+		offset = 0
+	}
 	args := []any{}
+	conditions := []string{}
+	argN := 1
 	if status != "" {
-		base += ` WHERE status=$1`
+		conditions = append(conditions, fmt.Sprintf("status=$%d", argN))
 		args = append(args, status)
+		argN++
+	}
+	if scope != nil {
+		if cond, ok := buildAlertScopeCondition(scope, &args, &argN); ok {
+			conditions = append(conditions, cond)
+		}
+	}
+	base := "FROM alerts"
+	if len(conditions) > 0 {
+		base += " WHERE " + strings.Join(conditions, " AND ")
 	}
 	var total int
 	countSQL := `SELECT COUNT(*) ` + base
@@ -480,9 +524,8 @@ func (p *Postgres) GetAlerts(ctx context.Context, status string, limit, offset i
 	}
 	listSQL := `SELECT id,COALESCE(device_id,0),COALESCE(device_name,''),severity,message,status,rule_id,
 	                   created_at,acknowledged_at,resolved_at,acknowledged_by,resolved_by ` +
-		base + ` ORDER BY created_at DESC`
-	n := len(args)
-	listSQL += fmt.Sprintf(` LIMIT $%d OFFSET $%d`, n+1, n+2)
+		base + ` ORDER BY created_at DESC, id DESC`
+	listSQL += fmt.Sprintf(` LIMIT $%d OFFSET $%d`, argN, argN+1)
 	args = append(args, limit, offset)
 	rows, err := p.pool.Query(ctx, listSQL, args...)
 	if err != nil {
@@ -491,6 +534,28 @@ func (p *Postgres) GetAlerts(ctx context.Context, status string, limit, offset i
 	defer rows.Close()
 	alerts, err := scanAlerts(rows)
 	return alerts, total, err
+}
+
+// buildAlertScopeCondition renders a scope filter as a WHERE condition against
+// the alerts table. Location and subnet scopes are resolved through the
+// devices table since alerts only carry device_id.
+func buildAlertScopeCondition(scope *ScopeFilter, args *[]any, argN *int) (string, bool) {
+	subConds := []string{}
+	if len(scope.LocationIDs) > 0 {
+		*args = append(*args, scope.LocationIDs)
+		subConds = append(subConds, fmt.Sprintf("location_id = ANY($%d)", *argN))
+		*argN++
+	}
+	for _, cidr := range scope.SubnetCIDRs {
+		*args = append(*args, cidr)
+		subConds = append(subConds, fmt.Sprintf("ip_address <<= $%d", *argN))
+		*argN++
+	}
+	if len(subConds) == 0 {
+		return "FALSE", true
+	}
+	inner := "(" + strings.Join(subConds, " OR ") + ")"
+	return fmt.Sprintf("device_id IN (SELECT id FROM devices WHERE %s)", inner), true
 }
 
 func (p *Postgres) GetAlert(ctx context.Context, id int64) (*models.Alert, error) {
@@ -516,10 +581,20 @@ func (p *Postgres) CreateAlert(ctx context.Context, a *models.Alert) (*models.Al
 	var id int64
 	err := p.pool.QueryRow(ctx, `
 		INSERT INTO alerts(device_id,device_name,severity,message,status,rule_id)
-		VALUES($1,$2,$3,$4,$5,$6) RETURNING id`,
+		VALUES($1,$2,$3,$4,$5,$6)
+		ON CONFLICT (rule_id, device_id) WHERE status = 'active' AND rule_id IS NOT NULL
+		DO NOTHING
+		RETURNING id`,
 		a.DeviceID, a.DeviceName, a.Severity, a.Message, a.Status, a.RuleID,
 	).Scan(&id)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			// A duplicate active alert already exists for this rule/device —
+			// the keyed mutex in the engine normally prevents this, but a
+			// restart or multi-instance deployment can still race. The caller
+			// treats this as "already fired" and must not double-notify.
+			return nil, ErrDuplicateActiveAlert
+		}
 		return nil, err
 	}
 	return p.GetAlert(ctx, id)
@@ -645,9 +720,11 @@ func (p *Postgres) DeleteUser(ctx context.Context, id int64) error {
 func (p *Postgres) GetAPIKey(ctx context.Context, keyHash string) (*models.APIKey, error) {
 	var k models.APIKey
 	err := p.pool.QueryRow(ctx, `
-		SELECT id,user_id,key_hash,description,created_at,last_used_at
-		FROM api_keys WHERE key_hash=$1`, keyHash).Scan(
-		&k.ID, &k.UserID, &k.KeyHash, &k.Description, &k.CreatedAt, &k.LastUsedAt)
+		SELECT id,user_id,key_hash,description,created_at,last_used_at,expires_at,revoked_at
+		FROM api_keys
+		WHERE key_hash=$1 AND revoked_at IS NULL
+		  AND (expires_at IS NULL OR expires_at > NOW())`, keyHash).Scan(
+		&k.ID, &k.UserID, &k.KeyHash, &k.Description, &k.CreatedAt, &k.LastUsedAt, &k.ExpiresAt, &k.RevokedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -657,9 +734,9 @@ func (p *Postgres) GetAPIKey(ctx context.Context, keyHash string) (*models.APIKe
 func (p *Postgres) GetAPIKeyByID(ctx context.Context, id int64) (*models.APIKey, error) {
 	var k models.APIKey
 	err := p.pool.QueryRow(ctx, `
-		SELECT id,user_id,key_hash,description,created_at,last_used_at
+		SELECT id,user_id,key_hash,description,created_at,last_used_at,expires_at,revoked_at
 		FROM api_keys WHERE id=$1`, id).Scan(
-		&k.ID, &k.UserID, &k.KeyHash, &k.Description, &k.CreatedAt, &k.LastUsedAt)
+		&k.ID, &k.UserID, &k.KeyHash, &k.Description, &k.CreatedAt, &k.LastUsedAt, &k.ExpiresAt, &k.RevokedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -669,8 +746,9 @@ func (p *Postgres) GetAPIKeyByID(ctx context.Context, id int64) (*models.APIKey,
 func (p *Postgres) CreateAPIKey(ctx context.Context, k *models.APIKey) (*models.APIKey, error) {
 	var id int64
 	err := p.pool.QueryRow(ctx, `
-		INSERT INTO api_keys(user_id,key_hash,description) VALUES($1,$2,$3) RETURNING id`,
-		k.UserID, k.KeyHash, nullStr(k.Description)).Scan(&id)
+		INSERT INTO api_keys(user_id,key_hash,description,expires_at)
+		VALUES($1,$2,$3,$4) RETURNING id`,
+		k.UserID, k.KeyHash, nullStr(k.Description), nullTime(k.ExpiresAt)).Scan(&id)
 	if err != nil {
 		return nil, err
 	}
@@ -680,8 +758,8 @@ func (p *Postgres) CreateAPIKey(ctx context.Context, k *models.APIKey) (*models.
 
 func (p *Postgres) GetAPIKeysByUser(ctx context.Context, userID int64) ([]models.APIKey, error) {
 	rows, err := p.pool.Query(ctx, `
-		SELECT id,user_id,key_hash,description,created_at,last_used_at
-		FROM api_keys WHERE user_id=$1 ORDER BY created_at DESC`, userID)
+		SELECT id,user_id,key_hash,description,created_at,last_used_at,expires_at,revoked_at
+		FROM api_keys WHERE user_id=$1 ORDER BY created_at DESC, id DESC`, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -689,7 +767,7 @@ func (p *Postgres) GetAPIKeysByUser(ctx context.Context, userID int64) ([]models
 	var out []models.APIKey
 	for rows.Next() {
 		var k models.APIKey
-		if err := rows.Scan(&k.ID, &k.UserID, &k.KeyHash, &k.Description, &k.CreatedAt, &k.LastUsedAt); err != nil {
+		if err := rows.Scan(&k.ID, &k.UserID, &k.KeyHash, &k.Description, &k.CreatedAt, &k.LastUsedAt, &k.ExpiresAt, &k.RevokedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, k)
@@ -699,6 +777,11 @@ func (p *Postgres) GetAPIKeysByUser(ctx context.Context, userID int64) ([]models
 
 func (p *Postgres) DeleteAPIKey(ctx context.Context, id int64) error {
 	_, err := p.pool.Exec(ctx, `DELETE FROM api_keys WHERE id=$1`, id)
+	return err
+}
+
+func (p *Postgres) RevokeAPIKey(ctx context.Context, id int64) error {
+	_, err := p.pool.Exec(ctx, `UPDATE api_keys SET revoked_at=NOW(), updated_at=NOW() WHERE id=$1 AND revoked_at IS NULL`, id)
 	return err
 }
 
@@ -723,6 +806,12 @@ func (p *Postgres) GetFlows(ctx context.Context, from, to time.Time, limit, offs
 	if limit <= 0 {
 		limit = 100
 	}
+	if limit > 1000 {
+		limit = 1000
+	}
+	if offset < 0 {
+		offset = 0
+	}
 	var total int
 	if err := p.pool.QueryRow(ctx,
 		`SELECT COUNT(*) FROM flows WHERE created_at BETWEEN $1 AND $2`, from, to).Scan(&total); err != nil {
@@ -731,7 +820,7 @@ func (p *Postgres) GetFlows(ctx context.Context, from, to time.Time, limit, offs
 	rows, err := p.pool.Query(ctx, `
 		SELECT id,src_ip,dst_ip,src_port,dst_port,protocol,bytes,packets,duration,created_at
 		FROM flows WHERE created_at BETWEEN $1 AND $2
-		ORDER BY created_at DESC LIMIT $3 OFFSET $4`, from, to, limit, offset)
+		ORDER BY created_at DESC, id DESC LIMIT $3 OFFSET $4`, from, to, limit, offset)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -875,8 +964,24 @@ func (p *Postgres) PruneMetrics(ctx context.Context, olderThan time.Time) (int64
 			return t.RowsAffected(), nil
 		}
 	}
-	t, err := p.pool.Exec(ctx, `DELETE FROM metrics WHERE timestamp < $1`, olderThan)
-	return t.RowsAffected(), err
+	// Batch the DELETE to avoid a single massive transaction that locks
+	// rows and spikes WAL (M35 — previously one unbounded DELETE).
+	var total int64
+	const batchSize = 10000
+	for {
+		t, err := p.pool.Exec(ctx,
+			`DELETE FROM metrics WHERE ctid IN (SELECT ctid FROM metrics WHERE timestamp < $1 LIMIT $2)`,
+			olderThan, batchSize)
+		if err != nil {
+			return total, err
+		}
+		n := t.RowsAffected()
+		total += n
+		if n < batchSize {
+			break
+		}
+	}
+	return total, nil
 }
 
 func (p *Postgres) PruneFlows(ctx context.Context, olderThan time.Time) (int64, error) {
@@ -892,8 +997,23 @@ func (p *Postgres) PruneFlows(ctx context.Context, olderThan time.Time) (int64, 
 			return t.RowsAffected(), nil
 		}
 	}
-	t, err := p.pool.Exec(ctx, `DELETE FROM flows WHERE created_at < $1`, olderThan)
-	return t.RowsAffected(), err
+	// Batch the DELETE to avoid a single massive transaction (M35).
+	var total int64
+	const batchSize = 10000
+	for {
+		t, err := p.pool.Exec(ctx,
+			`DELETE FROM flows WHERE ctid IN (SELECT ctid FROM flows WHERE created_at < $1 LIMIT $2)`,
+			olderThan, batchSize)
+		if err != nil {
+			return total, err
+		}
+		n := t.RowsAffected()
+		total += n
+		if n < batchSize {
+			break
+		}
+	}
+	return total, nil
 }
 
 func (p *Postgres) PruneAlerts(ctx context.Context, olderThan time.Time) (int64, error) {
@@ -918,7 +1038,7 @@ func (p *Postgres) GetDashboardStats(ctx context.Context) (map[string]any, error
 			(SELECT AVG(response_time) FROM metrics WHERE timestamp > $1)
 	`, since).Scan(&totalDevices, &onlineDevices, &offlineDevices, &activeAlerts, &totalMetrics24h, &avgRT)
 	if err != nil {
-		slog.Error("dashboard_stats query failed", "error", err)
+		return nil, fmt.Errorf("dashboard_stats query failed: %w", err)
 	}
 
 	return map[string]any{
@@ -945,4 +1065,8 @@ func nullInt(n int) *int {
 		return nil
 	}
 	return &n
+}
+
+func nullTime(t *time.Time) *time.Time {
+	return t
 }

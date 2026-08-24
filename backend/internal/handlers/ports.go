@@ -20,7 +20,7 @@ func (h *PortsHandler) ForDevice(w http.ResponseWriter, r *http.Request) {
 	}
 	results, err := h.db.GetPortScanResults(r.Context(), id)
 	if err != nil {
-		httputil.SendError(w, 500, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	httputil.SendOK(w, results)

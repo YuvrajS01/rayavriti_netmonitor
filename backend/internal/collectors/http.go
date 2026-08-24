@@ -15,6 +15,18 @@ type HTTPCollector struct{}
 
 func (HTTPCollector) Name() string { return "http" }
 
+// sharedHTTPClient reuses a single Transport across all HTTP polls so idle
+// connections are pooled and goroutine cleanup doesn't accumulate (M25).
+var sharedHTTPClient = &http.Client{
+	Timeout: 10 * time.Second,
+	Transport: &http.Transport{
+		TLSClientConfig:     &tls.Config{InsecureSkipVerify: true}, //nolint:gosec // Intentional: self-signed certs on local network devices
+		MaxIdleConns:        100,
+		MaxIdleConnsPerHost: 10,
+		IdleConnTimeout:     90 * time.Second,
+	},
+}
+
 // normalizeHost strips any scheme prefix from the host field, in case
 // the user pasted a full URL like "https://example.com" as the IP address.
 func normalizeHost(raw string) string {
@@ -51,17 +63,13 @@ func (HTTPCollector) Collect(ctx context.Context, device *models.Device) (*Resul
 	}
 
 	start := time.Now()
-	req, _ := http.NewRequestWithContext(ctx, "HEAD", url, nil)
+	req, err := http.NewRequestWithContext(ctx, "HEAD", url, nil)
+	if err != nil {
+		return &Result{Status: "down", Details: map[string]any{"error": "invalid request URL"}}, nil
+	}
 	req.Header.Set("User-Agent", "NetMonitor/1.0")
 
-	// For HTTPS, skip TLS verification for self-signed certs
-	client := &http.Client{
-		Timeout: 10 * time.Second,
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec // Intentional: self-signed certs on local network devices
-		},
-	}
-	resp, err := client.Do(req)
+	resp, err := sharedHTTPClient.Do(req)
 	dur := time.Since(start)
 	if err != nil {
 		return &Result{Status: "down"}, nil

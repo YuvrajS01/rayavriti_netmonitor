@@ -45,7 +45,7 @@ func TestDashboardGet_Valid(t *testing.T) {
 	db := &mockDB{
 		getDashboardFn: func(ctx context.Context, id int64) (*models.Dashboard, error) {
 			if id == 1 {
-				return &models.Dashboard{ID: 1, Name: "Main"}, nil
+				return &models.Dashboard{ID: 1, Name: "Main", UserID: testUserID}, nil
 			}
 			return nil, errors.New("not found")
 		},
@@ -103,6 +103,9 @@ func TestDashboardSave_Create(t *testing.T) {
 
 func TestDashboardSave_Update(t *testing.T) {
 	db := &mockDB{
+		getDashboardFn: func(ctx context.Context, id int64) (*models.Dashboard, error) {
+			return &models.Dashboard{ID: 5, UserID: testUserID}, nil
+		},
 		saveDashboardFn: func(ctx context.Context, d *models.Dashboard) (*models.Dashboard, error) {
 			if d.ID != 5 {
 				t.Fatalf("expected ID 5, got %d", d.ID)
@@ -115,7 +118,7 @@ func TestDashboardSave_Update(t *testing.T) {
 	w, req := authenticatedRequest("PUT", "/api/v1/dashboards/5", string(body))
 	callWithAuthAndParams(h.Save, w, req, "id", "5")
 	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
 	}
 }
 
@@ -146,6 +149,9 @@ func TestDashboardSave_DBError(t *testing.T) {
 
 func TestDashboardDelete(t *testing.T) {
 	db := &mockDB{
+		getDashboardFn: func(ctx context.Context, id int64) (*models.Dashboard, error) {
+			return &models.Dashboard{ID: 1, UserID: testUserID}, nil
+		},
 		deleteDashboardFn: func(ctx context.Context, id int64) error { return nil },
 	}
 	h := NewDashboardHandler(db)
@@ -153,6 +159,35 @@ func TestDashboardDelete(t *testing.T) {
 	callWithAuthAndParams(h.Delete, w, req, "id", "1")
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", w.Code)
+	}
+}
+
+func TestDashboardGet_IDOR(t *testing.T) {
+	db := &mockDB{
+		getDashboardFn: func(ctx context.Context, id int64) (*models.Dashboard, error) {
+			// Dashboard owned by a different user.
+			return &models.Dashboard{ID: 1, Name: "Other", UserID: 999}, nil
+		},
+	}
+	h := NewDashboardHandler(db)
+	w, req := authenticatedRequest("GET", "/api/v1/dashboards/1", "")
+	callWithAuthAndParams(h.Get, w, req, "id", "1")
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 for IDOR attempt, got %d", w.Code)
+	}
+}
+
+func TestDashboardDelete_IDOR(t *testing.T) {
+	db := &mockDB{
+		getDashboardFn: func(ctx context.Context, id int64) (*models.Dashboard, error) {
+			return &models.Dashboard{ID: 1, UserID: 999}, nil
+		},
+	}
+	h := NewDashboardHandler(db)
+	w, req := authenticatedRequest("DELETE", "/api/v1/dashboards/1", "")
+	callWithAuthAndParams(h.Delete, w, req, "id", "1")
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 for IDOR delete, got %d", w.Code)
 	}
 }
 
@@ -168,6 +203,9 @@ func TestDashboardDelete_InvalidID(t *testing.T) {
 
 func TestDashboardDelete_DBError(t *testing.T) {
 	db := &mockDB{
+		getDashboardFn: func(ctx context.Context, id int64) (*models.Dashboard, error) {
+			return &models.Dashboard{ID: 1, UserID: testUserID}, nil
+		},
 		deleteDashboardFn: func(ctx context.Context, id int64) error { return errors.New("db error") },
 	}
 	h := NewDashboardHandler(db)

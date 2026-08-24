@@ -12,29 +12,30 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-type phase2Resource struct {
-	Table   string
-	Select  string
-	Cols    map[string]bool
-	OrderBy string
+type resourceDefinition struct {
+	Table     string
+	Select    string
+	Cols      map[string]bool
+	OrderBy   string
+	UpdatedAt bool // true if the table has an updated_at column
 }
 
-var phase2Resources = map[string]phase2Resource{
-	"locations":                    {Table: "locations", OrderBy: "sort_order ASC, id ASC", Cols: colset("name", "type", "parent_id", "code", "description", "address", "latitude", "longitude", "floor_number", "contact_person_id", "metadata", "sort_order", "enabled")},
+var resourceRegistry = map[string]resourceDefinition{
+	"locations":                    {Table: "locations", OrderBy: "sort_order ASC, id ASC", Cols: colset("name", "type", "parent_id", "code", "description", "address", "latitude", "longitude", "floor_number", "contact_person_id", "metadata", "sort_order", "enabled"), UpdatedAt: true},
 	"subnets":                      {Table: "subnets", OrderBy: "id ASC", Cols: colset("name", "vlan_id", "cidr", "gateway", "description", "location_id", "dns_servers", "dhcp_enabled")},
 	"suppressed_alerts":            {Table: "suppressed_alerts", OrderBy: "created_at DESC", Cols: colset("device_id", "rule_id", "suppression_reason", "root_cause_device_id", "root_cause_alert_id", "would_have_fired_at", "released_at")},
 	"discovery_jobs":               {Table: "discovery_jobs", OrderBy: "started_at DESC", Cols: colset("subnet", "scan_type", "status", "location_id", "initiated_by", "total_ips_scanned", "devices_found", "devices_new", "devices_known", "completed_at", "error_message")},
 	"discovery_results":            {Table: "discovery_results", OrderBy: "discovered_at DESC", Cols: colset("job_id", "ip_address", "mac_address", "manufacturer", "hostname", "device_description", "guessed_category", "guessed_os", "open_ports", "snmp_reachable", "response_time_ms", "status", "approved_device_id")},
 	"status_page_services":         {Table: "status_page_services", OrderBy: "display_order ASC, id ASC", Cols: colset("name", "description", "group_name", "aggregation", "display_order", "show_response_time", "show_uptime", "enabled")},
-	"status_page_incidents":        {Table: "status_page_incidents", OrderBy: "started_at DESC", Cols: colset("title", "message", "severity", "status", "started_at", "resolved_at", "created_by")},
+	"status_page_incidents":        {Table: "status_page_incidents", OrderBy: "started_at DESC", Cols: colset("title", "message", "severity", "status", "started_at", "resolved_at", "created_by"), UpdatedAt: true},
 	"status_page_incident_updates": {Table: "status_page_incident_updates", OrderBy: "created_at ASC", Cols: colset("incident_id", "status", "message", "created_by")},
-	"maintenance_windows":          {Table: "maintenance_windows", OrderBy: "created_at DESC", Cols: colset("name", "description", "scope_type", "scope_value", "schedule_type", "start_time", "end_time", "recurrence_rule", "recurrence_start_time", "recurrence_end_time", "recurrence_timezone", "suppress_alerts", "suppress_notifications", "show_maintenance_status", "created_by", "enabled")},
+	"maintenance_windows":          {Table: "maintenance_windows", OrderBy: "created_at DESC", Cols: colset("name", "description", "scope_type", "scope_value", "schedule_type", "start_time", "end_time", "recurrence_rule", "recurrence_start_time", "recurrence_end_time", "recurrence_timezone", "suppress_alerts", "suppress_notifications", "show_maintenance_status", "created_by", "enabled"), UpdatedAt: true},
 	"contacts":                     {Table: "contacts", OrderBy: "name ASC", Cols: colset("name", "designation", "department", "email", "phone", "telegram_chat_id", "whatsapp_number", "preferred_channel", "notification_enabled", "quiet_hours_start", "quiet_hours_end", "user_id", "enabled")},
 	"device_contacts":              {Table: "device_contacts", OrderBy: "id ASC", Cols: colset("device_id", "location_id", "contact_id", "role", "notify_on")},
 	"escalation_policies":          {Table: "escalation_policies", OrderBy: "id ASC", Cols: colset("name", "description", "scope_type", "scope_value", "enabled")},
 	"escalation_steps":             {Table: "escalation_steps", OrderBy: "policy_id ASC, step_order ASC", Cols: colset("policy_id", "step_order", "contact_id", "delay_minutes", "notify_via", "repeat_count", "repeat_interval_minutes")},
 	"oncall_schedules":             {Table: "oncall_schedules", OrderBy: "id ASC", Cols: colset("name", "policy_id", "rotation_type", "participants", "current_index", "rotation_time", "timezone", "enabled")},
-	"incidents":                    {Table: "incidents", OrderBy: "started_at DESC", Cols: colset("title", "description", "severity", "status", "root_cause", "root_cause_category", "resolution", "source", "source_alert_id", "assigned_to", "location_id", "impact_description", "affected_device_count", "started_at", "acknowledged_at", "resolved_at", "closed_at", "duration_seconds", "sla_breached", "created_by")},
+	"incidents":                    {Table: "incidents", OrderBy: "started_at DESC", Cols: colset("title", "description", "severity", "status", "root_cause", "root_cause_category", "resolution", "source", "source_alert_id", "assigned_to", "location_id", "impact_description", "affected_device_count", "started_at", "acknowledged_at", "resolved_at", "closed_at", "duration_seconds", "sla_breached", "created_by"), UpdatedAt: true},
 	"incident_timeline":            {Table: "incident_timeline", OrderBy: "created_at ASC", Cols: colset("incident_id", "entry_type", "old_value", "new_value", "message", "author")},
 	"sla_definitions":              {Table: "sla_definitions", OrderBy: "id ASC", Cols: colset("name", "severity", "response_time_minutes", "resolution_time_minutes", "enabled")},
 	"roles":                        {Table: "roles", OrderBy: "id ASC", Cols: colset("name", "display_name", "description", "permissions", "is_system")},
@@ -55,16 +56,16 @@ func colset(cols ...string) map[string]bool {
 	return out
 }
 
-func getPhase2Resource(resource string) (phase2Resource, error) {
-	res, ok := phase2Resources[resource]
+func getResourceDefinition(resource string) (resourceDefinition, error) {
+	res, ok := resourceRegistry[resource]
 	if !ok {
-		return phase2Resource{}, fmt.Errorf("unknown phase2 resource %q", resource)
+		return resourceDefinition{}, fmt.Errorf("unknown resource %q", resource)
 	}
 	return res, nil
 }
 
-func (p *Postgres) ListPhase2(ctx context.Context, resource string, filters map[string]string) ([]map[string]any, error) {
-	res, err := getPhase2Resource(resource)
+func (p *Postgres) ListResources(ctx context.Context, resource string, filters map[string]string) ([]map[string]any, error) {
+	res, err := getResourceDefinition(resource)
 	if err != nil {
 		return nil, err
 	}
@@ -96,10 +97,10 @@ func (p *Postgres) ListPhase2(ctx context.Context, resource string, filters map[
 	return rowsToMaps(rows)
 }
 
-// ListPhase2Cursor returns a paginated list using cursor-based pagination.
+// ListResourcesCursor returns a paginated list using cursor-based pagination.
 // Returns (rows, nextCursor, hasMore, error). The cursor is a base64-encoded ID.
-func (p *Postgres) ListPhase2Cursor(ctx context.Context, resource string, filters map[string]string, cursor string, limit int) ([]map[string]any, string, bool, error) {
-	res, err := getPhase2Resource(resource)
+func (p *Postgres) ListResourcesCursor(ctx context.Context, resource string, filters map[string]string, cursor string, limit int) ([]map[string]any, string, bool, error) {
+	res, err := getResourceDefinition(resource)
 	if err != nil {
 		return nil, "", false, err
 	}
@@ -176,8 +177,8 @@ func (p *Postgres) ListPhase2Cursor(ctx context.Context, resource string, filter
 	return allRows, nextCursor, hasMore, nil
 }
 
-func (p *Postgres) GetPhase2(ctx context.Context, resource string, id int64) (map[string]any, error) {
-	res, err := getPhase2Resource(resource)
+func (p *Postgres) GetResource(ctx context.Context, resource string, id int64) (map[string]any, error) {
+	res, err := getResourceDefinition(resource)
 	if err != nil {
 		return nil, err
 	}
@@ -200,12 +201,12 @@ func (p *Postgres) GetPhase2(ctx context.Context, resource string, id int64) (ma
 	return items[0], nil
 }
 
-func (p *Postgres) CreatePhase2(ctx context.Context, resource string, values map[string]any) (map[string]any, error) {
-	res, err := getPhase2Resource(resource)
+func (p *Postgres) CreateResource(ctx context.Context, resource string, values map[string]any) (map[string]any, error) {
+	res, err := getResourceDefinition(resource)
 	if err != nil {
 		return nil, err
 	}
-	cols, args := filteredPhase2Values(res, values)
+	cols, args := filteredResourceValues(res, values)
 	if len(cols) == 0 {
 		return nil, fmt.Errorf("no valid fields for %s", resource)
 	}
@@ -218,17 +219,17 @@ func (p *Postgres) CreatePhase2(ctx context.Context, resource string, values map
 	if err := p.pool.QueryRow(ctx, query, args...).Scan(&id); err != nil {
 		return nil, err
 	}
-	return p.GetPhase2(ctx, resource, id)
+	return p.GetResource(ctx, resource, id)
 }
 
-func (p *Postgres) UpdatePhase2(ctx context.Context, resource string, id int64, values map[string]any) (map[string]any, error) {
-	res, err := getPhase2Resource(resource)
+func (p *Postgres) UpdateResource(ctx context.Context, resource string, id int64, values map[string]any) (map[string]any, error) {
+	res, err := getResourceDefinition(resource)
 	if err != nil {
 		return nil, err
 	}
-	cols, args := filteredPhase2Values(res, values)
+	cols, args := filteredResourceValues(res, values)
 	if len(cols) == 0 {
-		return p.GetPhase2(ctx, resource, id)
+		return p.GetResource(ctx, resource, id)
 	}
 	sets := make([]string, len(cols))
 	for i, col := range cols {
@@ -236,17 +237,17 @@ func (p *Postgres) UpdatePhase2(ctx context.Context, resource string, id int64, 
 	}
 	args = append(args, id)
 	query := fmt.Sprintf("UPDATE %s SET %s WHERE id=$%d", res.Table, strings.Join(sets, ","), len(args))
-	if res.Cols["updated_at"] {
+	if res.UpdatedAt {
 		query = fmt.Sprintf("UPDATE %s SET %s,updated_at=NOW() WHERE id=$%d", res.Table, strings.Join(sets, ","), len(args))
 	}
 	if _, err := p.pool.Exec(ctx, query, args...); err != nil {
 		return nil, err
 	}
-	return p.GetPhase2(ctx, resource, id)
+	return p.GetResource(ctx, resource, id)
 }
 
-func (p *Postgres) DeletePhase2(ctx context.Context, resource string, id int64) error {
-	res, err := getPhase2Resource(resource)
+func (p *Postgres) DeleteResource(ctx context.Context, resource string, id int64) error {
+	res, err := getResourceDefinition(resource)
 	if err != nil {
 		return err
 	}
@@ -254,43 +255,30 @@ func (p *Postgres) DeletePhase2(ctx context.Context, resource string, id int64) 
 	return err
 }
 
-func (p *Postgres) Phase2Summary(ctx context.Context) (Phase2Summary, error) {
-	count := func(table string) (int, error) {
-		var n int
-		err := p.pool.QueryRow(ctx, "SELECT COUNT(*) FROM "+table).Scan(&n)
-		return n, err
-	}
-	var out Phase2Summary
-	var err error
-	if out.Locations, err = count("locations"); err != nil {
-		return out, err
-	}
-	if out.Subnets, err = count("subnets"); err != nil {
-		return out, err
-	}
-	if out.Contacts, err = count("contacts"); err != nil {
-		return out, err
-	}
-	if out.Incidents, err = count("incidents"); err != nil {
-		return out, err
-	}
-	if out.MaintenanceWindows, err = count("maintenance_windows"); err != nil {
-		return out, err
-	}
-	if out.StatusServices, err = count("status_page_services"); err != nil {
-		return out, err
-	}
-	if out.DiscoveryJobs, err = count("discovery_jobs"); err != nil {
-		return out, err
-	}
-	if out.ISPLinks, err = count("isp_links"); err != nil {
-		return out, err
-	}
-	out.ScheduledReports, err = count("scheduled_reports")
+func (p *Postgres) ResourceSummary(ctx context.Context) (ResourceSummary, error) {
+	// M12: Consolidated 9 sequential COUNT queries into a single query
+	// using scalar subselects — one round-trip instead of nine.
+	var out ResourceSummary
+	err := p.pool.QueryRow(ctx, `
+		SELECT
+			(SELECT COUNT(*) FROM locations),
+			(SELECT COUNT(*) FROM subnets),
+			(SELECT COUNT(*) FROM contacts),
+			(SELECT COUNT(*) FROM incidents),
+			(SELECT COUNT(*) FROM maintenance_windows),
+			(SELECT COUNT(*) FROM status_page_services),
+			(SELECT COUNT(*) FROM discovery_jobs),
+			(SELECT COUNT(*) FROM isp_links),
+			(SELECT COUNT(*) FROM scheduled_reports)
+	`).Scan(
+		&out.Locations, &out.Subnets, &out.Contacts, &out.Incidents,
+		&out.MaintenanceWindows, &out.StatusServices, &out.DiscoveryJobs,
+		&out.ISPLinks, &out.ScheduledReports,
+	)
 	return out, err
 }
 
-func filteredPhase2Values(res phase2Resource, values map[string]any) ([]string, []any) {
+func filteredResourceValues(res resourceDefinition, values map[string]any) ([]string, []any) {
 	// Build mapping from snake_case column name to the original request key
 	// so we can look up values correctly even when keys are camelCase.
 	colToOriginal := make(map[string]string, len(values))
@@ -307,16 +295,24 @@ func filteredPhase2Values(res phase2Resource, values map[string]any) ([]string, 
 	sort.Strings(cols)
 	args := make([]any, 0, len(cols))
 	for _, col := range cols {
-		args = append(args, normalizePhase2Value(values[colToOriginal[col]]))
+		args = append(args, normalizeResourceValue(values[colToOriginal[col]]))
 	}
 	return cols, args
 }
 
-func normalizePhase2Value(v any) any {
+func normalizeResourceValue(v any) any {
 	switch t := v.(type) {
 	case map[string]any, []any:
 		b, _ := json.Marshal(t)
 		return string(b)
+	case float64:
+		// JSON unmarshal produces float64 for all numbers. Convert whole
+		// numbers to int64 so they insert into BIGINT/INT columns
+		// correctly (M9 — previously float64→INT caused runtime errors).
+		if t == float64(int64(t)) {
+			return int64(t)
+		}
+		return t
 	default:
 		return v
 	}
@@ -339,12 +335,25 @@ func rowsToMaps(rows pgx.Rows) ([]map[string]any, error) {
 	return out, rows.Err()
 }
 
+// toSnake converts a camelCase or PascalCase string to snake_case.
+// Handles acronyms correctly: consecutive capitals are treated as a single
+// acronym (e.g. "ISPLink" → "isp_link", "HTTPPath" → "http_path").
 func toSnake(s string) string {
 	var b strings.Builder
-	for i, r := range s {
+	runes := []rune(s)
+	for i, r := range runes {
 		if r >= 'A' && r <= 'Z' {
 			if i > 0 {
-				b.WriteByte('_')
+				prev := runes[i-1]
+				nextIsLower := i+1 < len(runes) && runes[i+1] >= 'a' && runes[i+1] <= 'z'
+				if prev >= 'a' && prev <= 'z' {
+					// lower→Upper: new word (camelCase boundary)
+					b.WriteByte('_')
+				} else if prev >= 'A' && prev <= 'Z' && nextIsLower {
+					// Upper→Upper(lower): this capital is the start of a
+					// new word after an acronym (e.g. the 'L' in "ISPLink").
+					b.WriteByte('_')
+				}
 			}
 			b.WriteRune(r + ('a' - 'A'))
 			continue

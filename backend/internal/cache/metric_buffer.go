@@ -3,12 +3,14 @@ package cache
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"sync"
 	"time"
 
 	"github.com/rayavriti/netmonitor-backend/internal/database"
 	"github.com/rayavriti/netmonitor-backend/internal/models"
+	"github.com/redis/go-redis/v9"
 )
 
 const metricsBufferKey = "nm:buffer:metrics"
@@ -73,11 +75,16 @@ func (b *MetricBuffer) flush(ctx context.Context) {
 	pipe := b.rdb.Client().Pipeline()
 	popCmd := pipe.LPopCount(ctx, metricsBufferKey, b.batchSize)
 	_, err := pipe.Exec(ctx)
-	if err != nil {
+	if err != nil && !errors.Is(err, redis.Nil) {
+		slog.Warn("MetricBuffer: failed to pop from Redis", "error", err)
 		return
 	}
 
-	items, _ := popCmd.Result()
+	items, err := popCmd.Result()
+	if err != nil && !errors.Is(err, redis.Nil) {
+		slog.Warn("MetricBuffer: failed to read popped metrics", "error", err)
+		return
+	}
 	if len(items) == 0 {
 		return
 	}
@@ -92,15 +99,47 @@ func (b *MetricBuffer) flush(ctx context.Context) {
 		metrics = append(metrics, &m)
 	}
 
+	// Metrics are popped from Redis before persistence; if the DB is down we
+	// must re-queue the items that could not be saved so they are retried on
+	// the next flush instead of being silently lost.
 	if len(metrics) > 0 {
 		if err := b.db.RecordMetricsBatch(ctx, metrics); err != nil {
-			slog.Warn("Batch insert failed, falling back to individual inserts", "error", err)
+			slog.Warn("Batch insert failed, falling back to individual inserts", "error", err, "count", len(metrics))
+			var toRequeue []*models.Metric
 			for _, m := range metrics {
 				if dbErr := b.db.RecordMetric(ctx, m); dbErr != nil {
-					slog.Warn("Failed to record buffered metric", "device_id", m.DeviceID, "error", dbErr)
+					toRequeue = append(toRequeue, m)
 				}
 			}
+			b.requeue(ctx, toRequeue)
 		}
 	}
 	slog.Debug("Flushed metrics batch", "count", len(items))
+}
+
+// requeue pushes the given metrics back to the head of the Redis list so they
+// are retried on the next flush cycle instead of being lost.
+func (b *MetricBuffer) requeue(ctx context.Context, metrics []*models.Metric) {
+	if len(metrics) == 0 {
+		return
+	}
+	failed := make([]string, 0, len(metrics))
+	for _, m := range metrics {
+		raw, err := json.Marshal(m)
+		if err != nil {
+			slog.Warn("Failed to marshal metric for re-queue", "device_id", m.DeviceID, "error", err)
+			continue
+		}
+		failed = append(failed, string(raw))
+	}
+	if len(failed) == 0 {
+		return
+	}
+	values := make([]interface{}, len(failed))
+	for i, v := range failed {
+		values[i] = v
+	}
+	if err := b.rdb.Client().LPush(ctx, metricsBufferKey, values...).Err(); err != nil {
+		slog.Warn("Failed to re-queue metrics to Redis", "count", len(failed), "error", err)
+	}
 }

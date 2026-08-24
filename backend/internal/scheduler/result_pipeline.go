@@ -73,10 +73,16 @@ func (rp *ResultPipeline) Stop() {
 }
 
 func (rp *ResultPipeline) Submit(pr PollResult) {
+	// Use a short timeout instead of immediate drop so that a transient
+	// DB slowdown causes the dispatcher to slow down (backpressure) rather
+	// than silently discarding poll results. If the pipeline is truly stuck
+	// for more than 5 seconds, we drop rather than block the worker pool.
+	timer := time.NewTimer(5 * time.Second)
+	defer timer.Stop()
 	select {
 	case rp.resultCh <- pr:
-	default:
-		slog.Warn("result pipeline channel full, dropping result", "deviceID", pr.Device.ID)
+	case <-timer.C:
+		slog.Warn("result pipeline full after 5s, dropping result", "deviceID", pr.Device.ID)
 	}
 }
 
@@ -113,10 +119,9 @@ func (rp *ResultPipeline) run(ctx context.Context) {
 
 func (rp *ResultPipeline) processBatch(ctx context.Context, batch []PollResult) {
 	metrics := make([]*models.Metric, 0, len(batch))
-	now := time.Now()
 
 	for _, pr := range batch {
-		metric := rp.buildMetric(pr, now)
+		metric := rp.buildMetric(pr)
 		metrics = append(metrics, metric)
 
 		if rp.hub != nil {
@@ -145,17 +150,25 @@ func (rp *ResultPipeline) processBatch(ctx context.Context, batch []PollResult) 
 	}
 }
 
-func (rp *ResultPipeline) buildMetric(pr PollResult, now time.Time) *models.Metric {
+func (rp *ResultPipeline) buildMetric(pr PollResult) *models.Metric {
 	status := pr.Status
 	if status == "" {
 		status = pr.Device.Status
+	}
+
+	// Use the actual poll completion time, not the batch processing time,
+	// so metrics from polls that completed seconds apart have accurate
+	// timestamps (M37 — previously all metrics in a batch shared now).
+	ts := pr.FinishedAt
+	if ts.IsZero() {
+		ts = time.Now()
 	}
 
 	metric := &models.Metric{
 		DeviceID:   pr.Device.ID,
 		DeviceName: pr.Device.Name,
 		Protocol:   pr.Device.Protocol,
-		Timestamp:  now,
+		Timestamp:  ts,
 		Status:     status,
 	}
 

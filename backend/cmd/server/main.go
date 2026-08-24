@@ -117,7 +117,7 @@ func run() error {
 		if err != nil {
 			latestMetrics = nil
 		}
-		alerts, _, err := appDB.GetAlerts(ctx, "active", 50, 0)
+		alerts, _, err := appDB.GetAlerts(ctx, "active", 50, 0, nil)
 		if err != nil {
 			alerts = nil
 		}
@@ -155,19 +155,26 @@ func run() error {
 	registry.Register(collectors.BiometricCollector{})
 	logger.Info("Collectors registered", "count", 8)
 
-	// 8. Initialize alert engine (used by scheduler for rule evaluation)
+	// 8. Initialize alert engine (used by scheduler for rule evaluation).
+	// The anomaly engine below owns the baseline cache and shares it with the
+	// alert engine so anomaly-condition rules read refreshed baselines.
+	baselineCache := engine.NewBaselineCache(15 * time.Minute)
 	notifier := engine.NewNotifier()
-	alertOpts := []engine.AlertEngineOption{}
+	alertOpts := []engine.AlertEngineOption{
+		engine.WithBaselineCache(baselineCache),
+	}
 	if rdb != nil {
 		alertOpts = append(alertOpts, engine.WithAlertStateCache(cache.NewAlertStateCache(rdb, db)))
 	}
 	alertEng := engine.NewAlertEngine(appDB, hub, notifier, alertOpts...)
+	alertEng.Start(context.Background())
+	logger.Info("Alert engine started")
 
 	// 8.5 Initialize metric buffer and Pub/Sub bridge (if Redis available)
 	var metricBuf *cache.MetricBuffer
 	var pubSubBridge *cache.PubSubBridge
 	if rdb != nil {
-		metricBuf = cache.NewMetricBuffer(rdb, db, 100, 2*time.Second)
+		metricBuf = cache.NewMetricBuffer(rdb, appDB, 100, 2*time.Second)
 		metricBuf.Start(context.Background())
 		logger.Info("Metric buffer started")
 
@@ -210,8 +217,9 @@ func run() error {
 	sched.Start(context.Background())
 	logger.Info("Scheduler started")
 
-	// 10. Initialize anomaly engine
+	// 10. Initialize anomaly engine (shares its baseline cache with the alert engine)
 	anomalyEng := engine.NewAnomalyEngine(db, slog.Default())
+	anomalyEng.SetBaselineCache(baselineCache)
 	anomalyEng.Start(context.Background())
 	logger.Info("Anomaly engine started")
 
@@ -224,11 +232,11 @@ func run() error {
 	logger.Info("Retention scheduler started")
 
 	// 11.5 Initialize ISP collector and scheduled report runner
-	ispCollector := reports.NewISPCollector(db.Pool(), cfg.Phase2.ISPMonitorInterval)
+	ispCollector := reports.NewISPCollector(db.Pool(), cfg.Integrations.ISPMonitorInterval)
 	ispCollector.Start(context.Background())
-	logger.Info("ISP collector started", "interval_sec", cfg.Phase2.ISPMonitorInterval)
+	logger.Info("ISP collector started", "interval_sec", cfg.Integrations.ISPMonitorInterval)
 
-	reportGen := reports.NewGenerator(db.Pool(), cfg.Phase2.ReportOutputDir)
+	reportGen := reports.NewGenerator(db.Pool(), cfg.Integrations.ReportOutputDir)
 	reportScheduler := reports.NewScheduledRunner(db.Pool(), reportGen, time.Minute)
 	reportScheduler.Start(context.Background())
 	logger.Info("Scheduled report runner started")
@@ -282,6 +290,7 @@ func run() error {
 		metricBuf.Stop()
 	}
 	anomalyEng.Stop()
+	alertEng.Stop()
 	retSched.Stop()
 	hub.Stop()
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)

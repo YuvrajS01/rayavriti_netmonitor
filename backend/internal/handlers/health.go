@@ -32,7 +32,7 @@ func (h *HealthHandler) Health(w http.ResponseWriter, r *http.Request) {
 func (h *HealthHandler) Stats(w http.ResponseWriter, r *http.Request) {
 	stats, err := h.db.GetDashboardStats(r.Context())
 	if err != nil {
-		httputil.SendError(w, http.StatusInternalServerError, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	httputil.SendOK(w, stats)
@@ -42,7 +42,7 @@ func (h *HealthHandler) Stats(w http.ResponseWriter, r *http.Request) {
 func (h *HealthHandler) Scores(w http.ResponseWriter, r *http.Request) {
 	scores, err := h.db.GetHealthScores(r.Context())
 	if err != nil {
-		httputil.SendError(w, http.StatusInternalServerError, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	httputil.SendOK(w, scores)
@@ -57,7 +57,7 @@ func (h *HealthHandler) DeviceScore(w http.ResponseWriter, r *http.Request) {
 	}
 	scores, err := h.db.GetHealthScores(r.Context())
 	if err != nil {
-		httputil.SendError(w, http.StatusInternalServerError, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	for _, s := range scores {

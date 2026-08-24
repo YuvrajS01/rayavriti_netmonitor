@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
-import type { Phase2Row } from '../api/phase2';
+import type { ResourceRow } from '../api/resources';
 
-interface Place extends Phase2Row { status?: Record<string, number>; device_count?: number; }
+interface Place extends ResourceRow { status?: Record<string, number>; device_count?: number; }
 interface Props { locations: Place[]; selectedId: number | null | undefined; onSelect: (location: Place) => void; }
 
 interface HierarchicalPlace extends Place {

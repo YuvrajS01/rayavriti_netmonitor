@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { listPhase2, createPhase2, updatePhase2, type Phase2Row } from '../api/phase2';
+import { listResources, createResource, updateResource, type ResourceRow } from '../api/resources';
 import { v1 } from '../api/http';
 import SectionHeader from '../components/ui/SectionHeader';
 import Card from '../components/ui/Card';
@@ -10,7 +10,7 @@ import ConfirmDialog from '../components/ConfirmDialog';
 import { useToast } from '../components/ui/useToast';
 import GanttTimeline from '../components/charts/GanttTimeline';
 
-interface MaintenanceWindow extends Phase2Row {
+interface MaintenanceWindow extends ResourceRow {
   id: number;
   name: string;
   description: string;
@@ -51,7 +51,7 @@ export default function Maintenance() {
 
   const load = async () => {
     setLoading(true);
-    const res = await listPhase2('/maintenance');
+    const res = await listResources('/maintenance');
     setWindows((res.data || []) as MaintenanceWindow[]);
     setLoading(false);
   };
@@ -61,7 +61,7 @@ export default function Maintenance() {
     (async () => {
       setLoading(true);
       try {
-        const res = await listPhase2('/maintenance');
+        const res = await listResources('/maintenance');
         if (active) setWindows((res.data || []) as MaintenanceWindow[]);
       } catch {
         if (active) setWindows([]);
@@ -98,10 +98,10 @@ export default function Maintenance() {
     setSubmitting(true);
     try {
       if (editing) {
-        await updatePhase2('/maintenance', editing.id, form);
+        await updateResource('/maintenance', editing.id, form);
         addToast('Window updated', 'success');
       } else {
-        await createPhase2('/maintenance', form);
+        await createResource('/maintenance', form);
         addToast('Window created', 'success');
       }
       setShowForm(false);

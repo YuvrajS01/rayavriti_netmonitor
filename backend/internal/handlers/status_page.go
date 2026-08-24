@@ -31,17 +31,23 @@ func (h *StatusPageHandler) PublicStatusJSON(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	services, err := h.getEnabledServices(r.Context())
+	ctx := r.Context()
+	services, err := h.getEnabledServices(ctx)
 	if err != nil {
-		httputil.SendError(w, http.StatusInternalServerError, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
+
+	// M28: Batch-load device statuses and uptime for ALL services in one
+	// query instead of 2 queries per service (N+1 → 1).
+	serviceStatusMap, serviceUptimeMap := h.batchServiceDeviceStatuses(ctx, services)
 
 	groups := map[string][]map[string]any{}
 	overall := "operational"
 
 	for _, svc := range services {
-		deviceStatuses, _ := h.getServiceDeviceStatuses(r.Context(), svc["id"].(int64))
+		svcID := svc["id"].(int64)
+		deviceStatuses := serviceStatusMap[svcID]
 		serviceStatus := h.deriveServiceStatus(svc, deviceStatuses)
 		group, _ := svc["group_name"].(string)
 		if group == "" {
@@ -56,8 +62,7 @@ func (h *StatusPageHandler) PublicStatusJSON(w http.ResponseWriter, r *http.Requ
 		}
 
 		if showUptime, _ := svc["show_uptime"].(bool); showUptime {
-			uptime := h.computeUptime(r.Context(), svc["id"].(int64))
-			entry["uptime_30d"] = uptime
+			entry["uptime_30d"] = serviceUptimeMap[svcID]
 		}
 
 		groups[group] = append(groups[group], entry)
@@ -67,11 +72,12 @@ func (h *StatusPageHandler) PublicStatusJSON(w http.ResponseWriter, r *http.Requ
 		}
 	}
 
-	activeIncidents, _ := h.getActiveIncidents(r.Context())
+	activeIncidents, _ := h.getActiveIncidents(ctx)
+	// M28: Batch-load affected service names for ALL incidents in one query.
+	incidentServicesMap := h.batchIncidentServiceNames(ctx, activeIncidents)
 	active := []map[string]any{}
 	for _, inc := range activeIncidents {
-		servicesAffected, _ := h.getIncidentServiceNames(r.Context(), inc["id"].(int64))
-		inc["affected_services"] = servicesAffected
+		inc["affected_services"] = incidentServicesMap[inc["id"].(int64)]
 		active = append(active, inc)
 		if overall == "operational" {
 			overall = "degraded"
@@ -90,6 +96,89 @@ func (h *StatusPageHandler) PublicStatusJSON(w http.ResponseWriter, r *http.Requ
 		"groups":           groupRows,
 		"active_incidents": active,
 	})
+}
+
+// batchServiceDeviceStatuses loads device statuses for all services in a
+// single query, returning per-service status lists and uptime (M28).
+func (h *StatusPageHandler) batchServiceDeviceStatuses(ctx context.Context, services []map[string]any) (map[int64][]string, map[int64]float64) {
+	if len(services) == 0 {
+		return map[int64][]string{}, map[int64]float64{}
+	}
+	serviceIDs := make([]int64, len(services))
+	for i, svc := range services {
+		serviceIDs[i] = svc["id"].(int64)
+	}
+
+	rows, err := h.pool.Query(ctx,
+		`SELECT spsd.service_id, d.status
+		 FROM status_page_service_devices spsd
+		 JOIN devices d ON d.id = spsd.device_id
+		 WHERE spsd.service_id = ANY($1)`, serviceIDs)
+	if err != nil {
+		return map[int64][]string{}, map[int64]float64{}
+	}
+	defer rows.Close()
+
+	statusMap := map[int64][]string{}
+	totalCount := map[int64]int{}
+	downCount := map[int64]int{}
+	for rows.Next() {
+		var svcID int64
+		var status string
+		if err := rows.Scan(&svcID, &status); err != nil {
+			continue
+		}
+		statusMap[svcID] = append(statusMap[svcID], status)
+		totalCount[svcID]++
+		if status == "down" || status == "critical" {
+			downCount[svcID]++
+		}
+	}
+
+	uptimeMap := map[int64]float64{}
+	for _, svc := range services {
+		svcID := svc["id"].(int64)
+		total := totalCount[svcID]
+		if total == 0 {
+			uptimeMap[svcID] = 100.0
+		} else {
+			uptimeMap[svcID] = float64(total-downCount[svcID]) / float64(total) * 100.0
+		}
+	}
+	return statusMap, uptimeMap
+}
+
+// batchIncidentServiceNames loads affected service names for all incidents
+// in a single query (M28).
+func (h *StatusPageHandler) batchIncidentServiceNames(ctx context.Context, incidents []map[string]any) map[int64][]string {
+	if len(incidents) == 0 {
+		return map[int64][]string{}
+	}
+	incidentIDs := make([]int64, len(incidents))
+	for i, inc := range incidents {
+		incidentIDs[i] = inc["id"].(int64)
+	}
+
+	rows, err := h.pool.Query(ctx,
+		`SELECT spis.incident_id, sps.name
+		 FROM status_page_incident_services spis
+		 JOIN status_page_services sps ON sps.id = spis.service_id
+		 WHERE spis.incident_id = ANY($1)`, incidentIDs)
+	if err != nil {
+		return map[int64][]string{}
+	}
+	defer rows.Close()
+
+	result := map[int64][]string{}
+	for rows.Next() {
+		var incID int64
+		var name string
+		if err := rows.Scan(&incID, &name); err != nil {
+			continue
+		}
+		result[incID] = append(result[incID], name)
+	}
+	return result
 }
 
 func (h *StatusPageHandler) AddServiceDevice(w http.ResponseWriter, r *http.Request) {
@@ -119,7 +208,7 @@ func (h *StatusPageHandler) AddServiceDevice(w http.ResponseWriter, r *http.Requ
 		serviceID, body.DeviceID,
 	)
 	if err != nil {
-		httputil.SendError(w, http.StatusInternalServerError, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	httputil.SendCreated(w, map[string]any{"serviceId": serviceID, "deviceId": body.DeviceID})
@@ -146,7 +235,7 @@ func (h *StatusPageHandler) RemoveServiceDevice(w http.ResponseWriter, r *http.R
 		serviceID, deviceID,
 	)
 	if err != nil {
-		httputil.SendError(w, http.StatusInternalServerError, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	httputil.SendOK(w, map[string]bool{"deleted": true})
@@ -169,7 +258,7 @@ func (h *StatusPageHandler) ListServiceDevices(w http.ResponseWriter, r *http.Re
 		 JOIN devices d ON d.id = spsd.device_id
 		 WHERE spsd.service_id=$1`, serviceID)
 	if err != nil {
-		httputil.SendError(w, http.StatusInternalServerError, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	defer rows.Close()
@@ -233,7 +322,7 @@ func (h *StatusPageHandler) ListIncidentUpdates(w http.ResponseWriter, r *http.R
 		`SELECT id, incident_id, status, message, created_by, created_at
 		 FROM status_page_incident_updates WHERE incident_id=$1 ORDER BY created_at ASC`, incidentID)
 	if err != nil {
-		httputil.SendError(w, http.StatusInternalServerError, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	defer rows.Close()
@@ -283,27 +372,6 @@ func (h *StatusPageHandler) getEnabledServices(ctx context.Context) ([]map[strin
 	return out, rows.Err()
 }
 
-func (h *StatusPageHandler) getServiceDeviceStatuses(ctx context.Context, serviceID int64) ([]string, error) {
-	rows, err := h.pool.Query(ctx,
-		`SELECT d.status FROM status_page_service_devices spsd
-		 JOIN devices d ON d.id = spsd.device_id
-		 WHERE spsd.service_id=$1`, serviceID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	statuses := []string{}
-	for rows.Next() {
-		var s string
-		if err := rows.Scan(&s); err != nil {
-			continue
-		}
-		statuses = append(statuses, s)
-	}
-	return statuses, rows.Err()
-}
-
 func (h *StatusPageHandler) deriveServiceStatus(svc map[string]any, deviceStatuses []string) string {
 	if len(deviceStatuses) == 0 {
 		return "operational"
@@ -343,21 +411,6 @@ func (h *StatusPageHandler) deriveServiceStatus(svc map[string]any, deviceStatus
 	return "operational"
 }
 
-func (h *StatusPageHandler) computeUptime(ctx context.Context, serviceID int64) float64 {
-	var totalDevices, downDevices int
-	_ = h.pool.QueryRow(ctx,
-		`SELECT COUNT(*), COUNT(*) FILTER (WHERE d.status IN ('down','critical'))
-		 FROM status_page_service_devices spsd
-		 JOIN devices d ON d.id = spsd.device_id
-		 WHERE spsd.service_id=$1`, serviceID,
-	).Scan(&totalDevices, &downDevices)
-
-	if totalDevices == 0 {
-		return 100.0
-	}
-	return float64(totalDevices-downDevices) / float64(totalDevices) * 100.0
-}
-
 func (h *StatusPageHandler) getActiveIncidents(ctx context.Context) ([]map[string]any, error) {
 	rows, err := h.pool.Query(ctx,
 		`SELECT id, title, message, severity, status, started_at
@@ -380,24 +433,4 @@ func (h *StatusPageHandler) getActiveIncidents(ctx context.Context) ([]map[strin
 		out = append(out, item)
 	}
 	return out, rows.Err()
-}
-
-func (h *StatusPageHandler) getIncidentServiceNames(ctx context.Context, incidentID int64) ([]string, error) {
-	rows, err := h.pool.Query(ctx,
-		`SELECT sps.name FROM status_page_incident_services spis
-		 JOIN status_page_services sps ON sps.id = spis.service_id
-		 WHERE spis.incident_id=$1`, incidentID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	names := []string{}
-	for rows.Next() {
-		var name string
-		if err := rows.Scan(&name); err != nil {
-			continue
-		}
-		names = append(names, name)
-	}
-	return names, rows.Err()
 }

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"math"
+	"sort"
 	"time"
 
 	"github.com/rayavriti/netmonitor-backend/internal/database"
@@ -237,13 +238,7 @@ func percentile(values []float64, p float64) float64 {
 	}
 	sorted := make([]float64, len(values))
 	copy(sorted, values)
-	for i := range sorted {
-		for j := i + 1; j < len(sorted); j++ {
-			if sorted[j] < sorted[i] {
-				sorted[i], sorted[j] = sorted[j], sorted[i]
-			}
-		}
-	}
+	sort.Float64s(sorted)
 	idx := int(math.Ceil(p/100*float64(len(sorted)))) - 1
 	if idx < 0 {
 		idx = 0

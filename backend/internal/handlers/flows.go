@@ -17,7 +17,7 @@ func (h *FlowHandler) List(w http.ResponseWriter, r *http.Request) {
 	offset, _ := strconv.Atoi(r.URL.Query().Get("offset"))
 	flows, _, err := h.db.GetFlows(r.Context(), from, to, limit, offset)
 	if err != nil {
-		httputil.SendError(w, 500, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	httputil.SendOK(w, flows)
@@ -28,7 +28,7 @@ func (h *FlowHandler) TopTalkers(w http.ResponseWriter, r *http.Request) {
 	n, _ := strconv.Atoi(r.URL.Query().Get("n"))
 	talkers, err := h.db.GetTopTalkers(r.Context(), from, to, n)
 	if err != nil {
-		httputil.SendError(w, 500, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	httputil.SendOK(w, talkers)
@@ -38,7 +38,7 @@ func (h *FlowHandler) Protocols(w http.ResponseWriter, r *http.Request) {
 	from, to, _ := parseTimeRange(r)
 	stats, err := h.db.GetProtocolStats(r.Context(), from, to)
 	if err != nil {
-		httputil.SendError(w, 500, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	httputil.SendOK(w, stats)
@@ -52,7 +52,7 @@ func (h *FlowHandler) Timeseries(w http.ResponseWriter, r *http.Request) {
 	}
 	points, err := h.db.GetFlowTimeseries(r.Context(), from, to, interval)
 	if err != nil {
-		httputil.SendError(w, 500, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	httputil.SendOK(w, points)
@@ -62,7 +62,7 @@ func (h *FlowHandler) Stats(w http.ResponseWriter, r *http.Request) {
 	from, to, _ := parseTimeRange(r)
 	stats, err := h.db.GetFlowStats(r.Context(), from, to)
 	if err != nil {
-		httputil.SendError(w, 500, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	httputil.SendOK(w, stats)

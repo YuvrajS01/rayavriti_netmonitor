@@ -14,18 +14,18 @@ import (
 
 // RoleHandler provides typed CRUD for roles with permission validation.
 type RoleHandler struct {
-	db     database.Database
-	phase2 database.Phase2Store
+	db    database.Database
+	store database.ResourceStore
 }
 
 func NewRoleHandler(db database.Database) *RoleHandler {
-	phase2, _ := db.(database.Phase2Store)
-	return &RoleHandler{db: db, phase2: phase2}
+	store, _ := db.(database.ResourceStore)
+	return &RoleHandler{db: db, store: store}
 }
 
 func (h *RoleHandler) requireStore(w http.ResponseWriter) bool {
-	if h.phase2 == nil {
-		httputil.SendError(w, http.StatusNotImplemented, "phase 2 storage not available")
+	if h.store == nil {
+		httputil.SendError(w, http.StatusNotImplemented, "resource storage not available")
 		return false
 	}
 	return true
@@ -74,9 +74,9 @@ func (h *RoleHandler) List(w http.ResponseWriter, r *http.Request) {
 	if !h.requireStore(w) {
 		return
 	}
-	rows, err := h.phase2.ListPhase2(r.Context(), "roles", nil)
+	rows, err := h.store.ListResources(r.Context(), "roles", nil)
 	if err != nil {
-		httputil.SendError(w, http.StatusInternalServerError, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	httputil.SendOK(w, rows)
@@ -91,7 +91,7 @@ func (h *RoleHandler) Get(w http.ResponseWriter, r *http.Request) {
 		httputil.SendError(w, http.StatusBadRequest, "invalid id")
 		return
 	}
-	item, err := h.phase2.GetPhase2(r.Context(), "roles", id)
+	item, err := h.store.GetResource(r.Context(), "roles", id)
 	if err != nil {
 		httputil.SendError(w, http.StatusNotFound, "role not found")
 		return
@@ -130,13 +130,13 @@ func (h *RoleHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Check for duplicate name
-	existing, _ := h.phase2.ListPhase2(r.Context(), "roles", map[string]string{"name": body.Name})
+	existing, _ := h.store.ListResources(r.Context(), "roles", map[string]string{"name": body.Name})
 	if len(existing) > 0 {
 		httputil.SendError(w, http.StatusConflict, "role name already exists")
 		return
 	}
 	permJSON, _ := json.Marshal(body.Permissions)
-	item, err := h.phase2.CreatePhase2(r.Context(), "roles", map[string]any{
+	item, err := h.store.CreateResource(r.Context(), "roles", map[string]any{
 		"name":         body.Name,
 		"display_name": body.DisplayName,
 		"description":  body.Description,
@@ -159,7 +159,7 @@ func (h *RoleHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Check existing role
-	existing, err := h.phase2.GetPhase2(r.Context(), "roles", id)
+	existing, err := h.store.GetResource(r.Context(), "roles", id)
 	if err != nil {
 		httputil.SendError(w, http.StatusNotFound, "role not found")
 		return
@@ -197,7 +197,7 @@ func (h *RoleHandler) Update(w http.ResponseWriter, r *http.Request) {
 		httputil.SendError(w, http.StatusBadRequest, "no fields to update")
 		return
 	}
-	item, err := h.phase2.UpdatePhase2(r.Context(), "roles", id, patch)
+	item, err := h.store.UpdateResource(r.Context(), "roles", id, patch)
 	if err != nil {
 		httputil.SendError(w, http.StatusBadRequest, err.Error())
 		return
@@ -215,7 +215,7 @@ func (h *RoleHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Check existing role
-	existing, err := h.phase2.GetPhase2(r.Context(), "roles", id)
+	existing, err := h.store.GetResource(r.Context(), "roles", id)
 	if err != nil {
 		httputil.SendError(w, http.StatusNotFound, "role not found")
 		return
@@ -225,12 +225,12 @@ func (h *RoleHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Check if any users have this role
-	users, _ := h.phase2.ListPhase2(r.Context(), "users", map[string]string{"role_id": chi.URLParam(r, "id")})
+	users, _ := h.store.ListResources(r.Context(), "users", map[string]string{"role_id": chi.URLParam(r, "id")})
 	if len(users) > 0 {
 		httputil.SendError(w, http.StatusConflict, "role is assigned to users")
 		return
 	}
-	if err := h.phase2.DeletePhase2(r.Context(), "roles", id); err != nil {
+	if err := h.store.DeleteResource(r.Context(), "roles", id); err != nil {
 		httputil.SendError(w, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -239,12 +239,12 @@ func (h *RoleHandler) Delete(w http.ResponseWriter, r *http.Request) {
 
 // UserScopeHandler provides typed CRUD for user scope assignments.
 type UserScopeHandler struct {
-	phase2 database.Phase2Store
+	store database.ResourceStore
 }
 
 func NewUserScopeHandler(db database.Database) *UserScopeHandler {
-	phase2, _ := db.(database.Phase2Store)
-	return &UserScopeHandler{phase2: phase2}
+	store, _ := db.(database.ResourceStore)
+	return &UserScopeHandler{store: store}
 }
 
 var validScopeTypes = map[string]bool{
@@ -254,25 +254,25 @@ var validScopeTypes = map[string]bool{
 }
 
 func (h *UserScopeHandler) List(w http.ResponseWriter, r *http.Request) {
-	if h.phase2 == nil {
-		httputil.SendError(w, http.StatusNotImplemented, "phase 2 storage not available")
+	if h.store == nil {
+		httputil.SendError(w, http.StatusNotImplemented, "resource storage not available")
 		return
 	}
 	filters := map[string]string{}
 	if uid := r.URL.Query().Get("user_id"); uid != "" {
 		filters["user_id"] = uid
 	}
-	rows, err := h.phase2.ListPhase2(r.Context(), "user_scopes", filters)
+	rows, err := h.store.ListResources(r.Context(), "user_scopes", filters)
 	if err != nil {
-		httputil.SendError(w, http.StatusInternalServerError, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	httputil.SendOK(w, rows)
 }
 
 func (h *UserScopeHandler) Create(w http.ResponseWriter, r *http.Request) {
-	if h.phase2 == nil {
-		httputil.SendError(w, http.StatusNotImplemented, "phase 2 storage not available")
+	if h.store == nil {
+		httputil.SendError(w, http.StatusNotImplemented, "resource storage not available")
 		return
 	}
 	claims := auth.GetClaims(r.Context())
@@ -302,7 +302,7 @@ func (h *UserScopeHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Check for duplicate
-	existing, _ := h.phase2.ListPhase2(r.Context(), "user_scopes", map[string]string{
+	existing, _ := h.store.ListResources(r.Context(), "user_scopes", map[string]string{
 		"user_id":     fmt.Sprintf("%d", body.UserID),
 		"scope_type":  body.ScopeType,
 		"scope_value": body.ScopeValue,
@@ -311,7 +311,7 @@ func (h *UserScopeHandler) Create(w http.ResponseWriter, r *http.Request) {
 		httputil.SendError(w, http.StatusConflict, "scope already assigned")
 		return
 	}
-	item, err := h.phase2.CreatePhase2(r.Context(), "user_scopes", map[string]any{
+	item, err := h.store.CreateResource(r.Context(), "user_scopes", map[string]any{
 		"user_id":     body.UserID,
 		"scope_type":  body.ScopeType,
 		"scope_value": body.ScopeValue,
@@ -324,8 +324,8 @@ func (h *UserScopeHandler) Create(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *UserScopeHandler) Delete(w http.ResponseWriter, r *http.Request) {
-	if h.phase2 == nil {
-		httputil.SendError(w, http.StatusNotImplemented, "phase 2 storage not available")
+	if h.store == nil {
+		httputil.SendError(w, http.StatusNotImplemented, "resource storage not available")
 		return
 	}
 	id, err := parseID(chi.URLParam(r, "id"))
@@ -333,7 +333,7 @@ func (h *UserScopeHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		httputil.SendError(w, http.StatusBadRequest, "invalid id")
 		return
 	}
-	if err := h.phase2.DeletePhase2(r.Context(), "user_scopes", id); err != nil {
+	if err := h.store.DeleteResource(r.Context(), "user_scopes", id); err != nil {
 		httputil.SendError(w, http.StatusBadRequest, err.Error())
 		return
 	}

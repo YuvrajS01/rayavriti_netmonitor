@@ -146,6 +146,8 @@ type APIKey struct {
 	Description string     `json:"description"`
 	CreatedAt   time.Time  `json:"createdAt"`
 	LastUsedAt  *time.Time `json:"lastUsedAt,omitempty"`
+	ExpiresAt   *time.Time `json:"expiresAt,omitempty"`
+	RevokedAt   *time.Time `json:"revokedAt,omitempty"`
 }
 
 type Flow struct {
@@ -474,6 +476,7 @@ const (
 	PermReportsRead         = "reports.read"
 	PermReportsWrite        = "reports.write"
 	PermSettingsWrite       = "settings.write"
+	PermBackupRestore       = "backup.restore"
 	PermUsersManage         = "users.manage"
 	PermImportExecute       = "import.execute"
 	PermDiscoveryExecute    = "discovery.execute"

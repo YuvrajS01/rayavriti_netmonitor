@@ -20,7 +20,7 @@ func NewMetricHandler(db database.Database) *MetricHandler { return &MetricHandl
 func (h *MetricHandler) Latest(w http.ResponseWriter, r *http.Request) {
 	metrics, err := h.db.GetLatestMetrics(r.Context())
 	if err != nil {
-		httputil.SendError(w, 500, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	httputil.SendOK(w, metrics)
@@ -35,7 +35,7 @@ func (h *MetricHandler) ForDevice(w http.ResponseWriter, r *http.Request) {
 	from, to, limit := parseTimeRange(r)
 	metrics, err := h.db.GetDeviceMetrics(r.Context(), id, from, to, limit)
 	if err != nil {
-		httputil.SendError(w, 500, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	httputil.SendOK(w, metrics)
@@ -73,7 +73,7 @@ func (h *MetricHandler) Query(w http.ResponseWriter, r *http.Request) {
 	if mq.Aggregation != "" || mq.BucketMin > 0 {
 		metrics, err := h.db.QueryMetrics(r.Context(), mq)
 		if err != nil {
-			httputil.SendError(w, 500, err.Error())
+			httputil.SendInternalError(w, err)
 			return
 		}
 		httputil.SendOK(w, metrics)
@@ -84,7 +84,7 @@ func (h *MetricHandler) Query(w http.ResponseWriter, r *http.Request) {
 	if mq.DeviceID != nil {
 		metrics, err := h.db.GetDeviceMetrics(r.Context(), *mq.DeviceID, from, to, limit)
 		if err != nil {
-			httputil.SendError(w, 500, err.Error())
+			httputil.SendInternalError(w, err)
 			return
 		}
 		httputil.SendOK(w, metrics)
@@ -92,7 +92,7 @@ func (h *MetricHandler) Query(w http.ResponseWriter, r *http.Request) {
 	}
 	summary, err := h.db.GetMetricsSummary(r.Context(), from, to, nil)
 	if err != nil {
-		httputil.SendError(w, 500, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	httputil.SendOK(w, summary)

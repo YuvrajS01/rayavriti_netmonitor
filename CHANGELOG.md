@@ -5,6 +5,68 @@ All notable changes to Rayavriti NetMonitor will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.5.0] - 2026-08-24
+
+Comprehensive code review release implementing ~60 fixes across four review tiers. Major security hardening (SSRF protection, login throttling, IDOR fixes, refresh-token reuse detection), correctness and stability fixes across the scheduler, alert engine, cache, and migrations, significant query batching performance improvements, notification retry with exponential backoff, graceful shutdown, and a full **Phase2 → ResourceStore** rename across backend and frontend.
+
+### Security
+
+- **SSRF protection** (`f6f5be3`) — New `netutil` host validation package blocks requests to internal/link-local/metadata addresses in user-supplied URLs.
+- **Login throttling** (`f6f5be3`) — New `login_limiter` with per-account/IP rate limiting and lockout on repeated failures.
+- **IDOR & scope enforcement** (`f6f5be3`, `08ee4f4`, `3481e67`) — Scope filtering threaded through device/alert handlers; WebSocket scope filter defaults to deny (M34).
+- **Refresh-token reuse detection** (`9f0238c`) — Reuse of a rotated refresh token revokes the entire token family (N4).
+- **Secret masking** (`f6f5be3`) — New `secret_mask` middleware prevents credentials from leaking into logs.
+- **DB error leakage** (`d82d5d3`) — Raw database errors no longer returned to API clients (S11/M31).
+- **Backup restore restricted to admins; disabled-user API keys rejected** (`2aafdff`) (S2+S3).
+- **Cookie handling** (`8aa5908`) — `ClearRefreshCookie`/`ClearAccessCookie` accept `secure` param (M32).
+
+### Fixed
+
+#### Correctness & Stability
+- **Alert engine startup** (`7e3aee6`) — Alert engine now actually starts and shares the baseline cache (C4).
+- **Scheduler panic recovery** (`48b3941`) — Background goroutines recover from panics instead of crashing the process.
+- **Backoff on 'down' status** (`7edc529`) — Down poll results now count as failures for adaptive backoff (C1).
+- **Bounded collection time** (`78160e6`) — RTSP/SNMP collectors use context timeouts (C3).
+- **Metric buffer resilience** (`6c04c84`, `3d04fce`) — Flushes routed through CachedDatabase; failed items re-queued (C5/C6).
+- **Migration robustness** (`85d9f7f`, `314d3c9`) — Advisory locking, transactional apply, explicit versions with SHA-256 checksums (C7/C8).
+- **Alert deduplication** (`573ad2d`, `38dea94`) — Alerts deduped per rule/device; AlertGroupID uses rule+device instead of minute bucket (H2/H3/M44).
+- **Pagination safety** (`b8e21a8`) — Pagination clamped with stable id tiebreakers (H12/H13).
+- **Priority-queue starvation fix** (`eaee3b8`) — Fairness counter prevents low-priority starvation (M15).
+- **Notification delivery retry** (`663de25`) — Exponential backoff on failed deliveries (M43).
+- **PubSub reconnect** (`861be1c`) — Subscribers reconnect with backoff on disconnect (N5).
+- **Scheduler shutdown order & idempotency** (`842157d`, `7755fce`) (M13/M22); correct capture session LIMIT and interval shrink wakeup (M8/M17).
+- **NetFlow buffer/backoff, packet_capture sync** (`b561777`) (M23/M24); metric timestamps use poll completion time (M37).
+- **LogStats SQL GROUP BY fix** (`7755fce`) (M27); float64→int64 normalization (M9); Enqueue returns bool on drops (M16).
+
+#### Performance
+- **Phase2Summary COUNT consolidation** (`77a56a3`) — 9 sequential COUNT queries merged into 1 (M12).
+- **N+1 query batching** (`1c972a0`) — Public status page endpoint batches queries (M28).
+- **Batched writes** (`57ccb90`, `5d64e46`) — Alert rule relations and health score history batch-inserted (M1/M3); unbounded DELETEs batched in metric/flow pruning (M35).
+- **Shared HTTP client** (`072556f`) — Context-aware collectors reuse pooled transport (M25/M26).
+- **Tier 3 durability** (`7494b59`) — Flow analyzer, baseline cache, state tracker, Redis distributed lock, backpressure improvements.
+
+### Changed
+
+- **Phase2 → ResourceStore rename** (`4b26b81`) — Backend `phase2.go` → `resources.go`, frontend `phase2.ts` → `resources.ts`, `Phase2Page.tsx` → `ResourcePage.tsx`; handlers renamed accordingly.
+- **Graceful WebSocket shutdown** (`cd17539`) — 35s `stop_grace_period` in docker-compose for WS connection drain.
+- **WorkerPool metrics** (`72a3af6`) — BusyWorkers gauge added; dead code removed (M21).
+- **API key lifecycle** (`f3c701c`) — API keys support expiry and revocation (M5).
+- **Removed dead code** (`739cc89`, `cd0c27c`) — Legacy monitoring handlers and unused DependencyTree code removed (M29/M20).
+- **Tier 4 quality** (`b0a372f`) — toSnake acronym handling, sustained-duration conditions, absence detection, state write fixes.
+
+### Added
+
+- **Device dependency details** (`929a253`) — Parent dependency and dependency port shown in device details.
+- **Campus fixes** (`af11039`) — Recursive node counts and rack device population.
+
+### Tests
+
+- New tests for login limiter, metric buffer re-queue, alert dedup/notification offload, RBAC scope checks, host validation, scheduler/worker pool coverage, and resource handler.
+
+### Docs
+
+- Added `REVIEW_REPORT.md`, `review_plan.md`, and `PHASE2_AND_MIGRATIONS_REPORT.md` documenting all findings and fix status.
+
 ## [4.1.0] - 2026-07-30
 
 Security device monitoring release. Adds purpose-built camera and biometric collectors with RTSP/attendance-service probing, vendor identification from device fingerprints, dedicated Security Inventory UI pages, and a new `monitor_config` JSONB column for profile-driven monitoring of specialized hardware.

@@ -119,7 +119,7 @@ func (m *mockDB) ExportMetrics(ctx context.Context, from, to time.Time, deviceID
 func (m *mockDB) GetMetricsInWindow(ctx context.Context, deviceID int64, field string, from, to time.Time) ([]float64, error) {
 	return nil, nil
 }
-func (m *mockDB) GetAlerts(ctx context.Context, status string, limit, offset int) ([]models.Alert, int, error) {
+func (m *mockDB) GetAlerts(ctx context.Context, status string, limit, offset int, _ *database.ScopeFilter) ([]models.Alert, int, error) {
 	return nil, 0, nil
 }
 func (m *mockDB) GetAlert(ctx context.Context, id int64) (*models.Alert, error) { return nil, nil }
@@ -207,6 +207,7 @@ func (m *mockDB) GetAPIKeysByUser(ctx context.Context, userID int64) ([]models.A
 	return nil, nil
 }
 func (m *mockDB) DeleteAPIKey(ctx context.Context, id int64) error           { return nil }
+func (m *mockDB) RevokeAPIKey(ctx context.Context, id int64) error           { return nil }
 func (m *mockDB) RecordFlows(ctx context.Context, flows []models.Flow) error { return nil }
 func (m *mockDB) GetFlows(ctx context.Context, from, to time.Time, limit, offset int) ([]models.Flow, int, error) {
 	return nil, 0, nil
@@ -805,76 +806,6 @@ func TestDeviceStateTracker_GetUnreachableDevices(t *testing.T) {
 	ids := dst.GetUnreachableDevices()
 	assert.Contains(t, ids, int64(1))
 	assert.Len(t, ids, 1)
-}
-
-func TestDependencyTree_SetParent(t *testing.T) {
-	t.Parallel()
-	dt := NewDependencyTree()
-	dt.SetParent(2, 1)
-	parent, exists := dt.GetParent(2)
-	assert.True(t, exists)
-	assert.Equal(t, int64(1), parent)
-	children := dt.GetChildren(1)
-	assert.Contains(t, children, int64(2))
-}
-
-func TestDependencyTree_RemoveDevice(t *testing.T) {
-	t.Parallel()
-	dt := NewDependencyTree()
-	dt.SetParent(2, 1)
-	dt.RemoveDevice(2)
-	_, exists := dt.GetParent(2)
-	assert.False(t, exists)
-	assert.Empty(t, dt.GetChildren(1))
-}
-
-func TestDependencyTree_GetDescendants(t *testing.T) {
-	t.Parallel()
-	dt := NewDependencyTree()
-	dt.SetParent(2, 1)
-	dt.SetParent(3, 2)
-	dt.SetParent(4, 1)
-	desc := dt.GetDescendants(1)
-	assert.Contains(t, desc, int64(2))
-	assert.Contains(t, desc, int64(3))
-	assert.Contains(t, desc, int64(4))
-}
-
-func TestDependencyTree_GetAncestors(t *testing.T) {
-	t.Parallel()
-	dt := NewDependencyTree()
-	dt.SetParent(2, 1)
-	dt.SetParent(3, 2)
-	anc := dt.GetAncestors(3)
-	assert.Contains(t, anc, int64(1))
-	assert.Contains(t, anc, int64(2))
-}
-
-func TestDependencyTree_IsDependency(t *testing.T) {
-	t.Parallel()
-	dt := NewDependencyTree()
-	dt.SetParent(2, 1)
-	assert.True(t, dt.IsDependency(2))
-	assert.False(t, dt.IsDependency(1))
-}
-
-func TestDependencyTree_IsParent(t *testing.T) {
-	t.Parallel()
-	dt := NewDependencyTree()
-	dt.SetParent(2, 1)
-	assert.True(t, dt.IsParent(1))
-	assert.False(t, dt.IsParent(2))
-}
-
-func TestDependencyTree_ReassignParent(t *testing.T) {
-	t.Parallel()
-	dt := NewDependencyTree()
-	dt.SetParent(3, 1)
-	dt.SetParent(3, 2)
-	_, exists := dt.GetParent(3)
-	assert.True(t, exists)
-	assert.Empty(t, dt.GetChildren(1))
-	assert.Contains(t, dt.GetChildren(2), int64(3))
 }
 
 func TestResultPipeline_SubmitAndFlush(t *testing.T) {

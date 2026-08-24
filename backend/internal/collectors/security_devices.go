@@ -125,7 +125,7 @@ func probeManagement(ctx context.Context, host string, port int, scheme, path st
 	}
 	u := url.URL{Scheme: scheme, Host: net.JoinHostPort(host, strconv.Itoa(port)), Path: path}
 	transport := &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}} //nolint:gosec // monitoring private appliances with self-signed certificates
-	client := &http.Client{Transport: transport}
+	client := &http.Client{Transport: transport, Timeout: 10 * time.Second}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 	if err != nil {
 		return false, 0, err
@@ -153,6 +153,16 @@ func probeRTSP(ctx context.Context, host string, port int, streamPath string) (b
 		return false, 0, err
 	}
 	defer func() { _ = conn.Close() }()
+
+	// Bound both the write and the blocking first-read so a peer that accepts
+	// TCP but never sends an RTSP response cannot hold the worker forever,
+	// regardless of the caller's context deadline.
+	deadline := time.Now().Add(10 * time.Second)
+	if dl, ok := ctx.Deadline(); ok && dl.Before(deadline) {
+		deadline = dl
+	}
+	_ = conn.SetDeadline(deadline)
+
 	path := streamPath
 	if !strings.HasPrefix(path, "/") {
 		path = "/" + path

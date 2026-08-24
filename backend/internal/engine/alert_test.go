@@ -85,7 +85,7 @@ func (m *mockDB) ExportMetrics(ctx context.Context, from, to time.Time, deviceID
 func (m *mockDB) GetMetricsInWindow(ctx context.Context, deviceID int64, field string, from, to time.Time) ([]float64, error) {
 	return nil, nil
 }
-func (m *mockDB) GetAlerts(ctx context.Context, status string, limit, offset int) ([]models.Alert, int, error) {
+func (m *mockDB) GetAlerts(ctx context.Context, status string, limit, offset int, _ *database.ScopeFilter) ([]models.Alert, int, error) {
 	if m.getAlertsFn != nil {
 		return m.getAlertsFn(ctx, status, limit, offset)
 	}
@@ -201,6 +201,7 @@ func (m *mockDB) GetAPIKeysByUser(ctx context.Context, userID int64) ([]models.A
 	return nil, nil
 }
 func (m *mockDB) DeleteAPIKey(ctx context.Context, id int64) error           { return nil }
+func (m *mockDB) RevokeAPIKey(ctx context.Context, id int64) error           { return nil }
 func (m *mockDB) RecordFlows(ctx context.Context, flows []models.Flow) error { return nil }
 func (m *mockDB) GetFlows(ctx context.Context, from, to time.Time, limit, offset int) ([]models.Flow, int, error) {
 	return nil, 0, nil
@@ -390,14 +391,6 @@ func TestAlertEngine_StartStop(t *testing.T) {
 	engine := NewAlertEngine(db, nil, nil)
 	engine.Start(context.Background())
 	engine.Stop()
-}
-
-func TestAlertEngine_ReloadRules(t *testing.T) {
-	t.Parallel()
-	db := &mockDB{}
-	engine := NewAlertEngine(db, nil, nil)
-	err := engine.ReloadRules(context.Background())
-	require.NoError(t, err)
 }
 
 func TestSnapshotFromResults(t *testing.T) {
