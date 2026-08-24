@@ -9,16 +9,16 @@ import (
 )
 
 type Config struct {
-	App       AppConfig
-	Database  DatabaseConfig
-	Redis     RedisConfig
-	Auth      AuthConfig
-	Collector CollectorConfig
-	Logging   LoggingConfig
+	App          AppConfig
+	Database     DatabaseConfig
+	Redis        RedisConfig
+	Auth         AuthConfig
+	Collector    CollectorConfig
+	Logging      LoggingConfig
 	Integrations IntegrationsConfig
-	Backup    BackupConfig
-	Remote    RemoteConfig
-	Telemetry TelemetryConfig
+	Backup       BackupConfig
+	Remote       RemoteConfig
+	Telemetry    TelemetryConfig
 }
 
 type RedisConfig struct {

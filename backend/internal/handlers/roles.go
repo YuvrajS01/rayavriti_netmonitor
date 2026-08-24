@@ -14,7 +14,7 @@ import (
 
 // RoleHandler provides typed CRUD for roles with permission validation.
 type RoleHandler struct {
-	db     database.Database
+	db    database.Database
 	store database.ResourceStore
 }
 

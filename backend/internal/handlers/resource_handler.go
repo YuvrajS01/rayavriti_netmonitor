@@ -14,7 +14,7 @@ import (
 )
 
 type ResourceHandler struct {
-	db     database.Database
+	db    database.Database
 	store database.ResourceStore
 }
 
