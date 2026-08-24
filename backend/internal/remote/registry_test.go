@@ -8,10 +8,10 @@ func TestValidateCreateInstance(t *testing.T) {
 		input CreateInstance
 		want  bool
 	}{
-		{"valid", CreateInstance{Name: "Site A", URL: "https://site-a.example", APIKey: "key", PollIntervalS: 60}, true},
-		{"missing api key", CreateInstance{Name: "Site A", URL: "https://site-a.example"}, false},
-		{"invalid url", CreateInstance{Name: "Site A", URL: "site-a.example", APIKey: "key"}, false},
-		{"invalid interval", CreateInstance{Name: "Site A", URL: "https://site-a.example", APIKey: "key", PollIntervalS: 5}, false},
+		{"valid", CreateInstance{Name: "Site A", URL: "https://example.com", APIKey: "key", PollIntervalS: 60}, true},
+		{"missing api key", CreateInstance{Name: "Site A", URL: "https://example.com"}, false},
+		{"invalid url", CreateInstance{Name: "Site A", URL: "example.com", APIKey: "key"}, false},
+		{"invalid interval", CreateInstance{Name: "Site A", URL: "https://example.com", APIKey: "key", PollIntervalS: 5}, false},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

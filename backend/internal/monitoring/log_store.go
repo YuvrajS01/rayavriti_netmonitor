@@ -134,28 +134,63 @@ func (s *Store) QueryLogs(ctx context.Context, q LogQuery) ([]LogEvent, int, err
 }
 
 func (s *Store) LogStats(ctx context.Context, q LogQuery) (LogStats, error) {
-	events, total, err := s.QueryLogs(ctx, LogQuery{
-		Level: q.Level, Component: q.Component, EventType: q.EventType, From: q.From, To: q.To,
-		DeviceID: q.DeviceID, UserID: q.UserID, RequestID: q.RequestID, TraceID: q.TraceID,
-		Search: q.Search, Limit: 1000,
-	})
+	where, args := buildLogWhere(q)
+
+	// Total count (accurate, not capped by the 1000-row limit)
+	countSQL := `SELECT COUNT(*) FROM system_log_events` + where
+	var total int
+	if err := s.pool.QueryRow(ctx, countSQL, args...).Scan(&total); err != nil {
+		return LogStats{}, err
+	}
+
+	stats := LogStats{Total: total, ByLevel: map[string]int{}, ByComponent: map[string]int{}}
+
+	// ByLevel and ByComponent via SQL GROUP BY (M27 — previously computed
+	// over the newest 1000 rows, so sums of ByLevel != Total).
+	levelSQL := `SELECT level, COUNT(*) FROM system_log_events` + where + ` GROUP BY level`
+	levelRows, err := s.pool.Query(ctx, levelSQL, args...)
 	if err != nil {
 		return LogStats{}, err
 	}
-	stats := LogStats{Total: total, ByLevel: map[string]int{}, ByComponent: map[string]int{}}
-	for _, e := range events {
-		stats.ByLevel[e.Level]++
-		stats.ByComponent[e.Component]++
-		if e.Level == "error" || e.Error != "" {
-			stats.Errors++
+	defer levelRows.Close()
+	for levelRows.Next() {
+		var level string
+		var count int
+		if err := levelRows.Scan(&level, &count); err != nil {
+			return LogStats{}, err
 		}
-		if e.EventType == "request_end" && e.DurationMs != nil && *e.DurationMs >= 1000 {
-			stats.SlowRequests++
-		}
-		if e.EventType == "slow_query" {
-			stats.SlowQueries++
+		stats.ByLevel[level] = count
+		if level == "error" {
+			stats.Errors += count
 		}
 	}
+
+	compSQL := `SELECT component, COUNT(*) FROM system_log_events` + where + ` GROUP BY component`
+	compRows, err := s.pool.Query(ctx, compSQL, args...)
+	if err != nil {
+		return LogStats{}, err
+	}
+	defer compRows.Close()
+	for compRows.Next() {
+		var comp string
+		var count int
+		if err := compRows.Scan(&comp, &count); err != nil {
+			return LogStats{}, err
+		}
+		stats.ByComponent[comp] = count
+	}
+
+	// Slow requests and slow queries via scalar counts
+	slowReqSQL := `SELECT COUNT(*) FROM system_log_events` + where + ` AND event_type='request_end' AND duration_ms >= 1000`
+	if err := s.pool.QueryRow(ctx, slowReqSQL, args...).Scan(&stats.SlowRequests); err != nil {
+		return LogStats{}, err
+	}
+
+	slowQrySQL := `SELECT COUNT(*) FROM system_log_events` + where + ` AND event_type='slow_query'`
+	if err := s.pool.QueryRow(ctx, slowQrySQL, args...).Scan(&stats.SlowQueries); err != nil {
+		return LogStats{}, err
+	}
+
 	return stats, nil
 }
 

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"runtime/debug"
 	"slices"
 	"strings"
 	"sync"
@@ -108,6 +109,8 @@ type Hub struct {
 	publisher   func(ctx context.Context, msg Message)
 	scopeFilter ScopeFilterFunc
 	db          *pgxpool.Pool
+	stopOnce    sync.Once
+	stopped     bool
 }
 
 // ScopeFilterFunc determines whether a client should receive a message.
@@ -197,6 +200,12 @@ func (h *Hub) Broadcast(msg Message) {
 		h.publisher(context.Background(), msg)
 		return
 	}
+	h.mu.RLock()
+	stopped := h.stopped
+	h.mu.RUnlock()
+	if stopped {
+		return
+	}
 	select {
 	case h.broadcast <- msg:
 	default:
@@ -207,6 +216,12 @@ func (h *Hub) Broadcast(msg Message) {
 // BroadcastLocal sends a message to locally connected clients only (no Redis publish).
 // Used by the Pub/Sub subscriber to deliver messages from other instances.
 func (h *Hub) BroadcastLocal(msg Message) {
+	h.mu.RLock()
+	stopped := h.stopped
+	h.mu.RUnlock()
+	if stopped {
+		return
+	}
 	select {
 	case h.broadcast <- msg:
 	default:
@@ -221,16 +236,21 @@ func (h *Hub) SetPublisher(fn func(ctx context.Context, msg Message)) {
 }
 
 func (h *Hub) Stop() {
-	close(h.broadcast)
-	h.mu.Lock()
-	for c := range h.clients {
-		c.mu.Lock()
-		c.dead = true
-		c.mu.Unlock()
-		_ = c.conn.Close()
-	}
-	h.mu.Unlock()
-	slog.Info("WebSocket hub stopped")
+	h.stopOnce.Do(func() {
+		h.mu.Lock()
+		h.stopped = true
+		h.mu.Unlock()
+		close(h.broadcast)
+		h.mu.Lock()
+		for c := range h.clients {
+			c.mu.Lock()
+			c.dead = true
+			c.mu.Unlock()
+			_ = c.conn.Close()
+		}
+		h.mu.Unlock()
+		slog.Info("WebSocket hub stopped")
+	})
 }
 
 func (h *Hub) ConnectionCount() int {
@@ -338,6 +358,11 @@ func (h *Hub) ServeWS(w http.ResponseWriter, r *http.Request) {
 	// Send bootstrap data
 	if h.bootstrap != nil {
 		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					slog.Error("panic recovered in bootstrap producer", "user_id", c.info.UserID, "panic", r, "stack", string(debug.Stack()))
+				}
+			}()
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 			data, err := h.bootstrap(ctx, c.info.UserID, c.info.Username, c.info.Role)
@@ -365,6 +390,11 @@ func (h *Hub) ServeWS(w http.ResponseWriter, r *http.Request) {
 
 	// Writer goroutine with ping/pong
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("panic recovered in websocket writer", "user_id", c.info.UserID, "panic", r, "stack", string(debug.Stack()))
+			}
+		}()
 		ticker := time.NewTicker(pingPeriod)
 		defer func() {
 			ticker.Stop()
@@ -411,12 +441,19 @@ func (h *Hub) ServeWS(w http.ResponseWriter, r *http.Request) {
 		_ = conn.SetReadDeadline(time.Now().Add(pongWait))
 		return nil
 	})
-	for {
-		_, _, err := conn.ReadMessage()
-		if err != nil {
-			break
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("panic recovered in websocket reader", "user_id", c.info.UserID, "panic", r, "stack", string(debug.Stack()))
+			}
+		}()
+		for {
+			_, _, err := conn.ReadMessage()
+			if err != nil {
+				break
+			}
 		}
-	}
+	}()
 
 	h.mu.Lock()
 	delete(h.clients, c)

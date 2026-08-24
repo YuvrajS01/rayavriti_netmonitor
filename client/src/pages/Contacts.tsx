@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { listPhase2, createPhase2, updatePhase2, type Phase2Row } from '../api/phase2';
+import { listResources, createResource, updateResource, type ResourceRow } from '../api/resources';
 import SectionHeader from '../components/ui/SectionHeader';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
@@ -8,7 +8,7 @@ import EmptyState from '../components/ui/EmptyState';
 import ConfirmDialog from '../components/ConfirmDialog';
 import { useToast } from '../components/ui/useToast';
 
-interface Contact extends Phase2Row {
+interface Contact extends ResourceRow {
   id: number;
   name: string;
   designation: string;
@@ -56,7 +56,7 @@ export default function Contacts() {
     (async () => {
       setLoading(true);
       try {
-        const res = await listPhase2('/contacts');
+        const res = await listResources('/contacts');
         if (active) setContacts((res.data || []) as Contact[]);
       } catch {
         if (active) setContacts([]);
@@ -67,7 +67,7 @@ export default function Contacts() {
   }, []);
 
   const load = async () => {
-    const res = await listPhase2('/contacts');
+    const res = await listResources('/contacts');
     setContacts((res.data || []) as Contact[]);
   };
 
@@ -94,10 +94,10 @@ export default function Contacts() {
     setSubmitting(true);
     try {
       if (editing) {
-        await updatePhase2('/contacts', editing.id, form);
+        await updateResource('/contacts', editing.id, form);
         addToast('Contact updated', 'success');
       } else {
-        await createPhase2('/contacts', form);
+        await createResource('/contacts', form);
         addToast('Contact created', 'success');
       }
       setShowForm(false);

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, type FormEvent } from 'react';
 import { addDevice } from '../api/client';
-import { listPhase2, type Phase2Row } from '../api/phase2';
+import { listResources, type ResourceRow } from '../api/resources';
 import Button from './ui/Button';
 import { useToast } from './ui/useToast';
 
@@ -20,7 +20,7 @@ export default function DeviceAddModal({ open, onClose, onAdded, initialProtocol
   const [securityCategory, setSecurityCategory] = useState<'camera' | 'nvr' | 'biometric'>('camera');
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [locations, setLocations] = useState<Phase2Row[]>([]);
+  const [locations, setLocations] = useState<ResourceRow[]>([]);
   const dialogRef = useRef<HTMLDivElement>(null);
 
   // Focus trap
@@ -55,7 +55,7 @@ export default function DeviceAddModal({ open, onClose, onAdded, initialProtocol
 
   useEffect(() => {
     if (open) {
-      listPhase2('/locations').then((res) => setLocations(res.data || [])).catch(() => setLocations([]));
+      listResources('/locations').then((res) => setLocations(res.data || [])).catch(() => setLocations([]));
     }
   }, [open]);
 

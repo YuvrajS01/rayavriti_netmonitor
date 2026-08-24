@@ -2,7 +2,9 @@ package scheduler
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
+	"runtime/debug"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -15,11 +17,11 @@ type PollJob struct {
 	Device     models.Device
 	Priority   int
 	ScheduleAt time.Time
-	Attempt    int
 }
 
 type WorkerPoolMetrics struct {
 	ActiveWorkers  atomic.Int64
+	BusyWorkers    atomic.Int64
 	QueuedCritical atomic.Int64
 	QueuedNormal   atomic.Int64
 	QueuedLow      atomic.Int64
@@ -30,16 +32,15 @@ type WorkerPoolMetrics struct {
 }
 
 type WorkerPool struct {
-	workers    int
-	maxWorkers int
-	criticalQ  chan PollJob
-	normalQ    chan PollJob
-	lowQ       chan PollJob
-	wg         sync.WaitGroup
-	metrics    *WorkerPoolMetrics
-	execute    func(context.Context, PollJob) PollResult
-	resultFn   func(PollResult)
-	cancel     context.CancelFunc
+	workers   int
+	criticalQ chan PollJob
+	normalQ   chan PollJob
+	lowQ      chan PollJob
+	wg        sync.WaitGroup
+	metrics   *WorkerPoolMetrics
+	execute   func(context.Context, PollJob) PollResult
+	resultFn  func(PollResult)
+	cancel    context.CancelFunc
 }
 
 type PollResult struct {
@@ -88,13 +89,12 @@ func NewWorkerPool(cfg WorkerPoolConfig, executeFn func(context.Context, PollJob
 	}
 
 	return &WorkerPool{
-		workers:    cfg.WorkerCount,
-		maxWorkers: cfg.MaxWorkerCount,
-		criticalQ:  make(chan PollJob, cfg.CriticalQueueSize),
-		normalQ:    make(chan PollJob, cfg.NormalQueueSize),
-		lowQ:       make(chan PollJob, cfg.LowQueueSize),
-		metrics:    &WorkerPoolMetrics{},
-		execute:    executeFn,
+		workers:   cfg.WorkerCount,
+		criticalQ: make(chan PollJob, cfg.CriticalQueueSize),
+		normalQ:   make(chan PollJob, cfg.NormalQueueSize),
+		lowQ:      make(chan PollJob, cfg.LowQueueSize),
+		metrics:   &WorkerPoolMetrics{},
+		execute:   executeFn,
 	}
 }
 
@@ -108,7 +108,7 @@ func (wp *WorkerPool) Start(ctx context.Context) {
 		wp.wg.Add(1)
 		go wp.worker(ctx, i)
 	}
-	slog.Info("worker pool started", "workers", wp.workers, "maxWorkers", wp.maxWorkers)
+	slog.Info("worker pool started", "workers", wp.workers)
 }
 
 func (wp *WorkerPool) Stop() {
@@ -119,31 +119,40 @@ func (wp *WorkerPool) Stop() {
 	slog.Info("worker pool stopped")
 }
 
-func (wp *WorkerPool) Enqueue(job PollJob) {
+// Enqueue attempts to add a job to the appropriate priority queue.
+// Returns false if the queue is full and the job was dropped (M16 —
+// previously returned nothing, so the dispatcher kept re-scheduling).
+func (wp *WorkerPool) Enqueue(job PollJob) bool {
 	switch job.Priority {
 	case 0:
 		wp.metrics.QueuedCritical.Add(1)
 		select {
 		case wp.criticalQ <- job:
+			return true
 		default:
 			slog.Warn("critical queue full, dropping job", "deviceID", job.Device.ID)
 			wp.metrics.QueuedCritical.Add(-1)
+			return false
 		}
 	case 1:
 		wp.metrics.QueuedNormal.Add(1)
 		select {
 		case wp.normalQ <- job:
+			return true
 		default:
 			slog.Warn("normal queue full, dropping job", "deviceID", job.Device.ID)
 			wp.metrics.QueuedNormal.Add(-1)
+			return false
 		}
 	default:
 		wp.metrics.QueuedLow.Add(1)
 		select {
 		case wp.lowQ <- job:
+			return true
 		default:
 			slog.Warn("low queue full, dropping job", "deviceID", job.Device.ID)
 			wp.metrics.QueuedLow.Add(-1)
+			return false
 		}
 	}
 }
@@ -156,6 +165,7 @@ func (wp *WorkerPool) Metrics() WorkerPoolMetricsSnapshot {
 	}
 	return WorkerPoolMetricsSnapshot{
 		ActiveWorkers:  int(m.ActiveWorkers.Load()),
+		BusyWorkers:    int(m.BusyWorkers.Load()),
 		QueuedCritical: int(m.QueuedCritical.Load()),
 		QueuedNormal:   int(m.QueuedNormal.Load()),
 		QueuedLow:      int(m.QueuedLow.Load()),
@@ -170,6 +180,8 @@ func (wp *WorkerPool) worker(ctx context.Context, id int) {
 	defer wp.metrics.ActiveWorkers.Add(-1)
 	defer wp.wg.Done()
 
+	var fairnessCounter int
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -180,33 +192,42 @@ func (wp *WorkerPool) worker(ctx context.Context, id int) {
 		var job PollJob
 		var ok bool
 
-		select {
-		case job, ok = <-wp.criticalQ:
-			if !ok {
-				return
-			}
-			wp.metrics.QueuedCritical.Add(-1)
-			wp.executeJob(ctx, job)
-			continue
-		default:
-		}
+		// Every 8th iteration, skip the critical-only fast paths so
+		// normal/low jobs get a fair chance even under a sustained burst
+		// of critical jobs (M15 — previously critical could starve
+		// normal/low indefinitely).
+		fairnessCounter++
+		fairSkip := fairnessCounter%8 == 0
 
-		select {
-		case job, ok = <-wp.criticalQ:
-			if !ok {
-				return
+		if !fairSkip {
+			select {
+			case job, ok = <-wp.criticalQ:
+				if !ok {
+					return
+				}
+				wp.metrics.QueuedCritical.Add(-1)
+				wp.executeJob(ctx, job)
+				continue
+			default:
 			}
-			wp.metrics.QueuedCritical.Add(-1)
-			wp.executeJob(ctx, job)
-			continue
-		case job, ok = <-wp.normalQ:
-			if !ok {
-				return
+
+			select {
+			case job, ok = <-wp.criticalQ:
+				if !ok {
+					return
+				}
+				wp.metrics.QueuedCritical.Add(-1)
+				wp.executeJob(ctx, job)
+				continue
+			case job, ok = <-wp.normalQ:
+				if !ok {
+					return
+				}
+				wp.metrics.QueuedNormal.Add(-1)
+				wp.executeJob(ctx, job)
+				continue
+			default:
 			}
-			wp.metrics.QueuedNormal.Add(-1)
-			wp.executeJob(ctx, job)
-			continue
-		default:
 		}
 
 		select {
@@ -239,7 +260,9 @@ func (wp *WorkerPool) worker(ctx context.Context, id int) {
 
 func (wp *WorkerPool) executeJob(ctx context.Context, job PollJob) {
 	start := time.Now()
-	result := wp.execute(ctx, job)
+	wp.metrics.BusyWorkers.Add(1)
+	result := wp.safeExecute(ctx, job)
+	wp.metrics.BusyWorkers.Add(-1)
 	duration := time.Since(start)
 
 	wp.metrics.TotalCompleted.Add(1)
@@ -250,12 +273,47 @@ func (wp *WorkerPool) executeJob(ctx context.Context, job PollJob) {
 	}
 
 	if wp.resultFn != nil {
-		wp.resultFn(result)
+		wp.deliverResult(result)
 	}
+}
+
+// safeExecute runs the poll job while recovering from any panic so that a
+// misbehaving collector can never take down the whole process.
+func (wp *WorkerPool) safeExecute(ctx context.Context, job PollJob) (result PollResult) {
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Error("panic recovered in poll job",
+				"deviceID", job.Device.ID, "device", job.Device.Name,
+				"panic", r, "stack", string(debug.Stack()))
+			now := time.Now()
+			result = PollResult{
+				Device:     job.Device,
+				Status:     "down",
+				Error:      fmt.Errorf("poll job panic: %v", r),
+				StartedAt:  now,
+				FinishedAt: now,
+			}
+		}
+	}()
+	return wp.execute(ctx, job)
+}
+
+// deliverResult forwards a poll result to the registered handler, recovering
+// from any panic in the handler so it cannot crash a worker goroutine.
+func (wp *WorkerPool) deliverResult(result PollResult) {
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Error("panic recovered in result handler",
+				"deviceID", result.Device.ID, "device", result.Device.Name,
+				"panic", r, "stack", string(debug.Stack()))
+		}
+	}()
+	wp.resultFn(result)
 }
 
 type WorkerPoolMetricsSnapshot struct {
 	ActiveWorkers  int
+	BusyWorkers    int
 	QueuedCritical int
 	QueuedNormal   int
 	QueuedLow      int

@@ -67,6 +67,19 @@ func (SNMPCollector) Collect(ctx context.Context, device *models.Device) (*Resul
 	}
 	defer func() { _ = g.Conn.Close() }()
 
+	// gosnmp has no context-aware I/O, so a watch goroutine closes the
+	// connection when the caller's context expires; the in-flight Get/Walk
+	// then fail immediately instead of occupying a worker past the deadline.
+	watchdogDone := make(chan struct{})
+	go func() {
+		select {
+		case <-ctx.Done():
+			_ = g.Conn.Close()
+		case <-watchdogDone:
+		}
+	}()
+	defer close(watchdogDone)
+
 	type varbindResult struct {
 		pdus []gosnmp.SnmpPDU
 		err  error

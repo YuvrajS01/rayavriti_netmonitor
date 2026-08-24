@@ -40,7 +40,7 @@ func (c *NetFlowCollector) Listen(ctx context.Context) error {
 		_ = pc.Close()
 	}()
 
-	buf := make([]byte, 2048)
+	buf := make([]byte, 65535) // M23 — was 2048, truncated datagrams (max ~64KB)
 	for {
 		n, _, err := pc.ReadFrom(buf)
 		if err != nil {
@@ -49,6 +49,13 @@ func (c *NetFlowCollector) Listen(ctx context.Context) error {
 				return nil
 			default:
 				slog.Warn("NetFlow read error", "error", err)
+				// M23 — was busy-looping on persistent socket error.
+				// Sleep briefly to avoid CPU spin before retrying.
+				select {
+				case <-ctx.Done():
+					return nil
+				case <-time.After(100 * time.Millisecond):
+				}
 				continue
 			}
 		}

@@ -826,6 +826,9 @@ func TestDashboardSave_SetsUserID(t *testing.T) {
 
 func TestDashboardSave_UpdateSetsIDFromURL(t *testing.T) {
 	db := &mockDB{
+		getDashboardFn: func(ctx context.Context, id int64) (*models.Dashboard, error) {
+			return &models.Dashboard{ID: 7, UserID: testUserID}, nil
+		},
 		saveDashboardFn: func(ctx context.Context, d *models.Dashboard) (*models.Dashboard, error) {
 			if d.ID != 7 {
 				t.Fatalf("expected ID 7 from URL, got %d", d.ID)
@@ -838,7 +841,7 @@ func TestDashboardSave_UpdateSetsIDFromURL(t *testing.T) {
 	w, req := authenticatedRequest("PUT", "/api/v1/dashboards/7", string(body))
 	callWithAuthAndParams(h.Save, w, req, "id", "7")
 	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
 	}
 }
 
@@ -862,6 +865,9 @@ func TestDashboardSave_NilLayout(t *testing.T) {
 
 func TestDashboardDelete_ResponseContainsMessage(t *testing.T) {
 	db := &mockDB{
+		getDashboardFn: func(ctx context.Context, id int64) (*models.Dashboard, error) {
+			return &models.Dashboard{ID: 1, UserID: testUserID}, nil
+		},
 		deleteDashboardFn: func(ctx context.Context, id int64) error { return nil },
 	}
 	h := NewDashboardHandler(db)

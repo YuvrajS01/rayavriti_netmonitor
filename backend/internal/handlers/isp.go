@@ -33,7 +33,7 @@ func (h *ISPHandler) Comparison(w http.ResponseWriter, r *http.Request) {
 
 	links, err := h.getEnabledLinks(r.Context())
 	if err != nil {
-		httputil.SendError(w, http.StatusInternalServerError, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 
@@ -148,7 +148,7 @@ func (h *ISPHandler) MetricsTimeSeries(w http.ResponseWriter, r *http.Request) {
 		        download_speed_mbps, upload_speed_mbps, status, target_ip
 		 FROM isp_metrics WHERE link_id=$1 ORDER BY created_at DESC LIMIT 200`, linkID)
 	if err != nil {
-		httputil.SendError(w, http.StatusInternalServerError, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	defer rows.Close()
@@ -168,7 +168,7 @@ func (h *ISPHandler) MetricsTimeSeries(w http.ResponseWriter, r *http.Request) {
 		var p point
 		var ts time.Time
 		if err := rows.Scan(&ts, &p.Latency, &p.Jitter, &p.PktLoss, &p.Download, &p.Upload, &p.Status, &p.TargetIP); err != nil {
-			httputil.SendError(w, http.StatusInternalServerError, err.Error())
+			httputil.SendInternalError(w, err)
 			return
 		}
 		p.Timestamp = ts.UTC().Format(time.RFC3339)

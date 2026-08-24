@@ -2,11 +2,17 @@ package database
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rayavriti/netmonitor-backend/internal/models"
 )
+
+// ErrDuplicateActiveAlert is returned by CreateAlert when an active alert
+// already exists for the same (rule_id, device_id). It signals "already fired"
+// so callers skip duplicate creation and double-notification.
+var ErrDuplicateActiveAlert = errors.New("duplicate active alert for rule/device")
 
 // PoolProvider is satisfied by *Postgres and any wrapper (e.g. *CachedDatabase).
 type PoolProvider interface {
@@ -23,6 +29,15 @@ type DeviceFilter struct {
 	Limit      int
 	Offset     int
 	LocationID *int64
+	Scope      *ScopeFilter
+}
+
+// ScopeFilter narrows a query to the tenant locations/subnets a scoped user is
+// allowed to see. It mirrors rbac.UserScope but lives here so the database
+// package does not import rbac (avoiding an import cycle through auth/cache).
+type ScopeFilter struct {
+	LocationIDs []string
+	SubnetCIDRs []string
 }
 
 type RefreshToken struct {
@@ -33,7 +48,7 @@ type RefreshToken struct {
 	CreatedAt time.Time
 }
 
-type Phase2Summary struct {
+type ResourceSummary struct {
 	Locations          int `json:"locations"`
 	Subnets            int `json:"subnets"`
 	Contacts           int `json:"contacts"`
@@ -45,14 +60,14 @@ type Phase2Summary struct {
 	ScheduledReports   int `json:"scheduledReports"`
 }
 
-type Phase2Store interface {
-	ListPhase2(ctx context.Context, resource string, filters map[string]string) ([]map[string]any, error)
-	ListPhase2Cursor(ctx context.Context, resource string, filters map[string]string, cursor string, limit int) ([]map[string]any, string, bool, error)
-	GetPhase2(ctx context.Context, resource string, id int64) (map[string]any, error)
-	CreatePhase2(ctx context.Context, resource string, values map[string]any) (map[string]any, error)
-	UpdatePhase2(ctx context.Context, resource string, id int64, values map[string]any) (map[string]any, error)
-	DeletePhase2(ctx context.Context, resource string, id int64) error
-	Phase2Summary(ctx context.Context) (Phase2Summary, error)
+type ResourceStore interface {
+	ListResources(ctx context.Context, resource string, filters map[string]string) ([]map[string]any, error)
+	ListResourcesCursor(ctx context.Context, resource string, filters map[string]string, cursor string, limit int) ([]map[string]any, string, bool, error)
+	GetResource(ctx context.Context, resource string, id int64) (map[string]any, error)
+	CreateResource(ctx context.Context, resource string, values map[string]any) (map[string]any, error)
+	UpdateResource(ctx context.Context, resource string, id int64, values map[string]any) (map[string]any, error)
+	DeleteResource(ctx context.Context, resource string, id int64) error
+	ResourceSummary(ctx context.Context) (ResourceSummary, error)
 }
 
 type Database interface {
@@ -96,7 +111,7 @@ type Database interface {
 	GetMetricsInWindow(ctx context.Context, deviceID int64, field string, from, to time.Time) ([]float64, error)
 
 	// Alerts
-	GetAlerts(ctx context.Context, status string, limit, offset int) ([]models.Alert, int, error)
+	GetAlerts(ctx context.Context, status string, limit, offset int, scope *ScopeFilter) ([]models.Alert, int, error)
 	GetAlert(ctx context.Context, id int64) (*models.Alert, error)
 	CreateAlert(ctx context.Context, a *models.Alert) (*models.Alert, error)
 	UpdateAlertStatus(ctx context.Context, id int64, status, by string) error
@@ -140,6 +155,7 @@ type Database interface {
 	CreateAPIKey(ctx context.Context, k *models.APIKey) (*models.APIKey, error)
 	GetAPIKeysByUser(ctx context.Context, userID int64) ([]models.APIKey, error)
 	DeleteAPIKey(ctx context.Context, id int64) error
+	RevokeAPIKey(ctx context.Context, id int64) error
 
 	// Refresh Tokens
 	CreateRefreshToken(ctx context.Context, tokenHash string, userID int64, expiresAt time.Time) error

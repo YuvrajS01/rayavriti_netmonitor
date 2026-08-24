@@ -52,21 +52,41 @@ func (c *BaselineCache) Set(deviceID int64, field string, b AnomalyBaseline) {
 	c.entries[key] = &cachedBaseline{baseline: b, computedAt: time.Now()}
 }
 
+// Prune removes entries that are either expired or belong to devices no
+// longer in the given set of active device IDs. Called after each refresh
+// so deleted devices don't leak in the map forever.
+func (c *BaselineCache) Prune(activeDeviceIDs map[int64]bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for key := range c.entries {
+		if !activeDeviceIDs[key.deviceID] {
+			delete(c.entries, key)
+		}
+	}
+}
+
 func (c *BaselineCache) RefreshBaselines(ctx context.Context, db database.Database) {
 	devices, err := db.GetEnabledDevices(ctx)
 	if err != nil {
 		return
 	}
 
+	activeIDs := make(map[int64]bool, len(devices))
 	since := time.Now().Add(-24 * time.Hour)
 	fields := []string{"response_time", "packet_loss", "cpu_usage", "memory_usage", "bandwidth"}
 
 	for i := range devices {
+		activeIDs[devices[i].ID] = true
+		metrics, err := db.GetMetricsSince(ctx, devices[i].ID, since)
+		if err != nil || len(metrics) < 10 {
+			continue
+		}
+		// Cap the number of rows processed to avoid memory spikes on
+		// devices with very high polling frequency.
+		if len(metrics) > 5000 {
+			metrics = metrics[len(metrics)-5000:]
+		}
 		for _, field := range fields {
-			metrics, err := db.GetMetricsSince(ctx, devices[i].ID, since)
-			if err != nil || len(metrics) < 10 {
-				continue
-			}
 			floats := extractField(metrics, field)
 			if len(floats) < 10 {
 				continue
@@ -79,6 +99,9 @@ func (c *BaselineCache) RefreshBaselines(ctx context.Context, db database.Databa
 			})
 		}
 	}
+
+	// Remove cache entries for devices that no longer exist.
+	c.Prune(activeIDs)
 }
 
 func extractField(metrics []models.Metric, field string) []float64 {

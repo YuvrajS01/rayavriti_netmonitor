@@ -9,6 +9,7 @@ import (
 
 	"github.com/rayavriti/netmonitor-backend/internal/database"
 	"github.com/rayavriti/netmonitor-backend/internal/models"
+	"github.com/rayavriti/netmonitor-backend/internal/rbac"
 )
 
 func TestDeviceList_All(t *testing.T) {
@@ -31,6 +32,40 @@ func TestDeviceList_All(t *testing.T) {
 	data := resp["data"].([]any)
 	if len(data) != 3 {
 		t.Fatalf("expected 3 devices, got %d", len(data))
+	}
+}
+
+func TestDeviceList_ScopeFilterApplied(t *testing.T) {
+	db := &mockDB{getDevicesFilteredFn: func(ctx context.Context, f database.DeviceFilter) ([]models.Device, int, error) {
+		if f.Scope == nil {
+			t.Fatal("expected scope filter for scoped user")
+		}
+		if len(f.Scope.LocationIDs) != 1 || f.Scope.LocationIDs[0] != "2" {
+			t.Fatalf("expected location scope 2, got %v", f.Scope.LocationIDs)
+		}
+		return []models.Device{{ID: 5, LocationID: int64Ptr(2)}}, 1, nil
+	}}
+	h := NewDeviceHandler(db)
+	w, req := authenticatedRequest("GET", "/api/v1/devices", "")
+	sc := &rbac.ScopeContext{IsScoped: true, UserID: 7, Role: "user", Scopes: []rbac.UserScope{{Type: "location", Value: "2"}}}
+	h.List(w, rbac.WithScopeContext(req, sc))
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+}
+
+func TestDeviceList_AdminNoScope(t *testing.T) {
+	db := &mockDB{getDevicesFilteredFn: func(ctx context.Context, f database.DeviceFilter) ([]models.Device, int, error) {
+		if f.Scope != nil {
+			t.Fatalf("expected nil scope for admin, got %+v", f.Scope)
+		}
+		return []models.Device{}, 0, nil
+	}}
+	h := NewDeviceHandler(db)
+	w, req := authenticatedRequest("GET", "/api/v1/devices", "")
+	h.List(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
 	}
 }
 

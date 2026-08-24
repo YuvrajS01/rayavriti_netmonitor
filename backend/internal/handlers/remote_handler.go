@@ -25,7 +25,7 @@ func remoteError(w http.ResponseWriter, err error) {
 	if errors.Is(err, pgx.ErrNoRows) {
 		httputil.SendError(w, http.StatusNotFound, "remote instance not found")
 	} else {
-		httputil.SendError(w, http.StatusInternalServerError, err.Error())
+		httputil.SendInternalError(w, err)
 	}
 }
 func (h *RemoteHandler) List(w http.ResponseWriter, r *http.Request) {

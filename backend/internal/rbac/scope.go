@@ -9,6 +9,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rayavriti/netmonitor-backend/internal/auth"
+	"github.com/rayavriti/netmonitor-backend/internal/database"
 )
 
 type scopeContextKey int
@@ -81,6 +82,33 @@ func RequireScopeContext(pool *pgxpool.Pool) func(http.Handler) http.Handler {
 func GetScopeContext(r *http.Request) *ScopeContext {
 	sc, _ := r.Context().Value(scopeKey).(*ScopeContext)
 	return sc
+}
+
+// WithScopeContext returns a shallow copy of the request carrying the given
+// scope context. Useful for tests and for wiring scopes into sub-handlers.
+func WithScopeContext(r *http.Request, sc *ScopeContext) *http.Request {
+	if sc == nil {
+		return r
+	}
+	return r.WithContext(context.WithValue(r.Context(), scopeKey, sc))
+}
+
+// DatabaseScopeFilter converts a request scope context into a
+// database.ScopeFilter so data-fetching handlers can narrow their SQL queries.
+func (sc *ScopeContext) DatabaseScopeFilter() *database.ScopeFilter {
+	if sc == nil || !sc.IsScoped {
+		return nil
+	}
+	sf := &database.ScopeFilter{}
+	for _, s := range sc.Scopes {
+		switch s.Type {
+		case "location":
+			sf.LocationIDs = append(sf.LocationIDs, s.Value)
+		case "subnet":
+			sf.SubnetCIDRs = append(sf.SubnetCIDRs, s.Value)
+		}
+	}
+	return sf
 }
 
 func FilterDeviceQuery(sc *ScopeContext, baseQuery string) string {

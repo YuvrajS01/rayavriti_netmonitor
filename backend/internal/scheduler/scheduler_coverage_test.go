@@ -60,6 +60,31 @@ func TestPollDispatcher_PausedCount(t *testing.T) {
 	wp.Stop()
 }
 
+func TestIsDownResult(t *testing.T) {
+	t.Parallel()
+	dev := models.Device{ID: 7}
+	now := time.Now()
+
+	tests := []struct {
+		name   string
+		result PollResult
+		want   bool
+	}{
+		{"up is not a failure", PollResult{Device: dev, Status: "up"}, false},
+		{"warning is not a failure", PollResult{Device: dev, Status: "warning"}, false},
+		{"down without error is a failure", PollResult{Device: dev, Status: "down", StartedAt: now, FinishedAt: now}, true},
+		{"down with error is a failure", PollResult{Device: dev, Status: "down", Error: assert.AnError, StartedAt: now, FinishedAt: now}, true},
+		{"error only is a failure", PollResult{Device: dev, Error: assert.AnError, StartedAt: now, FinishedAt: now}, true},
+		{"empty status without error is not a failure", PollResult{Device: dev}, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, isDownResult(tt.result))
+		})
+	}
+}
+
 func TestPollDispatcher_DispatchCorrectPriority(t *testing.T) {
 	t.Parallel()
 	executed := make(chan int, 10)
@@ -139,22 +164,6 @@ func TestDeviceStateTracker_Concurrent(t *testing.T) {
 	}
 	time.Sleep(50 * time.Millisecond)
 	assert.Greater(t, dst.Count(), 0)
-}
-
-func TestDependencyTree_GetDescendants_NoChildren(t *testing.T) {
-	t.Parallel()
-	dt := NewDependencyTree()
-	assert.Empty(t, dt.GetDescendants(1))
-}
-
-func TestDependencyTree_Count(t *testing.T) {
-	t.Parallel()
-	dt := NewDependencyTree()
-	assert.Equal(t, 0, dt.Count())
-	dt.SetParent(2, 1)
-	assert.Equal(t, 1, dt.Count())
-	dt.SetParent(3, 1)
-	assert.Equal(t, 2, dt.Count())
 }
 
 func TestResultPipeline_EmptyBatch(t *testing.T) {

@@ -22,7 +22,7 @@ func NewAlertRuleHandler(db database.Database) *AlertRuleHandler {
 func (h *AlertRuleHandler) List(w http.ResponseWriter, r *http.Request) {
 	rules, err := h.db.GetAlertRules(r.Context())
 	if err != nil {
-		httputil.SendError(w, 500, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	if rules == nil {
@@ -74,7 +74,7 @@ func (h *AlertRuleHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 	created, err := h.db.CreateAlertRule(r.Context(), &rule)
 	if err != nil {
-		httputil.SendError(w, 500, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	httputil.SendCreated(w, created)
@@ -97,7 +97,7 @@ func (h *AlertRuleHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 	updated, err := h.db.UpdateAlertRule(r.Context(), id, &rule)
 	if err != nil {
-		httputil.SendError(w, 500, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	httputil.SendOK(w, updated)
@@ -110,7 +110,7 @@ func (h *AlertRuleHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.db.DeleteAlertRule(r.Context(), id); err != nil {
-		httputil.SendError(w, 500, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	httputil.SendOK(w, map[string]bool{"deleted": true})
@@ -129,7 +129,7 @@ func (h *AlertRuleHandler) Toggle(w http.ResponseWriter, r *http.Request) {
 	}
 	newEnabled := !rule.Enabled
 	if err := h.db.ToggleAlertRule(r.Context(), id, newEnabled); err != nil {
-		httputil.SendError(w, 500, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	httputil.SendOK(w, map[string]any{"id": id, "enabled": newEnabled})
@@ -151,13 +151,13 @@ func (h *AlertRuleHandler) Test(w http.ResponseWriter, r *http.Request) {
 
 	devices, err := h.db.GetEnabledDevices(r.Context())
 	if err != nil {
-		httputil.SendError(w, 500, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 
 	latestMetrics, err := h.db.GetLatestMetrics(r.Context())
 	if err != nil {
-		httputil.SendError(w, 500, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	metricByDevice := make(map[int64]models.Metric)

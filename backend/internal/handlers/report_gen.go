@@ -83,7 +83,7 @@ func (h *ReportGenHandler) GenerateReport(w http.ResponseWriter, r *http.Request
 		GeneratedBy: genBy,
 	})
 	if err != nil {
-		httputil.SendError(w, http.StatusInternalServerError, "generation failed: "+err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	httputil.SendCreated(w, result)
@@ -192,7 +192,7 @@ func (h *ReportGenHandler) RunScheduledReport(w http.ResponseWriter, r *http.Req
 	if err != nil {
 		_, _ = h.pool.Exec(r.Context(),
 			`UPDATE scheduled_reports SET last_run_at=NOW(), last_run_status='failed' WHERE id=$1`, id)
-		httputil.SendError(w, http.StatusInternalServerError, "generation failed: "+err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 
@@ -219,7 +219,7 @@ func (h *ReportGenHandler) ListGenerated(w http.ResponseWriter, r *http.Request)
 		`SELECT id, report_type, title, format, file_path, file_size_bytes, period_from, period_to, generated_by, generated_at
 		 FROM generated_reports ORDER BY generated_at DESC LIMIT $1`, limit)
 	if err != nil {
-		httputil.SendError(w, http.StatusInternalServerError, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	defer rows.Close()

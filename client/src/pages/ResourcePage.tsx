@@ -2,16 +2,16 @@ import { useEffect, useMemo, useState } from 'react';
 import SectionHeader from '../components/ui/SectionHeader';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
-import { createPhase2, getPhase2Summary, listPhase2, type Phase2Row, type Phase2Summary } from '../api/phase2';
+import { createResource, getResourceSummary, listResources, type ResourceRow, type ResourceSummary } from '../api/resources';
 import { useToast } from '../components/ui/useToast';
 
-export interface Phase2PageConfig {
+export interface ResourcePageConfig {
   title: string;
   subtitle: string;
   icon: string;
   path: string;
   primaryFields: string[];
-  quickCreate?: Phase2Row;
+  quickCreate?: ResourceRow;
 }
 
 function formatKey(key: string) {
@@ -24,7 +24,7 @@ function valueText(value: unknown) {
   return String(value);
 }
 
-const summaryCards: Array<[keyof Phase2Summary, string, string]> = [
+const summaryCards: Array<[keyof ResourceSummary, string, string]> = [
   ['locations', 'Locations', 'apartment'],
   ['contacts', 'Contacts', 'contacts'],
   ['incidents', 'Incidents', 'crisis_alert'],
@@ -35,10 +35,10 @@ const summaryCards: Array<[keyof Phase2Summary, string, string]> = [
   ['scheduledReports', 'Schedules', 'summarize'],
 ];
 
-export default function Phase2Page({ config }: { config: Phase2PageConfig }) {
+export default function ResourcePage({ config }: { config: ResourcePageConfig }) {
   const { addToast } = useToast();
-  const [rows, setRows] = useState<Phase2Row[]>([]);
-  const [summary, setSummary] = useState<Phase2Summary | null>(null);
+  const [rows, setRows] = useState<ResourceRow[]>([]);
+  const [summary, setSummary] = useState<ResourceSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [creating, setCreating] = useState(false);
@@ -47,8 +47,8 @@ export default function Phase2Page({ config }: { config: Phase2PageConfig }) {
     setLoading(true);
     try {
       const [items, counts] = await Promise.all([
-        listPhase2(config.path),
-        getPhase2Summary().catch(() => ({ data: null })),
+        listResources(config.path),
+        getResourceSummary().catch(() => ({ data: null })),
       ]);
       setRows(items.data || []);
       setSummary(counts.data);
@@ -65,8 +65,8 @@ export default function Phase2Page({ config }: { config: Phase2PageConfig }) {
       setLoading(true);
       try {
         const [items, counts] = await Promise.all([
-          listPhase2(config.path),
-          getPhase2Summary().catch(() => ({ data: null })),
+          listResources(config.path),
+          getResourceSummary().catch(() => ({ data: null })),
         ]);
         if (active) {
           setRows(items.data || []);
@@ -93,7 +93,7 @@ export default function Phase2Page({ config }: { config: Phase2PageConfig }) {
     if (!config.quickCreate) return;
     setCreating(true);
     try {
-      await createPhase2(config.path, config.quickCreate);
+      await createResource(config.path, config.quickCreate);
       addToast('Created starter record', 'success');
       await loadData();
     } catch (err) {

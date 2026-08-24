@@ -43,27 +43,33 @@ func SetAccessCookie(w http.ResponseWriter, token string, expiry time.Duration, 
 }
 
 // ClearRefreshCookie clears the refresh token cookie.
-func ClearRefreshCookie(w http.ResponseWriter) {
+// Accepts secure so dev (HTTP) environments can actually clear the
+// cookie (M32 — previously forced Secure:true in all envs).
+//
+//nolint:gosec // Secure is set by caller; gosec cannot verify parameterized values.
+func ClearRefreshCookie(w http.ResponseWriter, secure bool) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     RefreshCookieName,
 		Value:    "",
 		Path:     "/api/v1/auth",
 		MaxAge:   -1,
 		HttpOnly: true,
-		Secure:   true,
+		Secure:   secure,
 		SameSite: http.SameSiteStrictMode,
 	})
 }
 
 // ClearAccessCookie clears the access token cookie.
-func ClearAccessCookie(w http.ResponseWriter) {
+//
+//nolint:gosec // Secure is set by caller; gosec cannot verify parameterized values.
+func ClearAccessCookie(w http.ResponseWriter, secure bool) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     AccessCookieName,
 		Value:    "",
 		Path:     "/",
 		MaxAge:   -1,
 		HttpOnly: true,
-		Secure:   true,
+		Secure:   secure,
 		SameSite: http.SameSiteStrictMode,
 	})
 }

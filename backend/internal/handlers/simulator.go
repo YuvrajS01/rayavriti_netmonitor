@@ -25,7 +25,7 @@ func (h *SimulatorHandler) Metrics(w http.ResponseWriter, r *http.Request) {
 		m.Timestamp = time.Now()
 	}
 	if err := h.db.RecordMetric(r.Context(), &m); err != nil {
-		httputil.SendError(w, 500, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	httputil.SendOK(w, m)
@@ -44,7 +44,7 @@ func (h *SimulatorHandler) Flows(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if err := h.db.RecordFlows(r.Context(), flows); err != nil {
-		httputil.SendError(w, 500, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	httputil.SendOK(w, map[string]int{"recorded": len(flows)})
@@ -59,7 +59,7 @@ func (h *SimulatorHandler) Alert(w http.ResponseWriter, r *http.Request) {
 	a.Status = "active"
 	created, err := h.db.CreateAlert(r.Context(), &a)
 	if err != nil {
-		httputil.SendError(w, 500, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	httputil.SendCreated(w, created)

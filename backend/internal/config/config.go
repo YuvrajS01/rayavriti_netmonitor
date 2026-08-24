@@ -9,16 +9,16 @@ import (
 )
 
 type Config struct {
-	App       AppConfig
-	Database  DatabaseConfig
-	Redis     RedisConfig
-	Auth      AuthConfig
-	Collector CollectorConfig
-	Logging   LoggingConfig
-	Phase2    Phase2Config
-	Backup    BackupConfig
-	Remote    RemoteConfig
-	Telemetry TelemetryConfig
+	App          AppConfig
+	Database     DatabaseConfig
+	Redis        RedisConfig
+	Auth         AuthConfig
+	Collector    CollectorConfig
+	Logging      LoggingConfig
+	Integrations IntegrationsConfig
+	Backup       BackupConfig
+	Remote       RemoteConfig
+	Telemetry    TelemetryConfig
 }
 
 type RedisConfig struct {
@@ -41,6 +41,7 @@ type DatabaseConfig struct {
 	MaxConns          int
 	MinConns          int
 	MaxConnLifetime   time.Duration
+	MaxConnIdleTime   time.Duration
 	HealthCheckPeriod time.Duration
 }
 
@@ -93,7 +94,7 @@ type LoggingConfig struct {
 	SlowRequestMs  int
 }
 
-type Phase2Config struct {
+type IntegrationsConfig struct {
 	TelegramBotToken       string
 	TelegramDefaultChatID  string
 	TelegramMode           string
@@ -169,6 +170,7 @@ func Load() (*Config, error) {
 			MaxConns:          envInt("DB_MAX_CONNS", 20),
 			MinConns:          envInt("DB_MIN_CONNS", 2),
 			MaxConnLifetime:   envDuration("DB_MAX_CONN_LIFETIME", 1*time.Hour),
+			MaxConnIdleTime:   envDuration("DB_MAX_CONN_IDLE_TIME", 5*time.Minute),
 			HealthCheckPeriod: envDuration("DB_HEALTH_CHECK_PERIOD", 30*time.Second),
 		},
 		Redis: RedisConfig{
@@ -223,7 +225,7 @@ func Load() (*Config, error) {
 			SlowQueryMs:    envInt("LOG_SLOW_QUERY_MS", 100),
 			SlowRequestMs:  envInt("LOG_SLOW_REQUEST_MS", 1000),
 		},
-		Phase2: Phase2Config{
+		Integrations: IntegrationsConfig{
 			TelegramBotToken:       envStr("TELEGRAM_BOT_TOKEN", envStr("TELEGRAM_TOKEN", "")),
 			TelegramDefaultChatID:  envStr("TELEGRAM_DEFAULT_CHAT_ID", envStr("TELEGRAM_CHAT_ID", "")),
 			TelegramMode:           envStr("TELEGRAM_MODE", "polling"),

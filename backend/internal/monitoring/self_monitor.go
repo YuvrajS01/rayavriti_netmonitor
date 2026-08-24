@@ -22,6 +22,7 @@ type SelfMonitor struct {
 	RequestStats        func() (total, active, errors int64)
 
 	WorkerPoolActiveWorkers  func() int
+	WorkerPoolBusyWorkers    func() int
 	WorkerPoolQueuedCritical func() int
 	WorkerPoolQueuedNormal   func() int
 	WorkerPoolQueuedLow      func() int
@@ -117,6 +118,9 @@ func (sm *SelfMonitor) collect(ctx context.Context) {
 	}
 	if sm.WorkerPoolActiveWorkers != nil {
 		metrics.PollerActiveWorkers = sm.WorkerPoolActiveWorkers()
+	}
+	if sm.WorkerPoolBusyWorkers != nil {
+		metrics.PollerBusyWorkers = sm.WorkerPoolBusyWorkers()
 	}
 	if sm.WorkerPoolQueuedCritical != nil {
 		metrics.PollerQueuedCritical = sm.WorkerPoolQueuedCritical()

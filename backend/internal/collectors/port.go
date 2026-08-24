@@ -19,8 +19,13 @@ func (PortCollector) Collect(ctx context.Context, device *models.Device) (*Resul
 		port = 80
 	}
 	addr := net.JoinHostPort(device.IPAddress, strconv.Itoa(port))
+
+	// Use a context-aware dialer so the poll is cancelled when ctx is
+	// done (e.g. shutdown). Cap the dial deadline at 5 seconds as a
+	// fallback (M26 — previously used net.DialTimeout which ignored ctx).
+	dialer := net.Dialer{Timeout: 5 * time.Second}
 	start := time.Now()
-	conn, err := net.DialTimeout("tcp", addr, 5*time.Second)
+	conn, err := dialer.DialContext(ctx, "tcp", addr)
 	dur := time.Since(start)
 	if err != nil {
 		return &Result{Status: "down"}, nil //nolint:nilerr // intentional: return down status, not error

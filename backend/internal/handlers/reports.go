@@ -32,7 +32,7 @@ func (h *ReportHandler) Summary(w http.ResponseWriter, r *http.Request) {
 	deviceID := parseDeviceID(r)
 	summary, err := h.db.GetMetricsSummary(r.Context(), from, to, deviceID)
 	if err != nil {
-		httputil.SendError(w, 500, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	stats, _ := h.db.GetDashboardStats(r.Context())
@@ -51,7 +51,7 @@ func (h *ReportHandler) Timeseries(w http.ResponseWriter, r *http.Request) {
 	}
 	points, err := h.db.GetReportTimeseries(r.Context(), from, to, bucketMinutes, deviceID)
 	if err != nil {
-		httputil.SendError(w, 500, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	httputil.SendOK(w, points)
@@ -62,7 +62,7 @@ func (h *ReportHandler) Devices(w http.ResponseWriter, r *http.Request) {
 	deviceID := parseDeviceID(r)
 	breakdown, err := h.db.GetReportDeviceBreakdown(r.Context(), from, to, deviceID)
 	if err != nil {
-		httputil.SendError(w, 500, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	httputil.SendOK(w, breakdown)
@@ -73,7 +73,7 @@ func (h *ReportHandler) Alerts(w http.ResponseWriter, r *http.Request) {
 	deviceID := parseDeviceID(r)
 	alerts, err := h.db.GetAlertsForReport(r.Context(), from, to, deviceID)
 	if err != nil {
-		httputil.SendError(w, 500, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	httputil.SendOK(w, alerts)
@@ -87,7 +87,7 @@ func (h *ReportHandler) Export(w http.ResponseWriter, r *http.Request) {
 	}
 	metrics, err := h.db.ExportMetrics(r.Context(), from, to, deviceID, limit)
 	if err != nil {
-		httputil.SendError(w, 500, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	w.Header().Set("Content-Type", "text/csv")
@@ -155,7 +155,7 @@ func (h *ReportHandler) ISP(w http.ResponseWriter, r *http.Request) {
 		 GROUP BY l.id, l.name, l.provider, l.bandwidth_mbps, l.sla_uptime_percent
 		 ORDER BY l.name`, from, to)
 	if err != nil {
-		httputil.SendError(w, 500, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	defer rows.Close()

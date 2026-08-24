@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback } from 'react';
 import SectionHeader from '../components/ui/SectionHeader';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
-import { createPhase2 } from '../api/phase2';
+import { createResource } from '../api/resources';
 import { v1 } from '../api/client';
 import { useToast } from '../components/ui/useToast';
 
@@ -148,7 +148,7 @@ export default function BulkImport() {
     try {
       for (const rv of validRows) {
         try {
-          await createPhase2('/import/devices', {
+          await createResource('/import/devices', {
             name: rv.row.name,
             ip_address: rv.row.host,
             protocol: rv.row.protocol || 'ping',
