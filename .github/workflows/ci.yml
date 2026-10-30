@@ -175,7 +175,10 @@ jobs:
           echo "=== Bundle Size Report ==="
           MAX_JS_CHUNK_KB=500
           MAX_CSS_KB=100
-          MAX_TOTAL_JS_KB=1200
+          # Raw size of all chunks, lazy ones included. Raised from 1200
+          # when TanStack Query (~40 KB) replaced the hand-rolled fetching;
+          # first-load JS stayed flat (~+1 KB gzip) as Redux was dropped.
+          MAX_TOTAL_JS_KB=1300
           dist="client/dist"
           for f in "$dist"/assets/*.js; do
             size_kb=$(($(stat -c%s "$f") / 1024))
