@@ -28,6 +28,7 @@ export function StatusHeatmap({ metrics, onSelectDevice }: Props) {
     <div className="flex items-center justify-between mb-4"><div><h3 className="text-sm font-headline font-semibold">Status pulse</h3><p className="text-xs text-on-surface-variant">Last {CELLS} polls per device · newest on the right</p></div><span className="material-symbols-outlined text-success status-dot-live">sensors</span></div>
     {rows.length ? <div className="space-y-2.5">{rows.map((polls) => {
       const latest = polls[polls.length - 1];
+      if (!latest) return null;
       return <button key={latest.deviceId} onClick={() => onSelectDevice?.(latest.deviceId)} className="w-full group flex items-center gap-2 text-left" title={`View ${latest.deviceName}`}>
         <span className="w-20 truncate text-xs text-on-surface-variant group-hover:text-on-surface">{latest.deviceName || `Device ${latest.deviceId}`}</span>
         <span className="flex flex-1 gap-0.5">

@@ -10,13 +10,14 @@ interface FloorPlanViewProps {
   onDeviceClick?: (device: Device) => void;
 }
 
+const UNKNOWN_STATUS_COLOR = 'bg-outline border-outline';
 const statusColors: Record<string, string> = {
   up: 'bg-success border-success',
   down: 'bg-error border-error',
   warning: 'bg-warning border-warning',
   degraded: 'bg-warning border-warning',
   maintenance: 'bg-info border-info',
-  unknown: 'bg-outline border-outline',
+  unknown: UNKNOWN_STATUS_COLOR,
 };
 
 const categoryIcons: Record<string, string> = {
@@ -133,7 +134,7 @@ function RoomVisual({
           </div>
         ) : (
           devices.map((d) => {
-            const sc = statusColors[d.status] || statusColors.unknown;
+            const sc = statusColors[d.status] || UNKNOWN_STATUS_COLOR;
             const bgClass = sc.split(' ')[0];
             const borderClass = sc.split(' ')[1];
             
@@ -222,7 +223,7 @@ function RackVisual({
             const device = devicesByUnit.get(u);
             
             if (device) {
-              const sc = statusColors[device.status] || statusColors.unknown;
+              const sc = statusColors[device.status] || UNKNOWN_STATUS_COLOR;
               const borderClass = sc.split(' ')[1];
               
               return (

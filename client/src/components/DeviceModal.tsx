@@ -42,6 +42,7 @@ function buildTrafficData(metrics: Metric[]): TrafficPoint[] {
   for (let i = 1; i < metrics.length; i += 1) {
     const prev = metrics[i - 1];
     const curr = metrics[i];
+    if (!prev || !curr) continue;
     const prevPayload = parseMetricMessage(prev.details as Record<string, unknown> | null);
     const currPayload = parseMetricMessage(curr.details as Record<string, unknown> | null);
     if (!prevPayload?.interfaces?.length || !currPayload?.interfaces?.length) continue;
@@ -123,9 +124,9 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
       const focusable = dialogRef.current.querySelectorAll<HTMLElement>(
         'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
       );
-      if (focusable.length === 0) return;
       const first = focusable[0];
       const last = focusable[focusable.length - 1];
+      if (!first || !last) return;
       if (e.shiftKey && document.activeElement === first) {
         e.preventDefault();
         last.focus();

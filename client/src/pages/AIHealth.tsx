@@ -346,8 +346,8 @@ export default function AIHealth() {
   const networkTrend = useMemo(() => {
     const valid = history.filter((p) => p.score !== null);
     if (valid.length < 2) return { trend: 'stable' as const, delta: 0 };
-    const first = valid[0].score!;
-    const last = valid[valid.length - 1].score!;
+    const first = valid[0]?.score ?? 0;
+    const last = valid[valid.length - 1]?.score ?? 0;
     const delta = last - first;
     return {
       trend: delta >= 3 ? 'improving' as const : delta <= -3 ? 'degrading' as const : 'stable' as const,

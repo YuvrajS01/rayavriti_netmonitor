@@ -17,15 +17,19 @@ import EmptyState from '../components/ui/EmptyState';
 import Sparkline from '../components/ui/Sparkline';
 import RingGauge from '../components/ui/RingGauge';
 
-const PROTO_COLORS: Record<string, { text: string; bg: string; border: string }> = {
+type ProtoStyle = { text: string; bg: string; border: string };
+
+const UNKNOWN_PROTO_STYLE: ProtoStyle = { text: 'var(--color-outline)', bg: 'color-mix(in srgb, var(--color-outline) 6%, transparent)', border: 'color-mix(in srgb, var(--color-outline) 15%, transparent)' };
+
+const PROTO_COLORS: Record<string, ProtoStyle> = {
   TCP: { text: 'var(--color-secondary)', bg: 'color-mix(in srgb, var(--color-secondary) 8%, transparent)', border: 'color-mix(in srgb, var(--color-secondary) 20%, transparent)' },
   UDP: { text: 'var(--color-primary)', bg: 'color-mix(in srgb, var(--color-primary) 8%, transparent)', border: 'color-mix(in srgb, var(--color-primary) 20%, transparent)' },
   ICMP: { text: 'var(--color-tertiary)', bg: 'color-mix(in srgb, var(--color-tertiary) 8%, transparent)', border: 'color-mix(in srgb, var(--color-tertiary) 20%, transparent)' },
-  UNKNOWN: { text: 'var(--color-outline)', bg: 'color-mix(in srgb, var(--color-outline) 6%, transparent)', border: 'color-mix(in srgb, var(--color-outline) 15%, transparent)' },
+  UNKNOWN: UNKNOWN_PROTO_STYLE,
 };
 
-function getProtoStyle(proto: string) {
-  return PROTO_COLORS[proto] || PROTO_COLORS.UNKNOWN;
+function getProtoStyle(proto: string): ProtoStyle {
+  return PROTO_COLORS[proto] || UNKNOWN_PROTO_STYLE;
 }
 
 function captureErrorMessage(reason: unknown, fallback: string) {

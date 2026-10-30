@@ -134,7 +134,7 @@ export default function ReportBuilder() {
         <StatCard label="Scheduled" value={stats.totalScheduled} icon="schedule" />
         <StatCard label="Active" value={stats.enabledScheduled} icon="check_circle" />
         <StatCard label="Generated" value={stats.totalGenerated} icon="description" />
-        <StatCard label="Last Run" value={stats.lastRun ? formatDate(stats.lastRun).split(',')[0] : 'None'} icon="history" />
+        <StatCard label="Last Run" value={stats.lastRun ? (formatDate(stats.lastRun).split(',')[0] ?? '') : 'None'} icon="history" />
       </div>
 
       <div className="flex gap-1 bg-surface-container-low rounded-lg p-1 w-fit">

@@ -22,6 +22,8 @@ const statusColors: Record<string, string> = {
   unknown: 'bg-outline',
 };
 
+type StatusCounts = { up: number; down: number; warning: number; maintenance: number; unknown: number };
+
 const EMPTY_LOCATIONS: ResourceRow[] = [];
 const EMPTY_DEVICES: Device[] = [];
 
@@ -49,18 +51,19 @@ export default function Campus() {
   // the whole subtree (rack → floor → building → campus), matching the backend
   // GetTreeWithStatus semantic.
   const enriched = useMemo(() => {
-    const empty = { up: 0, down: 0, warning: 0, maintenance: 0, unknown: 0 };
+    const empty: StatusCounts = { up: 0, down: 0, warning: 0, maintenance: 0, unknown: 0 };
     const idToLoc = new Map<number, ResourceRow>();
     for (const loc of locations) idToLoc.set(Number(loc.id), loc);
 
     // Direct (own) counts per location.
-    const own: Record<number, Record<string, number>> = {};
+    const own: Record<number, StatusCounts> = {};
     for (const loc of locations) own[Number(loc.id)] = { ...empty };
     for (const d of devices) {
       if (d.locationId == null) continue;
-      if (!own[d.locationId]) continue;
-      const key = d.status in own[d.locationId] ? d.status : 'unknown';
-      own[d.locationId][key]++;
+      const counts = own[d.locationId];
+      if (!counts) continue;
+      const key: keyof StatusCounts = d.status in counts ? (d.status as keyof StatusCounts) : 'unknown';
+      counts[key]++;
     }
 
     // Child index for upward aggregation.
@@ -75,8 +78,8 @@ export default function Campus() {
     }
 
     // Post-order: each node's totals include all descendants.
-    const subtotal = new Map<number, Record<string, number>>();
-    const aggregate = (locId: number): Record<string, number> => {
+    const subtotal = new Map<number, StatusCounts>();
+    const aggregate = (locId: number): StatusCounts => {
       const st = { ...(own[locId] || empty) };
       for (const cid of kids.get(locId) || []) {
         const cs = aggregate(cid);
@@ -232,7 +235,7 @@ export default function Campus() {
                     {/* Status badges */}
                     <div className="flex items-center gap-2 shrink-0">
                       {(() => {
-                        const st = (selected as ResourceRow & { status?: Record<string, number> }).status;
+                        const st = (selected as ResourceRow & { status?: StatusCounts }).status;
                         if (!st) return null;
                         return (
                           <>
