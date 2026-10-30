@@ -7,8 +7,10 @@ import (
 	"github.com/gosnmp/gosnmp"
 )
 
-func octets(s string) gosnmp.SnmpPDU { return gosnmp.SnmpPDU{Type: gosnmp.OctetString, Value: []byte(s)} }
-func integer(v int) gosnmp.SnmpPDU  { return gosnmp.SnmpPDU{Type: gosnmp.Integer, Value: v} }
+func octets(s string) gosnmp.SnmpPDU {
+	return gosnmp.SnmpPDU{Type: gosnmp.OctetString, Value: []byte(s)}
+}
+func integer(v int) gosnmp.SnmpPDU { return gosnmp.SnmpPDU{Type: gosnmp.Integer, Value: v} }
 
 func TestLLDPNeighbors(t *testing.T) {
 	now := time.Now()
@@ -35,7 +37,7 @@ func TestLLDPNeighbors(t *testing.T) {
 	}
 	man := map[string]map[string]gosnmp.SnmpPDU{
 		// timeMark.localPortNum.remIndex.subtype.len.a.b.c.d
-		"0.5.1.1.4.10.0.0.21": {"3": integer(2)},
+		"0.5.1.1.4.10.0.0.21":                        {"3": integer(2)},
 		"0.7.3.2.16.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.1": {"3": integer(2)}, // IPv6: ignored
 	}
 
