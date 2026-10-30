@@ -21,6 +21,15 @@ func TestValidateHost_IPLiteral(t *testing.T) {
 		{"RFC1918 172.16 blocked by strict", "172.16.0.1", StrictHostPolicy(), true},
 		{"RFC1918 192.168 blocked by strict", "192.168.1.1", StrictHostPolicy(), true},
 		{"public allowed by strict", "8.8.8.8", StrictHostPolicy(), false},
+		{"this-network blocked", "0.1.2.3", DefaultHostPolicy(), true},
+		{"IPv4-mapped loopback blocked", "::ffff:127.0.0.1", DefaultHostPolicy(), true},
+		{"NAT64 metadata blocked", "64:ff9b::a9fe:a9fe", DefaultHostPolicy(), true},
+		{"NAT64 public allowed", "64:ff9b::808:808", DefaultHostPolicy(), false},
+		{"6to4 loopback blocked", "2002:7f00:1::", DefaultHostPolicy(), true},
+		{"Alibaba metadata blocked", "100.100.100.200", DefaultHostPolicy(), true},
+		{"AWS IPv6 metadata blocked", "fd00:ec2::254", DefaultHostPolicy(), true},
+		{"CGNAT allowed by default", "100.64.0.1", DefaultHostPolicy(), false},
+		{"CGNAT blocked by strict", "100.64.0.1", StrictHostPolicy(), true},
 	}
 
 	for _, tt := range tests {
