@@ -17,7 +17,8 @@ interface IconButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 
 const VARIANT: Record<IconButtonVariant, string> = {
   ghost: 'text-fg-muted hover:bg-surface-2 hover:text-fg',
   secondary: 'border border-line bg-surface-2 text-fg hover:bg-surface-3',
-  danger: 'text-error hover:bg-error/12',
+  // Destructive row actions stay quiet until hovered: red is reserved for status.
+  danger: 'text-fg-muted hover:bg-error/12 hover:text-error',
 };
 
 const SIZE: Record<IconButtonSize, { box: string; icon: string }> = {

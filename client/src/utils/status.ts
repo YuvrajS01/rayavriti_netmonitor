@@ -23,6 +23,9 @@ export interface StatusMeta {
   text: string;
   bg: string;
   border: string;
+  /** Single-edge accents for rows/cards that otherwise keep the neutral `border-line`. */
+  borderL: string;
+  borderT: string;
   /** Tinted chip background (12% wash; contrast-tested with `text`). */
   chip: string;
 }
@@ -30,27 +33,27 @@ export interface StatusMeta {
 export const STATUS_META: Record<Status, StatusMeta> = {
   up: {
     status: 'up', token: 'status-up', label: 'Up', icon: 'check_circle', shape: 'circle',
-    text: 'text-status-up', bg: 'bg-status-up', border: 'border-status-up', chip: 'bg-status-up/12',
+    text: 'text-status-up', bg: 'bg-status-up', border: 'border-status-up', borderL: 'border-l-status-up', borderT: 'border-t-status-up', chip: 'bg-status-up/12',
   },
   warning: {
     status: 'warning', token: 'status-warning', label: 'Warning', icon: 'warning', shape: 'triangle',
-    text: 'text-status-warning', bg: 'bg-status-warning', border: 'border-status-warning', chip: 'bg-status-warning/12',
+    text: 'text-status-warning', bg: 'bg-status-warning', border: 'border-status-warning', borderL: 'border-l-status-warning', borderT: 'border-t-status-warning', chip: 'bg-status-warning/12',
   },
   down: {
     status: 'down', token: 'status-down', label: 'Down', icon: 'dangerous', shape: 'square',
-    text: 'text-status-down', bg: 'bg-status-down', border: 'border-status-down', chip: 'bg-status-down/12',
+    text: 'text-status-down', bg: 'bg-status-down', border: 'border-status-down', borderL: 'border-l-status-down', borderT: 'border-t-status-down', chip: 'bg-status-down/12',
   },
   unknown: {
     status: 'unknown', token: 'status-unknown', label: 'Unknown', icon: 'help', shape: 'ring',
-    text: 'text-status-unknown', bg: 'bg-status-unknown', border: 'border-status-unknown', chip: 'bg-status-unknown/12',
+    text: 'text-status-unknown', bg: 'bg-status-unknown', border: 'border-status-unknown', borderL: 'border-l-status-unknown', borderT: 'border-t-status-unknown', chip: 'bg-status-unknown/12',
   },
   maintenance: {
     status: 'maintenance', token: 'status-maintenance', label: 'Maintenance', icon: 'pause_circle', shape: 'pause',
-    text: 'text-status-maintenance', bg: 'bg-status-maintenance', border: 'border-status-maintenance', chip: 'bg-status-maintenance/12',
+    text: 'text-status-maintenance', bg: 'bg-status-maintenance', border: 'border-status-maintenance', borderL: 'border-l-status-maintenance', borderT: 'border-t-status-maintenance', chip: 'bg-status-maintenance/12',
   },
   info: {
     status: 'info', token: 'status-info', label: 'Info', icon: 'info', shape: 'dash',
-    text: 'text-status-info', bg: 'bg-status-info', border: 'border-status-info', chip: 'bg-status-info/12',
+    text: 'text-status-info', bg: 'bg-status-info', border: 'border-status-info', borderL: 'border-l-status-info', borderT: 'border-t-status-info', chip: 'bg-status-info/12',
   },
 };
 

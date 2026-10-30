@@ -27,7 +27,7 @@ export default function StatCard({ label, value, color = 'text-fg', icon, sparkl
         {icon && <span className="material-symbols-outlined text-[18px] text-fg-subtle" aria-hidden="true">{icon}</span>}
         <p className="text-fg-muted text-sm font-medium">{label}</p>
         {(trend || delta) && (
-          <span className="ml-auto inline-flex items-center gap-0.5 text-xs font-mono text-fg-muted">
+          <span className="ml-auto inline-flex items-center gap-0.5 text-xs text-fg-muted">
             {trend && (
               <span className="material-symbols-outlined text-sm" aria-label={`Trend ${trend}`} role="img">
                 {trend === 'up' ? 'trending_up' : trend === 'down' ? 'trending_down' : 'trending_flat'}
