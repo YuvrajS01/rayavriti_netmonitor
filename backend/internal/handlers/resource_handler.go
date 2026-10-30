@@ -346,32 +346,32 @@ func (h *ResourceHandler) PublicStatusHTML(w http.ResponseWriter, r *http.Reques
 	}
 
 	var sb strings.Builder
-	sb.WriteString(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="60"><title>Campus Network Status</title><link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=League+Spartan:wght@400;700;800&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet"><style>
+	sb.WriteString(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="60"><title>Campus Network Status</title><style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{background:#0e0e09;color:#e6e1d5;font-family:'Space Grotesk',system-ui,sans-serif}
+body{background:#0e0e09;color:#e6e1d5;font-family:system-ui,sans-serif}
 .wrap{max-width:860px;margin:0 auto;padding:48px 24px}
 .header{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:3px solid #e6e1d5;padding-bottom:20px;margin-bottom:36px;flex-wrap:wrap;gap:16px}
-h1{font-family:'League Spartan',sans-serif;font-weight:800;font-size:28px;color:#e6e1d5;letter-spacing:-0.02em}
+h1{font-family:system-ui,sans-serif;font-weight:800;font-size:28px;color:#e6e1d5;letter-spacing:-0.02em}
 .meta{color:#9d9689;font-size:13px;margin-top:4px}
-.badge{display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border-radius:999px;font-family:'League Spartan',sans-serif;font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:0.05em}
+.badge{display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border-radius:999px;font-family:system-ui,sans-serif;font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:0.05em}
 .badge-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
 .group-section{margin-bottom:32px}
-.group-name{font-family:'League Spartan',sans-serif;font-weight:700;font-size:14px;text-transform:uppercase;letter-spacing:0.06em;color:#9d9689;margin-bottom:12px;padding-left:2px}
+.group-name{font-family:system-ui,sans-serif;font-weight:700;font-size:14px;text-transform:uppercase;letter-spacing:0.06em;color:#9d9689;margin-bottom:12px;padding-left:2px}
 .svc{background:#1a1a14;border:1px solid #2e2d25;border-radius:10px;padding:16px 20px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;transition:border-color 0.2s}
 .svc:hover{border-color:#d9fd3a40}
 .svc-left{min-width:0}
-.svc-name{font-family:'League Spartan',sans-serif;font-weight:700;font-size:16px;color:#e6e1d5}
+.svc-name{font-family:system-ui,sans-serif;font-weight:700;font-size:16px;color:#e6e1d5}
 .svc-desc{color:#9d9689;font-size:13px;margin-top:2px}
 .svc-uptime{color:#9d9689;font-size:12px;margin-top:6px;font-weight:500}
 .svc-uptime strong{color:#d9fd3a}
-.pill{padding:4px 12px;border-radius:999px;font-family:'League Spartan',sans-serif;font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:0.04em;white-space:nowrap;flex-shrink:0}
+.pill{padding:4px 12px;border-radius:999px;font-family:system-ui,sans-serif;font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:0.04em;white-space:nowrap;flex-shrink:0}
 .pill-operational{background:#dff1e4;color:#245a3a}
 .pill-degraded{background:#fff3cd;color:#856404}
 .pill-outage{background:#f8d7da;color:#721c24}
 .inc-section{margin-top:40px}
-.inc-section h2{font-family:'League Spartan',sans-serif;font-weight:800;font-size:20px;margin-bottom:16px;color:#e6e1d5}
+.inc-section h2{font-family:system-ui,sans-serif;font-weight:800;font-size:20px;margin-bottom:16px;color:#e6e1d5}
 .inc{background:#1a1a14;border-left:4px solid #ff7351;border-radius:0 10px 10px 0;padding:16px 20px;margin-bottom:8px}
-.inc-title{font-family:'League Spartan',sans-serif;font-weight:700;font-size:16px;color:#ff7351}
+.inc-title{font-family:system-ui,sans-serif;font-weight:700;font-size:16px;color:#ff7351}
 .inc-meta{color:#9d9689;font-size:12px;margin-top:4px}
 .inc-msg{color:#e6e1d5;font-size:14px;margin-top:8px;line-height:1.5}
 .footer{margin-top:48px;padding-top:16px;border-top:1px solid #2e2d25;text-align:center;color:#6f6a5f;font-size:12px}
@@ -446,6 +446,9 @@ h1{font-family:'League Spartan',sans-serif;font-weight:800;font-size:28px;color:
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-cache, must-revalidate")
+	// This page is self-contained: one inline <style> block, no scripts and
+	// no external fonts (it must also work on air-gapped networks).
+	w.Header().Set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
 	_, _ = w.Write([]byte(sb.String()))
 }
 
