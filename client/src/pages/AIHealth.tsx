@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { AreaChart, Area, XAxis, YAxis, ResponsiveContainer, Tooltip } from 'recharts';
 import { getInsights, getInsightsHistory } from '../api/client';
+import { queryKeys } from '../api/queryKeys';
 import type { DeviceHealth, InsightItem, InsightsResponse, HealthHistoryPoint, HealthFactors } from '../api/types';
 import { TOOLTIP_STYLE } from '../utils/chartConfig';
 
@@ -275,38 +277,27 @@ function DeviceScoreCard({ device, deviceInsights }: { device: DeviceHealth; dev
 
 // ── Main Page ──────────────────────────────────────────────────
 
+const EMPTY_HISTORY: HealthHistoryPoint[] = [];
+
 export default function AIHealth() {
-  const [data, setData] = useState<InsightsResponse | null>(null);
-  const [history, setHistory] = useState<HealthHistoryPoint[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState('all');
   const [query, setQuery] = useState('');
   const [sortBy, setSortBy] = useState('score-asc');
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const [insightsRes, historyRes] = await Promise.allSettled([
-        getInsights(),
-        getInsightsHistory(12),
-      ]);
-      if (insightsRes.status === 'fulfilled') {
-        setData(insightsRes.value.data);
-      } else {
-        setError('Failed to load health data. The API may be unavailable.');
-      }
-      if (historyRes.status === 'fulfilled') setHistory(historyRes.value.data?.points || []);
-    } catch {
-      setError('Failed to load health data. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { load(); }, [load]);
+  const insightsQuery = useQuery({
+    queryKey: queryKeys.insights.current(),
+    queryFn: ({ signal }) => getInsights({ signal }),
+  });
+  // History is optional; a failure just leaves the timeline empty.
+  const historyQuery = useQuery({
+    queryKey: queryKeys.insights.history(12),
+    queryFn: ({ signal }) => getInsightsHistory(12, { signal }),
+  });
+  const data: InsightsResponse | null = insightsQuery.data?.data ?? null;
+  const history: HealthHistoryPoint[] = historyQuery.data?.data?.points || EMPTY_HISTORY;
+  const loading = insightsQuery.isFetching || historyQuery.isFetching;
+  const error = insightsQuery.isError ? 'Failed to load health data. The API may be unavailable.' : null;
+  const load = () => { void insightsQuery.refetch(); void historyQuery.refetch(); };
 
   const devices = useMemo(() => data?.health || [], [data]);
 

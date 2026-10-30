@@ -3,11 +3,12 @@ import { createResource, deleteResource, listResources, updateResource, type Res
 import { queryKeys } from '../api/queryKeys';
 
 /** Cached list of a generic CRUD collection (e.g. '/contacts'). */
-export function useResourceList<T extends ResourceRow = ResourceRow>(path: string) {
+export function useResourceList<T extends ResourceRow = ResourceRow>(path: string, { enabled = true }: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: queryKeys.resources.list(path),
     queryFn: ({ signal }) => listResources(path, { signal }),
     select: (res) => (res.data || []) as T[],
+    enabled,
   });
 }
 

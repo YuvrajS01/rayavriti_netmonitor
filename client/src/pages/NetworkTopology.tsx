@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { getDevices, getLatestMetrics } from '../api/client';
 import { getTopologyTree, type TopologyNode } from '../api/resources';
-import { useSocket } from '../hooks/useSocket';
+import { queryKeys } from '../api/queryKeys';
 import type { Device, Metric } from '../api/types';
 import SectionHeader from '../components/ui/SectionHeader';
 import Card from '../components/ui/Card';
@@ -74,12 +75,31 @@ function flattenTree(nodes: TopologyNode[]): Array<{ parentId: number; childId: 
   return edges;
 }
 
+const EMPTY_DEVICES: Device[] = [];
+
 export default function NetworkTopology() {
   const fgRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
-  const [devices, setDevices] = useState<Device[]>([]);
-  const [metricsMap, setMetricsMap] = useState<Map<number, Metric>>(new Map());
-  const [topoEdges, setTopoEdges] = useState<Array<{ parentId: number; childId: number; port?: string }>>([]);
+  // Devices and latest metrics are kept live by useLiveQueryBridge.
+  const devicesQuery = useQuery({
+    queryKey: queryKeys.devices.list(),
+    queryFn: ({ signal }) => getDevices({ signal }),
+  });
+  const metricsQuery = useQuery({
+    queryKey: queryKeys.metrics.latest,
+    queryFn: ({ signal }) => getLatestMetrics({ signal }),
+  });
+  // The dependency tree is optional; without it links are inferred.
+  const treeQuery = useQuery({
+    queryKey: queryKeys.topology.tree,
+    queryFn: ({ signal }) => getTopologyTree({ signal }),
+  });
+  const devices = devicesQuery.data?.data || EMPTY_DEVICES;
+  const metricsMap = useMemo(
+    () => new Map((metricsQuery.data?.data || []).map((item: Metric) => [item.deviceId, item])),
+    [metricsQuery.data],
+  );
+  const topoEdges = useMemo(() => flattenTree(treeQuery.data?.data || []), [treeQuery.data]);
   const [selected, setSelected] = useState<Device | null>(null);
   const [hovered, setHovered] = useState<{ node: SimNode } | null>(null);
   const [filters, setFilters] = useState({ status: 'all', protocol: 'all', category: 'all' });
@@ -87,37 +107,6 @@ export default function NetworkTopology() {
   const [size, setSize] = useState({ w: 900, h: 560 });
   const metricsRef = useRef(metricsMap);
   useEffect(() => { metricsRef.current = metricsMap; }, [metricsMap]);
-
-  // Fetch data on mount
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const [d, m, t] = await Promise.all([
-          getDevices(),
-          getLatestMetrics(),
-          getTopologyTree().catch(() => ({ data: [] as TopologyNode[] })),
-        ]);
-        if (cancelled) return;
-        setDevices(d.data || []);
-        setMetricsMap(new Map((m.data || []).map((item: Metric) => [item.deviceId, item])));
-        const treeData = t.data || [];
-        setTopoEdges(flattenTree(treeData));
-      } catch {
-        if (!cancelled) setDevices([]);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, []);
-
-  useSocket({
-    onMetricUpdate: (mm) => {
-      setMetricsMap((prev) => new Map(prev).set(mm.deviceId, mm));
-    },
-    onDeviceStatus: ({ deviceId, status }) => {
-      setDevices((prev) => prev.map((d) => (d.id === deviceId ? { ...d, status } : d)));
-    },
-  });
 
   const nodeById = useMemo(() => new Map(devices.map((d) => [d.id, d])), [devices]);
   const protocols = useMemo(() => Array.from(new Set(devices.map((d) => d.protocol))).sort(), [devices]);

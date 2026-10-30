@@ -3,7 +3,8 @@ import SectionHeader from '../components/ui/SectionHeader';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import { createResource } from '../api/resources';
-import { v1 } from '../api/client';
+import { downloadImportTemplate } from '../api/devices';
+import { saveBlob } from '../api/http';
 import { useToast } from '../components/ui/useToast';
 
 // ─── CSV Parsing ────────────────────────────────────────────────
@@ -183,14 +184,7 @@ export default function BulkImport() {
 
   const downloadTemplate = useCallback(async () => {
     try {
-      const res = await v1.get('/import/template', { responseType: 'blob' });
-      const blob = new Blob([res.data as BlobPart]);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'device_import_template.csv';
-      a.click();
-      URL.revokeObjectURL(url);
+      saveBlob(await downloadImportTemplate(), 'device_import_template.csv');
     } catch {
       addToast('Failed to download template', 'error');
     }

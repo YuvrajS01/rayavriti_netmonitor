@@ -1,10 +1,13 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '../api/queryKeys';
 import Button from '../components/ui/Button';
 import StatCard from '../components/ui/StatCard';
-import { useSocketContext } from '../hooks/useSocket';
 import { createRemoteInstance, deleteRemoteInstance, getRemoteInstance, getRemoteInstances, getRemoteOverview, setRemoteMode, testRemoteInstance, type RemoteInput, type RemoteInstance, type RemoteOverview, type RemoteSnapshot } from '../api/remoteApi';
 
 const emptyInput: RemoteInput = { name: '', url: '', apiKey: '', locationLabel: '', tags: [], pollIntervalS: 60, tlsSkipVerify: false };
+const EMPTY_INSTANCES: RemoteInstance[] = [];
+const EMPTY_OVERVIEW: RemoteOverview = { totalInstances: 0, online: 0, offline: 0, degraded: 0, alertCount: 0 };
 const statusStyle: Record<string, string> = { online: 'bg-success', offline: 'bg-error', degraded: 'bg-warning', unknown: 'bg-outline' };
 
 function remoteInstancesFrom(value: unknown): RemoteInstance[] | null {
@@ -22,47 +25,42 @@ function isRemoteMonitoringDisabled(reason: unknown): boolean {
 }
 
 export default function RemoteMonitoring() {
-  const { subscribe } = useSocketContext();
-  const [overview, setOverview] = useState<RemoteOverview>({ totalInstances: 0, online: 0, offline: 0, degraded: 0, alertCount: 0 });
-  const [instances, setInstances] = useState<RemoteInstance[]>([]);
+  const queryClient = useQueryClient();
   const [selected, setSelected] = useState<{ instance: RemoteInstance; snapshot: RemoteSnapshot | null } | null>(null);
   const [form, setForm] = useState<RemoteInput>(emptyInput);
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
+  const [actionError, setActionError] = useState('');
 
-  const refresh = useCallback(() => {
-    void Promise.all([getRemoteOverview(), getRemoteInstances()])
-      .then(([overviewResponse, instancesResponse]) => {
-        const remoteInstances = remoteInstancesFrom(instancesResponse.data);
-        if (!remoteInstances) {
-          setInstances([]);
-          setError('Remote instances returned an unexpected response. Please try again.');
-          return;
-        }
-        setOverview(overviewResponse.data);
-        setInstances(remoteInstances);
-        setError('');
-      })
-      .catch((reason) => setError(isRemoteMonitoringDisabled(reason)
+  // Invalidated on remote:status / remote:metrics events by useLiveQueryBridge.
+  const overviewQuery = useQuery({ queryKey: queryKeys.remote.overview(), queryFn: ({ signal }) => getRemoteOverview({ signal }) });
+  const instancesQuery = useQuery({ queryKey: queryKeys.remote.instances(), queryFn: ({ signal }) => getRemoteInstances({ signal }) });
+
+  const remoteInstances = instancesQuery.data ? remoteInstancesFrom(instancesQuery.data.data) : null;
+  const instances = remoteInstances ?? EMPTY_INSTANCES;
+  const overview = overviewQuery.data?.data ?? EMPTY_OVERVIEW;
+  const loadFailure = instancesQuery.error ?? overviewQuery.error;
+  const loadError = loadFailure
+    ? (isRemoteMonitoringDisabled(loadFailure)
         ? 'Remote monitoring is disabled on this server. Set REMOTE_ENABLED=true and restart the server.'
-        : 'Unable to load remote monitoring data.'));
-  }, []);
+        : 'Unable to load remote monitoring data.')
+    : instancesQuery.data && !remoteInstances
+      ? 'Remote instances returned an unexpected response. Please try again.'
+      : '';
+  const error = actionError || loadError;
 
-  useEffect(() => { refresh(); }, [refresh]);
-  useEffect(() => subscribe('remote:status', refresh), [subscribe, refresh]);
-  useEffect(() => subscribe('remote:metrics', refresh), [subscribe, refresh]);
+  const refresh = () => { void queryClient.invalidateQueries({ queryKey: queryKeys.remote.all }); };
 
-  const select = (id: number) => { void getRemoteInstance(id).then((response) => setSelected(response.data)).catch(() => setError('Unable to load instance details.')); };
+  const select = (id: number) => { void getRemoteInstance(id).then((response) => setSelected(response.data)).catch(() => setActionError('Unable to load instance details.')); };
   const submit = async (event: FormEvent) => {
-    event.preventDefault(); setSaving(true); setError('');
+    event.preventDefault(); setSaving(true); setActionError('');
     try { await createRemoteInstance(form); setShowForm(false); setForm(emptyInput); refresh(); }
-    catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to register remote instance.'); }
+    catch (reason) { setActionError(reason instanceof Error ? reason.message : 'Unable to register remote instance.'); }
     finally { setSaving(false); }
   };
-  const test = async (id: number) => { try { await testRemoteInstance(id); refresh(); } catch { setError('Connection test failed. Check the URL and API key.'); } };
-  const setMode = async (id: number, mode: 'active' | 'readonly' | 'maintenance') => { try { await setRemoteMode(id, mode); select(id); refresh(); } catch { setError('Unable to update service mode.'); } };
-  const remove = async (id: number) => { if (!window.confirm('Remove this remote instance?')) return; try { await deleteRemoteInstance(id); setSelected(null); refresh(); } catch { setError('Unable to remove remote instance.'); } };
+  const test = async (id: number) => { try { await testRemoteInstance(id); refresh(); } catch { setActionError('Connection test failed. Check the URL and API key.'); } };
+  const setMode = async (id: number, mode: 'active' | 'readonly' | 'maintenance') => { try { await setRemoteMode(id, mode); select(id); refresh(); } catch { setActionError('Unable to update service mode.'); } };
+  const remove = async (id: number) => { if (!window.confirm('Remove this remote instance?')) return; try { await deleteRemoteInstance(id); setSelected(null); refresh(); } catch { setActionError('Unable to remove remote instance.'); } };
 
   return <div className="mx-auto max-w-7xl space-y-6 p-4 sm:p-6">
     <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">

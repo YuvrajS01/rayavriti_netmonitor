@@ -1,4 +1,6 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '../api/queryKeys';
 import {
   getInterfaces, startCaptureSession, stopCaptureSession,
   getCapturePackets, getCaptureSessions
@@ -68,14 +70,16 @@ const HexDump = ({ hex }: { hex?: string }) => {
 
 const VISIBLE_PACKETS = 200;
 
+const EMPTY_INTERFACES: NetworkInterface[] = [];
+const EMPTY_SESSIONS: CaptureSession[] = [];
+
 export default function PacketCapture() {
-  const [interfaces, setInterfaces] = useState<NetworkInterface[]>([]);
+  const queryClient = useQueryClient();
   const [selectedIface, setSelectedIface] = useState('');
   const [bpfFilter, setBpfFilter] = useState('');
   const [activeSession, setActiveSession] = useState<CaptureSession | null>(null);
   const [packets, setPackets] = useState<PacketRow[]>([]);
   const [selectedPacket, setSelectedPacket] = useState<PacketRow | null>(null);
-  const [sessions, setSessions] = useState<CaptureSession[]>([]);
   const [isStarting, setIsStarting] = useState(false);
   const [error, setError] = useState('');
   const [autoScroll, setAutoScroll] = useState(false);
@@ -86,25 +90,20 @@ export default function PacketCapture() {
     activeSessionRef.current = activeSession;
   }, [activeSession]);
 
-  const loadInterfaces = useCallback(async () => {
-    try {
-      const res = await getInterfaces();
-      setInterfaces(res.data || []);
-      if (res.data?.length > 0) {
-        setSelectedIface((prev) => prev || res.data![0].name);
-      }
-    } catch { /* handled by interceptor */ }
-  }, []);
-
-  const loadSessions = useCallback(async () => {
-    try {
-      const res = await getCaptureSessions();
-      setSessions(res.data || []);
-    } catch { /* handled */ }
-  }, []);
-
-  // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { loadInterfaces(); loadSessions(); }, [loadInterfaces, loadSessions]);
+  const interfacesQuery = useQuery({
+    queryKey: queryKeys.capture.interfaces(),
+    queryFn: ({ signal }) => getInterfaces({ signal }),
+  });
+  // Invalidated on capture:status events by useLiveQueryBridge.
+  const sessionsQuery = useQuery({
+    queryKey: queryKeys.capture.sessions(),
+    queryFn: ({ signal }) => getCaptureSessions({ signal }),
+  });
+  const interfaces = interfacesQuery.data?.data || EMPTY_INTERFACES;
+  const sessions = sessionsQuery.data?.data || EMPTY_SESSIONS;
+  // Default to the first interface until the user picks one.
+  const currentIface = selectedIface || interfaces[0]?.name || '';
+  const loadSessions = () => queryClient.invalidateQueries({ queryKey: queryKeys.capture.sessions() });
 
   useEffect(() => {
     if (autoScroll && tableEndRef.current) {
@@ -115,12 +114,12 @@ export default function PacketCapture() {
   }, [packets.length, autoScroll]);
 
   const handleStart = async () => {
-    if (!selectedIface) return;
+    if (!currentIface) return;
     setError('');
     setIsStarting(true);
     try {
       const res = await startCaptureSession({
-        interface: selectedIface,
+        interface: currentIface,
         filter: bpfFilter || undefined
       });
       setActiveSession(res.data);
@@ -138,7 +137,7 @@ export default function PacketCapture() {
     try {
       await stopCaptureSession(activeSession.id);
       setActiveSession(null);
-      loadSessions();
+      void loadSessions();
     } catch (err: unknown) {
       setError(captureErrorMessage(err, 'Failed to stop capture'));
     }
@@ -168,7 +167,6 @@ export default function PacketCapture() {
         if (session && d.sessionId === session.id) {
           if (d.error) setError(d.error);
           setActiveSession(null);
-          loadSessions();
         }
       }
     },
@@ -199,7 +197,7 @@ export default function PacketCapture() {
           <div className="flex-shrink-0">
             <label className="text-[10px] uppercase tracking-wide text-on-surface-variant block mb-1">Interface</label>
             <select
-              value={selectedIface}
+              value={currentIface}
               onChange={(e) => setSelectedIface(e.target.value)}
               disabled={activeSession?.status === 'running'}
               className="bg-surface-container-lowest border border-outline-variant/30 rounded-lg px-4 py-2.5 text-sm text-on-surface font-data focus:outline-none focus:border-primary/50 disabled:opacity-50 min-w-[140px]"
@@ -236,7 +234,7 @@ export default function PacketCapture() {
             ) : (
               <button
                 onClick={handleStart}
-                disabled={isStarting || !selectedIface}
+                disabled={isStarting || !currentIface}
                 className="flex items-center gap-2 bg-primary/20 text-primary border border-primary/30 px-6 py-2.5 rounded-lg font-headline font-semibold text-xs uppercase tracking-wide hover:bg-primary hover:text-on-primary transition-[background-color,color] disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <span className="material-symbols-outlined text-lg">play_circle</span>

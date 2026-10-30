@@ -1,5 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { deleteDevice, getDevices, getLatestMetrics } from '../api/client';
+import { queryKeys } from '../api/queryKeys';
 import type { Device, Metric } from '../api/types';
 import DeviceAddModal from '../components/DeviceAddModal';
 import DeviceModal from '../components/DeviceModal';
@@ -21,21 +23,20 @@ function deviceStatus(device: Device, metrics: Map<number, Metric>) { return met
 
 export default function SecurityInventory({ profile }: { profile: Profile }) {
   const meta = pageMeta[profile];
-  const [devices, setDevices] = useState<Device[]>([]);
-  const [metrics, setMetrics] = useState<Map<number, Metric>>(new Map());
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [addOpen, setAddOpen] = useState(false);
   const [selected, setSelected] = useState<Device | null>(null);
   const [deleting, setDeleting] = useState<Device | null>(null);
 
-  const load = useCallback(async () => {
-    try {
-      const [deviceResponse, metricResponse] = await Promise.all([getDevices(), getLatestMetrics()]);
-      setDevices(Array.isArray(deviceResponse.data) ? deviceResponse.data : []);
-      setMetrics(new Map((Array.isArray(metricResponse.data) ? metricResponse.data : []).map((metric) => [metric.deviceId, metric])));
-    } finally { setLoading(false); }
-  }, []);
-  useEffect(() => { void load(); }, [load]);
+  const devicesQuery = useQuery({ queryKey: queryKeys.devices.list(), queryFn: ({ signal }) => getDevices({ signal }) });
+  const metricsQuery = useQuery({ queryKey: queryKeys.metrics.latest, queryFn: ({ signal }) => getLatestMetrics({ signal }) });
+  const loading = devicesQuery.isPending;
+  const devices = useMemo(() => (Array.isArray(devicesQuery.data?.data) ? devicesQuery.data.data : []), [devicesQuery.data]);
+  const metrics = useMemo(
+    () => new Map((Array.isArray(metricsQuery.data?.data) ? metricsQuery.data.data : []).map((metric) => [metric.deviceId, metric])),
+    [metricsQuery.data],
+  );
+  const load = () => queryClient.invalidateQueries({ queryKey: queryKeys.devices.all });
 
   const listed = useMemo(() => devices.filter((device) => device.protocol === profile || meta.categories.includes((device.deviceCategory || '').toLowerCase())), [devices, meta.categories, profile]);
   const online = listed.filter((device) => ['up', 'ok'].includes(deviceStatus(device, metrics))).length;

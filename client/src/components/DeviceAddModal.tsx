@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, type FormEvent } from 'react';
 import { addDevice } from '../api/client';
-import { listResources, type ResourceRow } from '../api/resources';
+import type { ResourceRow } from '../api/resources';
+import { useResourceList } from '../hooks/useResources';
 import Button from './ui/Button';
 import { useToast } from './ui/useToast';
 
@@ -11,6 +12,8 @@ interface Props {
   initialProtocol?: 'camera' | 'biometric';
 }
 
+const EMPTY_LOCATIONS: ResourceRow[] = [];
+
 export default function DeviceAddModal({ open, onClose, onAdded, initialProtocol }: Props) {
   const { addToast } = useToast();
   const [protocol, setProtocol] = useState(initialProtocol || 'https');
@@ -20,7 +23,7 @@ export default function DeviceAddModal({ open, onClose, onAdded, initialProtocol
   const [securityCategory, setSecurityCategory] = useState<'camera' | 'nvr' | 'biometric'>('camera');
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [locations, setLocations] = useState<ResourceRow[]>([]);
+  const locations = useResourceList('/locations', { enabled: open }).data ?? EMPTY_LOCATIONS;
   const dialogRef = useRef<HTMLDivElement>(null);
 
   // Focus trap
@@ -51,12 +54,6 @@ export default function DeviceAddModal({ open, onClose, onAdded, initialProtocol
     dialog.addEventListener('keydown', handleKeyDown);
     firstElement?.focus();
     return () => dialog.removeEventListener('keydown', handleKeyDown);
-  }, [open]);
-
-  useEffect(() => {
-    if (open) {
-      listResources('/locations').then((res) => setLocations(res.data || [])).catch(() => setLocations([]));
-    }
   }, [open]);
 
   if (!open) return null;

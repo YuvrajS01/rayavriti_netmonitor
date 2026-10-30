@@ -1,10 +1,13 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import SectionHeader from '../components/ui/SectionHeader';
 import Card from '../components/ui/Card';
 import EmptyState from '../components/ui/EmptyState';
 import LocationTree from '../components/LocationTree';
-import { listResources, type ResourceRow } from '../api/resources';
+import type { ResourceRow } from '../api/resources';
 import { getDevices } from '../api/client';
+import { queryKeys } from '../api/queryKeys';
+import { useResourceList } from '../hooks/useResources';
 import type { Device } from '../api/types';
 import { useToast } from '../components/ui/useToast';
 import CampusMap from '../components/CampusMap';
@@ -19,33 +22,28 @@ const statusColors: Record<string, string> = {
   unknown: 'bg-outline',
 };
 
+const EMPTY_LOCATIONS: ResourceRow[] = [];
+const EMPTY_DEVICES: Device[] = [];
+
 export default function Campus() {
   const { addToast } = useToast();
-  const [locations, setLocations] = useState<ResourceRow[]>([]);
-  const [devices, setDevices] = useState<Device[]>([]);
   const [selected, setSelected] = useState<ResourceRow | null>(null);
-  const [loading, setLoading] = useState(true);
   const [view, setView] = useState<'tree' | 'map' | 'floor'>('tree');
 
+  const locationsQuery = useResourceList('/locations');
+  // Device status is kept live by useLiveQueryBridge.
+  const devicesQuery = useQuery({
+    queryKey: queryKeys.devices.list(),
+    queryFn: ({ signal }) => getDevices({ signal }),
+  });
+  const locations = locationsQuery.data ?? EMPTY_LOCATIONS;
+  const devices = devicesQuery.data?.data ?? EMPTY_DEVICES;
+  const loading = locationsQuery.isPending || devicesQuery.isPending;
+
+  const failedAt = Math.max(locationsQuery.errorUpdatedAt, devicesQuery.errorUpdatedAt);
   useEffect(() => {
-    (async () => {
-      setLoading(true);
-      try {
-        const [locRes, devRes] = await Promise.all([
-          listResources('/locations'),
-          getDevices(),
-        ]);
-        setLocations(locRes.data || []);
-        setDevices(devRes.data || []);
-      } catch {
-        addToast('Failed to load campus data', 'error');
-        setLocations([]);
-        setDevices([]);
-      }
-      setLoading(false);
-    })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (failedAt) addToast('Failed to load campus data', 'error');
+  }, [failedAt, addToast]);
 
   // Enrich locations with device counts and status aggregated recursively from
   // the whole subtree (rack → floor → building → campus), matching the backend
