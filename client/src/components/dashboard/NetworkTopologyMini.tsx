@@ -4,14 +4,33 @@ import { useQuery } from '@tanstack/react-query';
 import { getDevices, getLatestMetrics } from '../../api/client';
 import { queryKeys } from '../../api/queryKeys';
 import type { Device, Metric } from '../../api/types';
+import { STATUS_META, normalizeStatus, type Status, type StatusShape } from '../../utils/status';
+import { readToken, readTokenAlpha } from '../../utils/tokens';
+import { THEME_CHANGE_EVENT } from '../../theme/theme';
+import { prefersReducedMotion } from '../../hooks/useReducedMotion';
+import { StatusShapeIcon } from '../ui/Status';
 
-const UNKNOWN_COLOR = '#8c8c8c';
-const COLOR: Record<string, string> = {
-  up: '#9bc86e', ok: '#9bc86e',
-  warning: '#ebc434', degraded: '#ebc434',
-  down: '#e86060', unknown: UNKNOWN_COLOR,
-};
-const colorFor = (s: string) => COLOR[s] ?? UNKNOWN_COLOR;
+/** Canvas can't use var(): resolve tokens at draw time, re-read on theme change. */
+function readPalette() {
+  return {
+    status: Object.fromEntries((Object.keys(STATUS_META) as Status[]).map((st) => [st, readToken(STATUS_META[st].token)])) as Record<Status, string>,
+    edge: readToken('line-strong'),
+    particle: readTokenAlpha('fg-muted', 0.7),
+  };
+}
+
+/** Each node is drawn as its status shape, so the preview reads without colour. */
+function drawNode(ctx: CanvasRenderingContext2D, shape: StatusShape, x: number, y: number, r: number) {
+  ctx.beginPath();
+  if (shape === 'triangle') { ctx.moveTo(x, y - r * 1.2); ctx.lineTo(x + r * 1.15, y + r * 0.9); ctx.lineTo(x - r * 1.15, y + r * 0.9); ctx.closePath(); ctx.fill(); }
+  else if (shape === 'square') { ctx.rect(x - r * 0.9, y - r * 0.9, r * 1.8, r * 1.8); ctx.fill(); }
+  else if (shape === 'ring') { ctx.arc(x, y, r * 0.85, 0, 2 * Math.PI); ctx.lineWidth = 1.6; ctx.stroke(); }
+  else if (shape === 'pause') { ctx.rect(x - r * 0.9, y - r, r * 0.65, r * 2); ctx.rect(x + r * 0.25, y - r, r * 0.65, r * 2); ctx.fill(); }
+  else if (shape === 'dash') { ctx.rect(x - r, y - r * 0.35, r * 2, r * 0.7); ctx.fill(); }
+  else { ctx.arc(x, y, r, 0, 2 * Math.PI); ctx.fill(); }
+}
+
+const LEGEND = ['up', 'warning', 'down', 'unknown'] as const;
 
 interface MiniNode { id: number; name: string; status: string; x: number; y: number; vx: number; vy: number; r: number; }
 interface MiniLink { source: MiniNode; target: MiniNode; }
@@ -88,6 +107,10 @@ export default function NetworkTopologyMini() {
     canvas.style.width = `${W}px`; canvas.style.height = `${H}px`;
     ctx.scale(dpr, dpr);
     const state = sim.current;
+    let palette = readPalette();
+    const refreshPalette = () => { palette = readPalette(); };
+    window.addEventListener(THEME_CHANGE_EVENT, refreshPalette);
+    const reducedMotion = prefersReducedMotion();
     let last = performance.now();
     const tick = (now: number) => {
       const dt = Math.min(32, now - last); last = now;
@@ -123,38 +146,55 @@ export default function NetworkTopologyMini() {
       const t = now / 600;
       for (const l of state.links) {
         ctx.beginPath(); ctx.moveTo(l.source.x, l.source.y); ctx.lineTo(l.target.x, l.target.y);
-        ctx.strokeStyle = 'rgba(150,150,140,0.3)'; ctx.lineWidth = 0.8; ctx.stroke();
-        const p = (t + (l.source.id + l.target.id) * 0.13) % 1;
-        ctx.beginPath(); ctx.arc(l.source.x + (l.target.x - l.source.x) * p, l.source.y + (l.target.y - l.source.y) * p, 1.5, 0, 2 * Math.PI);
-        ctx.fillStyle = 'rgba(155,200,110,0.8)'; ctx.fill();
+        ctx.strokeStyle = palette.edge; ctx.lineWidth = 1; ctx.stroke();
+        if (!reducedMotion) {
+          const p = (t + (l.source.id + l.target.id) * 0.13) % 1;
+          ctx.beginPath(); ctx.arc(l.source.x + (l.target.x - l.source.x) * p, l.source.y + (l.target.y - l.source.y) * p, 1.5, 0, 2 * Math.PI);
+          ctx.fillStyle = palette.particle; ctx.fill();
+        }
       }
       for (const n of nodes) {
-        const c = colorFor(n.status);
-        ctx.beginPath(); ctx.arc(n.x, n.y, n.r + 1.5, 0, 2 * Math.PI); ctx.strokeStyle = c; ctx.globalAlpha = 0.4; ctx.lineWidth = 0.8; ctx.stroke();
-        ctx.globalAlpha = 1; ctx.beginPath(); ctx.arc(n.x, n.y, n.r, 0, 2 * Math.PI);
-        ctx.fillStyle = 'rgba(38,38,29,1)'; ctx.fill(); ctx.strokeStyle = c; ctx.lineWidth = 1.2; ctx.stroke();
+        const meta = STATUS_META[normalizeStatus(n.status)];
+        const c = palette.status[meta.status];
+        ctx.fillStyle = c; ctx.strokeStyle = c;
+        drawNode(ctx, meta.shape, n.x, n.y, n.r + 1);
       }
       state.raf = requestAnimationFrame(tick);
     };
     state.raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(state.raf);
+    return () => {
+      cancelAnimationFrame(state.raf);
+      window.removeEventListener(THEME_CHANGE_EVENT, refreshPalette);
+    };
   }, [width]);
 
   return (
-    <section className="bg-surface-1 rounded-lg p-5 border border-line flex flex-col">
-      <div className="flex items-center justify-between mb-3">
+    <section aria-labelledby="topology-preview-heading" className="bg-surface-1 rounded-lg p-5 border border-line flex flex-col">
+      <div className="flex items-center justify-between gap-3 mb-3">
         <div>
-          <h3 className="text-sm font-sans font-semibold">Topology preview</h3>
-          <p className="text-xs text-fg-muted">Top {count} nodes · click to expand</p>
+          <h3 id="topology-preview-heading" className="text-sm font-semibold text-fg">Topology preview</h3>
+          <p className="text-xs text-fg-muted">Top {count} nodes</p>
         </div>
-        <button onClick={() => navigate('/devices/topology')} className="text-xs text-primary font-semibold hover:underline">Open full ↗</button>
+        <button type="button" onClick={() => navigate('/devices/topology')} className="inline-flex items-center gap-1 rounded-sm text-xs font-semibold text-primary hover:underline">
+          Open full map
+          <span className="material-symbols-outlined text-[16px]" aria-hidden="true">arrow_forward</span>
+        </button>
       </div>
       <div ref={wrapRef} className="relative flex-1 min-h-[200px]">
         {count ? (
-          <canvas ref={fgRef} className="cursor-pointer rounded" onClick={() => navigate('/devices/topology')} style={{ width, height: 210 }} />
+          // Decorative preview; the button above is the accessible way in.
+          <canvas ref={fgRef} aria-hidden="true" className="cursor-pointer rounded" onClick={() => navigate('/devices/topology')} style={{ width, height: 210 }} />
         ) : (
           <div className="h-[210px] grid place-items-center text-xs text-fg-muted">Building topology…</div>
         )}
+      </div>
+      <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-fg-muted">
+        {LEGEND.map((st) => (
+          <span key={st} className="inline-flex items-center gap-1">
+            <span className={STATUS_META[st].text}><StatusShapeIcon shape={STATUS_META[st].shape} size={8} /></span>
+            {STATUS_META[st].label}
+          </span>
+        ))}
       </div>
     </section>
   );

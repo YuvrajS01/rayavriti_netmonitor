@@ -6,6 +6,11 @@ import { queryKeys } from '../api/queryKeys';
 import { useDebouncedValue } from '../hooks/useDebouncedValue';
 import type { ReportSummary, ReportTimeseriesPoint as TimeseriesPoint, DeviceBreakdown, ReportAlert, Device } from '../api/types';
 import type { ISPReportLink } from '../api/reports';
+import Button from '../components/ui/Button';
+import IconButton from '../components/ui/IconButton';
+import ErrorState from '../components/ui/ErrorState';
+import { TabPanel, Tabs } from '../components/ui/Tabs';
+import { useTabParam, useTabsId } from '../hooks/useTabParam';
 
 const EMPTY_SERIES: TimeseriesPoint[] = [];
 const EMPTY_BREAKDOWN: DeviceBreakdown[] = [];
@@ -35,12 +40,13 @@ function toQuery(from: string, to: string, deviceId?: number) {
 
 type TabId = 'summary' | 'devices' | 'sla' | 'alerts' | 'isp';
 const TABS: { id: TabId; label: string; icon: string }[] = [
-  { id: 'summary', label: 'Executive Summary', icon: 'dashboard' },
-  { id: 'devices', label: 'Device Performance', icon: 'devices' },
-  { id: 'sla', label: 'SLA Compliance', icon: 'verified' },
-  { id: 'alerts', label: 'Alert History', icon: 'notifications' },
-  { id: 'isp', label: 'ISP Links', icon: 'router' },
+  { id: 'summary', label: 'Executive summary', icon: 'dashboard' },
+  { id: 'devices', label: 'Device performance', icon: 'devices' },
+  { id: 'sla', label: 'SLA compliance', icon: 'verified' },
+  { id: 'alerts', label: 'Alert history', icon: 'notifications' },
+  { id: 'isp', label: 'ISP links', icon: 'router' },
 ];
+const TAB_IDS = TABS.map((t) => t.id);
 
 const RANGES = [
   { hours: 1, label: '1h' },
@@ -63,7 +69,8 @@ export default function Reports() {
   const [range, setRangeInputs] = useState(() => rangeInputs(DEFAULT_RANGE_HOURS));
   const { from, to } = range;
   const [activeRange, setActiveRange] = useState(DEFAULT_RANGE_HOURS);
-  const [activeTab, setActiveTab] = useState<TabId>('summary');
+  const [activeTab, setActiveTab] = useTabParam(TAB_IDS);
+  const tabsId = useTabsId();
   const [selectedDevice, setSelectedDevice] = useState<number | undefined>(undefined);
 
   const setRange = useCallback((hours: number) => {
@@ -114,107 +121,104 @@ export default function Reports() {
       <header className="mb-6 print-header">
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-2">
           <div>
-            <h1 className="font-sans text-2xl font-semibold text-fg mb-1">Reports</h1>
-            <p className="text-fg-muted font-sans max-w-xl text-sm">Historical analytics, SLA compliance, and performance reports across all monitored nodes.</p>
+            <h1 className="text-2xl font-semibold text-fg mb-1">Reports</h1>
+            <p className="text-fg-muted max-w-xl text-sm">Historical analytics, SLA compliance and performance across all monitored nodes.</p>
           </div>
           <div className="flex items-center gap-2 no-print">
-            <button onClick={() => { void downloadMetricsCsv(toQuery(from, to, selectedDevice)); }} className="px-4 py-2 rounded-lg text-sm border border-primary/40 text-primary font-semibold hover:bg-primary/5 transition-colors flex items-center gap-1.5">
-              <span className="material-symbols-outlined text-sm">download</span> CSV
-            </button>
-            <button onClick={handlePrint} className="px-4 py-2 rounded-lg text-sm border border-line text-fg-muted font-semibold hover:text-fg hover:border-line-strong/40 transition-colors flex items-center gap-1.5">
-              <span className="material-symbols-outlined text-sm">print</span> Print
-            </button>
+            <Button variant="secondary" icon="download" onClick={() => { void downloadMetricsCsv(toQuery(from, to, selectedDevice)); }}>
+              Export CSV
+            </Button>
+            <Button variant="secondary" icon="print" onClick={handlePrint}>Print</Button>
           </div>
         </div>
       </header>
 
-      <div className="bg-surface-1 rounded-lg border border-line p-5 mb-6 no-print">
+      <section aria-label="Report filters" className="bg-surface-1 rounded-lg border border-line p-5 mb-6 no-print">
         <div className="flex flex-col xl:flex-row gap-4 xl:items-end xl:justify-between">
-          <div className="flex flex-wrap items-center gap-2">
-            {RANGES.map(r => (
-              <button key={r.hours} onClick={() => setRange(r.hours)}
-                className={`px-3 py-2 rounded-lg text-xs border font-semibold transition-[border-color,color,background-color] ${activeRange === r.hours ? 'border-primary/40 text-primary bg-primary/5' : 'border-line text-fg-muted hover:text-fg'}`}>
-                {r.label}
-              </button>
-            ))}
-            <div className="h-5 w-px bg-line/30 mx-1" />
-            <select value={selectedDevice ?? ''} onChange={e => setSelectedDevice(e.target.value ? Number(e.target.value) : undefined)}
-              className="bg-inset border border-line rounded-lg px-3 py-2 text-xs text-fg outline-none cursor-pointer min-w-[140px]">
-              <option value="">All Devices</option>
-              {allDevices.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-            </select>
+          <div className="flex flex-wrap items-end gap-2">
+            <div role="group" aria-label="Quick range" className="inline-flex rounded-md border border-line bg-inset p-0.5">
+              {RANGES.map(r => (
+                <button
+                  key={r.hours}
+                  type="button"
+                  aria-pressed={activeRange === r.hours}
+                  onClick={() => setRange(r.hours)}
+                  className={`h-8 min-w-11 rounded-[6px] px-3 text-sm font-medium transition-colors ${activeRange === r.hours ? 'bg-surface-3 text-fg shadow-e1' : 'text-fg-muted hover:text-fg'}`}
+                >
+                  {r.label}
+                </button>
+              ))}
+            </div>
+            <label className="flex flex-col gap-1 text-xs text-fg-muted">
+              Device
+              <select value={selectedDevice ?? ''} onChange={e => setSelectedDevice(e.target.value ? Number(e.target.value) : undefined)}
+                className="h-9 min-w-[160px] rounded-md border border-line bg-inset px-3 text-sm text-fg outline-none focus:border-primary">
+                <option value="">All devices</option>
+                {allDevices.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+              </select>
+            </label>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <input type="datetime-local" value={from} onChange={e => setFrom(e.target.value)} className="bg-inset border border-line rounded-lg px-3 py-2 text-xs text-fg outline-none" />
-            <input type="datetime-local" value={to} onChange={e => setTo(e.target.value)} className="bg-inset border border-line rounded-lg px-3 py-2 text-xs text-fg outline-none" />
-            <button onClick={refresh} disabled={loading} className="px-4 py-2 rounded-lg text-sm bg-primary text-on-primary font-semibold hover:bg-primary/90 transition-colors flex items-center gap-1.5 disabled:opacity-50">
-              {loading ? <span className="material-symbols-outlined text-sm animate-spin">refresh</span> : <span className="material-symbols-outlined text-sm">play_arrow</span>}
+          <div className="flex flex-wrap items-end gap-2">
+            <label className="flex flex-col gap-1 text-xs text-fg-muted">
+              From
+              <input type="datetime-local" value={from} onChange={e => setFrom(e.target.value)} className="h-9 rounded-md border border-line bg-inset px-3 text-sm text-fg outline-none focus:border-primary" />
+            </label>
+            <label className="flex flex-col gap-1 text-xs text-fg-muted">
+              To
+              <input type="datetime-local" value={to} onChange={e => setTo(e.target.value)} className="h-9 rounded-md border border-line bg-inset px-3 text-sm text-fg outline-none focus:border-primary" />
+            </label>
+            <Button size="sm" className="h-9" icon={loading ? 'progress_activity' : 'play_arrow'} onClick={refresh} disabled={loading}>
               Run
-            </button>
+            </Button>
           </div>
         </div>
-      </div>
+      </section>
 
       {selectedDevice && (
         <div className="flex items-center gap-2 mb-4 no-print">
-          <span className="text-xs text-fg-muted">Filtered:</span>
-          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary/10 border border-primary/30 text-primary text-xs font-semibold">
+          <span className="text-xs text-fg-muted">Filtered to</span>
+          <span className="inline-flex items-center gap-1 rounded-full border border-line-strong bg-surface-2 py-0.5 pl-3 pr-1 text-xs font-medium text-fg">
             {allDevices.find(d => d.id === selectedDevice)?.name || `Device ${selectedDevice}`}
-            <button onClick={() => setSelectedDevice(undefined)} className="hover:text-fg transition-colors">
-              <span className="material-symbols-outlined text-sm">close</span>
-            </button>
+            <IconButton icon="close" label="Clear device filter" size="sm" className="h-6 w-6" onClick={() => setSelectedDevice(undefined)} />
           </span>
         </div>
       )}
 
-      <div className="flex gap-1 mb-6 overflow-x-auto no-print border-b border-line pb-px">
-        {TABS.map(tab => (
-          <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-2 px-4 py-3 text-xs font-semibold transition-[color,border-color,background-color] rounded-t-lg whitespace-nowrap ${activeTab === tab.id ? 'text-primary border-b-2 border-primary bg-primary/5': 'text-fg-muted hover:text-fg hover:bg-inset/50'}`}>
-            <span className="material-symbols-outlined text-sm">{tab.icon}</span>
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      <Tabs items={TABS} value={activeTab} onChange={setActiveTab} label="Report sections" idBase={tabsId} className="mb-6 no-print" />
 
-      {loading && (
-        <div className="flex flex-col items-center justify-center py-16">
-          <span className="material-symbols-outlined text-4xl text-primary mb-3">hourglass_top</span>
-          <p className="text-sm text-fg-muted">Loading report data...</p>
-        </div>
-      )}
-
-      {error && !loading && (
-        <div className="bg-error/10 border border-error/30 rounded-lg p-6 text-center">
-          <span className="material-symbols-outlined text-error text-3xl mb-2">error</span>
-          <p className="text-sm text-error font-semibold">{error}</p>
-          <button onClick={refresh} className="mt-3 text-xs text-fg-muted hover:text-fg transition-colors underline">
-            Retry
-          </button>
-        </div>
-      )}
-
-      {!loading && !error && (
-        <div className="report-tab-content">
-          <Suspense fallback={
-            <div className="flex flex-col items-center justify-center py-16">
-              <span className="material-symbols-outlined text-4xl text-primary mb-3">hourglass_top</span>
-              <p className="text-sm text-fg-muted">Loading tab...</p>
+      {TABS.map((tab) => (
+        <TabPanel key={tab.id} idBase={tabsId} id={tab.id} value={activeTab}>
+          {loading ? (
+            <ReportLoading message="Loading report data…" />
+          ) : error ? (
+            <ErrorState message={error} onRetry={refresh} />
+          ) : (
+            <div className="report-tab-content">
+              <Suspense fallback={<ReportLoading message="Loading section…" />}>
+                {tab.id === 'summary' && <SummaryTab summary={summary} series={series} />}
+                {tab.id === 'devices' && <DeviceTab devices={deviceBreakdown} onSelectDevice={handleSelectDevice} />}
+                {tab.id === 'sla' && <SlaTab summary={summary} series={series} />}
+                {tab.id === 'alerts' && <AlertTab alerts={reportAlerts} />}
+                {tab.id === 'isp' && <IspTab links={ispLinks} />}
+              </Suspense>
             </div>
-          }>
-            {activeTab === 'summary' && <SummaryTab summary={summary} series={series} />}
-            {activeTab === 'devices' && <DeviceTab devices={deviceBreakdown} onSelectDevice={handleSelectDevice} />}
-            {activeTab === 'sla' && <SlaTab summary={summary} series={series} />}
-            {activeTab === 'alerts' && <AlertTab alerts={reportAlerts} />}
-            {activeTab === 'isp' && <IspTab links={ispLinks} />}
-          </Suspense>
-        </div>
-      )}
+          )}
+        </TabPanel>
+      ))}
 
       <div className="print-footer hidden">
         <p>Rayavriti NetMonitor — Report generated {new Date().toLocaleString()}</p>
         <p>Period: {from ? new Date(from).toLocaleString() : '—'} to {to ? new Date(to).toLocaleString() : '—'}</p>
       </div>
+    </div>
+  );
+}
+
+function ReportLoading({ message }: { message: string }) {
+  return (
+    <div role="status" className="flex flex-col items-center justify-center gap-3 py-16">
+      <span className="material-symbols-outlined animate-spin text-3xl text-fg-muted" aria-hidden="true">progress_activity</span>
+      <p className="text-sm text-fg-muted">{message}</p>
     </div>
   );
 }

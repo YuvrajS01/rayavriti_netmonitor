@@ -1,25 +1,33 @@
 import { memo } from 'react';
+import { StatusShapeIcon } from '../ui/Status';
+import { STATUS_META } from '../../utils/status';
 
 interface ResourceBarProps {
   label: string;
   value: number;
+  /** Fill colour while below the alarm threshold (a token var). */
   color: string;
+  /** When true the bar is over its threshold: drawn as a down status with its shape. */
   warn?: boolean;
 }
 
 function ResourceBarInner({ label, value, color, warn }: ResourceBarProps) {
-  const pct = Math.min(100, value);
-  const fill = warn && pct > 90 ? 'var(--color-error)' : color;
+  const pct = Math.max(0, Math.min(100, value));
+  const alarm = Boolean(warn);
+  const down = STATUS_META.down;
   return (
     <div>
       <div className="flex justify-between text-xs mb-1">
-        <span className={warn && pct > 90 ? 'text-error font-semibold' : ''}>{label}</span>
-        <span className={warn && pct > 90 ? 'text-error font-semibold' : ''}>{value}%</span>
+        <span className={`inline-flex items-center gap-1.5 ${alarm ? `${down.text} font-semibold` : 'text-fg-muted'}`}>
+          {alarm && <StatusShapeIcon shape={down.shape} size={8} label="Over threshold" />}
+          {label}
+        </span>
+        <span className={`font-mono ${alarm ? `${down.text} font-semibold` : 'text-fg'}`}>{value}%</span>
       </div>
-      <div className="h-2 bg-surface-2 rounded overflow-hidden">
+      <div className="h-2 bg-surface-3 rounded-sm overflow-hidden">
         <div
-          className={`h-2 rounded transition-[width,box-shadow] duration-500 ${warn && pct > 90 ? 'glow-error' : ''}`}
-          style={{ width: `${pct}%`, background: fill, boxShadow: warn && pct > 90 ? `0 0 10px color-mix(in oklch, ${fill} 60%, transparent)` : undefined }}
+          className="h-2 rounded-sm transition-[width] duration-[var(--duration-normal)]"
+          style={{ width: `${pct}%`, background: alarm ? 'var(--color-status-down)' : color }}
         />
       </div>
     </div>

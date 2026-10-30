@@ -1,80 +1,81 @@
 import type { ReportAlert } from '../../api/types';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
+import { TOOLTIP_ITEM_STYLE, TOOLTIP_LABEL_STYLE, TOOLTIP_STYLE } from '../../utils/chartConfig';
+import { normalizeSeverity, severityMeta, type Severity } from '../../utils/status';
+import { useChartAnimation } from '../../hooks/useReducedMotion';
+import { StatusPill, StatusShapeIcon } from '../ui/Status';
+import EmptyState from '../ui/EmptyState';
 
-const TT = { background: 'var(--color-surface-2)', border: '1px solid var(--color-line)', borderRadius: '8px', fontSize: '12px', color: 'var(--color-fg)' };
-const SEV_COLORS: Record<string, string> = { critical: '#ff7351', warning: '#e5a910', info: '#6bb8c9' };
-const SEV_ICONS: Record<string, string> = { critical: 'error', warning: 'warning', info: 'info' };
+const SEVERITIES: Severity[] = ['critical', 'warning', 'info'];
 
 export default function AlertTab({ alerts }: { alerts: ReportAlert[] }) {
-  const bySev: Record<string, number> = { critical: 0, warning: 0, info: 0 };
-  for (const a of alerts) bySev[a.severity] = (bySev[a.severity] || 0) + 1;
-  const donut = Object.entries(bySev).filter(([, v]) => v > 0).map(([name, value]) => ({ name, value, color: SEV_COLORS[name] || '#6b7280' }));
+  const anim = useChartAnimation();
+  const bySev: Record<Severity, number> = { critical: 0, warning: 0, info: 0 };
+  for (const a of alerts) bySev[normalizeSeverity(a.severity)] += 1;
+  const donut = SEVERITIES.filter((sev) => bySev[sev] > 0).map((sev) => {
+    const meta = severityMeta(sev);
+    return { severity: sev, meta, name: meta.label, value: bySev[sev], color: `var(--color-${meta.token})` };
+  });
 
   return (
     <div className="space-y-6 report-section">
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Severity donut */}
-        <div className="bg-surface-1 rounded-lg p-6 border border-line flex flex-col items-center">
-          <h4 className="text-xs font-semibold text-fg-muted mb-4">Severity breakdown</h4>
+        <section aria-labelledby="alert-severity-heading" className="bg-surface-1 rounded-lg p-5 border border-line flex flex-col items-center">
+          <h3 id="alert-severity-heading" className="self-start text-sm font-semibold text-fg mb-4">Severity breakdown</h3>
           {alerts.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 opacity-50">
-              <span className="material-symbols-outlined text-4xl mb-2 text-primary">check_circle</span>
-              <p className="text-xs text-fg-muted">No alerts in range</p>
-            </div>
+            <EmptyState icon="check_circle" title="No alerts in range" size="compact" />
           ) : (
             <>
               <ResponsiveContainer width="100%" height={180}>
                 <PieChart>
-                  <Pie data={donut} cx="50%" cy="50%" innerRadius={48} outerRadius={72} paddingAngle={3} dataKey="value" labelLine={false}>
-                    {donut.map(e => <Cell key={e.name} fill={e.color} stroke="transparent" />)}
+                  <Pie data={donut} cx="50%" cy="50%" innerRadius={48} outerRadius={72} paddingAngle={2} dataKey="value" labelLine={false} {...anim}>
+                    {donut.map(e => <Cell key={e.name} fill={e.color} stroke="var(--color-surface-1)" strokeWidth={2} />)}
                   </Pie>
-                  <Tooltip contentStyle={TT} />
+                  <Tooltip contentStyle={TOOLTIP_STYLE} labelStyle={TOOLTIP_LABEL_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} />
                 </PieChart>
               </ResponsiveContainer>
-              <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 mt-2">
+              <ul className="flex flex-wrap justify-center gap-x-4 gap-y-1 mt-2">
                 {donut.map(d => (
-                  <div key={d.name} className="flex items-center gap-1.5 text-xs">
-                    <span className="w-2.5 h-2.5 rounded-full" style={{ background: d.color }} />
-                    <span className="text-fg-muted capitalize">{d.name}</span>
+                  <li key={d.name} className="flex items-center gap-1.5 text-xs">
+                    <span className={d.meta.text}><StatusShapeIcon shape={d.meta.shape} /></span>
+                    <span className="text-fg-muted">{d.name}</span>
                     <span className="font-semibold text-fg">{d.value}</span>
-                  </div>
+                  </li>
                 ))}
-              </div>
+              </ul>
             </>
           )}
-        </div>
+        </section>
 
-        {/* Alert table */}
-        <div className="lg:col-span-2 bg-surface-1 rounded-lg p-6 border border-line">
+        <section aria-labelledby="alert-timeline-heading" className="lg:col-span-2 bg-surface-1 rounded-lg p-5 border border-line">
           <div className="flex items-center gap-2 mb-4">
-            <span className="material-symbols-outlined text-error text-lg">notifications_active</span>
-            <h4 className="text-xs font-semibold text-fg-muted">Alert timeline</h4>
+            <h3 id="alert-timeline-heading" className="text-sm font-semibold text-fg">Alert timeline</h3>
             <span className="ml-auto text-xs text-fg-muted">{alerts.length} alerts</span>
           </div>
           {alerts.length === 0 ? (
             <p className="text-xs text-fg-muted text-center py-12">No alerts in selected range</p>
           ) : (
-            <div className="overflow-y-auto max-h-[420px] space-y-2 pr-1">
+            <ul className="overflow-y-auto max-h-[420px] space-y-2 pr-1">
               {alerts.map((a) => {
-                const color = SEV_COLORS[a.severity] || '#6b7280';
-                const bg = a.severity === 'critical' ? 'bg-error/10 border-error/25' : a.severity === 'warning' ? 'bg-warning/10 border-warning/25' : 'bg-info/10 border-info/25';
+                const meta = severityMeta(a.severity);
                 return (
-                  <div key={a.id} className={`flex items-start gap-3 p-3 rounded-lg border ${bg} transition-[filter] hover:bg-surface-1`}>
-                    <span className="material-symbols-outlined mt-0.5 text-sm" style={{ color }}>{SEV_ICONS[a.severity] || 'info'}</span>
+                  <li key={a.id} className={`flex items-start gap-3 rounded-md border border-line border-l-4 ${meta.borderL} bg-surface-2 p-3`}>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2 mb-0.5">
-                        <span className="font-sans font-semibold text-xs text-fg truncate">{a.deviceName || `Device ${a.deviceId}`}</span>
-                        <span className="text-xs font-mono text-fg-muted shrink-0">{new Date(a.createdAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                        <span className="font-semibold text-sm text-fg truncate">{a.deviceName || `Device ${a.deviceId}`}</span>
+                        <time className="text-xs font-mono text-fg-muted shrink-0" dateTime={a.createdAt}>
+                          {new Date(a.createdAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                        </time>
                       </div>
                       <p className="text-xs text-fg-muted truncate">{a.message}</p>
                     </div>
-                    <span className={`shrink-0 px-2 py-0.5 rounded-full text-xs font-semibold uppercase border`} style={{ color, borderColor: `${color}40` }}>{a.severity}</span>
-                  </div>
+                    <StatusPill status={meta} />
+                  </li>
                 );
               })}
-            </div>
+            </ul>
           )}
-        </div>
+        </section>
       </div>
     </div>
   );

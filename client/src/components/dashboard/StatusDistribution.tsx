@@ -3,7 +3,8 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import type { Metric } from '../../api/types';
 import { STATUS_META, normalizeStatus, statusColorVar, type Status } from '../../utils/status';
 import { StatusShapeIcon } from '../ui/Status';
-import { TOOLTIP_STYLE } from '../../utils/chartConfig';
+import { TOOLTIP_STYLE, TOOLTIP_LABEL_STYLE, TOOLTIP_ITEM_STYLE } from '../../utils/chartConfig';
+import { useChartAnimation } from '../../hooks/useReducedMotion';
 import ChartDataTable from '../ui/ChartDataTable';
 
 interface Props {
@@ -34,10 +35,11 @@ function StatusDistributionInner({ metrics }: Props) {
   const donutData = useMemo(() => buildDonutData(metrics), [metrics]);
   const donutTotal = useMemo(() => donutData.reduce((s, d) => s + d.value, 0), [donutData]);
   const active = activeIndex != null ? donutData[activeIndex] : undefined;
+  const anim = useChartAnimation();
 
   return (
-    <div className="bg-surface-1 rounded-lg p-4 border border-line flex flex-col group">
-      <h3 className="text-sm font-sans font-semibold text-fg mb-3">Status distribution</h3>
+    <section aria-labelledby="status-distribution-heading" className="bg-surface-1 rounded-lg p-5 border border-line flex flex-col">
+      <h3 id="status-distribution-heading" className="text-sm font-semibold text-fg mb-3">Status distribution</h3>
       {donutTotal === 0 ? (
         <p className="text-xs text-fg-muted text-center my-auto py-8">No data yet</p>
       ) : (
@@ -53,8 +55,7 @@ function StatusDistributionInner({ metrics }: Props) {
                 paddingAngle={2}
                 dataKey="value"
                 labelLine={false}
-                animationBegin={120}
-                animationDuration={700}
+                {...anim}
               >
                 {donutData.map((entry, i) => (
                   <Cell
@@ -68,7 +69,7 @@ function StatusDistributionInner({ metrics }: Props) {
                   />
                 ))}
               </Pie>
-              <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: unknown, name: unknown) => [Number(v ?? 0), String(name)]} />
+              <Tooltip contentStyle={TOOLTIP_STYLE} labelStyle={TOOLTIP_LABEL_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} formatter={(v: unknown, name: unknown) => [Number(v ?? 0), String(name)]} />
               <text x="50%" y="46%" textAnchor="middle" dominantBaseline="middle" fill="currentColor" className="text-fg">
                 <tspan x="50%" dy="-0.3em" fontSize="24" fontWeight="600" fontFamily="var(--font-sans)">{active ? active.value : donutTotal}</tspan>
                 <tspan x="50%" dy="1.3em" fontSize="12" fill="var(--color-fg-muted)" fontFamily="var(--font-sans)">{active ? active.name : 'devices'}</tspan>
@@ -90,11 +91,11 @@ function StatusDistributionInner({ metrics }: Props) {
             ))}
           </div>
           <div className="sr-only">
-            <ChartDataTable title="Status Distribution" columns={['Status', 'Count']} rows={donutData.map((d) => [d.name, d.value])} />
+            <ChartDataTable title="Status distribution" columns={['Status', 'Count']} rows={donutData.map((d) => [d.name, d.value])} />
           </div>
         </div>
       )}
-    </div>
+    </section>
   );
 }
 

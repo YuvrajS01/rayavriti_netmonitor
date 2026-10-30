@@ -72,7 +72,7 @@ describe('App shell', () => {
 
     render(<App />);
 
-    expect(await screen.findByText('Network Overview', {}, { timeout: 3000 })).toBeInTheDocument();
+    expect(await screen.findByText('Network overview', {}, { timeout: 3000 })).toBeInTheDocument();
     expect(screen.getByLabelText('Account menu')).toBeInTheDocument();
 
     // Layout landmarks and navigation state are exposed to assistive tech.

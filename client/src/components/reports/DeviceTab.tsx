@@ -1,12 +1,15 @@
 import type { DeviceBreakdown } from '../../api/types';
 import { useState } from 'react';
+import { iconForProtocol } from '../../utils/icons';
+import { StatusPill } from '../ui/Status';
+import SortHeader from './SortHeader';
+import { availabilityStatus } from './reportStatus';
 
 type SortKey = 'deviceName' | 'availabilityPercent' | 'avgResponse' | 'sampleCount' | 'downCount';
 
-function badge(avail: number) {
-  if (avail >= 99) return 'bg-primary/15 text-primary border-primary/30';
-  if (avail >= 95) return 'bg-warning/15 text-warning border-warning/30';
-  return 'bg-error/15 text-error border-error/30';
+function availabilityOf(d: DeviceBreakdown): number {
+  if (d.availabilityPercent != null) return d.availabilityPercent;
+  return d.sampleCount > 0 ? 100 - (d.downCount / d.sampleCount) * 100 : 100;
 }
 
 export default function DeviceTab({ devices, onSelectDevice }: { devices: DeviceBreakdown[]; onSelectDevice: (id: number) => void }) {
@@ -24,18 +27,13 @@ export default function DeviceTab({ devices, onSelectDevice }: { devices: Device
     return sortDesc ? String(bv).localeCompare(String(av)) : String(av).localeCompare(String(bv));
   });
 
-  const hdr = (label: string, key: SortKey, align = 'text-left') => (
-    <th className={`pb-3 font-medium cursor-pointer select-none hover:text-fg transition-colors ${align}`} onClick={() => toggle(key)}>
-      {label} {sortKey === key ? (sortDesc ? '↓' : '↑') : ''}
-    </th>
-  );
+  const header = { activeKey: sortKey, desc: sortDesc, onSort: toggle };
 
   return (
     <div className="report-section">
-      <div className="bg-surface-1 rounded-lg p-6 border border-line">
-        <div className="flex items-center gap-2 mb-6">
-          <span className="material-symbols-outlined text-primary text-xl">devices</span>
-          <h3 className="text-sm font-sans font-semibold">Per-Device performance</h3>
+      <section aria-labelledby="device-performance-heading" className="bg-surface-1 rounded-lg p-5 border border-line">
+        <div className="flex items-center gap-2 mb-5">
+          <h3 id="device-performance-heading" className="text-sm font-semibold text-fg">Per-device performance</h3>
           <span className="ml-auto text-xs text-fg-muted">{devices.length} devices</span>
         </div>
         {devices.length === 0 ? (
@@ -45,40 +43,41 @@ export default function DeviceTab({ devices, onSelectDevice }: { devices: Device
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="text-xs text-fg-muted border-b border-line">
-                  {hdr('Device', 'deviceName')}
-                  {hdr('Availability', 'availabilityPercent', 'text-center')}
-                  {hdr('Avg Response', 'avgResponse', 'text-right')}
-                  {hdr('Samples', 'sampleCount', 'text-right')}
-                  {hdr('Down', 'downCount', 'text-right')}
+                  <SortHeader label="Device" sortKey="deviceName" {...header} />
+                  <SortHeader label="Availability" sortKey="availabilityPercent" align="center" {...header} />
+                  <SortHeader label="Avg response" sortKey="avgResponse" align="right" {...header} />
+                  <SortHeader label="Samples" sortKey="sampleCount" align="right" {...header} />
+                  <SortHeader label="Down" sortKey="downCount" align="right" {...header} />
                 </tr>
               </thead>
               <tbody className="text-sm">
-                {sorted.map((d) => (
-                  <tr key={d.deviceId} className="border-b border-line hover:bg-inset/50 transition-colors cursor-pointer group" onClick={() => onSelectDevice(d.deviceId)}>
-                    <td className="py-3">
-                      <div className="flex items-center gap-2">
-                        <span className="material-symbols-outlined text-sm opacity-60">
-                          {d.protocol === 'ping' ? 'router' : d.protocol === 'http' || d.protocol === 'https' ? 'public' : d.protocol === 'system' ? 'memory' : d.protocol === 'snmp' ? 'settings_input_antenna' : 'hub'}
-                        </span>
-                        <span className="font-sans font-semibold group-hover:text-fg transition-colors">{d.deviceName}</span>
-                        <span className="text-xs text-fg-muted uppercase">{d.protocol}</span>
-                      </div>
-                    </td>
-                    <td className="py-3 text-center">
-                      <span className={`inline-flex px-2.5 py-1 rounded-full border text-xs font-semibold ${badge(d.availabilityPercent ?? 100 - (d.sampleCount > 0 ? (d.downCount / d.sampleCount) * 100 : 0))}`}>
-                        {d.availabilityPercent ?? (d.sampleCount > 0 ? (100 - (d.downCount / d.sampleCount) * 100).toFixed(1) : '100')}%
-                      </span>
-                    </td>
-                    <td className="py-3 text-right font-mono">{d.avgResponse}ms</td>
-                    <td className="py-3 text-right font-mono text-fg-muted">{d.sampleCount}</td>
-                    <td className="py-3 text-right font-mono text-error">{d.downCount || '—'}</td>
-                  </tr>
-                ))}
+                {sorted.map((d) => {
+                  const availability = availabilityOf(d);
+                  return (
+                    <tr key={d.deviceId} className="border-b border-line last:border-b-0 hover:bg-surface-2 transition-colors">
+                      <td className="py-2.5 pr-3">
+                        <button type="button" onClick={() => onSelectDevice(d.deviceId)} className="flex items-center gap-2 rounded-sm text-left hover:underline">
+                          <span className="material-symbols-outlined text-[16px] text-fg-subtle" aria-hidden="true">{iconForProtocol(d.protocol)}</span>
+                          <span className="font-semibold text-fg">{d.deviceName}</span>
+                          <span className="text-xs text-fg-muted uppercase">{d.protocol}</span>
+                        </button>
+                      </td>
+                      <td className="py-2.5 text-center">
+                        <StatusPill status={availabilityStatus(availability)}>
+                          <span className="font-mono">{availability.toFixed(1)}%</span>
+                        </StatusPill>
+                      </td>
+                      <td className="py-2.5 text-right font-mono">{d.avgResponse} ms</td>
+                      <td className="py-2.5 text-right font-mono text-fg-muted">{d.sampleCount}</td>
+                      <td className="py-2.5 text-right font-mono">{d.downCount || '—'}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         )}
-      </div>
+      </section>
     </div>
   );
 }
