@@ -129,3 +129,27 @@ func TestIntegration_ClaimRefreshTokenOnce(t *testing.T) {
 	assert.True(t, first)
 	assert.False(t, second, "a refresh token can only be claimed once")
 }
+
+func TestIntegration_UpdateDeviceStatusesOnlyChanged(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+	p, cleanup := setupTestDB(t)
+	defer cleanup()
+	ctx := context.Background()
+
+	a, err := p.CreateDevice(ctx, &models.Device{Name: "a", IPAddress: "10.0.0.2", Protocol: "ping", Enabled: true})
+	require.NoError(t, err)
+	b, err := p.CreateDevice(ctx, &models.Device{Name: "b", IPAddress: "10.0.0.3", Protocol: "ping", Enabled: true})
+	require.NoError(t, err)
+	_, err = p.UpdateDeviceStatuses(ctx, []int64{a.ID, b.ID}, []string{"up", "up"})
+	require.NoError(t, err)
+
+	changed, err := p.UpdateDeviceStatuses(ctx, []int64{a.ID, b.ID}, []string{"up", "down"})
+	require.NoError(t, err)
+	assert.Equal(t, []int64{b.ID}, changed, "only the device whose status changed is written")
+
+	got, err := p.GetDevice(ctx, b.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "down", got.Status)
+}

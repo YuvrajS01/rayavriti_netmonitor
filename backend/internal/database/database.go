@@ -85,6 +85,9 @@ type Database interface {
 	UpdateDevice(ctx context.Context, id int64, d *models.Device) (*models.Device, error)
 	DeleteDevice(ctx context.Context, id int64) error
 	UpdateDeviceStatus(ctx context.Context, id int64, status string) error
+	// UpdateDeviceStatuses writes many statuses in one statement, touching
+	// only rows whose status actually changed, and returns their IDs.
+	UpdateDeviceStatuses(ctx context.Context, ids []int64, statuses []string) ([]int64, error)
 	GetEnabledDevices(ctx context.Context) ([]models.Device, error)
 	GetDevicesByStatus(ctx context.Context, status string) ([]models.Device, error)
 

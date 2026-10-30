@@ -309,6 +309,32 @@ func (p *Postgres) UpdateDeviceStatus(ctx context.Context, id int64, status stri
 	return err
 }
 
+func (p *Postgres) UpdateDeviceStatuses(ctx context.Context, ids []int64, statuses []string) ([]int64, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	// Unchanged rows are skipped: rewriting devices on every poll was a
+	// non-HOT update (status is indexed) that bloated every devices index.
+	rows, err := p.pool.Query(ctx, `
+		UPDATE devices d SET status = v.status, updated_at = NOW()
+		FROM unnest($1::bigint[], $2::text[]) AS v(id, status)
+		WHERE d.id = v.id AND d.status IS DISTINCT FROM v.status
+		RETURNING d.id`, ids, statuses)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var changed []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		changed = append(changed, id)
+	}
+	return changed, rows.Err()
+}
+
 // ── Metrics ───────────────────────────────────────────────────────────────────
 
 func (p *Postgres) RecordMetric(ctx context.Context, m *models.Metric) error {

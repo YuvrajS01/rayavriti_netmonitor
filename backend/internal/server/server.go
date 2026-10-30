@@ -160,6 +160,9 @@ func (s *Server) Start() error {
 	simulator := handlers.NewSimulatorHandler(s.db)
 	sensor := handlers.NewSensorHandler(s.db)
 	alertRule := handlers.NewAlertRuleHandler(s.db)
+	if inv, ok := s.alertEng.(interface{ InvalidateRules() }); ok {
+		alertRule.WithRuleInvalidator(inv.InvalidateRules)
+	}
 	notifChannel := handlers.NewNotificationChannelHandler(s.db)
 	system := handlers.NewSystemHandler()
 	resourceH := handlers.NewResourceHandler(s.db)
