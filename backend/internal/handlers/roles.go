@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/netip"
 	"strconv"
 	"strings"
 
@@ -248,11 +249,11 @@ func NewUserScopeHandler(db database.Database) *UserScopeHandler {
 	return &UserScopeHandler{store: store}
 }
 
-var validScopeTypes = map[string]bool{
-	"location":   true,
-	"department": true,
-	"device":     true,
-}
+// validScopeTypes are the scope kinds enforcement understands (see
+// deviceMatchesScope and database.scopeCondition). "department" and
+// "device" were accepted before but matched nothing, silently hiding all
+// devices from the user.
+var validScopeTypes = map[string]bool{"location": true, "subnet": true}
 
 func (h *UserScopeHandler) List(w http.ResponseWriter, r *http.Request) {
 	if h.store == nil {
@@ -290,17 +291,30 @@ func (h *UserScopeHandler) Create(w http.ResponseWriter, r *http.Request) {
 		httputil.SendError(w, http.StatusBadRequest, "invalid body")
 		return
 	}
+	// The user comes from the URL (/users/{id}/scopes); body.user_id is only
+	// honoured on the legacy route without {id}.
+	if id, ok := urlID(r, "id"); ok {
+		body.UserID = id
+	}
 	if body.UserID == 0 {
 		httputil.SendError(w, http.StatusBadRequest, "user_id is required")
 		return
 	}
 	if !validScopeTypes[body.ScopeType] {
-		httputil.SendError(w, http.StatusBadRequest, "scope_type must be one of: location, department, device")
+		httputil.SendError(w, http.StatusBadRequest, "scope_type must be one of: location, subnet")
 		return
 	}
-	if body.ScopeValue == "" {
-		httputil.SendError(w, http.StatusBadRequest, "scope_value is required")
-		return
+	switch body.ScopeType {
+	case "location":
+		if _, err := strconv.ParseInt(body.ScopeValue, 10, 64); err != nil {
+			httputil.SendError(w, http.StatusBadRequest, "scope_value must be a location id")
+			return
+		}
+	case "subnet":
+		if _, err := netip.ParsePrefix(body.ScopeValue); err != nil {
+			httputil.SendError(w, http.StatusBadRequest, "scope_value must be a CIDR such as 10.1.0.0/16")
+			return
+		}
 	}
 	// Check for duplicate
 	existing, _ := h.store.ListResources(r.Context(), "user_scopes", map[string]string{
