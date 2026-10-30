@@ -343,9 +343,9 @@ func (s *Server) Start() error {
 			r.With(rbac.RequirePermission(models.PermSettingsWrite)).Get("/api/v1/backups/config", backupH.Config)
 			r.With(rbac.RequirePermission(models.PermSettingsWrite)).Post("/api/v1/backups", backupH.Create)
 			r.With(rbac.RequirePermission(models.PermSettingsWrite)).Get("/api/v1/backups/{id}", backupH.Get)
-			r.With(rbac.RequirePermission(models.PermSettingsWrite)).Get("/api/v1/backups/{id}/download", backupH.Download)
+			r.With(rbac.RequireAdmin()).Get("/api/v1/backups/{id}/download", backupH.Download)
 			r.With(rbac.RequireAdmin()).Post("/api/v1/backups/{id}/restore", backupH.Restore)
-			r.With(rbac.RequirePermission(models.PermSettingsWrite)).Delete("/api/v1/backups/{id}", backupH.Delete)
+			r.With(rbac.RequireAdmin()).Delete("/api/v1/backups/{id}", backupH.Delete)
 			r.With(rbac.RequireAdmin()).Post("/api/v1/backups/upload", backupH.Upload)
 		}
 

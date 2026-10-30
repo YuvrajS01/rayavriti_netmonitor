@@ -157,7 +157,8 @@ func (m *Manager) runDump(ctx context.Context, backupID int64, backupPath string
 		return
 	}
 
-	outFile, err := os.Create(backupPath) //nolint:gosec // Path is generated internally and validated against BackupDir above.
+	// 0600: dumps contain password hashes and channel credentials.
+	outFile, err := os.OpenFile(backupPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600) //nolint:gosec // Path is generated internally and validated against BackupDir above.
 	if err != nil {
 		m.failBackup(ctx, backupID, fmt.Sprintf("create file: %v", err))
 		return
@@ -171,8 +172,9 @@ func (m *Manager) runDump(ctx context.Context, backupID int64, backupPath string
 		"--clean",
 		"--if-exists",
 		"--format=plain",
-		dsn,
+		dsnWithoutPassword(dsn),
 	)
+	cmd.Env = pgEnv(dsn)
 	cmd.Stdout = outFile
 	cmd.Stderr = os.Stderr
 
@@ -348,13 +350,10 @@ func (m *Manager) RestoreBackup(ctx context.Context, id int64, restoredBy string
 
 	m.logger.Info("Starting database restore", "backup_id", id, "file", filename)
 
-	// Use psql for plain SQL format restore
-	cmd := exec.CommandContext(ctx, "psql", //nolint:gosec // Restores trusted backup files validated under BackupDir using fixed psql args.
-		"--single-transaction",
-		"--set=ON_ERROR_STOP=on",
-		dsn,
-		"-f", path,
-	)
+	if err := checkRestoreScript(path); err != nil {
+		return err
+	}
+	cmd := psqlRestoreCommand(ctx, dsn, path)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		errMsg := fmt.Sprintf("restore failed: %v\n%s", err, string(output))
@@ -390,12 +389,10 @@ func (m *Manager) RestoreFromFile(ctx context.Context, filePath string, restored
 
 	m.logger.Info("Starting restore from uploaded file", "file", filePath, "restored_by", restoredBy)
 
-	cmd := exec.CommandContext(ctx, "psql", //nolint:gosec // Uploaded restore file is stored and validated under BackupDir; args are fixed except DSN.
-		"--single-transaction",
-		"--set=ON_ERROR_STOP=on",
-		dsn,
-		"-f", filePath,
-	)
+	if err := checkRestoreScript(filePath); err != nil {
+		return err
+	}
+	cmd := psqlRestoreCommand(ctx, dsn, filePath)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		errMsg := fmt.Sprintf("restore failed: %v\n%s", err, string(output))
