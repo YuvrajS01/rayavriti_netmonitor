@@ -80,7 +80,7 @@ func TestSendNotifications_WebhookInvalidURL(t *testing.T) {
 	ruleID := int64(1)
 	channelID := int64(10)
 	db := pendingStateWithNotifier(ruleID, channelID, nil)
-	notifier := NewNotifier()
+	notifier := newTestNotifier()
 	eng := NewAlertEngine(db, nil, notifier)
 	cpuVal := 95.0
 	device := &models.Device{ID: 1, Name: "Server-1"}
@@ -111,7 +111,7 @@ func TestSendNotifications_WebhookSuccess(t *testing.T) {
 			Config:  map[string]any{"url": server.URL},
 		}}, nil
 	}
-	notifier := NewNotifier()
+	notifier := newTestNotifier()
 	eng := NewAlertEngine(db, nil, notifier)
 	cpuVal := 95.0
 	device := &models.Device{ID: 1, Name: "Server-1"}
@@ -142,7 +142,7 @@ func TestSendNotifications_SlackChannel(t *testing.T) {
 			Config:  map[string]any{"webhook_url": server.URL},
 		}}, nil
 	}
-	notifier := NewNotifier()
+	notifier := newTestNotifier()
 	eng := NewAlertEngine(db, nil, notifier)
 	cpuVal := 95.0
 	device := &models.Device{ID: 1, Name: "Server-1"}
@@ -173,7 +173,7 @@ func TestSendNotifications_SlackError(t *testing.T) {
 			Config:  map[string]any{"webhook_url": server.URL},
 		}}, nil
 	}
-	notifier := NewNotifier()
+	notifier := newTestNotifier()
 	eng := NewAlertEngine(db, nil, notifier)
 	cpuVal := 95.0
 	device := &models.Device{ID: 1, Name: "Server-1"}
@@ -199,7 +199,7 @@ func TestSendNotifications_EmailMissingConfig(t *testing.T) {
 			Config:  map[string]any{},
 		}}, nil
 	}
-	notifier := NewNotifier()
+	notifier := newTestNotifier()
 	eng := NewAlertEngine(db, nil, notifier)
 	cpuVal := 95.0
 	device := &models.Device{ID: 1, Name: "Server-1"}
@@ -216,7 +216,7 @@ func TestSendNotifications_NoChannels(t *testing.T) {
 	ruleID := int64(1)
 	db := pendingStateWithNotifier(ruleID, 0, nil)
 	db.getNotificationChannelsFn = nil
-	notifier := NewNotifier()
+	notifier := newTestNotifier()
 	eng := NewAlertEngine(db, nil, notifier)
 	cpuVal := 95.0
 	device := &models.Device{ID: 1, Name: "Server-1"}
@@ -675,7 +675,7 @@ func TestSendNotifications_MultipleChannels(t *testing.T) {
 			return nil
 		},
 	}
-	notifier := NewNotifier()
+	notifier := newTestNotifier()
 	eng := NewAlertEngine(db, nil, notifier)
 	cpuVal := 95.0
 	device := &models.Device{ID: 1, Name: "Server-1"}
@@ -701,7 +701,7 @@ func TestSendNotifications_SlackNoURL(t *testing.T) {
 			Config:  map[string]any{},
 		}}, nil
 	}
-	notifier := NewNotifier()
+	notifier := newTestNotifier()
 	eng := NewAlertEngine(db, nil, notifier)
 	cpuVal := 95.0
 	device := &models.Device{ID: 1, Name: "Server-1"}
@@ -727,7 +727,7 @@ func TestSendNotifications_UnsupportedChannelType(t *testing.T) {
 			Config:  map[string]any{},
 		}}, nil
 	}
-	notifier := NewNotifier()
+	notifier := newTestNotifier()
 	eng := NewAlertEngine(db, nil, notifier)
 	cpuVal := 95.0
 	device := &models.Device{ID: 1, Name: "Server-1"}
@@ -823,7 +823,7 @@ func TestSendNotifications_ChannelLoadError(t *testing.T) {
 	ruleID := int64(1)
 	channelID := int64(10)
 	db := pendingStateWithNotifier(ruleID, channelID, fmt.Errorf("db error"))
-	notifier := NewNotifier()
+	notifier := newTestNotifier()
 	eng := NewAlertEngine(db, nil, notifier)
 	cpuVal := 95.0
 	device := &models.Device{ID: 1, Name: "Server-1"}
@@ -849,7 +849,7 @@ func TestSendNotifications_DisabledChannel(t *testing.T) {
 			Config:  map[string]any{"url": "http://localhost"},
 		}}, nil
 	}
-	notifier := NewNotifier()
+	notifier := newTestNotifier()
 	eng := NewAlertEngine(db, nil, notifier)
 	cpuVal := 95.0
 	device := &models.Device{ID: 1, Name: "Server-1"}

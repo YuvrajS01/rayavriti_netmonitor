@@ -2,6 +2,7 @@ package servicetmpl
 
 import (
 	"encoding/json"
+	"github.com/rayavriti/netmonitor-backend/internal/netutil"
 	"net/http"
 
 	"github.com/rayavriti/netmonitor-backend/internal/httputil"
@@ -38,6 +39,10 @@ func (h *Handler) ApplyTemplate(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.Template == "" || req.Host == "" {
 		httputil.SendError(w, http.StatusBadRequest, "template and host are required")
+		return
+	}
+	if err := netutil.ValidateHost(req.Host, netutil.DefaultHostPolicy()); err != nil {
+		httputil.SendError(w, http.StatusBadRequest, "host is not allowed")
 		return
 	}
 

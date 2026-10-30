@@ -875,8 +875,8 @@ func TestNotificationChannelTest_Valid(t *testing.T) {
 	h.Test(w, req)
 	// The test notification will likely fail because the webhook URL is not real,
 	// but we're testing the handler logic path, not the actual sending.
-	if w.Code != http.StatusOK && w.Code != http.StatusInternalServerError {
-		t.Fatalf("expected 200 or 500, got %d", w.Code)
+	if w.Code != http.StatusOK && w.Code != http.StatusBadGateway {
+		t.Fatalf("expected 200 or 502, got %d", w.Code)
 	}
 }
 

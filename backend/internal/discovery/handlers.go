@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/rayavriti/netmonitor-backend/internal/netutil"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -299,6 +300,10 @@ func (h *DiscoveryHandler) ApproveResult(w http.ResponseWriter, r *http.Request)
 		protocol = "icmp"
 		port = 0
 	}
+	if err := netutil.ValidateHost(dr.IPAddress, netutil.DefaultHostPolicy()); err != nil {
+		httputil.SendError(w, http.StatusBadRequest, "discovered address is not allowed as a device: "+dr.IPAddress)
+		return
+	}
 	var deviceID int64
 	err = h.pool.QueryRow(r.Context(), `
 		INSERT INTO devices (name, ip_address, protocol, port, enabled, status, tags,
@@ -312,7 +317,7 @@ func (h *DiscoveryHandler) ApproveResult(w http.ResponseWriter, r *http.Request)
 		dr.MACAddress, dr.Manufacturer, dr.GuessedCategory, locationID,
 	).Scan(&deviceID)
 	if err != nil {
-		httputil.SendError(w, http.StatusInternalServerError, "failed to create device: "+err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	_, err = h.pool.Exec(r.Context(),
@@ -451,6 +456,10 @@ func (h *DiscoveryHandler) BulkApprove(w http.ResponseWriter, r *http.Request) {
 		if protocol == "" {
 			protocol = "icmp"
 		}
+		if err := netutil.ValidateHost(dr.IPAddress, netutil.DefaultHostPolicy()); err != nil {
+			failed = append(failed, map[string]any{"resultId": dr.ID, "error": "address is not allowed as a device"})
+			continue
+		}
 		var deviceID int64
 		err := h.pool.QueryRow(r.Context(), `
 			INSERT INTO devices (name, ip_address, protocol, port, enabled, status,
@@ -464,7 +473,7 @@ func (h *DiscoveryHandler) BulkApprove(w http.ResponseWriter, r *http.Request) {
 			dr.MACAddress, dr.Manufacturer, dr.GuessedCategory, locationID,
 		).Scan(&deviceID)
 		if err != nil {
-			failed = append(failed, map[string]any{"resultId": dr.ID, "error": err.Error()})
+			failed = append(failed, map[string]any{"resultId": dr.ID, "error": "failed to create device"})
 			slog.Error("bulk approve: failed to create device", "resultId", dr.ID, "error", err)
 			continue
 		}

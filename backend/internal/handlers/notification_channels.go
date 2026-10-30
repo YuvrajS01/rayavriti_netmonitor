@@ -1,6 +1,9 @@
 package handlers
 
 import (
+	"errors"
+	"github.com/rayavriti/netmonitor-backend/internal/netutil"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -133,7 +136,14 @@ func (h *NotificationChannelHandler) Test(w http.ResponseWriter, r *http.Request
 	notifier := engine.NewNotifier()
 	start := time.Now()
 	if err := notifier.Send(r.Context(), *ch, testAlert); err != nil {
-		httputil.SendError(w, 500, "test notification failed: "+err.Error())
+		// Don't echo the raw error: SMTP banners and dial errors would turn
+		// this endpoint into a probe of internal services.
+		slog.Warn("test notification failed", "channel_id", ch.ID, "type", ch.Type, "error", err)
+		msg := "test notification failed; see server logs for details"
+		if errors.Is(err, netutil.ErrBlockedHost) {
+			msg = "test notification failed: destination address is not allowed"
+		}
+		httputil.SendError(w, http.StatusBadGateway, msg)
 		return
 	}
 	duration := time.Since(start)

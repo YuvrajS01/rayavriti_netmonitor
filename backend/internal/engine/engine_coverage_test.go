@@ -576,7 +576,7 @@ func TestProcessMetric_WithNotifier(t *testing.T) {
 			return nil
 		},
 	}
-	notifier := NewNotifier()
+	notifier := newTestNotifier()
 	engine := NewAlertEngine(db, nil, notifier)
 	cpuVal := 95.0
 	device := &models.Device{ID: 1, Name: "Server-1"}
@@ -1043,7 +1043,7 @@ func TestProcessMetric_NotifierChannelLoadError(t *testing.T) {
 			return nil
 		},
 	}
-	notifier := NewNotifier()
+	notifier := newTestNotifier()
 	engine := NewAlertEngine(db, nil, notifier)
 	cpuVal := 95.0
 	device := &models.Device{ID: 1, Name: "Server-1"}
@@ -1100,7 +1100,7 @@ func TestProcessMetric_NotifierDisabledChannel(t *testing.T) {
 			return nil
 		},
 	}
-	notifier := NewNotifier()
+	notifier := newTestNotifier()
 	engine := NewAlertEngine(db, nil, notifier)
 	cpuVal := 95.0
 	device := &models.Device{ID: 1, Name: "Server-1"}
