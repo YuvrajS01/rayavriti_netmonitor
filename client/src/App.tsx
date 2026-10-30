@@ -49,6 +49,7 @@ const ISP = lazyWithRetry(() => import('./pages/ISP'));
 const BackupPage = lazyWithRetry(() => import('./pages/Backup'));
 const RemoteMonitoring = lazyWithRetry(() => import('./pages/RemoteMonitoring'));
 const SystemMaintenance = lazyWithRetry(() => import('./pages/SystemMaintenance'));
+const Wall = lazyWithRetry(() => import('./pages/Wall'));
 const DeviceDetail = lazyWithRetry(() => import('./pages/DeviceDetail'));
 const SystemSettings = lazyWithRetry(() => import('./pages/SystemSettings'));
 const NotFound = lazyWithRetry(() => import('./pages/NotFound'));
@@ -100,6 +101,9 @@ function AppRoutes() {
       <Routes>
         <Route path="/login" element={isAuth ? <Navigate to="/" replace /> : <Login />} />
         <Route path="/system-maintenance" element={<SystemMaintenance />} />
+
+        {/* Wall display: signed in, but without the app shell. */}
+        <Route path="/wall" element={<RequireAuth><Wall /></RequireAuth>} />
 
         <Route element={<RequireAuth />}>
           {/* Monitor */}

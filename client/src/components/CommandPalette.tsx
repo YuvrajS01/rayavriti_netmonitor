@@ -121,7 +121,7 @@ export default function CommandPalette({ open, onClose, initialQuery = '' }: Com
         out.push({ id: `loc-${l.id}`, group: 'Locations', label: l.name, hint: l.path || l.type, icon: 'apartment', to: `/devices?search=${encodeURIComponent(l.name)}` });
       }
       for (const a of results.alerts) {
-        out.push({ id: `alert-${a.id}`, group: 'Alerts', label: a.message, hint: a.deviceName, icon: 'notifications', status: severityMeta(a.severity).token, to: `/alerts?q=${encodeURIComponent(a.deviceName || a.message)}` });
+        out.push({ id: `alert-${a.id}`, group: 'Alerts', label: a.message, hint: a.deviceName, icon: 'notifications', status: severityMeta(a.severity).status, to: `/alerts?q=${encodeURIComponent(a.deviceName || a.message)}` });
       }
     }
     if (needle.length >= SEARCH_MIN_CHARS) {
