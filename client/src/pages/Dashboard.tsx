@@ -1,11 +1,9 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, Suspense } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getStats, getLatestMetrics, getAlerts, getInsights, getSystemInfo } from '../api/client';
 import { queryKeys } from '../api/queryKeys';
 import { useSocket } from '../hooks/useSocket';
 import type { DashboardStats, Metric, InsightsResponse, SystemInfo } from '../api/types';
-import ExpandedChartsModal from '../components/ExpandedChartsModal';
-import ResourceLoadModal from '../components/ResourceLoadModal';
 import StatCard from '../components/ui/StatCard';
 import SectionHeader from '../components/ui/SectionHeader';
 import { DashboardSkeleton } from '../components/dashboard/DashboardSkeleton';
@@ -19,6 +17,10 @@ import { LatestMetricsTable } from '../components/dashboard/LatestMetricsTable';
 import { ActiveAlertsList } from '../components/dashboard/ActiveAlertsList';
 import { StatusHeatmap } from '../components/dashboard/StatusHeatmap';
 import NetworkTopologyMini from '../components/dashboard/NetworkTopologyMini';
+import { lazyWithRetry } from '../utils/lazyWithRetry';
+
+const ExpandedChartsModal = lazyWithRetry(() => import('../components/ExpandedChartsModal'));
+const ResourceLoadModal = lazyWithRetry(() => import('../components/ResourceLoadModal'));
 
 interface MultiLinePoint {
   time: string;
@@ -187,13 +189,15 @@ export default function Dashboard() {
         <ActiveAlertsList alerts={alerts} />
       </div>
 
-      {showExpandedCharts && (
-        <ExpandedChartsModal metrics={historyMetrics} onClose={() => setShowExpandedCharts(false)} />
-      )}
+      <Suspense fallback={null}>
+        {showExpandedCharts && (
+          <ExpandedChartsModal metrics={historyMetrics} onClose={() => setShowExpandedCharts(false)} />
+        )}
 
-      {showResourceModal && (
-        <ResourceLoadModal systemInfo={systemInfo} onClose={() => setShowResourceModal(false)} />
-      )}
+        {showResourceModal && (
+          <ResourceLoadModal systemInfo={systemInfo} onClose={() => setShowResourceModal(false)} />
+        )}
+      </Suspense>
       </>
       )}
     </div>

@@ -26,7 +26,7 @@ export default defineConfig({
       output: {
         manualChunks: (id: string) => {
           if (id.includes('react-router-dom') || id.includes('react-dom') || id.includes('/react/')) return 'vendor';
-          if (id.includes('recharts') || id.includes('@visx/')) return 'vendor-charts';
+          if (id.includes('recharts')) return 'vendor-charts';
         },
       },
     },

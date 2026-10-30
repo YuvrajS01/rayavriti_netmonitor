@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, Suspense } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createISPLink, deleteISPLink, getISPComparison, getISPLinks, updateISPLink, type ISPCompareLink, type ISPComparison, type ISPLink } from '../api/isp';
 import { queryKeys } from '../api/queryKeys';
@@ -9,7 +9,10 @@ import StatCard from '../components/ui/StatCard';
 import EmptyState from '../components/ui/EmptyState';
 import ConfirmDialog from '../components/ConfirmDialog';
 import { useToast } from '../components/ui/useToast';
-import ISPLinkModal from '../components/ISPLinkModal';
+import { lazyWithRetry } from '../utils/lazyWithRetry';
+
+// The only recharts user on this page; load it (and vendor-charts) on demand.
+const ISPLinkModal = lazyWithRetry(() => import('../components/ISPLinkModal'));
 
 const ISP_POLL_MS = 15_000;
 const EMPTY_LINKS: ISPLink[] = [];
@@ -211,7 +214,7 @@ export default function ISP() {
 
       <ConfirmDialog open={!!deleteTarget} title="Delete ISP Link" message={`Delete "${deleteTarget?.name}"? Monitoring data will be lost.`} confirmLabel="Delete" danger onConfirm={handleDelete} onCancel={() => setDeleteTarget(null)} />
 
-      {selectedLink && <ISPLinkModal link={selectedLink} onClose={() => setSelectedLink(null)} />}
+      {selectedLink && <Suspense fallback={null}><ISPLinkModal link={selectedLink} onClose={() => setSelectedLink(null)} /></Suspense>}
     </div>
   );
 }

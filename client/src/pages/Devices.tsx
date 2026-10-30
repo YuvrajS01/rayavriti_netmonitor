@@ -1,10 +1,9 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, Suspense } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { getDevices, getLatestMetrics, deleteDevice } from '../api/client';
 import { queryKeys } from '../api/queryKeys';
 import type { Device, Metric } from '../api/types';
-import DeviceModal from '../components/DeviceModal';
 import DeviceAddModal from '../components/DeviceAddModal';
 import ConfirmDialog from '../components/ConfirmDialog';
 import StatCard from '../components/ui/StatCard';
@@ -15,6 +14,10 @@ import { useToast } from '../components/ui/useToast';
 import { DevicesSkeleton } from '../components/dashboard/DevicesSkeleton';
 import { statusTextColor, statusBgColor } from '../utils/colors';
 import { iconForProtocol } from '../utils/icons';
+import { lazyWithRetry } from '../utils/lazyWithRetry';
+
+// Pulls in recharts; keep it out of the device list's initial chunk.
+const DeviceModal = lazyWithRetry(() => import('../components/DeviceModal'));
 
 function statusOf(device: Device, metricsMap: Map<number, Metric>): string {
   return metricsMap.get(device.id)?.status || device.status || 'unknown';
@@ -198,6 +201,7 @@ export default function Devices() {
         </div>
       </div>
       {selectedDevice && (
+        <Suspense fallback={null}>
         <DeviceModal 
           device={selectedDevice} 
           onClose={() => setSelectedDevice(null)} 
@@ -206,6 +210,7 @@ export default function Devices() {
             void refreshDevices();
           }}
         />
+        </Suspense>
       )}
       <DeviceAddModal
         open={showForm}
