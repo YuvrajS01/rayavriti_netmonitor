@@ -341,7 +341,8 @@ func (s *Scheduler) collectAndReturnResult(ctx context.Context, job PollJob) Pol
 	}
 	result.FinishedAt = time.Now()
 
-	result.Device.Status = collectResult.Status
+	// result.Device.Status is deliberately left as the previous status: the
+	// pipeline compares it with result.Status to detect transitions.
 	result.CollectResult = collectResult
 	if collectResult.Details == nil {
 		collectResult.Details = make(map[string]any)
@@ -367,6 +368,7 @@ func (s *Scheduler) handlePollResult(pr PollResult) {
 		s.stateTracker.RecordSuccess(pr.Device.ID, duration)
 	}
 
+	s.dispatcher.RecordStatus(pr.Device.ID, pr.Status)
 	s.pipeline.Submit(pr)
 }
 
