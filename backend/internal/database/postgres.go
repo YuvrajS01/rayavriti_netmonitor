@@ -186,7 +186,7 @@ const deviceSelectCols = `
 	SELECT id,name,ip_address,protocol,port,enabled,status,priority,tags,
 	       COALESCE(snmp_community,''),COALESCE(snmp_version,''),COALESCE(snmp_port,0),COALESCE(http_path,''),COALESCE(http_expected_status,0),
 	       interval_sec,location_id,parent_device_id,COALESCE(dependency_port,''),COALESCE(rack_position,''),COALESCE(asset_tag,''),
-	       COALESCE(mac_address,''),COALESCE(serial_number,''),COALESCE(manufacturer,''),COALESCE(model,''),COALESCE(device_category,''),COALESCE(monitor_config,'{}'::jsonb),COALESCE(notes,''),created_at,updated_at
+	       COALESCE(mac_address,''),COALESCE(serial_number,''),COALESCE(manufacturer,''),COALESCE(model,''),COALESCE(device_category,''),COALESCE(monitor_config,'{}'::jsonb),COALESCE(notes,''),snmp_v3,created_at,updated_at
 		FROM devices`
 
 func (p *Postgres) GetDevices(ctx context.Context) ([]models.Device, error) {
@@ -221,15 +221,15 @@ func (p *Postgres) CreateDevice(ctx context.Context, d *models.Device) (*models.
 		INSERT INTO devices(name,ip_address,protocol,port,enabled,priority,tags,snmp_community,snmp_version,
 		                    snmp_port,http_path,http_expected_status,interval_sec,
 		                    location_id,parent_device_id,dependency_port,rack_position,asset_tag,mac_address,serial_number,manufacturer,
-		                    model,device_category,monitor_config,notes)
-		VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25)
+		                    model,device_category,monitor_config,notes,snmp_v3)
+		VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26)
 		RETURNING id`,
 		d.Name, d.IPAddress, d.Protocol, d.Port, d.Enabled, d.Priority, tags,
 		nullStr(d.SNMPCommunity), nullStr(d.SNMPVersion), nullInt(d.SNMPPort),
 		nullStr(d.HTTPPath), nullInt(d.HTTPExpectedStatus), d.Interval,
 		d.LocationID, d.ParentDeviceID, nullStr(d.DependencyPort), nullStr(d.RackPosition), nullStr(d.AssetTag),
 		nullStr(d.MACAddress), nullStr(d.SerialNumber), nullStr(d.Manufacturer), nullStr(d.Model),
-		nullStr(d.DeviceCategory), jsonConfig(d.MonitorConfig), nullStr(d.Notes),
+		nullStr(d.DeviceCategory), jsonConfig(d.MonitorConfig), nullStr(d.Notes), snmpV3JSON(d.SNMPv3),
 	).Scan(&id)
 	if err != nil {
 		return nil, err
@@ -244,14 +244,14 @@ func (p *Postgres) UpdateDevice(ctx context.Context, id int64, d *models.Device)
 		    snmp_community=$8,snmp_version=$9,snmp_port=$10,http_path=$11,
 		    http_expected_status=$12,interval_sec=$13,location_id=$14,
 		    parent_device_id=$15,dependency_port=$16,rack_position=$17,asset_tag=$18,mac_address=$19,serial_number=$20,manufacturer=$21,
-		    model=$22,device_category=$23,monitor_config=$24,notes=$25,updated_at=NOW()
-		WHERE id=$26`,
+		    model=$22,device_category=$23,monitor_config=$24,notes=$25,snmp_v3=$26,updated_at=NOW()
+		WHERE id=$27`,
 		d.Name, d.IPAddress, d.Protocol, d.Port, d.Enabled, d.Priority, tags,
 		nullStr(d.SNMPCommunity), nullStr(d.SNMPVersion), nullInt(d.SNMPPort),
 		nullStr(d.HTTPPath), nullInt(d.HTTPExpectedStatus), d.Interval,
 		d.LocationID, d.ParentDeviceID, nullStr(d.DependencyPort), nullStr(d.RackPosition), nullStr(d.AssetTag),
 		nullStr(d.MACAddress), nullStr(d.SerialNumber), nullStr(d.Manufacturer), nullStr(d.Model),
-		nullStr(d.DeviceCategory), jsonConfig(d.MonitorConfig), nullStr(d.Notes), id)
+		nullStr(d.DeviceCategory), jsonConfig(d.MonitorConfig), nullStr(d.Notes), snmpV3JSON(d.SNMPv3), id)
 	if err != nil {
 		return nil, err
 	}
@@ -267,13 +267,13 @@ func scanDevices(rows pgx.Rows) ([]models.Device, error) {
 	var out []models.Device
 	for rows.Next() {
 		var d models.Device
-		var tagsRaw, monitorConfigRaw []byte
+		var tagsRaw, monitorConfigRaw, snmpV3Raw []byte
 		err := rows.Scan(
 			&d.ID, &d.Name, &d.IPAddress, &d.Protocol, &d.Port, &d.Enabled, &d.Status, &d.Priority, &tagsRaw,
 			&d.SNMPCommunity, &d.SNMPVersion, &d.SNMPPort, &d.HTTPPath, &d.HTTPExpectedStatus,
 			&d.Interval, &d.LocationID, &d.ParentDeviceID, &d.DependencyPort, &d.RackPosition, &d.AssetTag,
 			&d.MACAddress, &d.SerialNumber, &d.Manufacturer, &d.Model, &d.DeviceCategory, &monitorConfigRaw, &d.Notes,
-			&d.CreatedAt, &d.UpdatedAt,
+			&snmpV3Raw, &d.CreatedAt, &d.UpdatedAt,
 		)
 		if err != nil {
 			return nil, err
@@ -290,9 +290,24 @@ func scanDevices(rows pgx.Rows) ([]models.Device, error) {
 		if d.MonitorConfig == nil {
 			d.MonitorConfig = map[string]any{}
 		}
+		if len(snmpV3Raw) > 0 {
+			var v3 models.SNMPv3Config
+			if json.Unmarshal(snmpV3Raw, &v3) == nil {
+				d.SNMPv3 = &v3
+			}
+		}
 		out = append(out, d)
 	}
 	return out, rows.Err()
+}
+
+// snmpV3JSON encodes USM credentials for the snmp_v3 column; nil stores NULL.
+func snmpV3JSON(c *models.SNMPv3Config) []byte {
+	if c == nil {
+		return nil
+	}
+	encoded, _ := json.Marshal(c)
+	return encoded
 }
 
 func jsonConfig(value map[string]any) []byte {
@@ -333,6 +348,24 @@ func (p *Postgres) UpdateDeviceStatuses(ctx context.Context, ids []int64, status
 		changed = append(changed, id)
 	}
 	return changed, rows.Err()
+}
+
+func (p *Postgres) RecordInterfaceSamples(ctx context.Context, samples []models.InterfaceSample) error {
+	if len(samples) == 0 {
+		return nil
+	}
+	_, err := p.pool.CopyFrom(ctx, pgx.Identifier{"interface_metrics"},
+		[]string{"time", "device_id", "if_index", "if_name", "in_bps", "out_bps", "utilization", "oper_status", "speed_bps"},
+		pgx.CopyFromSlice(len(samples), func(i int) ([]any, error) {
+			s := samples[i]
+			var util *float32
+			if s.Utilization != nil {
+				u := float32(*s.Utilization)
+				util = &u
+			}
+			return []any{s.Time, s.DeviceID, s.IfIndex, s.Name, s.InBps, s.OutBps, util, int16(s.OperStatus), s.SpeedBps}, nil //nolint:gosec // ifOperStatus is 1-7
+		}))
+	return err
 }
 
 // ── Metrics ───────────────────────────────────────────────────────────────────

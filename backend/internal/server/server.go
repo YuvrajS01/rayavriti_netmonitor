@@ -393,6 +393,9 @@ func (s *Server) Start() error {
 			r.With(rbac.RequirePermission(models.PermAlertsAcknowledge), alertGuard).Put("/api/v1/alerts/{id}/assignee", operatorH.SetAssignee)
 			r.With(rbac.RequirePermission(models.PermAlertsRead)).Get("/api/v1/users/assignable", operatorH.AssignableUsers)
 			r.With(rbac.RequirePermission(models.PermDevicesRead)).Get("/api/v1/search", operatorH.Search)
+			ifaceH := handlers.NewInterfaceHandler(operatorH.Pool())
+			r.With(rbac.RequirePermission(models.PermDevicesRead), devGuard).Get("/api/v1/devices/{id}/interfaces", ifaceH.Latest)
+			r.With(rbac.RequirePermission(models.PermDevicesRead), devGuard).Get("/api/v1/devices/{id}/interfaces/{ifIndex}/history", ifaceH.History)
 		}
 		r.With(rbac.RequirePermission(models.PermAlertsRead), unscopedOnly).Get("/api/v1/alerts/suppressed", resourceH.List("suppressed_alerts"))
 

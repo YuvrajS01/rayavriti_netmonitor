@@ -2,6 +2,7 @@ package collectors
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"math"
@@ -23,8 +24,11 @@ const (
 	oidHRStorageSize   = ".1.3.6.1.2.1.25.2.3.1.5"
 	oidHRStorageUsed   = ".1.3.6.1.2.1.25.2.3.1.6"
 	oidHRStorageUnits  = ".1.3.6.1.2.1.25.2.3.1.4"
-	oidIfTable         = ".1.3.6.1.2.1.2.2"
-	oidIfXTable        = ".1.3.6.1.2.1.31.1.1"
+	// Table walks address columns as <entry>.<column>, so these are the
+	// ifEntry / ifXEntry OIDs (table + ".1"). Using the table OIDs walked
+	// the wrong subtrees and returned no interfaces from real agents.
+	oidIfTable  = ".1.3.6.1.2.1.2.2.1"
+	oidIfXTable = ".1.3.6.1.2.1.31.1.1.1"
 )
 
 var hrStorageRAM = ".1.3.6.1.2.1.25.2.1.2"
@@ -42,30 +46,9 @@ func (SNMPCollector) DefaultTimeout() time.Duration { return 15 * time.Second }
 func (SNMPCollector) Weight() int { return 3 }
 
 func (SNMPCollector) Collect(ctx context.Context, device *models.Device) (*Result, error) {
-	community := "public"
-	if device.SNMPCommunity != "" {
-		community = device.SNMPCommunity
-	}
-	if community == "public" {
-		slog.Debug("SNMP using default 'public' community string", "device", device.IPAddress)
-	}
-	port := uint16(161)
-	if device.SNMPPort > 0 {
-		port = uint16(device.SNMPPort) //nolint:gosec // SNMP port is always valid
-	}
-
-	version := gosnmp.Version2c
-	if device.SNMPVersion == "1" {
-		version = gosnmp.Version1
-	}
-
-	g := &gosnmp.GoSNMP{
-		Target:    device.IPAddress,
-		Port:      port,
-		Community: community,
-		Version:   version,
-		Timeout:   5 * time.Second,
-		Retries:   1,
+	g, err := newSNMPClient(device)
+	if err != nil {
+		return &Result{Status: "down", Details: map[string]any{"error": err.Error()}}, nil
 	}
 
 	start := time.Now()
@@ -112,10 +95,10 @@ func (SNMPCollector) Collect(ctx context.Context, device *models.Device) (*Resul
 	t, err := collectTable(g, oidHRStorageTable, []int{2, 3, 4, 5, 6}, 20)
 	storageRes := tableResult{table: t, err: err}
 
-	t, err = collectTable(g, oidIfTable, []int{2, 5, 8, 10, 16}, 20)
+	t, err = collectTable(g, oidIfTable, []int{2, 5, 8, 10, 16}, 40)
 	ifRes := tableResult{table: t, err: err}
 
-	t, err = collectTable(g, oidIfXTable, []int{1, 6, 10, 15}, 20)
+	t, err = collectTable(g, oidIfXTable, []int{1, 6, 10, 15}, 40)
 	ifXRes := tableResult{table: t, err: err}
 
 	elapsed := float64(time.Since(start).Milliseconds())
@@ -167,10 +150,37 @@ func (SNMPCollector) Collect(ctx context.Context, device *models.Device) (*Resul
 		}
 	}
 
-	// Parse interfaces
+	// Parse interfaces. ifXTable (64-bit counters, ifName) is optional:
+	// some agents only implement ifTable.
 	var interfaces []map[string]any
-	if ifRes.err == nil && ifXRes.err == nil {
-		interfaces = collectInterfaces(ifRes.table, ifXRes.table)
+	var samples []models.InterfaceSample
+	var totalBps *float64
+	if ifRes.err == nil {
+		xTable := ifXRes.table
+		if ifXRes.err != nil {
+			xTable = nil
+		}
+		interfaces = collectInterfaces(ifRes.table, xTable)
+		samples = interfaceSamples(device.ID, time.Now(), ifRes.table, xTable)
+		byIndex := make(map[int]models.InterfaceSample, len(samples))
+		var sum float64
+		for _, s := range samples {
+			byIndex[s.IfIndex] = s
+			sum += s.InBps + s.OutBps
+		}
+		for _, row := range interfaces {
+			if idx, ok := row["index"].(int); ok {
+				if s, ok := byIndex[idx]; ok {
+					row["inBps"], row["outBps"] = s.InBps, s.OutBps
+					if s.Utilization != nil {
+						row["utilization"] = *s.Utilization
+					}
+				}
+			}
+		}
+		if len(samples) > 0 {
+			totalBps = &sum
+		}
 	}
 
 	// Determine status
@@ -214,6 +224,8 @@ func (SNMPCollector) Collect(ctx context.Context, device *models.Device) (*Resul
 		CPUUsage:     f64(cpuAvg),
 		MemoryUsage:  f64(memoryPercent),
 		Details:      details,
+		Bandwidth:    totalBps,
+		Interfaces:   samples,
 	}, nil
 }
 
@@ -222,9 +234,96 @@ type tableResult struct {
 	err   error
 }
 
+// newSNMPClient builds a gosnmp client for the device's configured version:
+// v1, v2c (the default) or v3 with USM credentials.
+func newSNMPClient(device *models.Device) (*gosnmp.GoSNMP, error) {
+	port := uint16(161)
+	if device.SNMPPort > 0 {
+		port = uint16(device.SNMPPort) //nolint:gosec // SNMP port is always valid
+	}
+	g := &gosnmp.GoSNMP{
+		Target:  device.IPAddress,
+		Port:    port,
+		Version: gosnmp.Version2c,
+		Timeout: 5 * time.Second,
+		Retries: 1,
+	}
+
+	switch device.SNMPVersion {
+	case "3":
+		if device.SNMPv3 == nil {
+			return nil, errors.New("snmpv3 credentials are not configured")
+		}
+		if err := device.SNMPv3.Validate(); err != nil {
+			return nil, err
+		}
+		g.Version = gosnmp.Version3
+		g.SecurityModel = gosnmp.UserSecurityModel
+		g.ContextName = device.SNMPv3.ContextName
+		g.MsgFlags, g.SecurityParameters = usmParams(device.SNMPv3)
+		return g, nil
+	case "1":
+		g.Version = gosnmp.Version1
+	}
+	g.Community = "public"
+	if device.SNMPCommunity != "" {
+		g.Community = device.SNMPCommunity
+	} else {
+		slog.Debug("SNMP using default 'public' community string", "device", device.IPAddress)
+	}
+	return g, nil
+}
+
+var (
+	snmpAuthProtocols = map[string]gosnmp.SnmpV3AuthProtocol{
+		"MD5": gosnmp.MD5, "SHA": gosnmp.SHA, "SHA224": gosnmp.SHA224,
+		"SHA256": gosnmp.SHA256, "SHA384": gosnmp.SHA384, "SHA512": gosnmp.SHA512,
+	}
+	snmpPrivProtocols = map[string]gosnmp.SnmpV3PrivProtocol{
+		"DES": gosnmp.DES, "AES": gosnmp.AES, "AES192": gosnmp.AES192,
+		"AES256": gosnmp.AES256, "AES192C": gosnmp.AES192C, "AES256C": gosnmp.AES256C,
+	}
+)
+
+// usmParams maps a validated SNMPv3Config to gosnmp message flags and USM
+// security parameters.
+func usmParams(c *models.SNMPv3Config) (gosnmp.SnmpV3MsgFlags, *gosnmp.UsmSecurityParameters) {
+	sp := &gosnmp.UsmSecurityParameters{UserName: c.SecurityName}
+	switch c.SecurityLevel {
+	case models.SNMPv3AuthPriv:
+		sp.AuthenticationProtocol = snmpAuthProtocols[c.AuthProtocol]
+		sp.AuthenticationPassphrase = c.AuthPassphrase
+		sp.PrivacyProtocol = snmpPrivProtocols[c.PrivProtocol]
+		sp.PrivacyPassphrase = c.PrivPassphrase
+		return gosnmp.AuthPriv, sp
+	case models.SNMPv3AuthNoPriv:
+		sp.AuthenticationProtocol = snmpAuthProtocols[c.AuthProtocol]
+		sp.AuthenticationPassphrase = c.AuthPassphrase
+		sp.PrivacyProtocol = gosnmp.NoPriv
+		return gosnmp.AuthNoPriv, sp
+	default:
+		sp.AuthenticationProtocol = gosnmp.NoAuth
+		sp.PrivacyProtocol = gosnmp.NoPriv
+		return gosnmp.NoAuthNoPriv, sp
+	}
+}
+
+// walk visits every varbind under oid. SNMPv2c/v3 use GETBULK, fetching
+// MaxRepetitions rows per round trip; v1 has no GETBULK and falls back to
+// GETNEXT, one round trip per value (B4).
+func walk(g *gosnmp.GoSNMP, oid string, maxRepetitions int, fn gosnmp.WalkFunc) error {
+	if g.Version == gosnmp.Version1 {
+		return g.Walk(oid, fn)
+	}
+	if maxRepetitions > 0 {
+		g.MaxRepetitions = uint32(maxRepetitions) //nolint:gosec // small positive constant
+	}
+	return g.BulkWalk(oid, fn)
+}
+
 func collectSubtree(g *gosnmp.GoSNMP, oid string, maxRepetitions int) ([]gosnmp.SnmpPDU, error) {
 	var results []gosnmp.SnmpPDU
-	err := g.Walk(oid, func(pdu gosnmp.SnmpPDU) error {
+	err := walk(g, oid, maxRepetitions, func(pdu gosnmp.SnmpPDU) error {
 		results = append(results, pdu)
 		return nil
 	})
@@ -235,7 +334,7 @@ func collectTable(g *gosnmp.GoSNMP, oid string, columns []int, maxRepetitions in
 	table := make(map[string]map[string]gosnmp.SnmpPDU)
 	for _, col := range columns {
 		colOid := fmt.Sprintf("%s.%d", oid, col)
-		err := g.Walk(colOid, func(pdu gosnmp.SnmpPDU) error {
+		err := walk(g, colOid, maxRepetitions, func(pdu gosnmp.SnmpPDU) error {
 			// Extract row index from OID: oid.col.index
 			oidStr := pdu.Name
 			// Find the column number and index

@@ -14,6 +14,8 @@ type Result struct {
 	MemoryUsage  *float64
 	Bandwidth    *float64
 	Details      map[string]any
+	// Interfaces carries per-interface throughput samples (SNMP only).
+	Interfaces []models.InterfaceSample
 }
 
 type Collector interface {

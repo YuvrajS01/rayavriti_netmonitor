@@ -33,6 +33,9 @@ func NewOperatorHandler(db database.Database, pool *pgxpool.Pool, hub *websocket
 	return &OperatorHandler{db: db, pool: pool, hub: hub}
 }
 
+// Pool returns the connection pool, for handlers mounted alongside this one.
+func (h *OperatorHandler) Pool() *pgxpool.Pool { return h.pool }
+
 const (
 	maxHistoryDevices = 20
 	maxBulkAlerts     = 500

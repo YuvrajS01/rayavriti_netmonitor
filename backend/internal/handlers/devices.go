@@ -109,9 +109,7 @@ func (h *DeviceHandler) Get(w http.ResponseWriter, r *http.Request) {
 		httputil.SendError(w, http.StatusNotFound, "device not found")
 		return
 	}
-	if !canWriteDevices(r) {
-		d.SNMPCommunity = ""
-	}
+	redactDevice(r, d)
 	httputil.SendOK(w, d)
 }
 
@@ -191,6 +189,11 @@ func (h *DeviceHandler) Create(w http.ResponseWriter, r *http.Request) {
 		httputil.SendError(w, http.StatusBadRequest, "ipAddress is not allowed: "+err.Error())
 		return
 	}
+	d.SNMPv3 = mergeSNMPv3(d.SNMPv3, nil)
+	if err := validateSNMPSettings(&d); err != nil {
+		httputil.SendError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	d.Enabled = true
 	d.Status = "unknown"
 	created, err := h.db.CreateDevice(r.Context(), &d)
@@ -198,6 +201,7 @@ func (h *DeviceHandler) Create(w http.ResponseWriter, r *http.Request) {
 		httputil.SendInternalError(w, err)
 		return
 	}
+	redactDevice(r, created)
 	httputil.SendCreated(w, created)
 }
 
@@ -338,11 +342,25 @@ func (h *DeviceHandler) Update(w http.ResponseWriter, r *http.Request) {
 	if patch.AssetTag != "" {
 		existing.AssetTag = patch.AssetTag
 	}
+	// snmpV3 is replaced only when present; explicit null clears it.
+	_, v3Present := present["snmpV3"]
+	if v3Present {
+		existing.SNMPv3 = mergeSNMPv3(patch.SNMPv3, existing.SNMPv3)
+	}
+	// Validate only when the request changes SNMP settings, so devices with
+	// legacy version strings stay editable.
+	if v3Present || patch.SNMPVersion != "" {
+		if err := validateSNMPSettings(existing); err != nil {
+			httputil.SendError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+	}
 	updated, err := h.db.UpdateDevice(r.Context(), id, existing)
 	if err != nil {
 		httputil.SendInternalError(w, err)
 		return
 	}
+	redactDevice(r, updated)
 	httputil.SendOK(w, updated)
 }
 

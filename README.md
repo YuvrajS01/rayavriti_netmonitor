@@ -291,7 +291,7 @@ See `documentation/api_documentation.md` and `documentation/postman_guide.md` fo
 
 | Variable | Default | Applies to |
 |---|---|---|
-| `METRICS_RETENTION_DAYS` | `30` | `metrics`, `isp_metrics` (minimum 4, so raw data outlives the rollup refresh window) |
+| `METRICS_RETENTION_DAYS` | `30` | `metrics`, `interface_metrics`, `isp_metrics` (minimum 4, so raw data outlives the rollup refresh window) |
 | `METRICS_HOURLY_RETENTION_DAYS` | `400` | `metrics_hourly` (`metrics_daily` is kept forever) |
 | `FLOWS_RETENTION_DAYS` | `7` | `flows` |
 | `ALERTS_RETENTION_DAYS` | `90` | resolved alerts, `alert_history`, `notification_log`, `suppressed_alerts` |
