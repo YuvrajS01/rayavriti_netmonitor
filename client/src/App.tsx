@@ -49,6 +49,7 @@ const ISP = lazyWithRetry(() => import('./pages/ISP'));
 const BackupPage = lazyWithRetry(() => import('./pages/Backup'));
 const RemoteMonitoring = lazyWithRetry(() => import('./pages/RemoteMonitoring'));
 const SystemMaintenance = lazyWithRetry(() => import('./pages/SystemMaintenance'));
+const DeviceDetail = lazyWithRetry(() => import('./pages/DeviceDetail'));
 const SystemSettings = lazyWithRetry(() => import('./pages/SystemSettings'));
 const NotFound = lazyWithRetry(() => import('./pages/NotFound'));
 
@@ -118,6 +119,7 @@ function AppRoutes() {
           {/* Inventory */}
           <Route path="devices" element={<Devices />} />
           <Route path="devices/sensors" element={<Sensors />} />
+          <Route path="devices/:id" element={<DeviceDetail />} />
           <Route path="isp" element={<ISP />} />
           <Route path="remote" element={<RemoteMonitoring />} />
 

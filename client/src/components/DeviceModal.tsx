@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip, Legend, CartesianGrid } from 'recharts';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getDeviceMetrics, deleteDevice, getDevicePorts, scanDevicePorts, getHealthScore, getDevices } from '../api/client';
@@ -222,6 +223,9 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
         footer={
           <>
             <Button variant="danger-outline" icon="delete" onClick={handleDelete} className="mr-auto">Delete device</Button>
+            <Link to={`/devices/${device.id}`} className="inline-flex min-h-control items-center gap-2 rounded-md border border-line bg-surface-2 px-4 text-sm font-medium text-fg hover:border-line-strong hover:bg-surface-3">
+              <span className="material-symbols-outlined text-[18px]" aria-hidden="true">open_in_full</span>Open device page
+            </Link>
             <Button variant="secondary" onClick={onClose}>Close</Button>
           </>
         }
