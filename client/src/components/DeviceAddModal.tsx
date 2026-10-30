@@ -1,8 +1,9 @@
-import { useState, useEffect, useRef, type FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import { addDevice } from '../api/client';
 import type { ResourceRow } from '../api/resources';
 import { useResourceList } from '../hooks/useResources';
 import Button from './ui/Button';
+import Dialog from './ui/Dialog';
 import { useToast } from './ui/useToast';
 import { asText } from '../utils/formatters';
 
@@ -25,38 +26,6 @@ export default function DeviceAddModal({ open, onClose, onAdded, initialProtocol
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const locations = useResourceList('/locations', { enabled: open }).data ?? EMPTY_LOCATIONS;
-  const dialogRef = useRef<HTMLDivElement>(null);
-
-  // Focus trap
-  useEffect(() => {
-    if (!open || !dialogRef.current) return;
-    const dialog = dialogRef.current;
-    const focusableElements = dialog.querySelectorAll<HTMLElement>(
-      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-    );
-    const firstElement = focusableElements[0];
-    const lastElement = focusableElements[focusableElements.length - 1];
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== 'Tab') return;
-      if (e.shiftKey) {
-        if (document.activeElement === firstElement) {
-          e.preventDefault();
-          lastElement?.focus();
-        }
-      } else {
-        if (document.activeElement === lastElement) {
-          e.preventDefault();
-          firstElement?.focus();
-        }
-      }
-    };
-
-    dialog.addEventListener('keydown', handleKeyDown);
-    firstElement?.focus();
-    return () => dialog.removeEventListener('keydown', handleKeyDown);
-  }, [open]);
-
   if (!open) return null;
 
   const validate = (fd: FormData): boolean => {
@@ -118,34 +87,36 @@ export default function DeviceAddModal({ open, onClose, onAdded, initialProtocol
     }
   };
 
-  const inputClass = 'bg-inset border rounded-lg px-3 py-2.5 text-sm text-fg outline-none focus:ring-1 focus:ring-primary transition-colors';
-  const borderClass = (field: string) => errors[field] ? 'border-error/50' : 'border-line';
+  const inputClass = 'bg-inset border rounded-md px-3 py-2.5 text-sm text-fg outline-none focus:border-primary transition-colors';
+  const borderClass = (field: string) => errors[field] ? 'border-error' : 'border-line';
 
   return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center p-4 pt-20" role="dialog" aria-modal="true" aria-label="Add new device">
-      <div className="absolute inset-0 bg-black/60 " onClick={onClose} />
-      <div ref={dialogRef} className="relative bg-surface-1 rounded-lg border border-line w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col">
-        <div className="flex items-center justify-between p-6 border-b border-line shrink-0">
-          <div>
-            <h2 className="font-sans text-xl font-semibold text-fg">New device</h2>
-            <p className="text-xs text-fg-muted mt-1">Add a node to your monitoring network</p>
-          </div>
-          <button onClick={onClose} className="material-symbols-outlined text-fg-muted hover:text-fg transition-colors" aria-label="Close">
-            close
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="p-6 space-y-4 flex-1 min-h-0 overflow-y-auto">
+    <Dialog
+      open={open}
+      onClose={onClose}
+      title="New device"
+      description="Add a node to your monitoring network"
+      closeOnBackdrop={false}
+      footer={
+        <>
+          <Button type="button" variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button type="submit" form="device-add-form" icon="add_circle" disabled={submitting}>
+            {submitting ? 'Adding…' : 'Add device'}
+          </Button>
+        </>
+      }
+    >
+        <form id="device-add-form" onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label htmlFor="device-name" className="block text-xs font-semibold text-fg-muted mb-1.5">Device name *</label>
-            <input id="device-name" name="name" required placeholder="e.g. Core Router 01" className={`${inputClass} w-full ${borderClass('name')}`} />
-            {errors.name && <p className="text-error text-xs mt-1">{errors.name}</p>}
+            <input id="device-name" name="name" required placeholder="e.g. Core Router 01" aria-invalid={errors.name ? true : undefined} aria-describedby={errors.name ? 'device-name-error' : undefined} className={`${inputClass} w-full ${borderClass('name')}`} />
+            {errors.name && <p id="device-name-error" className="text-error text-xs mt-1">{errors.name}</p>}
           </div>
 
           <div>
             <label htmlFor="device-host" className="block text-xs font-semibold text-fg-muted mb-1.5">Host / IP address *</label>
-            <input id="device-host" name="host" required placeholder="e.g. 192.168.1.1 or example.com" className={`${inputClass} w-full ${borderClass('host')}`} />
-            {errors.host && <p className="text-error text-xs mt-1">{errors.host}</p>}
+            <input id="device-host" name="host" required placeholder="e.g. 192.168.1.1 or example.com" aria-invalid={errors.host ? true : undefined} aria-describedby={errors.host ? 'device-host-error' : undefined} className={`${inputClass} w-full ${borderClass('host')}`} />
+            {errors.host && <p id="device-host-error" className="text-error text-xs mt-1">{errors.host}</p>}
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -191,12 +162,14 @@ export default function DeviceAddModal({ open, onClose, onAdded, initialProtocol
                     onChange={(e) => setPort(Number(e.target.value || 0))}
                     placeholder={protocol === 'port' ? 'Port to check' : 'Port'}
                     required={protocol === 'port'}
-                    className={`${inputClass} w-full ${borderClass('port')}`}
+                    aria-invalid={errors.port ? true : undefined}
+                    aria-describedby={errors.port ? 'device-port-error' : undefined}
+                    className={`${inputClass} w-full font-mono ${borderClass('port')}`}
                   />
-                  {errors.port && <p className="text-error text-xs mt-1">{errors.port}</p>}
+                  {errors.port && <p id="device-port-error" className="text-error text-xs mt-1">{errors.port}</p>}
                 </>
               ) : (
-                <div className={`${inputClass} w-full text-fg-muted`}>N/A</div>
+                <div className={`${inputClass} w-full border-line text-fg-muted`} id="device-port" aria-label="Port: not applicable">N/A</div>
               )}
             </div>
           </div>
@@ -225,9 +198,9 @@ export default function DeviceAddModal({ open, onClose, onAdded, initialProtocol
 
 		  {(protocol === 'camera' || protocol === 'biometric') && (
 			<div className="border-y border-line py-4 space-y-4">
-			  <div className="flex items-center gap-2 text-primary">
-				<span className="material-symbols-outlined text-lg">{protocol === 'camera' ? 'videocam' : 'fingerprint'}</span>
-				<h3 className="text-xs font-semibold">{protocol === 'camera' ? 'CCTV profile' : 'Biometric profile'}</h3>
+			  <div className="flex items-center gap-2 text-fg">
+				<span className="material-symbols-outlined text-lg text-fg-muted" aria-hidden="true">{protocol === 'camera' ? 'videocam' : 'fingerprint'}</span>
+				<h3 className="text-sm font-semibold">{protocol === 'camera' ? 'CCTV profile' : 'Biometric profile'}</h3>
 			  </div>
 			  {protocol === 'camera' && <div>
 				<label htmlFor="security-category" className="block text-xs font-semibold text-fg-muted mb-1.5">Device type</label>
@@ -262,16 +235,7 @@ export default function DeviceAddModal({ open, onClose, onAdded, initialProtocol
             </div>
           )}
 
-          <div className="flex gap-3 pt-2">
-            <Button type="submit" icon="add_circle" disabled={submitting}>
-              {submitting ? 'ADDING...' : 'ADD DEVICE'}
-            </Button>
-            <Button type="button" variant="secondary" onClick={onClose}>
-              CANCEL
-            </Button>
-          </div>
         </form>
-      </div>
-    </div>
+    </Dialog>
   );
 }

@@ -2,6 +2,8 @@ import { useMemo } from 'react';
 import type { ResourceRow } from '../api/resources';
 import type { Device } from '../api/types';
 import Card from './ui/Card';
+import { StatusDot } from './ui/Status';
+import { statusMeta } from '../utils/status';
 
 interface FloorPlanViewProps {
   location: ResourceRow | null;
@@ -9,16 +11,6 @@ interface FloorPlanViewProps {
   devices: Device[];
   onDeviceClick?: (device: Device) => void;
 }
-
-const UNKNOWN_STATUS_COLOR = 'bg-line-strong border-line-strong';
-const statusColors: Record<string, string> = {
-  up: 'bg-success border-success',
-  down: 'bg-error border-error',
-  warning: 'bg-warning border-warning',
-  degraded: 'bg-warning border-warning',
-  maintenance: 'bg-info border-info',
-  unknown: UNKNOWN_STATUS_COLOR,
-};
 
 const categoryIcons: Record<string, string> = {
   router: 'router',
@@ -49,8 +41,8 @@ export default function FloorPlanView({
   if (!location) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[440px] bg-inset rounded-lg border border-line p-8 text-center">
-        <span className="material-symbols-outlined text-5xl text-fg-subtle mb-4">architecture</span>
-        <h2 className="font-sans text-xl font-semibold">Floor plan workspace</h2>
+        <span className="material-symbols-outlined text-5xl text-fg-subtle mb-4" aria-hidden="true">architecture</span>
+        <h2 className="text-xl font-semibold">Floor plan workspace</h2>
         <p className="text-sm text-fg-muted mt-2 max-w-md">
           Select a location from the tree to view its floor plan
         </p>
@@ -68,8 +60,8 @@ export default function FloorPlanView({
   if (items.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[440px] bg-inset rounded-lg border border-line p-8 text-center">
-        <span className="material-symbols-outlined text-5xl text-fg-subtle mb-4">architecture</span>
-        <h2 className="font-sans text-xl font-semibold">No floor plan data</h2>
+        <span className="material-symbols-outlined text-5xl text-fg-subtle mb-4" aria-hidden="true">architecture</span>
+        <h2 className="text-xl font-semibold">No floor plan data</h2>
         <p className="text-sm text-fg-muted mt-2">
           This location has no rooms or racks configured.
         </p>
@@ -83,7 +75,7 @@ export default function FloorPlanView({
         {items.map((item) => {
           const itemId = Number(item.id);
           const locDevices = devices.filter((d) => d.locationId === itemId);
-          
+
           if (item.type === 'rack') {
             return (
               <RackVisual
@@ -121,9 +113,9 @@ function RoomVisual({
   return (
     <Card variant="low" className="flex flex-col h-full overflow-hidden">
       <div className="p-4 border-b border-line flex items-center gap-2">
-        <span className="material-symbols-outlined text-primary">meeting_room</span>
+        <span className="material-symbols-outlined text-fg-muted" aria-hidden="true">meeting_room</span>
         <div>
-          <h3 className="font-sans font-semibold text-base">{String(location.name)}</h3>
+          <h3 className="font-semibold text-base">{String(location.name)}</h3>
           <p className="text-xs text-fg-muted">Room</p>
         </div>
       </div>
@@ -134,23 +126,18 @@ function RoomVisual({
           </div>
         ) : (
           devices.map((d) => {
-            const sc = statusColors[d.status] || UNKNOWN_STATUS_COLOR;
-            const bgClass = sc.split(' ')[0];
-            const borderClass = sc.split(' ')[1];
-            
+            const meta = statusMeta(d.status);
             return (
-              <div
+              <button
+                type="button"
                 key={d.id}
                 onClick={() => onClick?.(d)}
-                className={`flex items-center gap-3 p-3 rounded bg-surface-2 border-l-4 ${borderClass} border-y border-r border-y-line border-r-line hover:bg-surface-2 transition-colors cursor-pointer`}
+                className={`flex w-full items-center gap-3 p-3 rounded-md bg-surface-2 border-l-4 ${meta.borderL} border-y border-r border-y-line border-r-line text-left hover:bg-surface-3 transition-colors`}
               >
-                <div className="relative shrink-0">
-                  <span className={`absolute -inset-1 rounded-full ${bgClass} opacity-20 status-dot-live`}></span>
-                  <span className={`relative block w-2.5 h-2.5 rounded-full ${bgClass}`}></span>
-                </div>
+                <StatusDot status={meta} />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="material-symbols-outlined text-[16px] text-fg-muted">
+                    <span className="material-symbols-outlined text-[16px] text-fg-muted" aria-hidden="true">
                       {getCategoryIcon(d.deviceCategory)}
                     </span>
                     <span className="font-semibold text-sm truncate">{d.name}</span>
@@ -162,7 +149,7 @@ function RoomVisual({
                     </span>
                   </div>
                 </div>
-              </div>
+              </button>
             );
           })
         )}
@@ -211,9 +198,9 @@ function RackVisual({
   return (
     <Card variant="low" className="flex flex-col h-[500px] overflow-hidden">
       <div className="p-4 border-b border-line flex items-center gap-2 shrink-0">
-        <span className="material-symbols-outlined text-primary">dns</span>
+        <span className="material-symbols-outlined text-fg-muted" aria-hidden="true">dns</span>
         <div>
-          <h3 className="font-sans font-semibold text-base">{String(location.name)}</h3>
+          <h3 className="font-semibold text-base">{String(location.name)}</h3>
           <p className="text-xs text-fg-muted">42U rack</p>
         </div>
       </div>
@@ -221,36 +208,36 @@ function RackVisual({
         <div className="flex flex-col gap-[2px] border-x-4 border-surface-3 rounded-sm bg-surface-3">
           {units.map((u) => {
             const device = devicesByUnit.get(u);
-            
+
             if (device) {
-              const sc = statusColors[device.status] || UNKNOWN_STATUS_COLOR;
-              const borderClass = sc.split(' ')[1];
-              
+              const meta = statusMeta(device.status);
               return (
-                <div
+                <button
+                  type="button"
                   key={u}
                   onClick={() => onClick?.(device)}
-                  className={`flex items-center h-8 bg-surface-2 border-l-4 ${borderClass} px-2 hover:bg-surface-2 cursor-pointer transition-colors group`}
-                  title={`${device.name} (${device.ipAddress})`}
+                  className={`flex w-full items-center h-8 bg-surface-2 border-l-4 ${meta.borderL} px-2 text-left hover:bg-surface-3 transition-colors group`}
+                  title={`${device.name} (${device.ipAddress}) — ${meta.label}`}
                 >
                   <div className="w-5 text-xs text-fg-muted font-mono text-right pr-2 select-none">
                     {u}
                   </div>
                   <div className="flex-1 min-w-0 flex items-center gap-2">
-                    <span className="material-symbols-outlined text-[14px] text-fg-muted">
+                    <span className="material-symbols-outlined text-[14px] text-fg-muted" aria-hidden="true">
                       {getCategoryIcon(device.deviceCategory)}
                     </span>
-                    <span className="text-xs font-medium truncate group-hover:text-primary transition-colors">
+                    <span className="text-xs font-medium truncate group-hover:text-fg transition-colors">
                       {device.name}
                     </span>
                   </div>
-                </div>
+                  <StatusDot status={meta} size={8} />
+                </button>
               );
             }
-            
+
             return (
-              <div key={u} className="flex items-center h-8 bg-inset border border-dashed border-line px-2 opacity-50">
-                <div className="w-5 text-xs text-line font-mono text-right pr-2 select-none">
+              <div key={u} className="flex items-center h-8 bg-inset border border-dashed border-line px-2" aria-hidden="true">
+                <div className="w-5 text-xs text-fg-subtle font-mono text-right pr-2 select-none">
                   {u}
                 </div>
               </div>

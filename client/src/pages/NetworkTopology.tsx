@@ -7,6 +7,8 @@ import { queryKeys } from '../api/queryKeys';
 import type { Device, Metric } from '../api/types';
 import SectionHeader from '../components/ui/SectionHeader';
 import Card from '../components/ui/Card';
+import IconButton from '../components/ui/IconButton';
+import Button from '../components/ui/Button';
 import { StatusDot, StatusPill, StatusShapeIcon } from '../components/ui/Status';
 import { STATUS_META, normalizeStatus, type Status, type StatusShape } from '../utils/status';
 import { readToken, readTokenAlpha } from '../utils/tokens';
@@ -172,8 +174,7 @@ export default function NetworkTopology() {
     const list = devices.filter((d) => {
       const status = statusOf(d, metricsMap);
       if (filters.status !== 'all') {
-        const ok = filters.status === 'up' ? status === 'up' || status === 'ok' : filters.status === 'down' ? status === 'down' : (status === 'warning' || status === 'degraded');
-        if (!ok) return false;
+        if (normalizeStatus(status) !== filters.status) return false;
       }
       if (filters.protocol !== 'all' && d.protocol !== filters.protocol) return false;
       if (filters.category !== 'all' && d.deviceCategory !== filters.category) return false;
@@ -219,7 +220,7 @@ export default function NetworkTopology() {
       const radius = Math.min(W, H) * 0.3;
       return ex ? { ...ex, name: d.name, status: statusOf(d, metricsMap), ip: d.ipAddress, category: d.deviceCategory || '' } : {
         id: d.id, name: d.name, status: statusOf(d, metricsMap), ip: d.ipAddress, category: d.deviceCategory || '',
-        x: W / 2 + Math.cos(angle) * radius, y: H / 2 + Math.sin(angle) * radius, vx: 0, vy: 0, r: 7,
+        x: W / 2 + Math.cos(angle) * radius, y: H / 2 + Math.sin(angle) * radius, vx: 0, vy: 0, r: 12,
       };
     });
     const nodeMap = new Map(nodes.map((n) => [n.id, n]));
@@ -382,7 +383,7 @@ export default function NetworkTopology() {
         drawShape(ctx, n.x, n.y, n.r);
 
         // Status shape badge (colour-blind safe)
-        drawStatusBadge(ctx, meta.shape, n.x + n.r * 0.85, n.y - n.r * 0.85, c, palette.nodeFill);
+        drawStatusBadge(ctx, meta.shape, n.x + n.r + 2, n.y - n.r - 2, c, palette.nodeFill);
 
         // Label
         const label = n.name.length > 16 ? `${n.name.slice(0, 15)}…` : n.name;
@@ -455,30 +456,45 @@ export default function NetworkTopology() {
   return (
     <div className="space-y-5">
       <SectionHeader
-        title="Network Topology"
+        title="Network topology"
         subtitle="Live force-directed dependency map built from real device relationships."
-        action={<Link to="/devices" className="text-xs text-primary font-semibold hover:underline">Back to devices</Link>}
+        action={
+          <Link to="/devices" className="inline-flex min-h-control items-center gap-2 rounded-md border border-line bg-surface-2 px-4 text-sm font-medium text-fg hover:bg-surface-3 hover:border-line-strong">
+            <span className="material-symbols-outlined text-[18px]" aria-hidden="true">arrow_back</span>Back to devices
+          </Link>
+        }
       />
 
       <div className="flex flex-wrap items-center gap-3">
-        <select value={filters.status} onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value }))} className="bg-inset border border-line rounded-lg px-3 py-2 text-xs text-fg outline-none focus:ring-1 focus:ring-primary">
+        <select aria-label="Filter by status" value={filters.status} onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value }))} className="bg-surface-1 border border-line rounded-md px-3 py-2 text-sm text-fg outline-none focus:border-primary">
           <option value="all">All statuses</option>
           <option value="up">Up</option>
           <option value="warning">Warning</option>
           <option value="down">Down</option>
+          <option value="unknown">Unknown</option>
         </select>
-        <select value={filters.protocol} onChange={(e) => setFilters((f) => ({ ...f, protocol: e.target.value }))} className="bg-inset border border-line rounded-lg px-3 py-2 text-xs text-fg outline-none focus:ring-1 focus:ring-primary">
+        <select aria-label="Filter by protocol" value={filters.protocol} onChange={(e) => setFilters((f) => ({ ...f, protocol: e.target.value }))} className="bg-surface-1 border border-line rounded-md px-3 py-2 text-sm text-fg outline-none focus:border-primary">
           <option value="all">All protocols</option>
           {protocols.map((p) => <option key={p} value={p}>{p.toUpperCase()}</option>)}
         </select>
-        <select value={filters.category} onChange={(e) => setFilters((f) => ({ ...f, category: e.target.value }))} className="bg-inset border border-line rounded-lg px-3 py-2 text-xs text-fg outline-none focus:ring-1 focus:ring-primary">
+        <select aria-label="Filter by category" value={filters.category} onChange={(e) => setFilters((f) => ({ ...f, category: e.target.value }))} className="bg-surface-1 border border-line rounded-md px-3 py-2 text-sm text-fg outline-none focus:border-primary">
           <option value="all">All categories</option>
           {categories.map((c) => <option key={c} value={c}>{c}</option>)}
         </select>
+        {/* Keyboard/screen-reader route into the canvas: pick a node to inspect it. */}
+        <select
+          aria-label="Inspect node"
+          value={selected ? String(selected.id) : ''}
+          onChange={(e) => setSelected(nodeById.get(Number(e.target.value)) ?? null)}
+          className="bg-surface-1 border border-line rounded-md px-3 py-2 text-sm text-fg outline-none focus:border-primary max-w-56"
+        >
+          <option value="">Inspect node…</option>
+          {visible.list.map((d) => <option key={d.id} value={String(d.id)}>{d.name}</option>)}
+        </select>
         <div className="ml-auto flex items-center gap-2">
-          <button onClick={() => zoomBy(1.2)} className="w-8 h-8 grid place-items-center rounded-md border border-line text-fg-muted hover:text-fg hover:border-primary/50"><span className="material-symbols-outlined text-base">add</span></button>
-          <button onClick={() => zoomBy(0.83)} className="w-8 h-8 grid place-items-center rounded-md border border-line text-fg-muted hover:text-fg hover:border-primary/50"><span className="material-symbols-outlined text-base">remove</span></button>
-          <button onClick={() => { setZoom(1); sim.current.pan = { x: 0, y: 0 }; }} className="px-3 h-8 rounded-md border border-line text-xs text-fg-muted hover:text-fg hover:border-primary/50">Reset</button>
+          <IconButton icon="add" label="Zoom in" variant="secondary" size="sm" onClick={() => zoomBy(1.2)} />
+          <IconButton icon="remove" label="Zoom out" variant="secondary" size="sm" onClick={() => zoomBy(0.83)} />
+          <Button size="sm" variant="secondary" onClick={() => { setZoom(1); sim.current.pan = { x: 0, y: 0 }; }}>Reset view</Button>
         </div>
       </div>
 
@@ -510,6 +526,8 @@ export default function NetworkTopology() {
               <canvas
                 ref={fgRef}
                 className="touch-none cursor-grab active:cursor-grabbing rounded"
+                role="img"
+                aria-label={`Topology map of ${visible.list.length} devices. Use the Inspect node list to select one.`}
                 style={{ width: size.w, height: size.h }}
                 onPointerDown={onDown}
                 onPointerMove={onMove}
@@ -522,8 +540,8 @@ export default function NetworkTopology() {
               <div className="h-[540px] grid place-items-center text-sm text-fg-muted">No devices available for topology mapping.</div>
             )}
             {hovered && (
-              <div className="absolute top-2 left-2 z-10 bg-surface-2 border border-line rounded-lg p-3 text-xs max-w-[240px] pointer-events-none">
-                <strong className="font-sans text-sm block truncate">{hovered.node.name}</strong>
+              <div className="absolute top-2 left-2 z-sticky bg-surface-2 border border-line-strong shadow-e2 rounded-md p-3 text-xs max-w-[240px] pointer-events-none">
+                <strong className="text-sm block truncate">{hovered.node.name}</strong>
                 <span className="text-fg-muted font-mono">{hovered.node.ip}</span>
                 <div className="mt-1.5 flex items-center gap-2">
                   <StatusPill status={hovered.node.status} />
@@ -538,7 +556,7 @@ export default function NetworkTopology() {
           {selected ? (
             <>
               <p className="text-xs text-fg-muted">Selected node</p>
-              <h2 className="font-sans text-xl font-semibold mt-1">{selected.name}</h2>
+              <h2 className="text-xl font-semibold mt-1">{selected.name}</h2>
               <p className="font-mono text-xs text-fg-muted mt-1">{selected.ipAddress}{selected.port > 0 ? `:${selected.port}` : ''}</p>
               <dl className="mt-6 space-y-4 text-sm">
                 <div>
@@ -564,7 +582,7 @@ export default function NetworkTopology() {
                   <dd className="font-mono">{metricsMap.get(selected.id)?.responseTime != null ? `${metricsMap.get(selected.id)!.responseTime}ms` : '—'}</dd>
                 </div>
               </dl>
-              <button onClick={() => setSelected(null)} className="mt-6 text-xs text-primary font-semibold hover:underline">Clear selection</button>
+              <Button size="sm" variant="ghost" icon="close" className="mt-6" onClick={() => setSelected(null)}>Clear selection</Button>
             </>
           ) : (
             <div className="text-sm text-fg-muted pt-12">Select a node to inspect its live status and dependency chain.</div>

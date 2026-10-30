@@ -13,17 +13,21 @@ import { useToast } from '../components/ui/useToast';
 import CampusMap from '../components/CampusMap';
 import FloorPlanView from '../components/FloorPlanView';
 import { asText } from '../utils/formatters';
-
-const statusColors: Record<string, string> = {
-  up: 'bg-success',
-  down: 'bg-error',
-  warning: 'bg-warning',
-  degraded: 'bg-warning',
-  maintenance: 'bg-info',
-  unknown: 'bg-line-strong',
-};
+import StatCard from '../components/ui/StatCard';
+import LoadingState from '../components/ui/LoadingState';
+import { StatusPill } from '../components/ui/Status';
+import { TabPanel, Tabs } from '../components/ui/Tabs';
+import { useTabParam, useTabsId } from '../hooks/useTabParam';
+import { normalizeStatus, statusMeta } from '../utils/status';
 
 type StatusCounts = { up: number; down: number; warning: number; maintenance: number; unknown: number };
+
+const VIEWS = ['tree', 'map', 'floor'] as const;
+const VIEW_TABS = [
+  { id: 'tree', label: 'Tree view', icon: 'account_tree' },
+  { id: 'map', label: 'Campus map', icon: 'map' },
+  { id: 'floor', label: 'Floor plan', icon: 'grid_view' },
+] as const;
 
 const EMPTY_LOCATIONS: ResourceRow[] = [];
 const EMPTY_DEVICES: Device[] = [];
@@ -31,7 +35,8 @@ const EMPTY_DEVICES: Device[] = [];
 export default function Campus() {
   const { addToast } = useToast();
   const [selected, setSelected] = useState<ResourceRow | null>(null);
-  const [view, setView] = useState<'tree' | 'map' | 'floor'>('tree');
+  const [view, setView] = useTabParam(VIEWS, 'view');
+  const tabsId = useTabsId();
 
   const locationsQuery = useResourceList('/locations');
   // Device status is kept live by useLiveQueryBridge.
@@ -63,7 +68,8 @@ export default function Campus() {
       if (d.locationId == null) continue;
       const counts = own[d.locationId];
       if (!counts) continue;
-      const key: keyof StatusCounts = d.status in counts ? d.status : 'unknown';
+      const s = normalizeStatus(d.status);
+      const key: keyof StatusCounts = s in counts ? (s as keyof StatusCounts) : 'unknown';
       counts[key]++;
     }
 
@@ -143,7 +149,7 @@ export default function Campus() {
   // Aggregate stats.
   const stats = useMemo(() => {
     const buildings = locations.filter((l) => l.type === 'building').length;
-    const totalDown = devices.filter((d) => d.status === 'down').length;
+    const totalDown = devices.filter((d) => normalizeStatus(d.status) === 'down').length;
     return { total: locations.length, buildings, devices: devices.length, down: totalDown };
   }, [locations, devices]);
 
@@ -151,43 +157,28 @@ export default function Campus() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <span className="material-symbols-outlined text-3xl text-primary animate-pulse">hourglass_top</span>
-      </div>
+      <LoadingState message="Loading campus…" />
     );
   }
 
   return (
     <div className="space-y-6">
       <SectionHeader
-        title="Campus Topology"
+        title="Campus topology"
         subtitle="Explore your campus network by location — buildings, floors, rooms, and the devices within."
       />
 
       {/* Stats Row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        {[
-          { label: 'Locations', value: stats.total, icon: 'apartment', color: 'text-primary' },
-          { label: 'Buildings', value: stats.buildings, icon: 'domain', color: 'text-info' },
-          { label: 'Total Devices', value: stats.devices, icon: 'devices', color: 'text-success' },
-          { label: 'Down', value: stats.down, icon: 'error', color: 'text-error' },
-        ].map((s) => (
-          <Card key={s.label} variant="low" className="p-4">
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-fg-muted font-semibold">
-                {s.label}
-              </span>
-              <span className={`material-symbols-outlined text-base ${s.color}`}>{s.icon}</span>
-            </div>
-            <div className="font-sans text-2xl font-semibold mt-1">{s.value}</div>
-          </Card>
-        ))}
+        <StatCard label="Locations" value={stats.total} icon="apartment" />
+        <StatCard label="Buildings" value={stats.buildings} icon="domain" />
+        <StatCard label="Total devices" value={stats.devices} icon="devices" />
+        <StatCard label="Down" value={stats.down} icon={statusMeta('down').icon} color={stats.down ? statusMeta('down').text : 'text-fg'} />
       </div>
 
-      <div className="flex items-center gap-1 border-b border-line">
-        {([['tree', 'account_tree', 'Tree view'], ['map', 'map', 'Campus map'], ['floor', 'grid_view', 'Floor plan']] as const).map(([key, icon, label]) => <button key={key} onClick={() => setView(key)} className={`px-3 py-2.5 text-xs font-semibold border-b-2 transition-colors ${view === key ? 'border-primary text-primary' : 'border-transparent text-fg-muted hover:text-fg'}`}><span className="material-symbols-outlined text-sm mr-1">{icon}</span>{label}</button>)}
-      </div>
+      <Tabs label="Campus views" idBase={tabsId} items={VIEW_TABS} value={view} onChange={setView} />
 
+      <TabPanel idBase={tabsId} id={view} value={view}>
       {locations.length === 0 ? (
         <Card variant="low" className="p-8">
           <EmptyState
@@ -204,9 +195,9 @@ export default function Campus() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
           {/* Left Panel — Tree */}
           <Card variant="low" className="lg:col-span-4 xl:col-span-3 p-4 max-h-[75vh] overflow-hidden flex flex-col">
-            <h2 className="font-sans font-semibold text-sm text-fg-muted mb-3 flex items-center gap-2">
-              <span className="material-symbols-outlined text-base text-primary">account_tree</span>
-              Location Tree
+            <h2 className="font-semibold text-sm text-fg mb-3 flex items-center gap-2">
+              <span className="material-symbols-outlined text-base text-fg-muted" aria-hidden="true">account_tree</span>
+              Location tree
             </h2>
             <LocationTree
               locations={enriched}
@@ -225,8 +216,8 @@ export default function Campus() {
                 <div className="p-5 border-b border-line">
                   <div className="flex items-start justify-between gap-4">
                     <div>
-                      <h2 className="font-sans font-semibold text-xl">{String(selected.name)}</h2>
-                      <p className="text-xs text-fg-muted mt-1">
+                      <h2 className="font-semibold text-xl">{String(selected.name)}</h2>
+                      <p className="text-xs text-fg-muted mt-1 capitalize">
                         {asText(selected.type)} {selected.code ? `· ${asText(selected.code)}` : ''}
                       </p>
                       {selected.description ? (
@@ -240,24 +231,9 @@ export default function Campus() {
                         if (!st) return null;
                         return (
                           <>
-                            {st.up > 0 && (
-                              <span className="flex items-center gap-1 bg-success/10 text-success px-2 py-1 rounded-md text-xs font-semibold">
-                                <span className="w-2 h-2 rounded-full bg-success" />
-                                {st.up} Up
-                              </span>
-                            )}
-                            {st.down > 0 && (
-                              <span className="flex items-center gap-1 bg-error/10 text-error px-2 py-1 rounded-md text-xs font-semibold">
-                                <span className="w-2 h-2 rounded-full bg-error" />
-                                {st.down} Down
-                              </span>
-                            )}
-                            {st.warning > 0 && (
-                              <span className="flex items-center gap-1 bg-warning/10 text-warning px-2 py-1 rounded-md text-xs font-semibold">
-                                <span className="w-2 h-2 rounded-full bg-warning" />
-                                {st.warning} Warn
-                              </span>
-                            )}
+                            {st.down > 0 && <StatusPill status="down">{st.down} down</StatusPill>}
+                            {st.warning > 0 && <StatusPill status="warning">{st.warning} warning</StatusPill>}
+                            {st.up > 0 && <StatusPill status="up">{st.up} up</StatusPill>}
                           </>
                         );
                       })()}
@@ -267,12 +243,12 @@ export default function Campus() {
 
                 {/* Device table */}
                 <div className="p-5">
-                  <h3 className="font-sans font-semibold text-sm text-fg-muted mb-3">
+                  <h3 className="font-semibold text-sm text-fg mb-3">
                     Devices at this location ({selectedDevices.length})
                   </h3>
                   {selectedDevices.length === 0 ? (
                     <div className="py-8 text-center text-fg-muted text-sm">
-                      <span className="material-symbols-outlined text-2xl mb-2 block">devices</span>
+                      <span className="material-symbols-outlined text-2xl mb-2 block text-fg-subtle" aria-hidden="true">devices</span>
                       No devices assigned to this location
                     </div>
                   ) : (
@@ -291,22 +267,19 @@ export default function Campus() {
                           {selectedDevices.map((d) => (
                             <tr
                               key={d.id}
-                              className="border-b border-line hover:bg-surface-1/60 transition-colors"
+                              className="border-b border-line hover:bg-surface-2 transition-colors"
                             >
                               <td className="py-2.5 pr-3">
-                                <span
-                                  className={`w-2.5 h-2.5 rounded-full inline-block ${statusColors[d.status] || 'bg-line-strong'}`}
-                                  title={d.status}
-                                />
+                                <StatusPill status={d.status} />
                               </td>
                               <td className="py-2.5 pr-3 font-medium">{d.name}</td>
                               <td className="py-2.5 pr-3 text-fg-muted font-mono text-xs">
                                 {d.ipAddress}
                               </td>
-                              <td className="py-2.5 pr-3 text-fg-muted text-xs">
+                              <td className="py-2.5 pr-3 text-fg-muted text-xs uppercase">
                                 {d.protocol}
                               </td>
-                              <td className="py-2.5 text-fg-muted text-xs">
+                              <td className="py-2.5 text-fg-muted text-xs capitalize">
                                 {d.deviceCategory || '—'}
                               </td>
                             </tr>
@@ -319,14 +292,15 @@ export default function Campus() {
               </>
             ) : (
               <div className="flex flex-col items-center justify-center min-h-[400px] text-fg-muted">
-                <span className="material-symbols-outlined text-5xl mb-3 text-fg-subtle">touch_app</span>
-                <p className="font-sans font-semibold">Select a location</p>
-                <p className="text-xs mt-1">Choose a location from the tree to see its devices and status.</p>
+                <span className="material-symbols-outlined text-5xl mb-3 text-fg-subtle" aria-hidden="true">touch_app</span>
+                <p className="font-semibold text-fg">Select a location</p>
+                <p className="text-sm mt-1">Choose a location from the tree to see its devices and status.</p>
               </div>
             )}
           </Card>
         </div>
       )}
+      </TabPanel>
     </div>
   );
 }

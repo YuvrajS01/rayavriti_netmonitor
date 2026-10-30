@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
-import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip, Legend } from 'recharts';
+import { useState } from 'react';
+import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip, Legend, CartesianGrid } from 'recharts';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getDeviceMetrics, deleteDevice, getDevicePorts, scanDevicePorts, getHealthScore, getDevices } from '../api/client';
 import { updateDevice } from '../api/devices';
@@ -10,9 +10,13 @@ import type { ResourceRow } from '../api/resources';
 import type { Device, Metric, MetricMessagePayload, PortScanResult, TrafficInterfaceSample } from '../api/types';
 import ConfirmDialog from './ConfirmDialog';
 import { formatMbps } from '../utils/formatters';
-import { TOOLTIP_STYLE } from '../utils/chartConfig';
-import Sparkline from './ui/Sparkline';
+import { AXIS_TICK_STYLE, GRID_COLOR, LEGEND_STYLE, SERIES_COLORS, TOOLTIP_ITEM_STYLE, TOOLTIP_LABEL_STYLE, TOOLTIP_STYLE, legendFormatter } from '../utils/chartConfig';
+import { statusMeta } from '../utils/status';
+import { useChartAnimation } from '../hooks/useReducedMotion';
 import RingGauge from './ui/RingGauge';
+import Dialog from './ui/Dialog';
+import Button from './ui/Button';
+import { StatusPill } from './ui/Status';
 
 interface TrafficPoint {
   time: string;
@@ -73,8 +77,7 @@ const EMPTY_LOCATIONS: ResourceRow[] = [];
 const EMPTY_DEVICES: Device[] = [];
 
 export default function DeviceModal({ device, onClose, onDeleted }: { device: Device; onClose: () => void; onDeleted: () => void }) {
-  const dialogRef = useRef<HTMLDivElement>(null);
-  const previousFocus = useRef<HTMLElement | null>(null);
+  const anim = useChartAnimation();
   const queryClient = useQueryClient();
   const [locationId, setLocationId] = useState<string>(device.locationId != null ? String(device.locationId) : '');
   const [parentDeviceId, setParentDeviceId] = useState<string>(device.parentDeviceId != null ? String(device.parentDeviceId) : '');
@@ -110,38 +113,6 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
   const locations = locationsQuery.data || EMPTY_LOCATIONS;
   const allDevices = devicesQuery.data?.data || EMPTY_DEVICES;
   const healthScore = healthQuery.data?.data?.score ?? null;
-
-  useEffect(() => {
-    previousFocus.current = document.activeElement as HTMLElement;
-    dialogRef.current?.focus();
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onClose();
-        return;
-      }
-      if (e.key !== 'Tab' || !dialogRef.current) return;
-      const focusable = dialogRef.current.querySelectorAll<HTMLElement>(
-        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-      );
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      if (!first || !last) return;
-      if (e.shiftKey && document.activeElement === first) {
-        e.preventDefault();
-        last.focus();
-      } else if (!e.shiftKey && document.activeElement === last) {
-        e.preventDefault();
-        first.focus();
-      }
-    };
-
-    document.addEventListener('keydown', handleKeyDown);
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-      previousFocus.current?.focus();
-    };
-  }, [onClose]);
 
   useSocket({
     onMetricUpdate: (m) => {
@@ -226,252 +197,235 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
   const activeInterfaces = latestPayload?.interfaces || [];
   const openPorts = ports.filter((port) => port.state === 'open');
 
+  const statusMetaNow = statusMeta(latestMetric?.status);
+  const inputClass = 'w-full rounded-md border border-line bg-inset px-3 py-2 text-sm text-fg outline-none focus:border-primary';
+  const address = `${device.protocol === 'http' || device.protocol === 'https' ? `${device.protocol}://${device.ipAddress}` : device.ipAddress}${device.port > 0 && !['http', 'https'].includes(device.protocol) ? `:${device.port}` : ''}`;
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pt-20 bg-black/60" onClick={onClose}>
-      <div
-        ref={dialogRef}
-        role="dialog"
-        aria-modal="true"
-        aria-label={`Device details for ${device.name}`}
-        tabIndex={-1}
-        className="bg-surface-1 border border-line rounded-lg w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col outline-none"
-        onClick={e => e.stopPropagation()}
+    <>
+      <Dialog
+        open
+        onClose={onClose}
+        size="xl"
+        title={device.name}
+        description={<span className="font-mono">{address} · <span className="uppercase">{device.protocol}</span></span>}
+        headerActions={
+          <div className="flex items-center gap-2 pr-1" title={healthScore == null ? 'No health score has been computed for this device yet' : undefined}>
+            {healthScore != null ? (
+              <RingGauge value={healthScore} size={48} strokeWidth={5} decimals={0} valueClassName="text-sm" label="AI health" />
+            ) : (
+              <span className="flex h-12 w-12 items-center justify-center rounded-full border border-line text-sm text-fg-muted" aria-label="AI health: not computed yet">—</span>
+            )}
+            <span className="hidden text-xs text-fg-muted sm:block">AI health</span>
+          </div>
+        }
+        footer={
+          <>
+            <Button variant="danger-outline" icon="delete" onClick={handleDelete} className="mr-auto">Delete device</Button>
+            <Button variant="secondary" onClick={onClose}>Close</Button>
+          </>
+        }
       >
-        {/* Header */}
-        <div className="p-6 border-b border-line flex justify-between items-start shrink-0">
+        {/* Summary */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+          <div className="bg-surface-2 p-4 rounded-md">
+            <p className="text-xs text-fg-muted mb-1.5">Status</p>
+            <StatusPill status={statusMetaNow} size="md" />
+          </div>
+          <div className="bg-surface-2 p-4 rounded-md">
+            <p className="text-xs text-fg-muted mb-1">Response</p>
+            <p className="font-mono font-semibold text-fg">{latestMetric?.responseTime ?? '—'} ms</p>
+          </div>
+          <div className="bg-surface-2 p-4 rounded-md">
+            <p className="text-xs text-fg-muted mb-1">Interval</p>
+            <p className="font-mono font-semibold text-fg">{device.interval}s</p>
+          </div>
+          <div className="bg-surface-2 p-4 rounded-md">
+            <p className="text-xs text-fg-muted mb-1">Protocol</p>
+            <p className="font-semibold text-fg uppercase">{device.protocol}</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           <div>
-            <h2 className="font-sans text-3xl font-semibold text-fg">{device.name}</h2>
-            <p className="text-fg-muted text-sm font-mono">{device.protocol === 'http' || device.protocol === 'https' ? `${device.protocol}://${device.ipAddress}` : device.ipAddress}{device.port > 0 && !['http','https'].includes(device.protocol) ? `:${device.port}` : ''} ({device.protocol.toUpperCase()})</p>
-            <Sparkline data={metrics.map(metric => metric.responseTime ?? 0)} color="var(--color-info)" className="mt-2" />
+            <label htmlFor={`dev-${device.id}-location`} className="block text-xs text-fg-muted mb-1.5">Location</label>
+            <select
+              id={`dev-${device.id}-location`}
+              value={locationId}
+              onChange={(e) => handleLocationChange(e.target.value)}
+              className={`${inputClass} cursor-pointer`}
+            >
+              <option value="">Unassigned</option>
+              {locations.map((loc) => (
+                <option key={Number(loc.id)} value={String(loc.id)}>
+                  {String(loc.name)}
+                </option>
+              ))}
+            </select>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="text-center">
-              {healthScore != null ? (
-                <RingGauge value={healthScore} size={54} strokeWidth={5} decimals={0} valueClassName="text-lg" />
-              ) : (
-                <span className="flex h-[54px] w-[54px] items-center justify-center rounded-full border border-line text-sm text-fg-muted" title="No health score has been computed for this device yet">—</span>
-              )}
-              <span className="block text-xs text-fg-muted mt-1">AI health</span>
-            </div>
-            <button onClick={onClose} className="p-2 hover:bg-inset rounded-full transition-colors" aria-label="Close dialog"><span className="material-symbols-outlined text-fg-subtle hover:text-fg">close</span></button>
+          <div>
+            <label htmlFor={`dev-${device.id}-parent`} className="block text-xs text-fg-muted mb-1.5">Parent device (dependency)</label>
+            <select
+              id={`dev-${device.id}-parent`}
+              value={parentDeviceId}
+              onChange={(e) => handleParentChange(e.target.value)}
+              className={`${inputClass} cursor-pointer`}
+            >
+              <option value="">None (root)</option>
+              {allDevices
+                .filter((d) => d.id !== device.id)
+                .map((d) => (
+                  <option key={d.id} value={String(d.id)}>
+                    {d.name} ({d.ipAddress})
+                  </option>
+                ))}
+            </select>
+          </div>
+          <div>
+            <label htmlFor={`dev-${device.id}-port`} className="block text-xs text-fg-muted mb-1.5">Dependency port</label>
+            <input
+              id={`dev-${device.id}-port`}
+              value={dependencyPort}
+              onChange={(e) => handleDependencyPortChange(e.target.value)}
+              placeholder="e.g. eth0, 1/0/1"
+              className={`${inputClass} font-mono`}
+            />
           </div>
         </div>
 
-        {/* Content */}
-        <div className="p-6 overflow-y-auto flex-1 min-h-0">
-           {/* Summary Stats */}
-           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-             <div className="bg-surface-1 p-4 rounded-lg">
-               <p className="text-xs text-fg-muted mb-1">Status</p>
-               <p className={`font-semibold uppercase ${latestMetric?.status === 'down' ? 'text-error' : (latestMetric?.status === 'warning' || latestMetric?.status === 'degraded' ? 'text-warning' : 'text-primary')}`}>{latestMetric?.status || 'UNKNOWN'}</p>
-             </div>
-             <div className="bg-surface-1 p-4 rounded-lg">
-               <p className="text-xs text-fg-muted mb-1">Response</p>
-                <p className="font-semibold text-fg">{latestMetric?.responseTime ?? '-'} ms</p>
-             </div>
-             <div className="bg-surface-1 p-4 rounded-lg">
-               <p className="text-xs text-fg-muted mb-1">Interval</p>
-                <p className="font-semibold text-fg">{device.interval}s</p>
-             </div>
-             <div className="bg-surface-1 p-4 rounded-lg">
-               <p className="text-xs text-fg-muted mb-1">Protocol</p>
-                <p className="font-semibold text-fg uppercase">{device.protocol}</p>
-             </div>
-           </div>
+        {(device.manufacturer || device.model || device.deviceCategory) && (
+          <dl className="mb-6 border-y border-line py-4 grid grid-cols-2 md:grid-cols-3 gap-4">
+            {device.manufacturer && <div><dt className="text-xs text-fg-muted">Vendor</dt><dd className="mt-1 font-semibold text-sm">{device.manufacturer}</dd></div>}
+            {device.model && <div><dt className="text-xs text-fg-muted">Model</dt><dd className="mt-1 font-semibold text-sm">{device.model}</dd></div>}
+            {device.deviceCategory && <div><dt className="text-xs text-fg-muted">Profile</dt><dd className="mt-1 font-semibold text-sm capitalize">{device.deviceCategory}</dd></div>}
+          </dl>
+        )}
 
-           <div className="bg-surface-1 p-4 rounded-lg mb-6">
-             <label className="block text-xs text-fg-muted mb-1.5">Location</label>
-             <select
-               value={locationId}
-               onChange={(e) => handleLocationChange(e.target.value)}
-               className="bg-inset border border-line rounded-lg px-3 py-2 text-sm text-fg outline-none focus:ring-1 focus:ring-primary w-full cursor-pointer"
-             >
-               <option value="">Unassigned</option>
-               {locations.map((loc) => (
-                 <option key={Number(loc.id)} value={String(loc.id)}>
-                   {String(loc.name)}
-                 </option>
-               ))}
-             </select>
-           </div>
-
-            <div className="bg-surface-1 p-4 rounded-lg mb-6">
-              <label className="block text-xs text-fg-muted mb-1.5">Parent device (dependency)</label>
-              <select
-                value={parentDeviceId}
-                onChange={(e) => handleParentChange(e.target.value)}
-                className="bg-inset border border-line rounded-lg px-3 py-2 text-sm text-fg outline-none focus:ring-1 focus:ring-primary w-full cursor-pointer"
-              >
-                <option value="">None (root)</option>
-                {allDevices
-                  .filter((d) => d.id !== device.id)
-                  .map((d) => (
-                    <option key={d.id} value={String(d.id)}>
-                      {d.name} ({d.ipAddress})
-                    </option>
-                  ))}
-              </select>
-              <label className="block text-xs text-fg-muted mb-1.5 mt-3">Dependency port</label>
-              <input
-                value={dependencyPort}
-                onChange={(e) => handleDependencyPortChange(e.target.value)}
-                placeholder="e.g. eth0, 1/0/1"
-                className="bg-inset border border-line rounded-lg px-3 py-2 text-sm text-fg outline-none focus:ring-1 focus:ring-primary w-full"
-              />
+        <section aria-labelledby={`dev-${device.id}-ports`} className="rounded-lg border border-line p-4 mb-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+            <div>
+              <h3 id={`dev-${device.id}-ports`} className="text-sm font-semibold">Port inventory</h3>
+              <p className="text-xs text-fg-muted mt-1">{openPorts.length} open of {ports.length || 0} scanned ports</p>
             </div>
-
-		   {(device.manufacturer || device.model || device.deviceCategory) && (
-			 <div className="mb-6 border-y border-line py-4 grid grid-cols-2 md:grid-cols-3 gap-4">
-			   {device.manufacturer && <div><p className="text-xs text-fg-muted">Vendor</p><p className="mt-1 font-semibold text-sm">{device.manufacturer}</p></div>}
-			   {device.model && <div><p className="text-xs text-fg-muted">Model</p><p className="mt-1 font-semibold text-sm">{device.model}</p></div>}
-			   {device.deviceCategory && <div><p className="text-xs text-fg-muted">Profile</p><p className="mt-1 font-semibold text-sm capitalize">{device.deviceCategory}</p></div>}
-			 </div>
-		   )}
-
-           <div className="bg-surface-1 rounded-lg p-4 border border-line mb-6">
-             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-               <div>
-                 <h3 className="text-sm font-sans font-semibold">Port inventory</h3>
-                 <p className="text-xs text-fg-muted mt-1">{openPorts.length} open of {ports.length || 0} scanned ports</p>
-               </div>
-               <button
-                 onClick={handleScanPorts}
-                 disabled={scanning}
-                  className="bg-primary text-on-primary disabled:opacity-60 font-semibold py-2.5 px-4 rounded-lg hover:bg-primary/90 transition-colors text-xs flex items-center justify-center gap-2"
-               >
-                 <span className="material-symbols-outlined text-base">{scanning ? 'hourglass_top' : 'radar'}</span>
-                 {scanning ? 'Scanning' : 'Scan Ports'}
-               </button>
-             </div>
-             {ports.length === 0 ? (
-               <div className="py-8 text-center text-xs text-fg-muted">No port scan results yet</div>
-             ) : (
-               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                 {ports.slice(0, 16).map((port) => {
-                    const service = port.service || 'Unknown';
-                    const response = port.responseTime;
-                   const isOpen = port.state === 'open';
-                   return (
-                     <div key={port.port} className={`flex items-center justify-between rounded-lg px-3 py-2 border ${isOpen ? 'border-primary/25 bg-primary/10' : 'border-line bg-surface-1'}`}>
-                       <div className="flex items-center gap-2 min-w-0">
-                         <span className={`material-symbols-outlined text-base ${isOpen ? 'text-primary' : 'text-fg-subtle'}`}>{isOpen ? 'lock_open' : 'lock'}</span>
-                         <div className="min-w-0">
-                           <p className="text-sm font-semibold text-fg">{port.port}</p>
-                           <p className="text-xs text-fg-muted truncate">{service}</p>
-                         </div>
-                       </div>
-                       <div className="text-right">
-                         <p className={`capitalize text-xs font-semibold ${isOpen ? 'text-primary': 'text-fg-subtle'}`}>{port.state}</p>
-                         {typeof response === 'number' && <p className="text-xs text-fg-muted">{response}ms</p>}
-                       </div>
-                     </div>
-                   );
-                 })}
-               </div>
-             )}
-           </div>
-
-           {/* Graph */}
-           <div className="bg-surface-1 rounded-lg p-4 border border-line mb-6">
-             <h3 className="text-sm font-sans font-semibold mb-4">Live response time</h3>
-             {loading ? (
-               <div className="h-64 flex items-center justify-center text-fg-muted text-sm">Loading data...</div>
-             ) : chartData.length === 0 ? (
-               <div className="h-64 flex items-center justify-center text-fg-muted text-sm">No metrics available</div>
-             ) : (
-               <ResponsiveContainer width="100%" height={256}>
-                 <LineChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                   <XAxis dataKey="time" tick={{ fill: '#77766d', fontSize: 10 }} tickLine={false} axisLine={false} />
-                   <YAxis tick={{ fill: '#77766d', fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={(v) => `${v}ms`} />
-                    <Tooltip
-                       contentStyle={TOOLTIP_STYLE}
-                     />
-                     <Line type="monotone" dataKey="response" stroke="var(--color-primary)" strokeWidth={2} dot={false} activeDot={{ r: 4 }} connectNulls />
-                  </LineChart>
-                </ResponsiveContainer>
-              )}
-            </div>
-
-            {supportsTraffic && (
-              <div className="bg-surface-1 rounded-lg p-4 border border-line mb-6">
-                <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4 mb-4">
-                  <div>
-                    <h3 className="text-sm font-sans font-semibold">Live traffic</h3>
-                    <p className="text-xs text-fg-muted mt-1">{activeInterfaces.length ? `${activeInterfaces.length} SNMP interfaces reporting counters` : 'Waiting for SNMP interface counters'}</p>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2 min-w-full lg:min-w-[320px]">
-                    <div className="rounded-lg bg-surface-1 px-3 py-2">
-                      <p className="text-xs text-fg-muted">Inbound</p>
-                      <p className="text-sm font-semibold text-primary">{formatMbps(latestTraffic?.inMbps)}</p>
+            <Button size="sm" variant="secondary" icon={scanning ? 'hourglass_top' : 'radar'} onClick={handleScanPorts} disabled={scanning}>
+              {scanning ? 'Scanning…' : 'Scan ports'}
+            </Button>
+          </div>
+          {ports.length === 0 ? (
+            <div className="py-8 text-center text-sm text-fg-muted">No port scan results yet</div>
+          ) : (
+            <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {ports.slice(0, 16).map((port) => {
+                const service = port.service || 'Unknown';
+                const response = port.responseTime;
+                const isOpen = port.state === 'open';
+                return (
+                  <li key={port.port} className="flex items-center justify-between rounded-md border border-line bg-surface-2 px-3 py-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className={`material-symbols-outlined text-base ${isOpen ? 'text-fg' : 'text-fg-subtle'}`} aria-hidden="true">{isOpen ? 'lock_open' : 'lock'}</span>
+                      <div className="min-w-0">
+                        <p className="font-mono text-sm font-semibold text-fg">{port.port}</p>
+                        <p className="text-xs text-fg-muted truncate">{service}</p>
+                      </div>
                     </div>
-                    <div className="rounded-lg bg-surface-1 px-3 py-2">
-                      <p className="text-xs text-fg-muted">Outbound</p>
-                      <p className="text-sm font-semibold text-info">{formatMbps(latestTraffic?.outMbps)}</p>
+                    <div className="text-right">
+                      <p className={`capitalize text-xs font-semibold ${isOpen ? 'text-fg' : 'text-fg-subtle'}`}>{port.state}</p>
+                      {typeof response === 'number' && <p className="font-mono text-xs text-fg-muted">{response}ms</p>}
                     </div>
-                    <div className="rounded-lg bg-surface-1 px-3 py-2">
-                      <p className="text-xs text-fg-muted">Total</p>
-                      <p className="text-sm font-semibold text-fg">{formatMbps(latestTraffic?.totalMbps)}</p>
-                    </div>
-                  </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
+
+        <section aria-labelledby={`dev-${device.id}-resp`} className="rounded-lg border border-line p-4 mb-6">
+          <h3 id={`dev-${device.id}-resp`} className="text-sm font-semibold mb-4">Live response time</h3>
+          {loading ? (
+            <div className="h-64 flex items-center justify-center text-fg-muted text-sm">Loading data…</div>
+          ) : chartData.length === 0 ? (
+            <div className="h-64 flex items-center justify-center text-fg-muted text-sm">No metrics available</div>
+          ) : (
+            <ResponsiveContainer width="100%" height={256}>
+              <LineChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                <CartesianGrid stroke={GRID_COLOR} vertical={false} />
+                <XAxis dataKey="time" tick={AXIS_TICK_STYLE} tickLine={false} axisLine={false} />
+                <YAxis tick={AXIS_TICK_STYLE} tickLine={false} axisLine={false} tickFormatter={(v) => `${v}ms`} />
+                <Tooltip contentStyle={TOOLTIP_STYLE} labelStyle={TOOLTIP_LABEL_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} />
+                <Line name="Response" type="monotone" dataKey="response" stroke={SERIES_COLORS[0]} strokeWidth={2} dot={false} activeDot={{ r: 4 }} connectNulls {...anim} />
+              </LineChart>
+            </ResponsiveContainer>
+          )}
+        </section>
+
+        {supportsTraffic && (
+          <section aria-labelledby={`dev-${device.id}-traffic`} className="rounded-lg border border-line p-4">
+            <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4 mb-4">
+              <div>
+                <h3 id={`dev-${device.id}-traffic`} className="text-sm font-semibold">Live traffic</h3>
+                <p className="text-xs text-fg-muted mt-1">{activeInterfaces.length ? `${activeInterfaces.length} SNMP interfaces reporting counters` : 'Waiting for SNMP interface counters'}</p>
+              </div>
+              <dl className="grid grid-cols-3 gap-2 min-w-full lg:min-w-[320px]">
+                <div className="rounded-md bg-surface-2 px-3 py-2">
+                  <dt className="text-xs text-fg-muted">Inbound</dt>
+                  <dd className="font-mono text-sm font-semibold text-fg">{formatMbps(latestTraffic?.inMbps)}</dd>
                 </div>
-                {loading ? (
-                  <div className="h-64 flex items-center justify-center text-fg-muted text-sm">Loading traffic...</div>
-                ) : trafficData.length === 0 ? (
-                  <div className="h-64 flex flex-col items-center justify-center text-center text-fg-muted text-sm px-6">
-                    <span className="material-symbols-outlined text-3xl mb-2 text-fg-subtle">monitoring</span>
-                    <p>No traffic samples yet</p>
-                    <p className="text-xs mt-1 max-w-md">SNMP routers and switches need at least two successful polls with interface counters before rates can be calculated.</p>
-                  </div>
-                ) : (
-                  <ResponsiveContainer width="100%" height={256}>
-                    <LineChart data={trafficData} margin={{ top: 10, right: 10, left: -16, bottom: 0 }}>
-                      <XAxis dataKey="time" tick={{ fill: '#77766d', fontSize: 10 }} tickLine={false} axisLine={false} />
-                      <YAxis tick={{ fill: '#77766d', fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={(v) => `${v}M`} />
-                       <Tooltip
-                         formatter={(value) => formatMbps(Number(value))}
-                         contentStyle={TOOLTIP_STYLE}
-                       />
-                     <Legend wrapperStyle={{ fontSize: 11, color: '#c9c6b8' }} />
-                     <Line name="Inbound" type="monotone" dataKey="inMbps" stroke="#d9fd3a" strokeWidth={2} dot={false} activeDot={{ r: 4 }} connectNulls />
-                     <Line name="Outbound" type="monotone" dataKey="outMbps" stroke="#7dd3fc" strokeWidth={2} dot={false} activeDot={{ r: 4 }} connectNulls />
-                   </LineChart>
-                 </ResponsiveContainer>
-               )}
-               {activeInterfaces.length > 0 && (
-                 <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2">
-                   {activeInterfaces.slice(0, 6).map((iface) => (
-                     <div key={iface.index} className="flex items-center justify-between rounded-lg bg-surface-1 border border-line px-3 py-2">
-                       <div className="min-w-0">
-                         <p className="text-xs font-semibold text-fg truncate">{iface.name}</p>
-                         <p className="text-xs text-fg-muted">ifIndex {iface.index}</p>
-                       </div>
-                       <span className={`capitalize text-xs font-semibold ${iface.operStatus === 1 ? 'text-primary': 'text-fg-subtle'}`}>
-                         {iface.operStatus === 1 ? 'Up' : 'Seen'}
-                       </span>
-                     </div>
-                   ))}
-                 </div>
-               )}
-             </div>
-           )}
-
-           {/* Actions */}
-           <div className="flex gap-4">
-              <button onClick={handleDelete} className="bg-error/10 text-error border border-error/30 font-semibold py-3 px-6 rounded-lg hover:bg-error/20 transition-colors w-full">
-               Delete device
-             </button>
-           </div>
-        </div>
-      </div>
+                <div className="rounded-md bg-surface-2 px-3 py-2">
+                  <dt className="text-xs text-fg-muted">Outbound</dt>
+                  <dd className="font-mono text-sm font-semibold text-fg">{formatMbps(latestTraffic?.outMbps)}</dd>
+                </div>
+                <div className="rounded-md bg-surface-2 px-3 py-2">
+                  <dt className="text-xs text-fg-muted">Total</dt>
+                  <dd className="font-mono text-sm font-semibold text-fg">{formatMbps(latestTraffic?.totalMbps)}</dd>
+                </div>
+              </dl>
+            </div>
+            {loading ? (
+              <div className="h-64 flex items-center justify-center text-fg-muted text-sm">Loading traffic…</div>
+            ) : trafficData.length === 0 ? (
+              <div className="h-64 flex flex-col items-center justify-center text-center text-fg-muted text-sm px-6">
+                <span className="material-symbols-outlined text-3xl mb-2 text-fg-subtle" aria-hidden="true">monitoring</span>
+                <p>No traffic samples yet</p>
+                <p className="text-xs mt-1 max-w-md">SNMP routers and switches need at least two successful polls with interface counters before rates can be calculated.</p>
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={256}>
+                <LineChart data={trafficData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                  <CartesianGrid stroke={GRID_COLOR} vertical={false} />
+                  <XAxis dataKey="time" tick={AXIS_TICK_STYLE} tickLine={false} axisLine={false} />
+                  <YAxis tick={AXIS_TICK_STYLE} tickLine={false} axisLine={false} tickFormatter={(v) => `${v}M`} />
+                  <Tooltip formatter={(value) => formatMbps(Number(value))} contentStyle={TOOLTIP_STYLE} labelStyle={TOOLTIP_LABEL_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} />
+                  <Legend wrapperStyle={LEGEND_STYLE} formatter={legendFormatter} />
+                  <Line name="Inbound" type="monotone" dataKey="inMbps" stroke={SERIES_COLORS[0]} strokeWidth={2} dot={false} activeDot={{ r: 4 }} connectNulls {...anim} />
+                  <Line name="Outbound" type="monotone" dataKey="outMbps" stroke={SERIES_COLORS[1]} strokeWidth={2} dot={false} activeDot={{ r: 4 }} connectNulls {...anim} />
+                </LineChart>
+              </ResponsiveContainer>
+            )}
+            {activeInterfaces.length > 0 && (
+              <ul className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {activeInterfaces.slice(0, 6).map((iface) => (
+                  <li key={iface.index} className="flex items-center justify-between rounded-md bg-surface-2 border border-line px-3 py-2">
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold text-fg truncate">{iface.name}</p>
+                      <p className="font-mono text-xs text-fg-muted">ifIndex {iface.index}</p>
+                    </div>
+                    {iface.operStatus === 1 ? <StatusPill status="up" /> : <StatusPill status="unknown">Seen</StatusPill>}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        )}
+      </Dialog>
       <ConfirmDialog
         open={showDeleteConfirm}
-        title="Delete Device"
+        title="Delete device?"
         message={`Are you sure you want to delete "${device.name}"? This action cannot be undone.`}
         confirmLabel="Delete"
         danger
         onConfirm={confirmDelete}
         onCancel={() => setShowDeleteConfirm(false)}
       />
-    </div>
+    </>
   );
 }

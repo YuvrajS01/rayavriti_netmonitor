@@ -1,6 +1,8 @@
 import { useState, useMemo, useCallback } from 'react';
 import SectionHeader from '../components/ui/SectionHeader';
 import Card from '../components/ui/Card';
+import { StatusPill, StatusDot } from '../components/ui/Status';
+import { statusMeta } from '../utils/status';
 import Button from '../components/ui/Button';
 import { createResource } from '../api/resources';
 import { downloadImportTemplate } from '../api/devices';
@@ -193,50 +195,55 @@ export default function BulkImport() {
   return (
     <div className="space-y-6">
       <SectionHeader
-        title="Bulk Device Import"
+        title="Bulk device import"
         subtitle="Upload a CSV file to import multiple devices at once. Download the template for the expected format."
         action={
           <Button variant="secondary" icon="download" onClick={downloadTemplate}>
-            Download Template
+            Download template
           </Button>
         }
       />
 
       {/* Step indicator */}
-      <div className="flex items-center gap-2 text-xs">
+      <ol className="flex items-center gap-2 text-sm" aria-label="Import steps">
         {['Upload', 'Preview', 'Result'].map((s, i) => {
           const stepKeys: Step[] = ['upload', 'preview', 'result'];
           const isActive = step === stepKeys[i];
           const isDone = stepKeys.indexOf(step) > i;
           return (
-            <div key={s} className="flex items-center gap-2">
-              {i > 0 && <span className="w-8 h-px bg-line/30" />}
+            <li key={s} className="flex items-center gap-2" aria-current={isActive ? 'step' : undefined}>
+              {i > 0 && <span className="w-8 h-px bg-line-strong" aria-hidden="true" />}
               <span
                 className={[
                   'w-7 h-7 rounded-full flex items-center justify-center font-semibold text-xs transition-colors',
-                  isActive ? 'bg-primary text-on-primary' : isDone ? 'bg-primary/20 text-primary' : 'bg-inset text-fg-muted',
+                  isActive ? 'bg-primary text-on-primary' : isDone ? 'bg-surface-3 text-fg' : 'bg-surface-2 text-fg-muted',
                 ].join(' ')}
+                aria-hidden="true"
               >
                 {isDone ? '✓' : i + 1}
               </span>
-              <span className={isActive ? 'text-primary font-semibold' : 'text-fg-muted'}>
-                {s}
+              <span className={isActive ? 'text-fg font-semibold' : 'text-fg-muted'}>
+                {s}{isDone && <span className="sr-only"> (done)</span>}
               </span>
-            </div>
+            </li>
           );
         })}
-      </div>
+      </ol>
 
       {/* STEP 1: Upload */}
       {step === 'upload' && (
         <Card variant="low" className="p-8">
           <div
+            role="button"
+            tabIndex={0}
+            aria-label="Choose a CSV file to import"
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); document.getElementById('csv-input')?.click(); } }}
             onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
             onDragLeave={() => setDragOver(false)}
             onDrop={handleDrop}
             className={[
-              'border-2 border-dashed rounded-xl p-12 text-center transition-colors duration-200 cursor-pointer',
-              dragOver ? 'border-primary bg-primary/5' : 'border-line hover:border-line-strong/50',
+              'border-2 border-dashed rounded-lg p-12 text-center transition-colors duration-[var(--duration-fast)] cursor-pointer',
+              dragOver ? 'border-primary bg-surface-2' : 'border-line-strong hover:border-fg-subtle hover:bg-surface-2',
             ].join(' ')}
             onClick={() => document.getElementById('csv-input')?.click()}
           >
@@ -247,15 +254,15 @@ export default function BulkImport() {
               className="hidden"
               onChange={handleInputChange}
             />
-            <span className={`material-symbols-outlined text-5xl mb-4 block transition-colors ${dragOver ? 'text-primary' : 'text-fg-subtle'}`}>
+            <span className={`material-symbols-outlined text-5xl mb-4 block transition-colors ${dragOver ? 'text-fg' : 'text-fg-subtle'}`} aria-hidden="true">
               upload_file
             </span>
-            <p className="font-sans font-semibold text-lg mb-2">
+            <p className="font-semibold text-lg mb-2">
               {dragOver ? 'Drop your CSV file' : 'Drag & drop your CSV file'}
             </p>
             <p className="text-sm text-fg-muted mb-4">or click to browse</p>
             <p className="text-xs text-fg-subtle">
-              Expected columns: {EXPECTED_HEADERS.join(', ')}
+              Expected columns: <span className="font-mono">{EXPECTED_HEADERS.join(', ')}</span>
             </p>
           </div>
         </Card>
@@ -266,16 +273,19 @@ export default function BulkImport() {
         <>
           {/* Summary bar */}
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-            {[
-              { label: 'Total Rows', value: stats.total, color: 'text-fg' },
-              { label: 'Valid', value: stats.valid, color: 'text-success' },
-              { label: 'Warnings', value: stats.warnings, color: 'text-warning' },
-              { label: 'Errors', value: stats.errors, color: 'text-error' },
-              { label: 'Duplicates', value: stats.dupes, color: 'text-info' },
-            ].map((s) => (
-              <Card key={s.label} variant="low" className="p-3 text-center">
-                <div className={`font-sans text-2xl font-semibold ${s.color}`}>{s.value}</div>
-                <div className="text-xs text-fg-muted mt-1">{s.label}</div>
+            {([
+              { label: 'Total rows', value: stats.total, status: null },
+              { label: 'Valid', value: stats.valid, status: 'up' },
+              { label: 'Warnings', value: stats.warnings, status: 'warning' },
+              { label: 'Errors', value: stats.errors, status: 'down' },
+              { label: 'Duplicates', value: stats.dupes, status: 'info' },
+            ] as const).map((s) => (
+              <Card key={s.label} variant="low" className="p-3">
+                <div className="flex items-center gap-1.5 text-xs text-fg-muted">
+                  {s.status && <StatusDot status={s.status} size={8} label="" />}
+                  {s.label}
+                </div>
+                <div className="text-2xl font-semibold tabular-nums text-fg mt-1">{s.value}</div>
               </Card>
             ))}
           </div>
@@ -303,21 +313,25 @@ export default function BulkImport() {
                       <tr key={rv.lineNumber} className="group">
                         <td colSpan={7} className="p-0">
                           <div
+                            role={hasIssues ? 'button' : undefined}
+                            tabIndex={hasIssues ? 0 : undefined}
+                            aria-expanded={hasIssues ? isExpanded : undefined}
                             onClick={() => hasIssues && setExpandedRow(isExpanded ? null : rv.lineNumber)}
+                            onKeyDown={(e) => { if (hasIssues && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); setExpandedRow(isExpanded ? null : rv.lineNumber); } }}
                             className={[
                               'flex items-center px-4 py-2.5 transition-colors',
-                              !rv.valid ? 'bg-error/5' : rv.warnings.length > 0 ? 'bg-warning/5' : '',
-                              hasIssues ? 'cursor-pointer hover:bg-surface-1/60' : '',
+                              !rv.valid ? statusMeta('down').chip : rv.warnings.length > 0 ? statusMeta('warning').chip : '',
+                              hasIssues ? 'cursor-pointer hover:bg-surface-2' : '',
                             ].join(' ')}
                           >
-                            <span className="w-12 text-fg-muted text-xs shrink-0">{rv.lineNumber}</span>
-                            <span className="w-16 shrink-0">
+                            <span className="w-12 text-fg-muted font-mono text-xs shrink-0">{rv.lineNumber}</span>
+                            <span className="w-28 shrink-0">
                               {!rv.valid ? (
-                                <span className="material-symbols-outlined text-error text-base">error</span>
+                                <StatusPill status="down">Error</StatusPill>
                               ) : rv.warnings.length > 0 ? (
-                                <span className="material-symbols-outlined text-warning text-base">warning</span>
+                                <StatusPill status="warning" />
                               ) : (
-                                <span className="material-symbols-outlined text-success text-base">check_circle</span>
+                                <StatusPill status="up">Valid</StatusPill>
                               )}
                             </span>
                             <span className="flex-1 min-w-0 font-medium truncate">{rv.row.name || '—'}</span>
@@ -328,18 +342,18 @@ export default function BulkImport() {
                           </div>
                           {/* Expanded validation messages */}
                           {isExpanded && hasIssues && (
-                            <div className="px-4 pb-3 pl-28 space-y-1">
+                            <ul className="px-4 pb-3 pl-44 space-y-1">
                               {rv.errors.map((e, i) => (
-                                <p key={i} className="text-xs text-error flex items-center gap-1">
-                                  <span className="material-symbols-outlined text-xs">cancel</span> {e}
-                                </p>
+                                <li key={i} className="text-xs text-error flex items-center gap-1.5">
+                                  <span className="material-symbols-outlined text-sm" aria-hidden="true">cancel</span> {e}
+                                </li>
                               ))}
                               {rv.warnings.map((w, i) => (
-                                <p key={i} className="text-xs text-warning flex items-center gap-1">
-                                  <span className="material-symbols-outlined text-xs">warning</span> {w}
-                                </p>
+                                <li key={i} className="text-xs text-warning flex items-center gap-1.5">
+                                  <span className="material-symbols-outlined text-sm" aria-hidden="true">warning</span> {w}
+                                </li>
                               ))}
-                            </div>
+                            </ul>
                           )}
                         </td>
                       </tr>
@@ -360,7 +374,7 @@ export default function BulkImport() {
               onClick={handleImport}
               disabled={importing || stats.valid + stats.warnings === 0}
             >
-              {importing ? 'Importing...' : `Import ${stats.valid + stats.warnings} Devices`}
+              {importing ? 'Importing…' : `Import ${stats.valid + stats.warnings} devices`}
             </Button>
           </div>
         </>
@@ -369,31 +383,29 @@ export default function BulkImport() {
       {/* STEP 3: Result */}
       {step === 'result' && result && (
         <Card variant="low" className="p-8 text-center">
-          <span className="material-symbols-outlined text-6xl text-success mb-4 block">task_alt</span>
-          <h2 className="font-sans font-semibold text-2xl mb-2">Import Complete</h2>
-          <p className="text-fg-muted mb-6">
-            <span className="text-success font-semibold">{result.created}</span> devices imported successfully
-            {result.errors.length > 0 && (
-              <>, <span className="text-error font-semibold">{result.errors.length}</span> failed</>
-            )}
-          </p>
+          <span className="material-symbols-outlined text-6xl text-success mb-4 block" aria-hidden="true">task_alt</span>
+          <h2 className="font-semibold text-2xl mb-2">Import complete</h2>
+          <div className="mb-6 flex flex-wrap items-center justify-center gap-2">
+            <StatusPill status="up" size="md">{result.created} imported</StatusPill>
+            {result.errors.length > 0 && <StatusPill status="down" size="md">{result.errors.length} failed</StatusPill>}
+          </div>
 
           {result.errors.length > 0 && (
             <div className="text-left max-w-xl mx-auto mb-6">
-              <h3 className="text-xs text-error font-semibold mb-2">Errors</h3>
-              <div className="bg-error/5 rounded-lg p-3 space-y-1">
+              <h3 className="text-sm text-fg font-semibold mb-2">Errors</h3>
+              <div className={`${statusMeta('down').chip} rounded-md p-3 space-y-1`}>
                 {result.errors.slice(0, 10).map((e, i) => (
                   <p key={i} className="text-xs text-error">{e}</p>
                 ))}
                 {result.errors.length > 10 && (
-                  <p className="text-xs text-fg-muted">...and {result.errors.length - 10} more</p>
+                  <p className="text-xs text-fg-muted">…and {result.errors.length - 10} more</p>
                 )}
               </div>
             </div>
           )}
 
           <Button icon="refresh" onClick={handleReset}>
-            Import More
+            Import more
           </Button>
         </Card>
       )}
