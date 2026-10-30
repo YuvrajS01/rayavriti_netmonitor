@@ -1,7 +1,10 @@
 package handlers
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"strings"
@@ -378,6 +381,12 @@ func (h *AuthHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 			errs = append(errs, "role must be one of: viewer, dept_admin, network_admin, admin, super_admin")
 		}
 	}
+	if body.Role != "" {
+		if err := canGrantRole(auth.GetClaims(r.Context()), body.Role); err != nil {
+			httputil.SendError(w, http.StatusForbidden, err.Error())
+			return
+		}
+	}
 	if body.Email != "" && !httputil.IsValidEmail(body.Email) {
 		errs = append(errs, "invalid email format")
 	}
@@ -443,11 +452,95 @@ func (h *AuthHandler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 		httputil.SendError(w, http.StatusForbidden, "cannot delete super admin")
 		return
 	}
+	if !outranksOrEqual(claims, user.Role) {
+		httputil.SendError(w, http.StatusForbidden, "cannot delete a user with a higher role")
+		return
+	}
 	if err := h.db.DeleteUser(r.Context(), id); err != nil {
 		httputil.SendInternalError(w, err)
 		return
 	}
 	httputil.SendOK(w, map[string]string{"message": "deleted"})
+}
+
+// canGrantRole reports whether the caller may assign role to a user: callers
+// can only grant roles at or below their own, and only a super_admin can
+// create another super_admin.
+func canGrantRole(claims *auth.Claims, role string) error {
+	if claims == nil {
+		return fmt.Errorf("not authenticated")
+	}
+	if auth.RoleWeight(role) == 0 {
+		return fmt.Errorf("unknown role %q", role)
+	}
+	if auth.RoleWeight(role) > auth.RoleWeight(claims.Role) {
+		return fmt.Errorf("cannot grant a role higher than your own")
+	}
+	return nil
+}
+
+func outranksOrEqual(claims *auth.Claims, role string) bool {
+	return claims != nil && auth.RoleWeight(claims.Role) >= auth.RoleWeight(role)
+}
+
+// GuardUserUpdate protects the generic users update route against privilege
+// escalation before delegating to next. It enforces the role hierarchy on the
+// target user and on any new role, restricts custom role_id assignment to
+// admins, and stops users from changing their own role or enabled flag.
+func (h *AuthHandler) GuardUserUpdate(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id, err := parseID(chi.URLParam(r, "id"))
+		if err != nil {
+			httputil.SendError(w, http.StatusBadRequest, "invalid id")
+			return
+		}
+		raw, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
+		if err != nil {
+			httputil.SendError(w, http.StatusBadRequest, "invalid body")
+			return
+		}
+		var patch map[string]any
+		if err := json.Unmarshal(raw, &patch); err != nil {
+			httputil.SendError(w, http.StatusBadRequest, "invalid body")
+			return
+		}
+		fields := map[string]any{}
+		for k, v := range patch {
+			fields[strings.ReplaceAll(strings.ToLower(k), "_", "")] = v
+		}
+
+		claims := auth.GetClaims(r.Context())
+		target, err := h.db.GetUserByID(r.Context(), id)
+		if err != nil {
+			httputil.SendError(w, http.StatusNotFound, "user not found")
+			return
+		}
+		if !outranksOrEqual(claims, target.Role) {
+			httputil.SendError(w, http.StatusForbidden, "cannot modify a user with a higher role")
+			return
+		}
+		_, changesRole := fields["role"]
+		_, changesRoleID := fields["roleid"]
+		_, changesEnabled := fields["enabled"]
+		if claims.UserID == id && (changesRole || changesRoleID || changesEnabled) {
+			httputil.SendError(w, http.StatusForbidden, "cannot change your own role or enabled status")
+			return
+		}
+		if changesRole {
+			role, _ := fields["role"].(string)
+			if err := canGrantRole(claims, role); err != nil {
+				httputil.SendError(w, http.StatusForbidden, err.Error())
+				return
+			}
+		}
+		if changesRoleID && auth.RoleWeight(claims.Role) < auth.RoleWeight("admin") {
+			httputil.SendError(w, http.StatusForbidden, "only admins can assign custom roles")
+			return
+		}
+
+		r.Body = io.NopCloser(bytes.NewReader(raw))
+		next(w, r)
+	}
 }
 
 // permissionsForRole returns a default permission set for the legacy role string.
