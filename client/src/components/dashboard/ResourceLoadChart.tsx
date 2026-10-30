@@ -17,13 +17,22 @@ function ResourceLoadChartInner({ systemInfo, onExpand }: Props) {
       onClick={onExpand}
     >
       <div className="flex justify-between items-center mb-3">
-        <h3 className="text-sm font-headline font-semibold text-on-surface group-hover:text-on-surface transition-colors">Resource Load</h3>
+        <div>
+          <h3 className="text-sm font-headline font-semibold text-on-surface group-hover:text-on-surface transition-colors">Server Load</h3>
+          <p className="text-xs text-on-surface-variant">NetMonitor host</p>
+        </div>
         <span className="material-symbols-outlined text-on-surface-variant group-hover:text-on-surface text-sm transition-colors">open_in_full</span>
       </div>
       <div className="space-y-4 mt-6">
-        <ResourceBar label="CPU" value={systemInfo.cpu} color="var(--color-chart-1)" warn={systemInfo.cpu > 90} />
-        <ResourceBar label="Memory" value={systemInfo.memory} color="var(--color-chart-2)" warn={systemInfo.memory > 90} />
-        <ResourceBar label="Error Rate" value={systemInfo.errorRate} color="var(--color-error)" warn={systemInfo.errorRate > 80} />
+        {systemInfo.raw ? (
+          <>
+            <ResourceBar label="CPU" value={systemInfo.cpu} color="var(--color-chart-1)" warn={systemInfo.cpu > 90} />
+            <ResourceBar label="Memory" value={systemInfo.memory} color="var(--color-chart-2)" warn={systemInfo.memory > 90} />
+          </>
+        ) : (
+          <p className="text-xs text-on-surface-variant">Waiting for host metrics…</p>
+        )}
+        <ResourceBar label="Devices down" value={systemInfo.errorRate} color="var(--color-error)" warn={systemInfo.errorRate > 80} />
       </div>
     </div>
   );

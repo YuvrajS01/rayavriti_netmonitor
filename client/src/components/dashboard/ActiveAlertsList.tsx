@@ -38,7 +38,6 @@ function ActiveAlertsListInner({ alerts }: Props) {
                     <span className="text-[10px] font-data text-on-surface-variant">{new Date(alert.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                   </div>
                   <p className="text-xs text-on-surface-variant font-body">{alert.message}</p>
-                  <div className={`mt-2 h-1 rounded-full ${isCritical ? 'bg-error/25' : isWarn ? 'bg-warning/25' : 'bg-info/25'}`}><div className={`h-full rounded-full ${isCritical ? 'bg-error' : isWarn ? 'bg-warning' : 'bg-info'}`} style={{ width: `${15 + (alert.id * 17) % 82}%` }} /></div>
                 </div>
               </div>
             );
