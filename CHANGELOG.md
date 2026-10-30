@@ -5,6 +5,44 @@ All notable changes to Rayavriti NetMonitor will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.5.1] - 2026-10-30
+
+Hardening and correctness release from the v5 review (`REVIEW_REPORT.md`, Phase 0). Closes remaining authorization and SSRF holes, makes several silently broken features actually work (SNMP down detection, maintenance/topology suppression, scheduled reports, live status events, Docker backups), and removes fabricated values from the dashboard.
+
+> **Upgrade note:** access and refresh tokens now carry a `typ` claim. Tokens issued by earlier versions are rejected, so every user signs in once after upgrading. Docker deployments gain a `netmonitor_data` volume for backups and reports.
+
+### Security
+
+- **Remote-fleet SSRF / API-key exfiltration** (`37b7a95`, S1) — Updating a remote instance without re-entering its key skipped URL validation, letting `remote.manage` users send the stored key to loopback, cloud metadata or their own host. Updates always validate, a URL change requires a new key, and remote requests use a new connect-time IP guard (`netutil.SafeTransport`) that defeats DNS rebinding and refuses redirects. Host checks now unwrap IPv4-mapped/NAT64/6to4 addresses and block `0.0.0.0/8`, Alibaba and AWS-IPv6 metadata.
+- **Refresh token accepted as an access token** (`1f2f9bc`, S2) — Tokens now carry `typ` and `jti`; API/WebSocket auth accepts only access tokens and `/auth/refresh` only refresh tokens.
+- **Atomic refresh rotation** (`1f2f9bc`, S14) — Rotation claims the old token with a single `DELETE`; a lost claim revokes the family instead of forking it.
+- **Privilege escalation via user management** (`e9fa956`, S4) — `users.manage` holders could make themselves `super_admin` or disable admins. A role hierarchy is now enforced on create, update and delete; `super_admin` outranks `admin`.
+- **Alert mutation with read permission** (`e9fa956`, S5) — `PUT`/`DELETE /alerts/{id}` now require `alerts.resolve`.
+- **tcpdump argument injection** (`3febd52`, S6) — Capture filters can no longer be parsed as tcpdump options (`--` separator, leading `-` rejected).
+- **Secrets persisted in logs** (`da20f41`, S3) — Request bodies are no longer logged; credential-like query parameters are masked; migration 46 scrubs previously stored bodies.
+- **WebSocket scope filter** (`7d14497`, S12) — Location-scoped users now receive their device, metric and alert events (the filter read the wrong key and type). Device→location lookups are cached; filter installation is race-free.
+- **Login throttling** (`7d14497`, S13) — `X-Forwarded-For` is only trusted from a loopback proxy; per-username limits are keyed by user+IP with a global cap; unknown usernames take the same time as wrong passwords.
+- **HTTP check host steering** (`1d4500f`, S8) — `httpPath` can no longer change the request host; HTTP checks use the connect-time guard and don't follow redirects.
+
+### Fixed
+
+- **SNMP devices never reported down** (`c61df7f`, B3) — An unreachable agent is now `down`; SNMP polls have a 15s timeout instead of 30s.
+- **Maintenance windows and parent-down suppression did nothing** (`3d60d41`, B6) — The alert engine is now wired to the maintenance, topology and suppressed-alert services.
+- **Scheduled reports** (`eb844b1`, B5) — Real cron parsing (`robfig/cron/v3`) with per-report timezone; daily/weekly schedules no longer run hourly. The performance report no longer fails on non-existent columns.
+- **Logging** (`6a91cdd`, B7) — Package-level `slog` calls now honour `LOG_LEVEL`, format and file sink; Warn+ events are persisted; `LOG_DB_ENABLED` is respected.
+- **Live status transitions** (`b3bd6f9`, B15) — `device:status` events fire on real transitions and alerts see the correct previous status.
+- **Live status in the UI** (`c34cb39`, F2) — Devices and Topology apply `device:status` events (payload field names were wrong).
+- **Brand fonts** (`fb719dd`, D2) — Instrument Sans, Plus Jakarta Sans and JetBrains Mono now actually render.
+- **Dashboard data honesty** (`8619176`, D1) — Removed synthesized CPU/memory, heatmap, sparklines, trend arrows, alert bars and radar axes. Server Load shows real host metrics, the status pulse shows real poll results, and the response chart is aligned by timestamp.
+- **HTTP checks** (`1d4500f`) — 5xx responses count as down when no expected status is set; response times keep sub-millisecond precision.
+
+### Changed
+
+- **Docker** (`4db38f2`, O1/O3) — Image ships `postgresql16-client` for backup/restore; `/app/data` is a named volume; backup uploads are exempt from the global 1MB body limit; `NET_RAW`/`NET_ADMIN` are granted as file capabilities to the netmonitor and tcpdump binaries (`no-new-privileges` removed because it blocks them).
+- **Health endpoints** (`4db38f2`, O6) — `/health` and new `/readyz` return 503 when the database is unreachable (without leaking the driver error); new `/livez` for liveness. Container healthchecks use `/readyz`.
+- **Versioning** — Backend version is stamped at build time (`config.BuildVersion`); the UI reads the version from `client/package.json`.
+- **CI** (`92049e7`, O8/O9) — Frontend tests now run; Go tests run once with `-race` and coverage; Docker images are published on `v*` tags with semver tags.
+
 ## [4.5.0] - 2026-08-24
 
 Comprehensive code review release implementing ~60 fixes across four review tiers. Major security hardening (SSRF protection, login throttling, IDOR fixes, refresh-token reuse detection), correctness and stability fixes across the scheduler, alert engine, cache, and migrations, significant query batching performance improvements, notification retry with exponential backoff, graceful shutdown, and a full **Phase2 → ResourceStore** rename across backend and frontend.
