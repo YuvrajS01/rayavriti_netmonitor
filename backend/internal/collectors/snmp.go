@@ -34,13 +34,20 @@ type SNMPCollector struct{}
 
 func (SNMPCollector) Name() string { return "snmp" }
 
+// DefaultTimeout bounds a whole SNMP poll. Without it the scheduler's 30s
+// fallback applied, letting one unreachable agent hold a worker for 30s.
+func (SNMPCollector) DefaultTimeout() time.Duration { return 15 * time.Second }
+
+// Weight implements CollectorMeta.
+func (SNMPCollector) Weight() int { return 3 }
+
 func (SNMPCollector) Collect(ctx context.Context, device *models.Device) (*Result, error) {
 	community := "public"
 	if device.SNMPCommunity != "" {
 		community = device.SNMPCommunity
 	}
 	if community == "public" {
-		slog.Warn("SNMP using default 'public' community string", "device", device.IPAddress)
+		slog.Debug("SNMP using default 'public' community string", "device", device.IPAddress)
 	}
 	port := uint16(161)
 	if device.SNMPPort > 0 {
@@ -86,12 +93,18 @@ func (SNMPCollector) Collect(ctx context.Context, device *models.Device) (*Resul
 	}
 
 	// Collect SNMP data sequentially (gosnmp is not goroutine-safe)
+	// sysUpTime doubles as the reachability probe. UDP "connects" always
+	// succeed, so without this an unreachable agent was reported "up" with
+	// zeroed metrics and every table walk below ran into its timeout.
 	uptimeRes := varbindResult{}
-	if r, err := g.Get([]string{oidSysUpTime}); err != nil {
-		uptimeRes.err = err
-	} else {
-		uptimeRes.pdus = r.Variables
+	r, err := g.Get([]string{oidSysUpTime})
+	if err != nil {
+		return &Result{Status: "down", Details: map[string]any{"error": "snmp agent unreachable: " + err.Error()}}, nil
 	}
+	if r.Error != gosnmp.NoError || len(r.Variables) == 0 || !hasValue(r.Variables[0]) {
+		return &Result{Status: "down", Details: map[string]any{"error": "snmp agent returned no sysUpTime"}}, nil
+	}
+	uptimeRes.pdus = r.Variables
 
 	pdus, err := collectSubtree(g, oidHRProcessorLoad, 20)
 	cpuRes := varbindResult{pdus: pdus, err: err}
@@ -444,4 +457,14 @@ func NormalizeCounter(value any) int64 {
 // GetNetflowProtoName returns a human-readable protocol name from a number.
 func GetNetflowProtoName(num int) string {
 	return protoNameFromNum(num)
+}
+
+// hasValue reports whether a varbind carries data rather than an SNMP
+// exception (noSuchObject, noSuchInstance, endOfMibView) or NULL.
+func hasValue(pdu gosnmp.SnmpPDU) bool {
+	switch pdu.Type {
+	case gosnmp.NoSuchObject, gosnmp.NoSuchInstance, gosnmp.EndOfMibView, gosnmp.Null:
+		return false
+	}
+	return true
 }
