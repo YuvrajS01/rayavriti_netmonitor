@@ -196,7 +196,10 @@ jobs:
           # Raw size of all chunks, lazy ones included. Raised from 1200
           # when TanStack Query (~40 KB) replaced the hand-rolled fetching;
           # first-load JS stayed flat (~+1 KB gzip) as Redux was dropped.
-          MAX_TOTAL_JS_KB=1300
+          # Raised to 1400 for v5.1: device detail, alerts workbench, data
+          # table (with virtualisation), command palette and wall mode add
+          # ~120 KB of lazy chunks; first-load JS grew ~11 KB (367 -> 378 KB).
+          MAX_TOTAL_JS_KB=1400
           dist="client/dist"
           for f in "$dist"/assets/*.js; do
             size_kb=$(($(stat -c%s "$f") / 1024))
