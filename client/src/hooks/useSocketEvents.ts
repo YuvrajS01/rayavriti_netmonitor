@@ -1,11 +1,12 @@
 import { useEffect, useRef } from 'react';
 import { useSocketContext } from './socketContext';
+import type { DeviceStatusEvent } from '../api/types';
 
 type SocketHandlers = {
   onMetricUpdate?: (metric: Record<string, unknown>) => void;
   onAlertTriggered?: (alert: Record<string, unknown>) => void;
   onAlertResolved?: (alert: Record<string, unknown>) => void;
-  onDeviceStatus?: (status: Record<string, unknown>) => void;
+  onDeviceStatus?: (event: DeviceStatusEvent) => void;
   onBootstrap?: (payload: Record<string, unknown>) => void;
   onFlowUpdate?: (flow: Record<string, unknown>) => void;
   onPacketCaptured?: (packet: Record<string, unknown>) => void;
@@ -37,7 +38,8 @@ export function useSocketEvents(handlers: SocketHandlers) {
     for (const [prop, event] of Object.entries(EVENT_MAP) as [keyof SocketHandlers, string][]) {
       if (handlersRef.current[prop]) {
         const unsub = subscribe(event as never, (data: Record<string, unknown>) => {
-          handlersRef.current[prop]?.(data);
+          // Payloads are validated by the backend contract, not at runtime.
+          (handlersRef.current[prop] as ((payload: unknown) => void) | undefined)?.(data);
         });
         cleanups.push(unsub);
       }

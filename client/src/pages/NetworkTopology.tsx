@@ -115,9 +115,8 @@ export default function NetworkTopology() {
       const mm = metric as unknown as Metric;
       setMetricsMap((prev) => new Map(prev).set(mm.deviceId, mm));
     },
-    onDeviceStatus: (status) => {
-      const s = status as { device_id: number; new_status: string };
-      setDevices((prev) => prev.map((d) => (d.id === s.device_id ? { ...d, status: s.new_status as Device['status'] } : d)));
+    onDeviceStatus: ({ deviceId, status }) => {
+      setDevices((prev) => prev.map((d) => (d.id === deviceId ? { ...d, status } : d)));
     },
   });
 
