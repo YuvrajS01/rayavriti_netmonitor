@@ -97,8 +97,80 @@ export interface Alert {
   deviceName?: string;
   groupId?: string;
   acknowledgedBy?: string;
+  acknowledgedAt?: string;
+  resolvedBy?: string;
   resolvedAt?: string;
   createdAt: string;
+  ruleId?: number;
+  /** v5.1: user the alert is assigned to (null = unassigned). */
+  assignedTo?: number | null;
+  assignedToName?: string | null;
+}
+
+/** GET /alerts/{id}/notes item (v5.1). */
+export interface AlertNote {
+  id: number;
+  alertId: number;
+  text: string;
+  author: string;
+  createdAt: string;
+}
+
+export type AlertBulkAction = 'acknowledge' | 'resolve';
+
+/** POST /alerts/bulk response (v5.1). */
+export interface AlertBulkResult {
+  updated: number[];
+  skipped: Array<{ id: number; reason: 'not_found' | 'forbidden' | 'invalid_state' }>;
+}
+
+/** GET /users/assignable item (v5.1). */
+export interface AssignableUser {
+  id: number;
+  username: string;
+  displayName: string;
+}
+
+/** One bucket of GET /metrics/history (v5.1). Response times in ms. */
+export interface HistoryPoint {
+  t: string;
+  avg: number | null;
+  min: number | null;
+  max: number | null;
+  samples: number;
+  down: number;
+}
+
+export interface DeviceHistory {
+  deviceId: number;
+  deviceName: string;
+  points: HistoryPoint[];
+}
+
+export type HistoryBucket = '1m' | '5m' | '15m' | '1h' | '1d';
+
+/** GET /search response (v5.1). */
+export interface SearchResults {
+  devices: Array<{ id: number; name: string; ipAddress: string; status: string; locationName?: string }>;
+  locations: Array<{ id: number; name: string; type: string; path?: string }>;
+  alerts: Array<{ id: number; message: string; severity: Alert['severity']; deviceName?: string; createdAt: string }>;
+}
+
+/** GET /devices/{id}/dependencies (backend campus.DeviceNode lists). */
+export interface DeviceDependencyNode {
+  deviceId: number;
+  name: string;
+  host: string;
+  status: string;
+  category?: string;
+  locationId?: number | null;
+  parentDeviceId?: number | null;
+  dependencyPort?: string;
+}
+
+export interface DeviceDependencies {
+  ancestors: DeviceDependencyNode[] | null;
+  descendants: DeviceDependencyNode[] | null;
 }
 
 export interface AlertCounts {

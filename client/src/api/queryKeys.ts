@@ -1,4 +1,5 @@
 import type { LogFilters } from './logs';
+import type { HistoryParams } from './history';
 
 /**
  * Every TanStack Query key in the app. Keys are hierarchical so that
@@ -15,9 +16,15 @@ export const queryKeys = {
     metrics: (id: number, limit?: number) => [...queryKeys.devices.all, id, 'metrics', limit ?? null] as const,
     ports: (id: number) => [...queryKeys.devices.all, id, 'ports'] as const,
     health: (id: number) => [...queryKeys.devices.all, id, 'health'] as const,
+    detail: (id: number) => [...queryKeys.devices.all, id, 'detail'] as const,
+    dependencies: (id: number) => [...queryKeys.devices.all, id, 'dependencies'] as const,
   },
   metrics: {
     latest: ['metrics', 'latest'] as const,
+    history: (params: HistoryParams) => ['metrics', 'history', params] as const,
+  },
+  search: {
+    query: (q: string) => ['search', q] as const,
   },
   topology: {
     tree: ['topology', 'tree'] as const,
@@ -27,6 +34,8 @@ export const queryKeys = {
     list: (status: string, limit?: number) => [...queryKeys.alerts.all, 'list', status, limit ?? null] as const,
     grouped: (status: string) => [...queryKeys.alerts.all, 'grouped', status] as const,
     counts: () => [...queryKeys.alerts.all, 'counts'] as const,
+    notes: (id: number) => [...queryKeys.alerts.all, 'notes', id] as const,
+    assignable: () => [...queryKeys.alerts.all, 'assignable-users'] as const,
   },
   system: {
     stats: ['system', 'stats'] as const,
