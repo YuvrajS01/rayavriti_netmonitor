@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [5.1.0] - 2026-10-30
 
-This release covers Phases 2a and 2b of the v5 roadmap in `REVIEW_REPORT.md`: the operator workflow and network depth. It shipped as PRs #75 and #78–#81.
+This release covers Phases 2a and 2b of the v5 roadmap in `REVIEW_REPORT.md`: the operator workflow and network depth. It shipped as PRs #75 and #78–#81, plus a fix in #83.
 
 > **Upgrade notes**
 > - **Migrations 48–52 run on first start.** They add alert assignment and notes, the `interface_metrics` hypertable, SNMPv3 credentials, flow exporter columns and `device_neighbors`. None of them rewrite existing data.
@@ -52,6 +52,7 @@ This release covers Phases 2a and 2b of the v5 roadmap in `REVIEW_REPORT.md`: th
 - **`alert:updated` WebSocket events** now carry the full alert, and the client patches its cache in place instead of refetching (#80).
 
 ### Fixed
+- **LLDP duplicate rows (#83):** when a remote appeared under two LLDP timeMarks, the row kept was chosen at random. The newest row now wins.
 - **Interface tables were always empty on real agents (#78).** The IF-MIB walks used the table OIDs instead of the entry OIDs.
 - **Unknown `/api/*` paths return a JSON 404 (#80).** They used to return the app shell with a 200.
 - **Flow addresses (#81):** `GET /api/v1/flows` failed to scan `inet` addresses, and top talkers returned addresses with a `/32` suffix.
