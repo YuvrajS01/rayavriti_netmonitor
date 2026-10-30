@@ -17,7 +17,6 @@
     "@fontsource-variable/jetbrains-mono": "^5.2.8",
     "@fontsource-variable/material-symbols-outlined": "^5.2.45",
     "@fontsource-variable/plus-jakarta-sans": "^5.2.8",
-    "@reduxjs/toolkit": "^2.11.2",
     "@tanstack/react-query": "^5.105.0",
     "@visx/visx": "^4.0.0",
     "axios": "^1.15.2",
@@ -25,7 +24,6 @@
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "react-is": "^19.2.5",
-    "react-redux": "^9.2.0",
     "react-router-dom": "^7.18.2",
     "recharts": "^3.8.1"
   },
@@ -39,6 +37,7 @@
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
+    "axios-mock-adapter": "^2.1.0",
     "eslint": "^10.2.1",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.2",

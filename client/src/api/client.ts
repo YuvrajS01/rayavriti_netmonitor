@@ -1,5 +1,5 @@
-export { v1, clearCredentials } from './http';
-export { login, logout, getToken } from './auth';
+export { v1 } from './http';
+export { login, logout, restoreSession } from './auth';
 export { getDevices, addDevice, deleteDevice, getLatestMetrics, getDeviceMetrics, getDevicePorts, scanDevicePorts } from './devices';
 export { getAlerts, getAlertCounts, getGroupedAlerts, acknowledgeAlert, resolveAlert } from './alerts';
 export { getFlowRecords, getTopTalkers, getProtocolDistribution, getFlowTimeseries, getFlowStats } from './flows';

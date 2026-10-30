@@ -1,11 +1,10 @@
 import { useEffect, useRef, useCallback, useMemo, useState } from 'react';
-import { useSelector } from 'react-redux';
-import { getToken } from '../api/client';
+import { getFreshAccessToken } from '../api/http';
+import { useIsAuthenticated } from '../store/session';
 import { SocketContext, SocketStatusContext } from './socketContext';
 import { resolveWebSocketUrl } from './socketUrl';
 import { BATCH_WINDOW_MS, reconnectDelay } from './socketBackoff';
 import { parseWsMessage, type WsEventName, type WsHandler, type WsMessage } from '../api/wsEvents';
-import type { RootState } from '../store';
 
 const PING_INTERVAL = 30000;
 const BATCHED_EVENTS: ReadonlySet<WsEventName> = new Set<WsEventName>(['metric:update']);
@@ -15,7 +14,7 @@ type AnyHandler = (data: unknown) => void;
 export function SocketProvider({ children }: { children: React.ReactNode }) {
   const handlersRef = useRef<Map<WsEventName, Set<AnyHandler>>>(new Map());
   const [connected, setConnected] = useState(false);
-  const isAuthenticated = useSelector((s: RootState) => s.auth.isAuthenticated);
+  const isAuthenticated = useIsAuthenticated();
 
   const dispatch = useCallback((msg: WsMessage) => {
     const handlers = handlersRef.current.get(msg.type);
@@ -35,6 +34,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     let disposed = false;
     let ws: WebSocket | null = null;
     let attempts = 0;
+    let connecting = false;
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
     let pingTimer: ReturnType<typeof setInterval> | null = null;
     let flushTimer: ReturnType<typeof setTimeout> | null = null;
@@ -65,16 +65,20 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       attempts += 1;
       reconnectTimer = setTimeout(() => {
         reconnectTimer = null;
-        connect();
+        void connect();
       }, delay);
     };
 
-    function connect() {
-      if (disposed) return;
-      const token = getToken();
+    async function connect() {
+      if (disposed || connecting) return;
+      connecting = true;
+      // The backend prefers a subprotocol token over the access cookie, so
+      // never offer a stale one: refresh first if it is about to expire.
+      // With no token the handshake falls back to the HttpOnly cookie.
+      const token = await getFreshAccessToken();
+      connecting = false;
+      if (disposed || ws) return;
       const url = resolveWebSocketUrl();
-      // The access token is offered as a subprotocol; the backend falls back
-      // to the HttpOnly access cookie when none is sent.
       const socket = token ? new WebSocket(url, [token]) : new WebSocket(url);
       ws = socket;
 
@@ -126,7 +130,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
         reconnectTimer = null;
       }
       attempts = 0;
-      connect();
+      void connect();
     };
 
     const handleVisibility = () => {
@@ -135,7 +139,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
 
     window.addEventListener('online', reconnectNow);
     document.addEventListener('visibilitychange', handleVisibility);
-    connect();
+    void connect();
 
     return () => {
       disposed = true;

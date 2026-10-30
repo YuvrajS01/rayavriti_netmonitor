@@ -1,8 +1,6 @@
 import { useState, useEffect, useMemo, memo, type FormEvent } from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
-import { useDispatch, useSelector } from 'react-redux';
-import { clearCredentials } from '../store/authSlice';
-import type { RootState } from '../store';
+import { useSessionUser } from '../store/session';
 import { logout, getAlertCounts } from '../api/client';
 import { useSocketConnected } from '../hooks/useSocket';
 import { useQuery } from '@tanstack/react-query';
@@ -108,8 +106,7 @@ const SidebarLink = memo(function SidebarLink({ to, label, icon, badge, end, onC
 export default function Layout({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const dispatch = useDispatch();
-  const user = useSelector((s: RootState) => s.auth.user);
+  const user = useSessionUser();
   const connected = useSocketConnected();
   const [sidebarOpen, setSidebarOpen] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 1024);
   const [command, setCommand] = useState('');
@@ -190,8 +187,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   }, []);
 
   const handleLogout = async () => {
-    try { await logout(); } catch { /* ignore */ }
-    dispatch(clearCredentials());
+    await logout();
     navigate('/login');
   };
 
