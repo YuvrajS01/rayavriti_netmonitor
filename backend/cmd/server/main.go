@@ -21,7 +21,9 @@ import (
 	"github.com/rayavriti/netmonitor-backend/internal/engine"
 	"github.com/rayavriti/netmonitor-backend/internal/logging"
 	"github.com/rayavriti/netmonitor-backend/internal/metrics"
+	"github.com/rayavriti/netmonitor-backend/internal/models"
 	"github.com/rayavriti/netmonitor-backend/internal/monitoring"
+	"github.com/rayavriti/netmonitor-backend/internal/rbac"
 	"github.com/rayavriti/netmonitor-backend/internal/reports"
 	"github.com/rayavriti/netmonitor-backend/internal/retention"
 	"github.com/rayavriti/netmonitor-backend/internal/scheduler"
@@ -115,6 +117,11 @@ func run() error {
 
 	// 6. Initialize WebSocket hub with bootstrap function
 	bootstrapFn := func(ctx context.Context, userID int64, username, role string) (map[string]any, error) {
+		user := map[string]any{"id": userID, "username": username, "role": role}
+		if !rbac.IsUnscopedRole(role) {
+			// Scoped users only receive their own devices' state (S7).
+			return scopedBootstrap(ctx, appDB, db, userID, user)
+		}
 		stats, err := appDB.GetDashboardStats(ctx)
 		if err != nil {
 			stats = map[string]any{}
@@ -131,11 +138,7 @@ func run() error {
 			"stats":         stats,
 			"latestMetrics": latestMetrics,
 			"alerts":        alerts,
-			"user": map[string]any{
-				"id":       userID,
-				"username": username,
-				"role":     role,
-			},
+			"user":          user,
 		}, nil
 	}
 	hub := websocket.NewHub(
@@ -326,6 +329,54 @@ func run() error {
 	_ = adminSrv.Shutdown(ctx)
 	logger.Info("Shutdown complete")
 	return nil
+}
+
+// scopedBootstrap builds the initial WebSocket payload for a location- or
+// subnet-scoped user from their devices only.
+func scopedBootstrap(ctx context.Context, appDB database.Database, db *database.Postgres, userID int64, user map[string]any) (map[string]any, error) {
+	scopes, err := rbac.LoadScopes(ctx, db.Pool(), userID)
+	if err != nil {
+		return nil, err
+	}
+	sf := (&rbac.ScopeContext{IsScoped: true, Scopes: scopes}).DatabaseScopeFilter()
+	devices, _, err := appDB.GetDevicesFiltered(ctx, database.DeviceFilter{Scope: sf, Limit: 100000})
+	if err != nil {
+		return nil, err
+	}
+	allowed := make(map[int64]bool, len(devices))
+	var online, offline int
+	for _, d := range devices {
+		allowed[d.ID] = true
+		switch d.Status {
+		case "up":
+			online++
+		case "down":
+			offline++
+		}
+	}
+	var latest []models.Metric
+	if all, err := appDB.GetLatestMetrics(ctx); err == nil {
+		for _, m := range all {
+			if allowed[m.DeviceID] {
+				latest = append(latest, m)
+			}
+		}
+	}
+	alerts, activeAlerts, err := appDB.GetAlerts(ctx, "active", 50, 0, sf)
+	if err != nil {
+		alerts, activeAlerts = nil, 0
+	}
+	return map[string]any{
+		"stats": map[string]any{
+			"totalDevices":   len(devices),
+			"onlineDevices":  online,
+			"offlineDevices": offline,
+			"activeAlerts":   activeAlerts,
+		},
+		"latestMetrics": latest,
+		"alerts":        alerts,
+		"user":          user,
+	}, nil
 }
 
 // minRawMetricsDays keeps raw metrics longer than the metrics_hourly refresh

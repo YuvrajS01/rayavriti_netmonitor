@@ -2,7 +2,9 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"io"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -119,6 +121,10 @@ func (h *DeviceHandler) Create(w http.ResponseWriter, r *http.Request) {
 		httputil.SendError(w, http.StatusBadRequest, "name and ipAddress are required")
 		return
 	}
+	if !canPlaceInLocation(r, d.LocationID) {
+		httputil.SendError(w, http.StatusForbidden, "location is outside your scope")
+		return
+	}
 	if len(d.Name) > 255 {
 		httputil.SendError(w, http.StatusBadRequest, "name must be at most 255 characters")
 		return
@@ -206,8 +212,14 @@ func (h *DeviceHandler) Update(w http.ResponseWriter, r *http.Request) {
 		httputil.SendInternalError(w, err)
 		return
 	}
+	raw, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
+	if err != nil {
+		httputil.SendError(w, http.StatusBadRequest, "invalid body")
+		return
+	}
 	var patch models.Device
-	if err := httputil.ParseJSON(r, &patch); err != nil {
+	var present map[string]json.RawMessage
+	if json.Unmarshal(raw, &patch) != nil || json.Unmarshal(raw, &present) != nil {
 		httputil.SendError(w, http.StatusBadRequest, "invalid body")
 		return
 	}
@@ -300,9 +312,22 @@ func (h *DeviceHandler) Update(w http.ResponseWriter, r *http.Request) {
 	if patch.Notes != "" {
 		existing.Notes = patch.Notes
 	}
-	existing.LocationID = patch.LocationID
-	existing.ParentDeviceID = patch.ParentDeviceID
-	existing.DependencyPort = patch.DependencyPort
+	// Placement fields are applied only when present in the body (explicit
+	// null clears them). Unconditional assignment meant any partial update,
+	// e.g. PUT /devices/{id}/parent, silently cleared the location.
+	if _, ok := present["locationId"]; ok {
+		if !canPlaceInLocation(r, patch.LocationID) {
+			httputil.SendError(w, http.StatusForbidden, "location is outside your scope")
+			return
+		}
+		existing.LocationID = patch.LocationID
+	}
+	if _, ok := present["parentDeviceId"]; ok {
+		existing.ParentDeviceID = patch.ParentDeviceID
+	}
+	if _, ok := present["dependencyPort"]; ok {
+		existing.DependencyPort = patch.DependencyPort
+	}
 	if patch.RackPosition != "" {
 		existing.RackPosition = patch.RackPosition
 	}

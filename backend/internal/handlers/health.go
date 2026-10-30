@@ -63,6 +63,11 @@ func (h *HealthHandler) Scores(w http.ResponseWriter, r *http.Request) {
 		httputil.SendInternalError(w, err)
 		return
 	}
+	scores, err = filterScoresByScope(r, h.db, scores)
+	if err != nil {
+		httputil.SendInternalError(w, err)
+		return
+	}
 	httputil.SendOK(w, scores)
 }
 

@@ -4,6 +4,7 @@ package database
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -152,4 +153,47 @@ func TestIntegration_UpdateDeviceStatusesOnlyChanged(t *testing.T) {
 	got, err := p.GetDevice(ctx, b.ID)
 	require.NoError(t, err)
 	assert.Equal(t, "down", got.Status)
+}
+
+func TestIntegration_DeviceScopeFilter(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+	p, cleanup := setupTestDB(t)
+	defer cleanup()
+	ctx := context.Background()
+
+	var locA, locB int64
+	require.NoError(t, p.pool.QueryRow(ctx, `INSERT INTO locations(name, type) VALUES ('A','building') RETURNING id`).Scan(&locA))
+	require.NoError(t, p.pool.QueryRow(ctx, `INSERT INTO locations(name, type) VALUES ('B','building') RETURNING id`).Scan(&locB))
+	mk := func(name, ip string, loc *int64) int64 {
+		d, err := p.CreateDevice(ctx, &models.Device{Name: name, IPAddress: ip, Protocol: "ping", Enabled: true, LocationID: loc})
+		require.NoError(t, err)
+		return d.ID
+	}
+	inA := mk("in-a", "192.168.9.1", &locA)
+	inB := mk("in-b", "192.168.9.2", &locB)
+	inSubnet := mk("in-subnet", "10.5.0.7", nil)
+	_ = mk("hostname", "core.example.edu", nil)
+	_ = mk("elsewhere", "172.16.0.1", nil)
+
+	ids := func(f DeviceFilter) []int64 {
+		devices, _, err := p.GetDevicesFiltered(ctx, f)
+		require.NoError(t, err)
+		var out []int64
+		for _, d := range devices {
+			out = append(out, d.ID)
+		}
+		return out
+	}
+	locStr := func(id int64) string { return fmt.Sprintf("%d", id) }
+
+	// Location OR subnet, and hostnames don't break the subnet check.
+	assert.ElementsMatch(t, []int64{inA, inSubnet},
+		ids(DeviceFilter{Scope: &ScopeFilter{LocationIDs: []string{locStr(locA)}, SubnetCIDRs: []string{"10.5.0.0/16"}}}))
+	// Scope combined with another filter keeps parameter numbering straight.
+	assert.ElementsMatch(t, []int64{inB},
+		ids(DeviceFilter{LocationID: &locB, Scope: &ScopeFilter{LocationIDs: []string{locStr(locA), locStr(locB)}}}))
+	// No usable scope matches nothing.
+	assert.Empty(t, ids(DeviceFilter{Scope: &ScopeFilter{SubnetCIDRs: []string{"not-a-cidr"}}}))
 }

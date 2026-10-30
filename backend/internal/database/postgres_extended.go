@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/netip"
 	"strconv"
 	"strings"
 	"time"
@@ -47,6 +48,34 @@ func (p *Postgres) GetDevicesByStatus(ctx context.Context, status string) ([]mod
 	return devices, nil
 }
 
+// scopeCondition builds the devices WHERE fragment for a user's scopes,
+// numbering parameters from argN. A device matches if it is in ANY of the
+// scoped locations OR subnets; no usable scope matches nothing.
+func scopeCondition(sc *ScopeFilter, argN int) (string, []any) {
+	var conds []string
+	var args []any
+	if len(sc.LocationIDs) > 0 {
+		conds = append(conds, fmt.Sprintf("location_id::text = ANY($%d)", argN))
+		args = append(args, sc.LocationIDs)
+		argN++
+	}
+	for _, cidr := range sc.SubnetCIDRs {
+		if _, err := netip.ParsePrefix(cidr); err != nil {
+			continue
+		}
+		// ip_address also holds hostnames; CASE guarantees the cast only
+		// runs on values that are valid inet literals.
+		conds = append(conds, fmt.Sprintf(
+			"CASE WHEN pg_input_is_valid(ip_address, 'inet') THEN ip_address::inet <<= $%d::cidr ELSE FALSE END", argN))
+		args = append(args, cidr)
+		argN++
+	}
+	if len(conds) == 0 {
+		return "FALSE", nil
+	}
+	return "(" + strings.Join(conds, " OR ") + ")", args
+}
+
 func (p *Postgres) GetDevicesFiltered(ctx context.Context, f DeviceFilter) ([]models.Device, int, error) {
 	where := []string{}
 	args := []any{}
@@ -75,24 +104,12 @@ func (p *Postgres) GetDevicesFiltered(ctx context.Context, f DeviceFilter) ([]mo
 	if f.LocationID != nil {
 		where = append(where, fmt.Sprintf("location_id=$%d", argN))
 		args = append(args, *f.LocationID)
+		argN++
 	}
 	if f.Scope != nil {
-		scopeConds := []string{}
-		if len(f.Scope.LocationIDs) > 0 {
-			where = append(where, fmt.Sprintf("location_id = ANY($%d)", argN))
-			args = append(args, f.Scope.LocationIDs)
-			argN++
-		}
-		for _, cidr := range f.Scope.SubnetCIDRs {
-			scopeConds = append(scopeConds, fmt.Sprintf("ip_address <<= $%d", argN))
-			args = append(args, cidr)
-			argN++
-		}
-		if len(scopeConds) > 0 {
-			where = append(where, "("+strings.Join(scopeConds, " OR ")+")")
-		} else if len(f.Scope.LocationIDs) == 0 {
-			where = append(where, "FALSE")
-		}
+		cond, scopeArgs := scopeCondition(f.Scope, argN)
+		where = append(where, cond)
+		args = append(args, scopeArgs...)
 	}
 
 	whereClause := ""

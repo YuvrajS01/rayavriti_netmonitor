@@ -180,6 +180,20 @@ func (h *AlertHandler) Delete(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AlertHandler) Counts(w http.ResponseWriter, r *http.Request) {
+	if sf := scopeFilterFromContext(r); sf != nil {
+		// Scoped users: count only alerts on their devices.
+		var counts models.AlertCounts
+		for status, dst := range map[string]*int{"active": &counts.Active, "acknowledged": &counts.Acknowledged, "resolved": &counts.Resolved} {
+			_, total, err := h.db.GetAlerts(r.Context(), status, 1, 0, sf)
+			if err != nil {
+				httputil.SendInternalError(w, err)
+				return
+			}
+			*dst = total
+		}
+		httputil.SendOK(w, counts)
+		return
+	}
 	counts, err := h.db.GetAlertCounts(r.Context())
 	if err != nil {
 		httputil.SendInternalError(w, err)

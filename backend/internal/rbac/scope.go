@@ -42,41 +42,47 @@ func RequireScopeContext(pool *pgxpool.Pool) func(http.Handler) http.Handler {
 				Role:   claims.Role,
 			}
 
-			if claims.Role == "super_admin" || claims.Role == "admin" {
+			if IsUnscopedRole(claims.Role) {
 				next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), scopeKey, sc)))
 				return
 			}
 
 			sc.IsScoped = true
 
-			rows, err := pool.Query(r.Context(),
-				"SELECT scope_type, scope_value FROM user_scopes WHERE user_id = $1",
-				claims.UserID)
+			scopes, err := LoadScopes(r.Context(), pool, claims.UserID)
 			if err != nil {
-				slog.Error("scope: failed to load scopes",
-					"user_id", claims.UserID,
-					"error", err,
-				)
-				next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), scopeKey, sc)))
-				return
+				// Fail closed: a scoped user with unknown scopes sees nothing.
+				slog.Error("scope: failed to load scopes", "user_id", claims.UserID, "error", err)
 			}
-			defer rows.Close()
-
-			for rows.Next() {
-				var us UserScope
-				if err := rows.Scan(&us.Type, &us.Value); err != nil {
-					slog.Error("scope: failed to scan scope",
-						"user_id", claims.UserID,
-						"error", err,
-					)
-					continue
-				}
-				sc.Scopes = append(sc.Scopes, us)
-			}
+			sc.Scopes = scopes
 
 			next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), scopeKey, sc)))
 		})
 	}
+}
+
+// IsUnscopedRole reports whether a role sees all devices regardless of
+// user_scopes rows.
+func IsUnscopedRole(role string) bool {
+	return role == "super_admin" || role == "admin"
+}
+
+// LoadScopes returns the scope rows assigned to a user.
+func LoadScopes(ctx context.Context, pool *pgxpool.Pool, userID int64) ([]UserScope, error) {
+	rows, err := pool.Query(ctx, "SELECT scope_type, scope_value FROM user_scopes WHERE user_id = $1", userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var scopes []UserScope
+	for rows.Next() {
+		var us UserScope
+		if err := rows.Scan(&us.Type, &us.Value); err != nil {
+			return nil, err
+		}
+		scopes = append(scopes, us)
+	}
+	return scopes, rows.Err()
 }
 
 func GetScopeContext(r *http.Request) *ScopeContext {
