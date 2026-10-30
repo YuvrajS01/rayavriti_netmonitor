@@ -13,10 +13,25 @@ import (
 
 type AlertRuleHandler struct {
 	db database.Database
+	// onChange is called after a rule is created, updated, deleted or
+	// toggled, so the alert engine's rule cache picks up the change.
+	onChange func()
 }
 
 func NewAlertRuleHandler(db database.Database) *AlertRuleHandler {
 	return &AlertRuleHandler{db: db}
+}
+
+// WithRuleInvalidator registers a callback for rule changes.
+func (h *AlertRuleHandler) WithRuleInvalidator(fn func()) *AlertRuleHandler {
+	h.onChange = fn
+	return h
+}
+
+func (h *AlertRuleHandler) changed() {
+	if h.onChange != nil {
+		h.onChange()
+	}
 }
 
 func (h *AlertRuleHandler) List(w http.ResponseWriter, r *http.Request) {
@@ -77,6 +92,7 @@ func (h *AlertRuleHandler) Create(w http.ResponseWriter, r *http.Request) {
 		httputil.SendInternalError(w, err)
 		return
 	}
+	h.changed()
 	httputil.SendCreated(w, created)
 }
 
@@ -100,6 +116,7 @@ func (h *AlertRuleHandler) Update(w http.ResponseWriter, r *http.Request) {
 		httputil.SendInternalError(w, err)
 		return
 	}
+	h.changed()
 	httputil.SendOK(w, updated)
 }
 
@@ -113,6 +130,7 @@ func (h *AlertRuleHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		httputil.SendInternalError(w, err)
 		return
 	}
+	h.changed()
 	httputil.SendOK(w, map[string]bool{"deleted": true})
 }
 
@@ -132,6 +150,7 @@ func (h *AlertRuleHandler) Toggle(w http.ResponseWriter, r *http.Request) {
 		httputil.SendInternalError(w, err)
 		return
 	}
+	h.changed()
 	httputil.SendOK(w, map[string]any{"id": id, "enabled": newEnabled})
 }
 

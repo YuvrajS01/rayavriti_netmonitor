@@ -938,3 +938,7 @@ func (m *serverMockDB) PruneCaptureSessions(ctx context.Context, olderThan time.
 func (m *serverMockDB) GetMetricBaselines(ctx context.Context, since time.Time) ([]database.MetricBaseline, error) {
 	return nil, nil
 }
+
+func (m *serverMockDB) UpdateDeviceStatuses(ctx context.Context, ids []int64, statuses []string) ([]int64, error) {
+	return nil, nil
+}

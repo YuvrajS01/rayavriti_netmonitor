@@ -103,6 +103,14 @@ func (c *CachedDatabase) UpdateDeviceStatus(ctx context.Context, id int64, statu
 	return err
 }
 
+func (c *CachedDatabase) UpdateDeviceStatuses(ctx context.Context, ids []int64, statuses []string) ([]int64, error) {
+	changed, err := c.Database.UpdateDeviceStatuses(ctx, ids, statuses)
+	for _, id := range changed {
+		_ = c.rdb.Del(ctx, fmt.Sprintf("nm:device:%d", id))
+	}
+	return changed, err
+}
+
 func (c *CachedDatabase) RecordMetric(ctx context.Context, m *models.Metric) error {
 	err := c.Database.RecordMetric(ctx, m)
 	if err == nil {

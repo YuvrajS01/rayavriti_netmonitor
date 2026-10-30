@@ -305,3 +305,7 @@ func (m *mockRetDB) PruneCaptureSessions(ctx context.Context, olderThan time.Tim
 func (m *mockRetDB) GetMetricBaselines(ctx context.Context, since time.Time) ([]database.MetricBaseline, error) {
 	return nil, nil
 }
+
+func (m *mockRetDB) UpdateDeviceStatuses(ctx context.Context, ids []int64, statuses []string) ([]int64, error) {
+	return nil, nil
+}

@@ -42,6 +42,7 @@ type AlertEngine struct {
 	notifQueue    chan notificationJob
 	notifWorkers  int
 	notifExitOnce sync.Once
+	rules         ruleCache
 	// notifDone tells workers to drain what is queued and exit. notifQueue is
 	// never closed: enqueue may race with Stop and must not panic.
 	notifDone chan struct{}
@@ -106,19 +107,13 @@ func WithBaselineCache(bc *BaselineCache) AlertEngineOption {
 }
 
 func (e *AlertEngine) ProcessMetric(ctx context.Context, device *models.Device, metric *models.Metric, previousStatus string) error {
-	rules, err := e.db.GetAlertRules(ctx)
+	rules, err := e.activeRules(ctx)
 	if err != nil {
 		return fmt.Errorf("load alert rules: %w", err)
 	}
 
 	for i := range rules {
 		rule := &rules[i]
-		if !rule.Enabled {
-			continue
-		}
-		if len(rule.Conditions) == 0 {
-			continue
-		}
 		if !ruleAppliesToDevice(rule, device) {
 			continue
 		}
@@ -180,7 +175,7 @@ func (e *AlertEngine) absenceLoop(ctx context.Context) {
 }
 
 func (e *AlertEngine) evaluateAbsenceConditions(ctx context.Context) {
-	rules, err := e.db.GetAlertRules(ctx)
+	rules, err := e.activeRules(ctx)
 	if err != nil {
 		slog.Warn("Failed to load rules for absence check", "error", err)
 		return

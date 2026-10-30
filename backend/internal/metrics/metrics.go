@@ -63,6 +63,16 @@ var (
 		Buckets: []float64{1, 5, 10, 25, 50, 100, 250, 500},
 	})
 
+	// Redis metric buffer.
+	MetricBufferFlushed = factory.NewCounter(prometheus.CounterOpts{
+		Namespace: namespace, Subsystem: "metric_buffer", Name: "flushed_total",
+		Help: "Metrics persisted from the Redis buffer.",
+	})
+	MetricBufferDeadLettered = factory.NewCounter(prometheus.CounterOpts{
+		Namespace: namespace, Subsystem: "metric_buffer", Name: "dead_lettered_total",
+		Help: "Buffered metrics rejected permanently by the database and moved to the dead-letter list.",
+	})
+
 	// WebSocket.
 	WSMessagesDropped = factory.NewCounterVec(prometheus.CounterOpts{
 		Namespace: namespace, Subsystem: "websocket", Name: "messages_dropped_total",

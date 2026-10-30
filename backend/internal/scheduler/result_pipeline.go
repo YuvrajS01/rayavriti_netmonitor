@@ -146,14 +146,27 @@ func (rp *ResultPipeline) processBatch(ctx context.Context, batch []PollResult) 
 
 	rp.writeMetrics(ctx, metrics)
 
-	// Update device status in database
+	// Persist device statuses in one statement per batch; the database only
+	// rewrites rows whose status changed. Within a batch the latest poll
+	// of a device wins.
+	latest := make(map[int64]PollResult, len(batch))
 	for _, pr := range batch {
-		if pr.Status != "" {
-			if pg, ok := rp.db.(interface {
-				UpdateDeviceStatus(context.Context, int64, string) error
-			}); ok {
-				_ = pg.UpdateDeviceStatus(ctx, pr.Device.ID, pr.Status)
-			}
+		if pr.Status == "" {
+			continue
+		}
+		if prev, ok := latest[pr.Device.ID]; !ok || pr.FinishedAt.After(prev.FinishedAt) {
+			latest[pr.Device.ID] = pr
+		}
+	}
+	if len(latest) > 0 {
+		ids := make([]int64, 0, len(latest))
+		statuses := make([]string, 0, len(latest))
+		for id, pr := range latest {
+			ids = append(ids, id)
+			statuses = append(statuses, pr.Status)
+		}
+		if _, err := rp.db.UpdateDeviceStatuses(ctx, ids, statuses); err != nil {
+			slog.Warn("failed to persist device statuses", "count", len(ids), "error", err)
 		}
 	}
 
