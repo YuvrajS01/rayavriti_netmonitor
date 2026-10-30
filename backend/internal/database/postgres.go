@@ -369,6 +369,33 @@ func (p *Postgres) RecordInterfaceSamples(ctx context.Context, samples []models.
 	return err
 }
 
+func (p *Postgres) ReplaceDeviceNeighbors(ctx context.Context, deviceID int64, neighbors []models.LLDPNeighbor) error {
+	tx, err := p.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	now := time.Now()
+	for _, n := range neighbors {
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO device_neighbors (device_id, local_port_num, local_port, remote_chassis_id, remote_port_id,
+			                              remote_sys_name, remote_port_desc, remote_mgmt_ip, first_seen, last_seen)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$9)
+			ON CONFLICT (device_id, local_port_num, remote_chassis_id, remote_port_id) DO UPDATE SET
+			    local_port=EXCLUDED.local_port, remote_sys_name=EXCLUDED.remote_sys_name,
+			    remote_port_desc=EXCLUDED.remote_port_desc, remote_mgmt_ip=EXCLUDED.remote_mgmt_ip,
+			    last_seen=EXCLUDED.last_seen`,
+			deviceID, n.LocalPortNum, n.LocalPort, n.RemoteChassisID, n.RemotePortID,
+			n.RemoteSysName, n.RemotePortDesc, n.RemoteMgmtIP, now); err != nil {
+			return err
+		}
+	}
+	if _, err := tx.Exec(ctx, `DELETE FROM device_neighbors WHERE device_id=$1 AND last_seen < $2`, deviceID, now); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
 // ── Metrics ───────────────────────────────────────────────────────────────────
 
 func (p *Postgres) RecordMetric(ctx context.Context, m *models.Metric) error {

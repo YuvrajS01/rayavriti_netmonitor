@@ -377,3 +377,7 @@ func (m *mockRetDB2) UpdateDeviceStatuses(ctx context.Context, ids []int64, stat
 func (m *mockRetDB2) RecordInterfaceSamples(ctx context.Context, samples []models.InterfaceSample) error {
 	return nil
 }
+
+func (m *mockRetDB2) ReplaceDeviceNeighbors(ctx context.Context, deviceID int64, neighbors []models.LLDPNeighbor) error {
+	return nil
+}

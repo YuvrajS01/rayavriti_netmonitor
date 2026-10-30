@@ -87,6 +87,9 @@ type Database interface {
 	UpdateDeviceStatus(ctx context.Context, id int64, status string) error
 	// RecordInterfaceSamples bulk-writes per-interface throughput samples.
 	RecordInterfaceSamples(ctx context.Context, samples []models.InterfaceSample) error
+	// ReplaceDeviceNeighbors replaces a device's LLDP neighbour set, keeping
+	// first_seen for neighbours that were already known.
+	ReplaceDeviceNeighbors(ctx context.Context, deviceID int64, neighbors []models.LLDPNeighbor) error
 	// UpdateDeviceStatuses writes many statuses in one statement, touching
 	// only rows whose status actually changed, and returns their IDs.
 	UpdateDeviceStatuses(ctx context.Context, ids []int64, statuses []string) ([]int64, error)

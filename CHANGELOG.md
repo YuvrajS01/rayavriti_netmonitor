@@ -21,6 +21,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 - The unused `NetFlowCollector` (v5 only) and `FlowAnalyzer`. `NETFLOW_PORT` is still honoured when `NETFLOW_ADDR` is unset.
 
+## [5.0.1] - 2026-10-30
+
+### Fixed
+- **Stored metrics lagged on small deployments.** The result pipeline's flush timer was re-armed only after a non-empty flush. If it fired while no results were waiting (typically right after startup), it never fired again. Results were then written only once 100 had accumulated, which on a site with a few dozen devices delayed stored metrics, dashboards, alert evaluation and live device status by minutes. A ticker now drives the flush.
+
 ## [5.0.0] - 2026-10-30
 
 This release is Phase 1 of the v5 roadmap in `REVIEW_REPORT.md`: observability, storage lifecycle, ingestion throughput, complete API authorization, a new frontend platform and a new design system. It shipped as PRs #64–#72.

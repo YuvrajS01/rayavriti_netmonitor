@@ -1243,4 +1243,19 @@ var migrations = []Migration{
 	ALTER TABLE flows ADD COLUMN IF NOT EXISTS tcp_flags SMALLINT;
 	ALTER TABLE flows ADD COLUMN IF NOT EXISTS tos SMALLINT;
 	ALTER TABLE flows ADD COLUMN IF NOT EXISTS sampling_rate INT;`},
+	// v5.2: LLDP neighbours reported by polled devices.
+	{Version: 52, SQL: `CREATE TABLE IF NOT EXISTS device_neighbors (
+		device_id         BIGINT      NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+		local_port_num    INTEGER     NOT NULL,
+		local_port        TEXT        NOT NULL,
+		remote_chassis_id TEXT        NOT NULL,
+		remote_port_id    TEXT        NOT NULL,
+		remote_sys_name   TEXT        NOT NULL DEFAULT '',
+		remote_port_desc  TEXT        NOT NULL DEFAULT '',
+		remote_mgmt_ip    TEXT        NOT NULL DEFAULT '',
+		first_seen        TIMESTAMPTZ NOT NULL,
+		last_seen         TIMESTAMPTZ NOT NULL,
+		PRIMARY KEY (device_id, local_port_num, remote_chassis_id, remote_port_id)
+	);
+	CREATE INDEX IF NOT EXISTS idx_device_neighbors_mgmt ON device_neighbors (remote_mgmt_ip) WHERE remote_mgmt_ip <> '';`},
 }

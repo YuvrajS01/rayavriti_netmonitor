@@ -101,6 +101,12 @@ func (SNMPCollector) Collect(ctx context.Context, device *models.Device) (*Resul
 	t, err = collectTable(g, oidIfXTable, []int{1, 6, 10, 15}, 40)
 	ifXRes := tableResult{table: t, err: err}
 
+	var neighbors []models.LLDPNeighbor
+	var neighborsOK bool
+	if now := time.Now(); lldpDue.due(device.ID, now) {
+		neighbors, neighborsOK = collectLLDP(g, device.ID, now)
+	}
+
 	elapsed := float64(time.Since(start).Milliseconds())
 
 	// Parse uptime
@@ -226,6 +232,9 @@ func (SNMPCollector) Collect(ctx context.Context, device *models.Device) (*Resul
 		Details:      details,
 		Bandwidth:    totalBps,
 		Interfaces:   samples,
+
+		Neighbors:          neighbors,
+		NeighborsCollected: neighborsOK,
 	}, nil
 }
 
@@ -234,9 +243,6 @@ type tableResult struct {
 	err   error
 }
 
-// walk visits every varbind under oid. SNMPv2c/v3 use GETBULK, fetching
-// MaxRepetitions rows per round trip; v1 has no GETBULK and falls back to
-// GETNEXT, one round trip per value (B4).
 // newSNMPClient builds a gosnmp client for the device's configured version:
 // v1, v2c (the default) or v3 with USM credentials.
 func newSNMPClient(device *models.Device) (*gosnmp.GoSNMP, error) {
@@ -311,6 +317,9 @@ func usmParams(c *models.SNMPv3Config) (gosnmp.SnmpV3MsgFlags, *gosnmp.UsmSecuri
 	}
 }
 
+// walk visits every varbind under oid. SNMPv2c/v3 use GETBULK, fetching
+// MaxRepetitions rows per round trip; v1 has no GETBULK and falls back to
+// GETNEXT, one round trip per value (B4).
 func walk(g *gosnmp.GoSNMP, oid string, maxRepetitions int, fn gosnmp.WalkFunc) error {
 	if g.Version == gosnmp.Version1 {
 		return g.Walk(oid, fn)

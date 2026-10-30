@@ -524,3 +524,21 @@ type InterfaceSample struct {
 	OperStatus  int       `json:"operStatus"`            // IF-MIB ifOperStatus (1 = up)
 	SpeedBps    int64     `json:"speedBps"`
 }
+
+// LLDPNeighbor is one LLDP-MIB remote system seen on a local port of a
+// polled device. RemoteDeviceID is set when the remote resolves to a
+// monitored device (by management address, then by system name).
+type LLDPNeighbor struct {
+	DeviceID        int64     `json:"deviceId"`
+	LocalPortNum    int       `json:"localPortNum"`
+	LocalPort       string    `json:"localPort"`
+	RemoteChassisID string    `json:"remoteChassisId"`
+	RemoteSysName   string    `json:"remoteSysName,omitempty"`
+	RemotePortID    string    `json:"remotePortId"`
+	RemotePortDesc  string    `json:"remotePortDesc,omitempty"`
+	RemoteMgmtIP    string    `json:"remoteMgmtIp,omitempty"`
+	RemoteDeviceID  *int64    `json:"remoteDeviceId,omitempty"`
+	RemoteDevice    string    `json:"remoteDeviceName,omitempty"`
+	FirstSeen       time.Time `json:"firstSeen"`
+	LastSeen        time.Time `json:"lastSeen"`
+}

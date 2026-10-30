@@ -396,6 +396,8 @@ func (s *Server) Start() error {
 			ifaceH := handlers.NewInterfaceHandler(operatorH.Pool())
 			r.With(rbac.RequirePermission(models.PermDevicesRead), devGuard).Get("/api/v1/devices/{id}/interfaces", ifaceH.Latest)
 			r.With(rbac.RequirePermission(models.PermDevicesRead), devGuard).Get("/api/v1/devices/{id}/interfaces/{ifIndex}/history", ifaceH.History)
+			r.With(rbac.RequirePermission(models.PermDevicesRead), devGuard).Get("/api/v1/devices/{id}/neighbors", ifaceH.Neighbors)
+			r.With(rbac.RequirePermission(models.PermDevicesRead), unscopedOnly).Get("/api/v1/topology/links", ifaceH.Links)
 		}
 		r.With(rbac.RequirePermission(models.PermAlertsRead), unscopedOnly).Get("/api/v1/alerts/suppressed", resourceH.List("suppressed_alerts"))
 
