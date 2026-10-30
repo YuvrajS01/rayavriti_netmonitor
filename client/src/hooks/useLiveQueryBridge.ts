@@ -1,7 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useSocketEvents } from './useSocketEvents';
 import { queryKeys } from '../api/queryKeys';
-import { applyAlertChange, applyBootstrap, applyDeviceStatus, applyMetricUpdate } from '../api/liveCache';
+import { applyAlertChange, applyAlertUpdated, applyBootstrap, applyDeviceStatus, applyMetricUpdate } from '../api/liveCache';
 
 /**
  * Routes WebSocket events into the TanStack Query cache, so every page that
@@ -16,7 +16,7 @@ export function useLiveQueryBridge() {
     onDeviceStatus: (event) => applyDeviceStatus(client, event),
     onBootstrap: (payload) => applyBootstrap(client, payload),
     onAlertTriggered: () => applyAlertChange(client),
-    onAlertUpdated: () => applyAlertChange(client),
+    onAlertUpdated: (alert) => applyAlertUpdated(client, alert),
     onAlertResolved: () => applyAlertChange(client),
     onCaptureStatus: () => { void client.invalidateQueries({ queryKey: queryKeys.capture.sessions() }); },
     onPortsScanned: ({ deviceId }) => { void client.invalidateQueries({ queryKey: queryKeys.devices.ports(deviceId) }); },

@@ -45,10 +45,23 @@ function formatSize(bytes: number): string {
   return `${(bytes / 1048576).toFixed(1)} MB`;
 }
 
-export default function ReportBuilder() {
+type ReportSection = (typeof TAB_IDS)[number];
+
+function SectionPanel({ tabbed, idBase, id, value, children }: { tabbed: boolean; idBase: string; id: string; value: string; children: React.ReactNode }) {
+  if (!tabbed) return <div>{children}</div>;
+  return <TabPanel idBase={idBase} id={id} value={value}>{children}</TabPanel>;
+}
+
+/**
+ * Scheduled reports and the generated archive. Routed twice: /reports/scheduled
+ * (`section="scheduled"`) and /reports/library (`section="generated"`); without
+ * a section it shows both as tabs.
+ */
+export default function ReportBuilder({ section }: { section?: ReportSection }) {
   const { addToast } = useToast();
   const queryClient = useQueryClient();
-  const [tab, setTab] = useTabParam(TAB_IDS);
+  const [tabParam, setTab] = useTabParam(TAB_IDS);
+  const tab = section ?? tabParam;
   const tabsId = useTabsId();
   const [search, setSearch] = useState('');
   const [showForm, setShowForm] = useState(false);
@@ -143,9 +156,9 @@ export default function ReportBuilder() {
   return (
     <div className="space-y-6">
       <SectionHeader
-        title="Report builder"
-        subtitle="Schedule automated reports, review generated archives and configure recipients."
-        action={<Button icon="add" onClick={openCreate}>New schedule</Button>}
+        title={section === 'generated' ? 'Report library' : section === 'scheduled' ? 'Scheduled reports' : 'Report builder'}
+        subtitle={section === 'generated' ? 'Every report the scheduler has generated, ready to download.' : 'Schedule automated reports and configure recipients.'}
+        action={section === 'generated' ? undefined : <Button icon="add" onClick={openCreate}>New schedule</Button>}
       />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -155,7 +168,7 @@ export default function ReportBuilder() {
         <StatCard label="Last run" value={stats.lastRun ? (formatDate(stats.lastRun).split(',')[0] ?? '') : 'None'} icon="history" />
       </div>
 
-      <Tabs
+      {!section && <Tabs
         items={[
           { id: 'scheduled', label: 'Scheduled', icon: 'schedule', badge: scheduled.length },
           { id: 'generated', label: 'Generated', icon: 'description', badge: generated.length },
@@ -164,10 +177,10 @@ export default function ReportBuilder() {
         onChange={(next) => { setTab(next); setSearch(''); }}
         label="Report archive"
         idBase={tabsId}
-      />
+      />}
 
-      {TAB_IDS.map((id) => (
-        <TabPanel key={id} idBase={tabsId} id={id} value={tab}>
+      {(section ? [section] : TAB_IDS).map((id) => (
+        <SectionPanel key={id} tabbed={!section} idBase={tabsId} id={id} value={tab}>
           <Card variant="low" className="overflow-hidden">
             <div className="p-5 border-b border-line flex flex-col md:flex-row gap-4 md:items-center md:justify-between">
               <div>
@@ -249,7 +262,7 @@ export default function ReportBuilder() {
               </ul>
             )}
           </Card>
-        </TabPanel>
+        </SectionPanel>
       ))}
 
       <Dialog

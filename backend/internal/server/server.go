@@ -697,6 +697,13 @@ func (h spaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	fsys := os.DirFS(h.staticDir)
 	name := strings.TrimPrefix(path.Clean("/"+r.URL.Path), "/")
 
+	// Unknown API paths get a JSON 404, not the app shell: a client probing
+	// for an endpoint must not mistake index.html for a successful reply.
+	if name == "api" || strings.HasPrefix(name, "api/") {
+		SendError(w, http.StatusNotFound, "not found")
+		return
+	}
+
 	// If file exists, serve it
 	if info, err := fs.Stat(fsys, name); err == nil && !info.IsDir() {
 		http.ServeFileFS(w, r, fsys, name) //nolint:gosec // G703 false positive: os.DirFS rejects ".." names (see spa_test.go)

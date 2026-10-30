@@ -49,3 +49,15 @@ export function asText(value: unknown, fallback = ''): string {
   if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') return String(value);
   return fallback;
 }
+
+/** Formats a bit rate with an SI unit (bps, Kbps, Mbps, Gbps). */
+export function formatBps(bps: number): string {
+  const units = ['bps', 'Kbps', 'Mbps', 'Gbps', 'Tbps'];
+  let v = bps;
+  let i = 0;
+  while (v >= 1000 && i < units.length - 1) {
+    v /= 1000;
+    i++;
+  }
+  return `${i === 0 ? Math.round(v) : v.toFixed(v < 10 ? 2 : 1)} ${units[i]}`;
+}

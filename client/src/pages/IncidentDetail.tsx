@@ -125,7 +125,7 @@ export default function IncidentDetail() {
       <div className="text-center py-20">
         <span className="material-symbols-outlined text-4xl text-fg-subtle" aria-hidden="true">error</span>
         <p className="text-fg-muted mt-3">Incident not found.</p>
-        <Button variant="secondary" icon="arrow_back" onClick={() => navigate('/incidents')} className="mt-4">Back to incidents</Button>
+        <Button variant="secondary" icon="arrow_back" onClick={() => navigate('/alerts/incidents')} className="mt-4">Back to incidents</Button>
       </div>
     );
   }
@@ -136,7 +136,7 @@ export default function IncidentDetail() {
     <div className="space-y-6">
       <header className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div className="flex items-start gap-3">
-          <IconButton icon="arrow_back" label="Back to incidents" onClick={() => navigate('/incidents')} className="mt-0.5" />
+          <IconButton icon="arrow_back" label="Back to incidents" onClick={() => navigate('/alerts/incidents')} className="mt-0.5" />
           <div>
             <div className="flex items-center gap-3 flex-wrap">
               <h1 className="text-2xl font-semibold text-fg">{incident.title}</h1>

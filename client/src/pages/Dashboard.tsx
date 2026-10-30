@@ -1,9 +1,11 @@
 import { useState, useMemo, Suspense } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { getMetricsHistory, historyWindow } from '../api/history';
+import { useNow } from '../utils/time';
 import { getStats, getLatestMetrics, getAlerts, getInsights, getSystemInfo } from '../api/client';
 import { queryKeys } from '../api/queryKeys';
 import { useSocket } from '../hooks/useSocket';
-import type { DashboardStats, Metric, InsightsResponse, SystemInfo } from '../api/types';
+import type { DashboardStats, DeviceHistory, Metric, InsightsResponse, SystemInfo } from '../api/types';
 import StatCard from '../components/ui/StatCard';
 import SectionHeader from '../components/ui/SectionHeader';
 import { DashboardSkeleton } from '../components/dashboard/DashboardSkeleton';
@@ -23,32 +25,30 @@ import { normalizeStatus } from '../utils/status';
 const ExpandedChartsModal = lazyWithRetry(() => import('../components/ExpandedChartsModal'));
 const ResourceLoadModal = lazyWithRetry(() => import('../components/ResourceLoadModal'));
 
-interface MultiLinePoint {
-  time: string;
-  [deviceName: string]: string | number;
+const CHART_DEVICES = 6;
+const CHART_RANGE_MS = 3_600_000;
+
+/** The slowest devices in the latest poll (responding ones first). */
+function pickSlowest(metrics: Metric[]): number[] {
+  return [...metrics]
+    .filter((m) => m.responseTime != null)
+    .sort((a, b) => (b.responseTime ?? 0) - (a.responseTime ?? 0))
+    .slice(0, CHART_DEVICES)
+    .map((m) => m.deviceId);
 }
 
-// One point per poll, keyed by its real timestamp. Each device only has a
-// value at the times it was actually polled; the chart connects the gaps.
-// (Aligning devices by array index paired up unrelated polls.)
-function buildMultiLineData(metrics: Metric[]): { data: MultiLinePoint[]; devices: string[] } {
-  const nameOf = (m: Metric) => m.deviceName || `Device ${m.deviceId}`;
-  const devices = Array.from(new Set(metrics.map(nameOf))).slice(0, 6);
-  const tracked = new Set(devices);
-
-  const points = metrics
-    .filter((m) => tracked.has(nameOf(m)) && m.responseTime != null)
-    .map((m) => ({ m, t: new Date(m.timestamp || m.createdAt).getTime() }))
-    .filter(({ t }) => Number.isFinite(t))
-    .sort((a, b) => a.t - b.t)
-    .slice(-60);
-
-  const data: MultiLinePoint[] = points.map(({ m, t }) => ({
-    time: new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-    [nameOf(m)]: m.responseTime ?? 0,
-  }));
-
-  return { data, devices };
+/** Older servers: one point per live sample for the chosen devices. */
+function liveSeries(metrics: Metric[], ids: number[]): DeviceHistory[] {
+  return ids.map((id) => {
+    const own = metrics.filter((m) => m.deviceId === id && m.responseTime != null);
+    return {
+      deviceId: id,
+      deviceName: own[0]?.deviceName || `Device ${id}`,
+      points: own
+        .map((m) => ({ t: m.timestamp || m.createdAt, avg: m.responseTime, min: m.responseTime, max: m.responseTime, samples: 1, down: normalizeStatus(m.status) === 'down' ? 1 : 0 }))
+        .sort((x, y) => new Date(x.t).getTime() - new Date(y.t).getTime()),
+    };
+  });
 }
 
 const HISTORY_LIMIT = 500;
@@ -127,7 +127,26 @@ export default function Dashboard() {
       : EMPTY_STATS;
   }, [statsQuery.data, metrics]);
 
-  const { data: multiLineData, devices: trackedDevices } = useMemo(() => buildMultiLineData(historyMetrics), [historyMetrics]);
+  // Re-pick the slowest devices once a minute (with the history window),
+  // not on every metric update, so the history query key stays stable.
+  const now = useNow();
+  const chartWindow = historyWindow(CHART_RANGE_MS, now);
+  const [chartPick, setChartPick] = useState<{ at: string; ids: number[] } | null>(null);
+  if (metrics.length && chartPick?.at !== chartWindow.to) setChartPick({ at: chartWindow.to, ids: pickSlowest(metrics) });
+  const chartIds = useMemo(() => chartPick?.ids ?? [], [chartPick]);
+  const historyParams = { devices: chartIds, ...chartWindow, bucket: '1m' as const };
+  const historyQuery = useQuery({
+    queryKey: queryKeys.metrics.history(historyParams),
+    queryFn: ({ signal }) => getMetricsHistory(historyParams, { signal }),
+    enabled: chartIds.length > 0,
+    retry: false,
+    placeholderData: keepPreviousData,
+  });
+  const chartSource = historyQuery.isError ? 'live' : 'history';
+  const chartSeries = useMemo(
+    () => (historyQuery.isError ? liveSeries(historyMetrics, chartIds) : historyQuery.data ?? []),
+    [historyQuery.isError, historyQuery.data, historyMetrics, chartIds],
+  );
   const healthArray = useMemo(() => insights?.health || [], [insights]);
   const networkHealth = useMemo(() => healthArray.length
     ? Math.round(healthArray.reduce((sum, item) => sum + item.score, 0) / healthArray.length)
@@ -171,7 +190,7 @@ export default function Dashboard() {
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-6 content-visibility-auto">
-        <ResponseTimeChart data={multiLineData} devices={trackedDevices} onExpand={() => setShowExpandedCharts(true)} />
+        <ResponseTimeChart series={chartSeries} source={chartSource} loading={chartIds.length > 0 && historyQuery.isPending} onExpand={() => setShowExpandedCharts(true)} />
         <StatusDistribution metrics={metrics} />
       </div>
 

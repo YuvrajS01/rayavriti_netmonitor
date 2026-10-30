@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef, memo, Suspense, type FormEvent } from 'react';
-import { NavLink, useNavigate, useLocation } from 'react-router-dom';
+import { lazyWithRetry } from '../utils/lazyWithRetry';
+import { Link, NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useSessionUser } from '../store/session';
 import { logout, getAlertCounts } from '../api/client';
 import { useSocketConnected } from '../hooks/useSocket';
@@ -11,171 +12,138 @@ import PageLoader from './ui/PageLoader';
 import { ThemeSwitcher } from './ui/ThemeSwitcher';
 import IconButton from './ui/IconButton';
 import { StatusDot } from './ui/Status';
+import { findActive, isItemActive, itemTarget, visibleGroups, type NavItem } from '../navigation';
 
-interface NavItem {
+const CommandPalette = lazyWithRetry(() => import('./CommandPalette'));
+
+/** Desktop sidebar collapsed to a 64px icon rail; remembered per browser. */
+export const NAV_RAIL_STORAGE_KEY = 'nm-nav-rail';
+
+function readRail(): boolean {
+  try {
+    return window.localStorage.getItem(NAV_RAIL_STORAGE_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function writeRail(value: boolean) {
+  try {
+    window.localStorage.setItem(NAV_RAIL_STORAGE_KEY, value ? '1' : '0');
+  } catch {
+    // Storage blocked: the choice still applies for this tab.
+  }
+}
+
+interface SidebarLinkProps {
+  item: NavItem;
   to: string;
-  label: string;
-  icon: string;
-  permission?: string;
-  end?: boolean;
+  active: boolean;
+  rail: boolean;
+  badge?: number;
+  onClick?: () => void;
 }
 
-interface NavGroup {
-  label: string;
-  items: NavItem[];
-}
-
-type VisibleNavItem = NavItem & { group: string };
-
-const isVisibleNavItem = (item: VisibleNavItem | undefined): item is VisibleNavItem => Boolean(item);
-
-const navGroups: NavGroup[] = [
-  {
-    label: 'Operations',
-    items: [
-      { to: '/', label: 'Overview', icon: 'dashboard', end: true },
-      { to: '/alerts', label: 'Alerts', icon: 'warning', permission: 'alerts.read' },
-      { to: '/incidents', label: 'Incidents', icon: 'crisis_alert', permission: 'incidents.read' },
-      { to: '/ai-health', label: 'AI Health', icon: 'psychology', permission: 'insights.read' },
-      { to: '/logs', label: 'Logs', icon: 'receipt_long', permission: 'system.logs' },
-    ],
-  },
-  {
-    label: 'Inventory',
-    items: [
-      { to: '/devices', label: 'Devices', icon: 'devices', permission: 'devices.read' },
-	  { to: '/inventory/cameras', label: 'Cameras', icon: 'videocam', permission: 'devices.read' },
-	  { to: '/inventory/biometrics', label: 'Biometrics', icon: 'fingerprint', permission: 'devices.read' },
-      { to: '/campus', label: 'Campus', icon: 'account_tree', permission: 'locations.read' },
-      { to: '/sensors', label: 'Sensors', icon: 'sensors', permission: 'devices.read' },
-      { to: '/isp', label: 'ISP Links', icon: 'router', permission: 'isp.read' },
-		{ to: '/remote', label: 'Remote Monitoring', icon: 'hub', permission: 'remote.manage' },
-    ],
-  },
-  {
-    label: 'Network Tools',
-    items: [
-      { to: '/discovery', label: 'Discovery', icon: 'travel_explore', permission: 'discovery.read' },
-      { to: '/flows', label: 'Flows', icon: 'swap_horiz', permission: 'flows.read' },
-      { to: '/capture', label: 'Packet Capture', icon: 'network_check', permission: 'capture.read' },
-      { to: '/import', label: 'Bulk Import', icon: 'upload_file', permission: 'devices.write' },
-    ],
-  },
-  {
-    label: 'Reports',
-    items: [
-      { to: '/reports', label: 'Reports', icon: 'analytics', permission: 'reports.read', end: true },
-      { to: '/reports/builder', label: 'Builder', icon: 'summarize', permission: 'reports.write' },
-    ],
-  },
-  {
-    label: 'Administration',
-    items: [
-      { to: '/maintenance', label: 'Maintenance', icon: 'event_repeat', permission: 'maintenance.read' },
-      { to: '/service-templates', label: 'Templates', icon: 'widgets', permission: 'devices.write' },
-      { to: '/settings', label: 'General', icon: 'settings', end: true },
-      { to: '/settings/locations', label: 'Locations', icon: 'apartment', permission: 'locations.write' },
-      { to: '/settings/contacts', label: 'Contacts', icon: 'contacts', permission: 'contacts.write' },
-      { to: '/settings/status-page', label: 'Status Page', icon: 'public', permission: 'status_page.manage' },
-      { to: '/settings/users', label: 'Users & Roles', icon: 'manage_accounts', permission: 'users.manage' },
-      { to: '/settings/backup', label: 'Backup & Restore', icon: 'backup', permission: 'settings.write' },
-    ],
-  },
-];
-
-const SidebarLink = memo(function SidebarLink({ to, label, icon, badge, end, onClick }: { to: string; label: string; icon: string; badge?: number; end?: boolean; onClick?: () => void }) {
+const SidebarLink = memo(function SidebarLink({ item, to, active, rail, badge, onClick }: SidebarLinkProps) {
+  const count = badge != null && badge > 0 ? (badge > 99 ? '99+' : String(badge)) : null;
   return (
-    <NavLink
+    <Link
       to={to}
-      end={end}
       onClick={onClick}
-      // NavLink sets aria-current="page" on the active link (asserted in Layout.test.tsx).
-      className={({ isActive }) =>
-        `group relative mx-2 flex h-9 items-center gap-3 rounded-md px-3 text-sm transition-colors duration-[var(--duration-fast)] ${
-          isActive
-            ? 'bg-surface-2 font-medium text-fg before:absolute before:left-0 before:top-2 before:bottom-2 before:w-0.5 before:rounded-full before:bg-primary'
-            : 'text-fg-muted hover:text-fg hover:bg-surface-1'
-        }`
-      }
+      // Hubs span several URLs (and may link to a non-index section), so
+      // "current" comes from navigation.ts rather than NavLink's prefix match.
+      aria-current={active ? 'page' : undefined}
+      title={rail ? item.label : undefined}
+      className={`group relative mx-2 flex h-9 items-center rounded-md text-sm transition-colors duration-[var(--duration-fast)] ${
+        rail ? 'justify-center px-0' : 'gap-3 px-3'
+      } ${
+        active
+          ? 'bg-surface-2 font-medium text-fg before:absolute before:left-0 before:top-2 before:bottom-2 before:w-0.5 before:rounded-full before:bg-primary'
+          : 'text-fg-muted hover:bg-surface-1 hover:text-fg'
+      }`}
     >
-      <span className="material-symbols-outlined text-[18px] text-current" aria-hidden="true">{icon}</span>
-      <span className="min-w-0 flex-1 truncate">{label}</span>
-      {badge != null && badge > 0 && (
-        <span className="ml-auto min-w-[20px] rounded-full bg-error/12 px-2 py-0.5 text-center text-xs font-semibold tabular-nums text-error">
-          {badge > 99 ? '99+' : badge}
-          <span className="sr-only"> active</span>
-        </span>
+      <span className="material-symbols-outlined text-[18px] text-current" aria-hidden="true">{item.icon}</span>
+      <span className={rail ? 'sr-only' : 'min-w-0 flex-1 truncate'}>{item.label}</span>
+      {count && (
+        rail ? (
+          <span className="absolute right-1 top-0.5 min-w-[18px] rounded-full bg-error px-1 text-center text-xs font-semibold leading-[18px] tabular-nums text-on-error">
+            {count}
+            <span className="sr-only"> active</span>
+          </span>
+        ) : (
+          <span className="ml-auto min-w-[20px] rounded-full bg-error/12 px-2 py-0.5 text-center text-xs font-semibold tabular-nums text-error">
+            {count}
+            <span className="sr-only"> active</span>
+          </span>
+        )
       )}
-    </NavLink>
+    </Link>
   );
 });
 
-export default function Layout({ children }: { children: React.ReactNode }) {
+export default function Layout({ children }: { children?: React.ReactNode }) {
   const navigate = useNavigate();
   const location = useLocation();
   const user = useSessionUser();
   const connected = useSocketConnected();
   const [isDesktop, setIsDesktop] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 1024);
-  const [sidebarOpen, setSidebarOpen] = useState(isDesktop);
+  const [drawerOpenState, setDrawerOpen] = useState(false);
+  const [rail, setRail] = useState(readRail);
   const mainRef = useRef<HTMLElement>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const accountRef = useRef<HTMLDivElement>(null);
   const accountButtonRef = useRef<HTMLButtonElement>(null);
   const [command, setCommand] = useState('');
-  const [accountOpen, setAccountOpen] = useState(false);
-  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({
-    Operations: true,
-    Inventory: true,
-    'Network Tools': false,
-    Reports: false,
-    Administration: false,
-  });
-
-  const visibleGroups = useMemo(() => {
-    const hasPermission = (item: NavItem) => {
-      if (!item.permission) return true;
-      if (user?.role === 'super_admin' || user?.role === 'admin') return true;
-      return user?.permissions?.includes(item.permission);
-    };
-
-    return navGroups
-      .map((g) => ({ ...g, items: g.items.filter(hasPermission) }))
-      .filter((g) => g.items.length > 0);
-  }, [user?.permissions, user?.role]);
-  const visibleItems = useMemo(() => visibleGroups.flatMap((group) => group.items.map((item) => ({ ...item, group: group.label }))), [visibleGroups]);
-
-  const isGroupActive = (group: NavGroup) =>
-    group.items.some((item) => location.pathname === item.to || (!item.end && location.pathname.startsWith(item.to + '/')));
-
-  const currentItem = visibleItems.find((item) =>
-    location.pathname === item.to || (!item.end && location.pathname.startsWith(item.to + '/'))
-  );
-  const currentGroup = currentItem?.group || 'Operations';
-  const mobileItems: VisibleNavItem[] = [
-    visibleItems.find((i) => i.to === '/'),
-    visibleItems.find((i) => i.to === '/alerts'),
-    visibleItems.find((i) => i.to === '/devices'),
-    visibleItems.find((i) => i.to === '/incidents'),
-  ].filter(isVisibleNavItem);
-
-  const toggleGroup = (label: string) =>
-    setExpandedGroups((prev) => ({ ...prev, [label]: !prev[label] }));
-
-  const handleCommandSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const query = command.trim();
-    if (!query) return;
-    const needle = query.toLowerCase();
-    const match = visibleItems.find((item) =>
-      item.label.toLowerCase().includes(needle) || item.to.toLowerCase().includes(needle)
-    );
-    if (match) {
-      void navigate(match.to);
-    } else {
-      void navigate(`/devices?search=${encodeURIComponent(query)}`);
-    }
+  const [palette, setPalette] = useState<{ query: string } | null>(null);
+  const openPalette = (query = '') => {
+    setPalette({ query });
     setCommand('');
   };
+  const [accountOpen, setAccountOpen] = useState(false);
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
+
+  const groups = useMemo(() => visibleGroups(user), [user]);
+  const active = findActive(location.pathname);
+  const flatItems = useMemo(() => groups.flatMap((g) => g.items), [groups]);
+  const mobileItems = ['overview', 'alerts', 'devices', 'topology']
+    .map((id) => flatItems.find((i) => i.id === id))
+    .filter((i): i is NavItem => Boolean(i));
+
+  // The rail only exists on desktop; on narrow screens the sidebar is a drawer.
+  const railed = isDesktop && rail;
+  const drawerOpen = drawerOpenState && !isDesktop;
+  const sidebarVisible = isDesktop || drawerOpen;
+
+  const toggleGroup = (id: string) => setCollapsedGroups((prev) => ({ ...prev, [id]: !prev[id] }));
+
+  const toggleNav = () => {
+    if (isDesktop) {
+      setRail((prev) => {
+        writeRail(!prev);
+        return !prev;
+      });
+    } else {
+      setDrawerOpen((open) => !open);
+    }
+  };
+
+  // The header search is the palette's entry point: typing or Enter opens
+  // it with the text so far.
+  const handleCommandSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    openPalette(command);
+  };
+
+  // ⌘K / Ctrl+K toggles the palette from anywhere in the app.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key.toLowerCase() !== 'k' || !(event.metaKey || event.ctrlKey) || event.altKey) return;
+      event.preventDefault();
+      setPalette((open) => (open ? null : { query: '' }));
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, []);
 
   // Invalidated by alert/bootstrap WebSocket events (useLiveQueryBridge).
   const alertCountsQuery = useQuery({
@@ -197,8 +165,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     const media = window.matchMedia('(min-width: 1024px)');
     const handleChange = () => {
       setIsDesktop(media.matches);
-      // Leaving desktop width closes the (now overlaying) sidebar.
-      if (!media.matches) setSidebarOpen(false);
+      // Leaving desktop width closes the (now overlaying) drawer.
+      if (!media.matches) setDrawerOpen(false);
     };
     media.addEventListener('change', handleChange);
     return () => media.removeEventListener('change', handleChange);
@@ -224,12 +192,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   }, [accountOpen]);
 
   // Mobile drawer: Escape closes it and returns focus to the toggle.
-  const drawerOpen = sidebarOpen && !isDesktop;
   useEffect(() => {
     if (!drawerOpen) return;
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
-      setSidebarOpen(false);
+      setDrawerOpen(false);
       menuButtonRef.current?.focus();
     };
     document.addEventListener('keydown', onKey);
@@ -242,6 +209,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   };
 
   const initial = user?.username?.charAt(0).toUpperCase() || 'A';
+  const navExpanded = isDesktop ? !rail : drawerOpen;
+  const navToggleLabel = isDesktop ? (rail ? 'Expand navigation' : 'Collapse navigation') : drawerOpen ? 'Hide navigation' : 'Show navigation';
+  const sidebarWidth = railed ? 'w-16' : 'w-[260px]';
 
   return (
     <div className="min-h-screen bg-canvas text-fg">
@@ -252,15 +222,15 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         <div className="flex min-w-0 items-center gap-3">
           <IconButton
             ref={menuButtonRef}
-            icon="menu"
-            label={sidebarOpen ? 'Hide navigation' : 'Show navigation'}
-            aria-expanded={sidebarOpen}
+            icon={isDesktop && rail ? 'menu_open' : 'menu'}
+            label={navToggleLabel}
+            aria-expanded={navExpanded}
             aria-controls="app-sidebar"
-            onClick={() => setSidebarOpen((open) => !open)}
+            onClick={toggleNav}
           />
           <div className="min-w-0">
-            <div className="text-xs text-fg-muted">{currentGroup}</div>
-            <div className="truncate text-base font-semibold text-fg">{currentItem?.label || 'Overview'}</div>
+            <div className="text-xs text-fg-muted">{active?.group.label ?? 'Monitor'}</div>
+            <div className="truncate text-base font-semibold text-fg">{active?.section && (active.item.sections?.length ?? 0) > 1 ? active.section.label : active?.item.label ?? 'Overview'}</div>
           </div>
         </div>
 
@@ -271,20 +241,25 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <input
               type="search"
               value={command}
-              onChange={(e) => setCommand(e.target.value)}
-              className="h-10 w-full rounded-md border border-line bg-surface-1 pl-10 pr-3 text-sm text-fg placeholder:text-fg-subtle outline-none transition-colors focus:border-primary"
+              onChange={(e) => openPalette(e.target.value)}
+              onClick={() => openPalette(command)}
+              aria-keyshortcuts="Control+K Meta+K"
+              className="h-10 w-full rounded-md border border-line bg-surface-1 pl-10 pr-16 text-sm text-fg placeholder:text-fg-subtle outline-none transition-colors focus:border-primary"
               placeholder="Search devices or jump to a page"
             />
+            <kbd className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rounded-sm border border-line-strong px-1.5 font-mono text-xs text-fg-muted" aria-hidden="true">Ctrl K</kbd>
           </label>
         </form>
 
         <div className="flex items-center gap-2">
+          <IconButton icon="search" label="Search or jump to a page" className="md:hidden" onClick={() => openPalette()} />
           <div className="hidden items-center gap-2 rounded-md border border-line bg-surface-1 px-3 py-2 text-xs text-fg-muted sm:flex" role="status">
             <StatusDot status={connected ? 'up' : 'unknown'} size={8} label="" />
             <span>{connected ? 'Live' : 'Realtime paused'}</span>
           </div>
           <NavLink
             to="/alerts"
+            end
             className={`flex h-10 items-center gap-2 rounded-md px-3 text-sm font-medium transition-colors duration-[var(--duration-fast)] ${
               activeAlertCount > 0
                 ? 'bg-error/12 text-error hover:bg-error/20'
@@ -343,40 +318,65 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
       <div className="flex pt-16">
         {drawerOpen && (
-          <div className="fixed inset-0 top-16 z-drawer bg-scrim lg:hidden" aria-hidden="true" onClick={() => setSidebarOpen(false)} />
+          <div className="fixed inset-0 top-16 z-drawer bg-scrim lg:hidden" aria-hidden="true" onClick={() => setDrawerOpen(false)} />
         )}
         <aside
           id="app-sidebar"
-          className={`fixed left-0 top-16 z-drawer flex h-[calc(100dvh-64px)] w-[260px] flex-col border-r border-line bg-canvas transition-transform duration-[var(--duration-normal)] ease-out ${
-            sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+          data-rail={railed ? 'true' : 'false'}
+          className={`fixed left-0 top-16 z-drawer flex h-[calc(100dvh-64px)] ${sidebarWidth} flex-col border-r border-line bg-canvas transition-[transform,width] duration-[var(--duration-normal)] ease-out ${
+            sidebarVisible ? 'translate-x-0' : '-translate-x-full'
           } ${drawerOpen ? 'shadow-e3' : ''}`}
-          aria-hidden={!sidebarOpen}
-          inert={!sidebarOpen || undefined}
+          aria-hidden={!sidebarVisible}
+          inert={!sidebarVisible || undefined}
         >
-          <div className="border-b border-line px-4 py-4">
-            <div className="flex items-center gap-2">
-              <img src={IconColor} alt="" className="h-7 w-7" aria-hidden="true" />
+          <div className={`flex h-16 shrink-0 items-center border-b border-line ${railed ? 'justify-center' : 'gap-2 px-4'}`}>
+            <img src={IconColor} alt="" className="h-7 w-7" aria-hidden="true" />
+            {!railed && (
               <div>
                 <div className="text-base font-semibold leading-tight text-fg">rayavriti</div>
                 <div className="text-xs text-fg-muted">NetMonitor</div>
               </div>
-            </div>
+            )}
           </div>
 
-          <nav className="flex-1 overflow-y-auto py-3" aria-label="Main navigation">
-            {visibleGroups.map((group) => {
-              const active = isGroupActive(group);
-              const expanded = active || (expandedGroups[group.label] ?? false);
-              const groupId = `nav-group-${group.label.toLowerCase().replace(/[^a-z]+/g, '-')}`;
+          <nav className="flex-1 overflow-y-auto overflow-x-hidden py-3" aria-label="Main navigation">
+            {groups.map((group, index) => {
+              const groupActive = active?.group.id === group.id;
+              const expanded = railed || groupActive || !collapsedGroups[group.id];
+              const groupId = `nav-group-${group.id}`;
+              const links = (
+                <div className="space-y-0.5">
+                  {group.items.map((item) => (
+                    <SidebarLink
+                      key={item.id}
+                      item={item}
+                      to={itemTarget(item, user)}
+                      active={isItemActive(location.pathname, item)}
+                      rail={railed}
+                      badge={item.id === 'alerts' ? activeAlertCount : undefined}
+                      onClick={() => {
+                        if (!isDesktop) setDrawerOpen(false);
+                      }}
+                    />
+                  ))}
+                </div>
+              );
+              if (railed) {
+                return (
+                  <div key={group.id} role="group" aria-label={group.label} className={index > 0 ? 'mt-2 border-t border-line pt-2' : ''}>
+                    {links}
+                  </div>
+                );
+              }
               return (
-                <div key={group.label} className="mb-2">
+                <div key={group.id} className="mb-2">
                   <button
                     type="button"
-                    onClick={() => toggleGroup(group.label)}
+                    onClick={() => toggleGroup(group.id)}
                     aria-expanded={expanded}
                     aria-controls={groupId}
                     className={`mb-1 flex h-8 w-full items-center gap-2 px-4 text-xs font-semibold transition-colors duration-[var(--duration-fast)] ${
-                      active ? 'text-fg' : 'text-fg-muted hover:text-fg'
+                      groupActive ? 'text-fg' : 'text-fg-muted hover:text-fg'
                     }`}
                   >
                     <span className="material-symbols-outlined text-[16px]" aria-hidden="true">
@@ -385,71 +385,69 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                     <span className="truncate">{group.label}</span>
                   </button>
                   <div id={groupId} className="animate-slide-down" data-open={expanded ? 'true' : 'false'} inert={!expanded || undefined}>
-                    <div className="space-y-0.5">
-                      {group.items.map((item) => (
-                        <SidebarLink
-                          key={item.to}
-                          {...item}
-                          badge={item.to === '/alerts' ? activeAlertCount : undefined}
-                          onClick={() => {
-                            if (!isDesktop) setSidebarOpen(false);
-                          }}
-                        />
-                      ))}
-                    </div>
+                    {links}
                   </div>
                 </div>
               );
             })}
           </nav>
 
-          <div className="mt-auto border-t border-line p-3">
-            <div className="flex items-center gap-3 rounded-md bg-surface-1 p-3">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-surface-3 text-xs font-semibold text-fg" aria-hidden="true">
-                {initial}
-              </div>
-              <div className="min-w-0">
-                <div className="truncate text-sm font-medium text-fg">{user?.username || 'Admin'}</div>
-                <div className="truncate text-xs text-fg-muted">{user?.role || 'admin'}</div>
+          {!railed && (
+            <div className="mt-auto border-t border-line p-3">
+              <div className="flex items-center gap-3 rounded-md bg-surface-1 p-3">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-surface-3 text-xs font-semibold text-fg" aria-hidden="true">
+                  {initial}
+                </div>
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-medium text-fg">{user?.username || 'Admin'}</div>
+                  <div className="truncate text-xs text-fg-muted">{user?.role || 'admin'}</div>
+                </div>
               </div>
             </div>
-          </div>
+          )}
         </aside>
 
         <main
           id="main-content"
           ref={mainRef}
           tabIndex={-1}
-          className={`min-h-[calc(100dvh-64px)] min-w-0 flex-1 bg-canvas p-4 pb-24 sm:p-6 lg:pb-6 ${sidebarOpen ? 'lg:ml-[260px]' : 'ml-0'}`}
+          className={`min-h-[calc(100dvh-64px)] min-w-0 flex-1 bg-canvas p-4 pb-24 sm:p-6 lg:pb-6 ${railed ? 'lg:ml-16' : 'lg:ml-[260px]'}`}
         >
           <div key={location.pathname} className="page-enter">
             {/* Keyed by pathname (via the parent): a crashed or still-loading
                 page stays inside the content area and navigating away resets it. */}
             <ErrorBoundary scope="route">
               <Suspense fallback={<PageLoader />}>
-                {children}
+                {children ?? <Outlet />}
               </Suspense>
             </ErrorBoundary>
           </div>
         </main>
       </div>
 
+      {palette && (
+        <Suspense fallback={null}>
+          <CommandPalette open initialQuery={palette.query} onClose={() => setPalette(null)} />
+        </Suspense>
+      )}
+
       {/* Mobile bottom nav sits on the sticky layer, under the drawer and any
           modal (dialogs use the top layer). */}
       <nav className="fixed bottom-0 left-0 right-0 z-sticky flex h-16 items-center justify-around border-t border-line bg-canvas px-4 lg:hidden" aria-label="Mobile navigation">
-        {mobileItems.map((item) => (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            end={item.to === '/'}
-            className={({ isActive }) =>
-              `flex min-w-16 flex-col items-center gap-1 rounded-md px-2 py-1 transition-colors duration-[var(--duration-fast)] ${isActive ? 'text-fg' : 'text-fg-muted'}`
-            }
-          >
-            <span className="material-symbols-outlined text-[20px]" aria-hidden="true">{item.icon}</span>
-            <span className="text-xs font-medium">{item.label.split(' ')[0]}</span>
-          </NavLink>
-        ))}
+        {mobileItems.map((item) => {
+          const isActive = isItemActive(location.pathname, item);
+          return (
+            <Link
+              key={item.id}
+              to={itemTarget(item, user)}
+              aria-current={isActive ? 'page' : undefined}
+              className={`flex min-w-16 flex-col items-center gap-1 rounded-md px-2 py-1 transition-colors duration-[var(--duration-fast)] ${isActive ? 'text-fg' : 'text-fg-muted'}`}
+            >
+              <span className="material-symbols-outlined text-[20px]" aria-hidden="true">{item.icon}</span>
+              <span className="text-xs font-medium">{item.label.split(' ')[0]}</span>
+            </Link>
+          );
+        })}
       </nav>
     </div>
   );

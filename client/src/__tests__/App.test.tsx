@@ -80,8 +80,13 @@ describe('App shell', () => {
     const nav = screen.getByRole('navigation', { name: 'Main navigation' });
     const overview = within(nav).getByRole('link', { name: 'Overview' });
     expect(overview).toHaveAttribute('aria-current', 'page');
-    expect(within(nav).getByRole('button', { name: 'Operations' })).toHaveAttribute('aria-expanded', 'true');
-    expect(within(nav).getByRole('button', { name: 'Reports' })).toHaveAttribute('aria-expanded', 'false');
+    expect(within(nav).getByRole('button', { name: 'Monitor' })).toHaveAttribute('aria-expanded', 'true');
+    // Network topology is reachable from the nav (it wasn't in v5.0).
+    expect(within(nav).getByRole('link', { name: 'Topology' })).toHaveAttribute('href', '/topology');
+    // Collapsing a group hides its links from the tab order.
+    const analyze = within(nav).getByRole('button', { name: 'Analyze' });
+    await userEvent.click(analyze);
+    expect(analyze).toHaveAttribute('aria-expanded', 'false');
 
     // The account menu (with the theme control) closes on Escape and outside clicks.
     const account = screen.getByRole('button', { name: 'Account menu' });

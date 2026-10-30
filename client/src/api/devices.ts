@@ -1,5 +1,5 @@
 import { v1, wrap, type RequestOptions } from './http';
-import type { Device, Metric, PortScanResult, PortScanResponse } from './types';
+import type { Device, DeviceDependencies, Metric, PortScanResult, PortScanResponse } from './types';
 
 export const getDevices = ({ signal }: RequestOptions = {}) =>
   v1.get('/devices', { signal }).then((r) => wrap<Device[]>(r.data));
@@ -24,6 +24,12 @@ export const getDevicePorts = (id: number, { signal }: RequestOptions = {}) =>
 
 export const scanDevicePorts = (id: number, { signal }: RequestOptions = {}) =>
   v1.post(`/devices/${id}/scan-ports`, undefined, { signal }).then((r) => wrap<PortScanResponse>(r.data));
+
+export const getDevice = (id: number, { signal }: RequestOptions = {}) =>
+  v1.get(`/devices/${id}`, { signal }).then((r) => wrap<Device>(r.data));
+
+export const getDeviceDependencies = (id: number, { signal }: RequestOptions = {}) =>
+  v1.get(`/devices/${id}/dependencies`, { signal }).then((r) => wrap<DeviceDependencies>(r.data));
 
 export const downloadImportTemplate = ({ signal }: RequestOptions = {}) =>
   v1.get('/import/template', { responseType: 'blob', signal }).then((r) => r.data as Blob);
