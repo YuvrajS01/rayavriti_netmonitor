@@ -1,8 +1,11 @@
 package handlers
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"html"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -422,7 +425,7 @@ h1{font-family:'League Spartan',sans-serif;font-weight:800;font-size:28px;color:
 		title := html.EscapeString(fmt.Sprint(inc["title"]))
 		msg := html.EscapeString(fmt.Sprint(inc["message"]))
 		status := html.EscapeString(fmt.Sprint(inc["status"]))
-		severity := fmt.Sprint(inc["severity"])
+		severity := html.EscapeString(fmt.Sprint(inc["severity"]))
 		fmt.Fprintf(&sb, `<article class="inc"><div class="inc-title">%s</div><div class="inc-meta">%s &middot; %s</div>%s</article>`,
 			title, severity, status,
 			func() string {
@@ -503,4 +506,85 @@ func toSnakeLocal(s string) string {
 		b.WriteRune(r)
 	}
 	return b.String()
+}
+
+// Child resources live under a parent in the URL (e.g. /devices/{id}/contacts).
+// These wrappers bind the generic handlers to that parent: previously List
+// ignored {id}, Create trusted a parent ID from the body, and Delete removed
+// the row whose id equalled the *parent* id (S17).
+
+// ListByParent lists rows of resource whose parentCol equals the {id} URL
+// parameter.
+func (h *ResourceHandler) ListByParent(resource, parentCol string) http.HandlerFunc {
+	list := h.List(resource)
+	return func(w http.ResponseWriter, r *http.Request) {
+		id, ok := urlID(r, "id")
+		if !ok {
+			httputil.SendError(w, http.StatusBadRequest, "invalid id")
+			return
+		}
+		q := r.URL.Query()
+		for k := range q {
+			if toSnakeLocal(k) == parentCol {
+				q.Del(k)
+			}
+		}
+		q.Set(parentCol, strconv.FormatInt(id, 10))
+		r2 := r.Clone(r.Context())
+		r2.URL.RawQuery = q.Encode()
+		list(w, r2)
+	}
+}
+
+// CreateUnderParent creates a row of resource with parentCol forced to the
+// {id} URL parameter, whatever the body says.
+func (h *ResourceHandler) CreateUnderParent(resource, parentCol string) http.HandlerFunc {
+	create := h.Create(resource)
+	return func(w http.ResponseWriter, r *http.Request) {
+		id, ok := urlID(r, "id")
+		if !ok {
+			httputil.SendError(w, http.StatusBadRequest, "invalid id")
+			return
+		}
+		var body map[string]any
+		if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&body); err != nil {
+			httputil.SendError(w, http.StatusBadRequest, "invalid body")
+			return
+		}
+		for k := range body {
+			if toSnakeLocal(k) == parentCol {
+				delete(body, k)
+			}
+		}
+		body[parentCol] = id
+		raw, _ := json.Marshal(body)
+		r.Body = io.NopCloser(bytes.NewReader(raw))
+		create(w, r)
+	}
+}
+
+// DeleteChild deletes the row named by childParam only if it belongs to the
+// parent named by {id}.
+func (h *ResourceHandler) DeleteChild(resource, childParam, parentCol string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		parentID, ok1 := urlID(r, "id")
+		childID, ok2 := urlID(r, childParam)
+		if !ok1 || !ok2 {
+			httputil.SendError(w, http.StatusBadRequest, "invalid id")
+			return
+		}
+		if !h.requireStore(w) {
+			return
+		}
+		row, err := h.store.GetResource(r.Context(), resource, childID)
+		if err != nil || row == nil || fmt.Sprint(row[parentCol]) != strconv.FormatInt(parentID, 10) {
+			notFound(w)
+			return
+		}
+		if err := h.store.DeleteResource(r.Context(), resource, childID); err != nil {
+			httputil.SendInternalError(w, err)
+			return
+		}
+		httputil.SendOK(w, map[string]bool{"deleted": true})
+	}
 }

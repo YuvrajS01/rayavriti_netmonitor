@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
@@ -328,13 +329,21 @@ func (h *UserScopeHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		httputil.SendError(w, http.StatusNotImplemented, "resource storage not available")
 		return
 	}
-	id, err := parseID(chi.URLParam(r, "id"))
-	if err != nil {
+	// {sid} is the scope row; it must belong to user {id}. This used to
+	// delete the user_scopes row whose id equalled the *user* id (S17).
+	userID, ok1 := urlID(r, "id")
+	scopeID, ok2 := urlID(r, "sid")
+	if !ok1 || !ok2 {
 		httputil.SendError(w, http.StatusBadRequest, "invalid id")
 		return
 	}
-	if err := h.store.DeleteResource(r.Context(), "user_scopes", id); err != nil {
-		httputil.SendError(w, http.StatusBadRequest, err.Error())
+	row, err := h.store.GetResource(r.Context(), "user_scopes", scopeID)
+	if err != nil || row == nil || fmt.Sprint(row["user_id"]) != strconv.FormatInt(userID, 10) {
+		notFound(w)
+		return
+	}
+	if err := h.store.DeleteResource(r.Context(), "user_scopes", scopeID); err != nil {
+		httputil.SendInternalError(w, err)
 		return
 	}
 	httputil.SendOK(w, map[string]bool{"deleted": true})
