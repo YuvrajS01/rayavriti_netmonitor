@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/rayavriti/netmonitor-backend/internal/auth"
 	"github.com/rayavriti/netmonitor-backend/internal/database"
 	"github.com/rayavriti/netmonitor-backend/internal/httputil"
 	"github.com/rayavriti/netmonitor-backend/internal/models"
@@ -168,4 +169,24 @@ func filterScoresByScope(r *http.Request, db database.Database, scores []models.
 		}
 	}
 	return kept, nil
+}
+
+// canWriteDevices reports whether the caller may see device credentials.
+func canWriteDevices(r *http.Request) bool {
+	claims := auth.GetClaims(r.Context())
+	if claims == nil {
+		return false
+	}
+	return rbac.IsUnscopedRole(claims.Role) || rbac.HasPermission(claims.Permissions, models.PermDevicesWrite)
+}
+
+// redactDeviceSecrets blanks SNMP communities for callers who can only read
+// devices: a community string is a credential for the device itself (S10).
+func redactDeviceSecrets(r *http.Request, devices []models.Device) {
+	if canWriteDevices(r) {
+		return
+	}
+	for i := range devices {
+		devices[i].SNMPCommunity = ""
+	}
 }

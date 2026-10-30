@@ -71,7 +71,7 @@ func (h *NotificationChannelHandler) Create(w http.ResponseWriter, r *http.Reque
 		httputil.SendInternalError(w, err)
 		return
 	}
-	httputil.SendCreated(w, created)
+	httputil.SendCreated(w, maskChannel(created))
 }
 
 func (h *NotificationChannelHandler) Update(w http.ResponseWriter, r *http.Request) {
@@ -80,7 +80,8 @@ func (h *NotificationChannelHandler) Update(w http.ResponseWriter, r *http.Reque
 		httputil.SendError(w, 400, "invalid id")
 		return
 	}
-	if _, err := h.db.GetNotificationChannel(r.Context(), id); err != nil {
+	existing, err := h.db.GetNotificationChannel(r.Context(), id)
+	if err != nil {
 		httputil.SendError(w, 404, "notification channel not found")
 		return
 	}
@@ -89,12 +90,13 @@ func (h *NotificationChannelHandler) Update(w http.ResponseWriter, r *http.Reque
 		httputil.SendError(w, 400, "invalid body")
 		return
 	}
+	restoreMaskedSecrets(ch.Config, existing.Config)
 	updated, err := h.db.UpdateNotificationChannel(r.Context(), id, &ch)
 	if err != nil {
 		httputil.SendInternalError(w, err)
 		return
 	}
-	httputil.SendOK(w, updated)
+	httputil.SendOK(w, maskChannel(updated))
 }
 
 func (h *NotificationChannelHandler) Delete(w http.ResponseWriter, r *http.Request) {

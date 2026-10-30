@@ -2,10 +2,8 @@ package rbac
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"net/http"
-	"strings"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rayavriti/netmonitor-backend/internal/auth"
@@ -115,81 +113,4 @@ func (sc *ScopeContext) DatabaseScopeFilter() *database.ScopeFilter {
 		}
 	}
 	return sf
-}
-
-func FilterDeviceQuery(sc *ScopeContext, baseQuery string) string {
-	if sc == nil || !sc.IsScoped || len(sc.Scopes) == 0 {
-		return baseQuery
-	}
-
-	locationIDs := make([]string, 0)
-	subnetCIDRs := make([]string, 0)
-
-	for _, s := range sc.Scopes {
-		switch s.Type {
-		case "location":
-			locationIDs = append(locationIDs, s.Value)
-		case "subnet":
-			subnetCIDRs = append(subnetCIDRs, s.Value)
-		}
-	}
-
-	if len(locationIDs) == 0 && len(subnetCIDRs) == 0 {
-		return baseQuery + " AND 1=0"
-	}
-
-	conditions := make([]string, 0)
-
-	if len(locationIDs) > 0 {
-		conditions = append(conditions,
-			fmt.Sprintf("d.location_id IN (%s)", strings.Join(locationIDs, ",")))
-	}
-
-	if len(subnetCIDRs) > 0 {
-		for _, cidr := range subnetCIDRs {
-			conditions = append(conditions,
-				fmt.Sprintf("d.ip_address >>= '%s'", strings.ReplaceAll(cidr, "'", "''")))
-		}
-	}
-
-	return fmt.Sprintf("%s AND (%s)", baseQuery, strings.Join(conditions, " OR "))
-}
-
-func FilterAlertQuery(sc *ScopeContext, baseQuery string) string {
-	if sc == nil || !sc.IsScoped || len(sc.Scopes) == 0 {
-		return baseQuery
-	}
-
-	locationIDs := make([]string, 0)
-	subnetCIDRs := make([]string, 0)
-
-	for _, s := range sc.Scopes {
-		switch s.Type {
-		case "location":
-			locationIDs = append(locationIDs, s.Value)
-		case "subnet":
-			subnetCIDRs = append(subnetCIDRs, s.Value)
-		}
-	}
-
-	if len(locationIDs) == 0 && len(subnetCIDRs) == 0 {
-		return baseQuery + " AND 1=0"
-	}
-
-	conditions := make([]string, 0)
-
-	if len(locationIDs) > 0 {
-		conditions = append(conditions,
-			fmt.Sprintf("a.location_id IN (%s)", strings.Join(locationIDs, ",")))
-	}
-
-	if len(subnetCIDRs) > 0 {
-		for _, cidr := range subnetCIDRs {
-			conditions = append(conditions,
-				fmt.Sprintf("a.device_id IN (SELECT id FROM devices WHERE ip_address >>= '%s')",
-					strings.ReplaceAll(cidr, "'", "''")))
-		}
-	}
-
-	return fmt.Sprintf("%s AND (%s)", baseQuery, strings.Join(conditions, " OR "))
 }

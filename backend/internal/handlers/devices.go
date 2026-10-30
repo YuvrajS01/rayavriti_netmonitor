@@ -85,6 +85,7 @@ func (h *DeviceHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	redactDeviceSecrets(r, devices)
 	httputil.SendOKWithMeta(w, devices, &httputil.ResponseMeta{
 		Page:     page,
 		PageSize: pageSize,
@@ -107,6 +108,9 @@ func (h *DeviceHandler) Get(w http.ResponseWriter, r *http.Request) {
 	if !canAccessDevice(r, d) {
 		httputil.SendError(w, http.StatusNotFound, "device not found")
 		return
+	}
+	if !canWriteDevices(r) {
+		d.SNMPCommunity = ""
 	}
 	httputil.SendOK(w, d)
 }
