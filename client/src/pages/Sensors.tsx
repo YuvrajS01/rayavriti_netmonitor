@@ -7,7 +7,8 @@ import {
 import { getLatestMetrics } from '../api/client';
 import { queryKeys } from '../api/queryKeys';
 import type { Metric } from '../api/types';
-import { statusTextColor, statusBorderColor } from '../utils/colors';
+import { statusMeta } from '../utils/status';
+import { StatusDot } from '../components/ui/Status';
 import { sensorIconForProtocol } from '../utils/icons';
 import { formatMetricDetails } from '../utils/formatters';
 import { TOOLTIP_STYLE, AXIS_TICK_STYLE, LEGEND_STYLE, legendFormatter } from '../utils/chartConfig';
@@ -145,13 +146,13 @@ export default function Sensors() {
             <div className="xl:col-span-2 space-y-6">
               <h2 className="font-sans text-xl font-semibold px-2">Active sensor feed</h2>
               <div className="space-y-3">
-                {visibleMetrics.map((m, i) => (
-                   <div key={m.id || i} className={`bg-surface-1 p-5 rounded-lg border ${statusBorderColor(m.status)} group hover:bg-surface-1 transition-colors`}>
+                {visibleMetrics.map((m, i) => { const meta = statusMeta(m.status); return (
+                   <div key={m.id || i} className={`bg-surface-1 p-5 rounded-lg border border-line border-l-4 ${meta.border}`}>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-5">
-                        <div className={`w-10 h-10 rounded-lg ${m.status === 'down' ? 'bg-error/10' : 'bg-inset'} flex items-center justify-center relative`}>
-                          <span className={`material-symbols-outlined ${statusTextColor(m.status)}`}>{sensorIconForProtocol(m.protocol)}</span>
-                          <span className={`absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 border-surface-1 ${m.status === 'down' ? 'bg-error glow-error' : m.status === 'warning' || m.status === 'degraded' ? 'bg-warning' : 'bg-success status-dot-live'}`} />
+                        <div className="w-10 h-10 rounded-md bg-inset flex items-center justify-center relative">
+                          <span className="material-symbols-outlined text-fg-muted" aria-hidden="true">{sensorIconForProtocol(m.protocol)}</span>
+                          <StatusDot status={meta} className="absolute -top-1 -right-1 rounded-sm bg-surface-1 p-0.5" />
                         </div>
                         <div>
                           <p className="font-semibold text-fg tracking-tight">{m.deviceName}</p>
@@ -168,14 +169,14 @@ export default function Sensors() {
                         </div>
                       </div>
                       <div className="text-right">
-                        <p className={`text-xl font-sans font-semibold ${statusTextColor(m.status)} tracking-tighter`}>
-                          {m.responseTime != null ? `${m.responseTime}ms` : (m.status ?? 'UNKNOWN').toUpperCase()}
+                        <p className={`text-xl font-semibold tabular-nums ${meta.text}`}>
+                          {m.responseTime != null ? `${m.responseTime}ms` : meta.label}
                         </p>
                         <p className="text-xs text-fg-subtle font-sans max-w-xs truncate">{formatMetricDetails(m.details, m.protocol)}</p>
                       </div>
                     </div>
                   </div>
-                ))}
+                ); })}
                 {metrics.length === 0 && <p className="text-sm text-fg-muted text-center py-8">No sensor data yet</p>}
                 {visibleCount < metrics.length && (
                   <button

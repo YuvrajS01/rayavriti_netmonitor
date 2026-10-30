@@ -9,7 +9,8 @@ import { queryKeys } from '../api/queryKeys';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import { useToast } from '../components/ui/useToast';
-import { severityTextColor, severityBgColor, statusTextColor, statusBgColor } from '../utils/colors';
+import { lifecycleMeta, severityMeta } from '../utils/status';
+import { StatusPill } from '../components/ui/Status';
 
 function formatDuration(sec: number | null): string {
   if (sec == null) return '-';
@@ -139,9 +140,9 @@ export default function IncidentDetail() {
           <div>
             <div className="flex items-center gap-3 flex-wrap">
               <h1 className="font-sans text-2xl font-semibold text-fg">{incident.title}</h1>
-              <span className={`text-xs font-semibold uppercase px-2.5 py-0.5 rounded-full ${severityBgColor(incident.severity)} ${severityTextColor(incident.severity)}`}>{incident.severity}</span>
-              <span className={`text-xs font-semibold uppercase px-2.5 py-0.5 rounded-full ${statusBgColor(incident.status)} ${statusTextColor(incident.status)}`}>{incident.status}</span>
-              {incident.sla_breached && <span className="text-xs font-semibold uppercase px-2.5 py-0.5 rounded-full bg-error/10 text-error">SLA Breach</span>}
+              <StatusPill status={severityMeta(incident.severity)} />
+              <StatusPill status={lifecycleMeta(incident.status)} />
+              {incident.sla_breached && <StatusPill status="down">SLA breach</StatusPill>}
             </div>
             <p className="text-fg-muted text-sm mt-1">#{incident.id} · Started {formatTime(incident.started_at)}</p>
           </div>
@@ -300,7 +301,7 @@ export default function IncidentDetail() {
                         <div className="text-sm font-medium">{d.name}</div>
                         <div className="text-xs text-fg-muted font-mono">{d.ip}</div>
                       </div>
-                      <span className={`text-xs font-semibold uppercase px-2 py-0.5 rounded-full ${statusBgColor(d.status)}/10 ${statusTextColor(d.status)}`}>{d.status}</span>
+                      <StatusPill status={d.status} />
                     </div>
                   ))}
                 </div>

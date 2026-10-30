@@ -7,14 +7,56 @@ import { queryKeys } from '../api/queryKeys';
 import type { Device, Metric } from '../api/types';
 import SectionHeader from '../components/ui/SectionHeader';
 import Card from '../components/ui/Card';
+import { StatusDot, StatusPill, StatusShapeIcon } from '../components/ui/Status';
+import { STATUS_META, normalizeStatus, type Status, type StatusShape } from '../utils/status';
+import { readToken, readTokenAlpha } from '../utils/tokens';
+import { THEME_CHANGE_EVENT } from '../theme/theme';
+import { prefersReducedMotion } from '../hooks/useReducedMotion';
 
-const UNKNOWN_COLOR = '#8c8c8c';
-const COLOR: Record<string, string> = {
-  up: '#9bc86e', ok: '#9bc86e',
-  warning: '#ebc434', degraded: '#ebc434',
-  down: '#e86060', unknown: UNKNOWN_COLOR,
-};
-const colorFor = (s: string) => (Object.hasOwn(COLOR, s) ? COLOR[s] : undefined) ?? UNKNOWN_COLOR;
+/** Canvas can't use var(): resolve the theme tokens, re-read on theme change. */
+interface CanvasPalette {
+  status: Record<Status, string>;
+  edge: string;
+  edgeInferred: string;
+  edgeLabel: string;
+  nodeFill: string;
+  label: string;
+  particle: string;
+  particleDown: string;
+}
+
+function readPalette(): CanvasPalette {
+  const status = Object.fromEntries(
+    (Object.keys(STATUS_META) as Status[]).map((s) => [s, readToken(STATUS_META[s].token)]),
+  ) as Record<Status, string>;
+  return {
+    status,
+    edge: readToken('line-strong'),
+    edgeInferred: readToken('line'),
+    edgeLabel: readToken('fg-subtle'),
+    nodeFill: readToken('surface-2'),
+    label: readToken('fg'),
+    particle: readTokenAlpha('fg-muted', 0.7),
+    particleDown: readTokenAlpha('status-down', 0.85),
+  };
+}
+
+/** Draws the status shape (● ▲ ■ ? ‖ –) as a badge so status never relies on colour alone. */
+function drawStatusBadge(ctx: CanvasRenderingContext2D, shape: StatusShape, x: number, y: number, color: string, bg: string) {
+  const r = 5;
+  ctx.save();
+  ctx.fillStyle = bg;
+  ctx.beginPath(); ctx.arc(x, y, r + 2.5, 0, 2 * Math.PI); ctx.fill();
+  ctx.fillStyle = color; ctx.strokeStyle = color; ctx.lineWidth = 1.8;
+  ctx.beginPath();
+  if (shape === 'circle') { ctx.arc(x, y, r, 0, 2 * Math.PI); ctx.fill(); }
+  else if (shape === 'triangle') { ctx.moveTo(x, y - r); ctx.lineTo(x + r, y + r * 0.8); ctx.lineTo(x - r, y + r * 0.8); ctx.closePath(); ctx.fill(); }
+  else if (shape === 'square') { ctx.rect(x - r * 0.85, y - r * 0.85, r * 1.7, r * 1.7); ctx.fill(); }
+  else if (shape === 'ring') { ctx.arc(x, y, r * 0.8, 0, 2 * Math.PI); ctx.stroke(); }
+  else if (shape === 'pause') { ctx.rect(x - r * 0.75, y - r * 0.8, r * 0.5, r * 1.6); ctx.rect(x + r * 0.25, y - r * 0.8, r * 0.5, r * 1.6); ctx.fill(); }
+  else { ctx.rect(x - r, y - r * 0.3, r * 2, r * 0.6); ctx.fill(); }
+  ctx.restore();
+}
 
 type ShapeFn = (ctx: CanvasRenderingContext2D, x: number, y: number, r: number) => void;
 
@@ -233,6 +275,11 @@ export default function NetworkTopology() {
     ctx.scale(dpr, dpr);
     const state = sim.current;
 
+    let palette = readPalette();
+    const refreshPalette = () => { palette = readPalette(); };
+    window.addEventListener(THEME_CHANGE_EVENT, refreshPalette);
+    const reducedMotion = prefersReducedMotion();
+
     let last = performance.now();
     const tick = (now: number) => {
       const dt = Math.min(32, now - last); last = now;
@@ -290,25 +337,26 @@ export default function NetworkTopology() {
       // edges
       const t = now / 600;
       for (const l of state.links) {
-        const srcColor = colorFor(l.source.status);
-        const tgtColor = colorFor(l.target.status);
+        const linkDown = normalizeStatus(l.source.status) === 'down' || normalizeStatus(l.target.status) === 'down';
         // Line
         ctx.beginPath();
         ctx.moveTo(l.source.x, l.source.y);
         ctx.lineTo(l.target.x, l.target.y);
         const isReal = l.port !== undefined || topoEdges.length > 0;
-        ctx.strokeStyle = isReal ? 'rgba(155,200,110,0.25)' : 'rgba(140,140,130,0.15)';
+        ctx.strokeStyle = isReal ? palette.edge : palette.edgeInferred;
         ctx.lineWidth = isReal ? 1.5 : 0.8;
         ctx.stroke();
 
-        // Animated particle along edge
-        const p = (t + (l.source.id + l.target.id) * 0.13) % 1;
-        const px = l.source.x + (l.target.x - l.source.x) * p;
-        const py = l.source.y + (l.target.y - l.source.y) * p;
-        ctx.beginPath();
-        ctx.arc(px, py, 1.8, 0, 2 * Math.PI);
-        ctx.fillStyle = srcColor === COLOR.down || tgtColor === COLOR.down ? 'rgba(232,96,96,0.7)' : 'rgba(155,200,110,0.7)';
-        ctx.fill();
+        // Particle along the edge shows flow direction (static under reduced motion).
+        if (!reducedMotion) {
+          const p = (t + (l.source.id + l.target.id) * 0.13) % 1;
+          const px = l.source.x + (l.target.x - l.source.x) * p;
+          const py = l.source.y + (l.target.y - l.source.y) * p;
+          ctx.beginPath();
+          ctx.arc(px, py, 1.8, 0, 2 * Math.PI);
+          ctx.fillStyle = linkDown ? palette.particleDown : palette.particle;
+          ctx.fill();
+        }
 
         // Port label
         if (l.port) {
@@ -316,42 +364,41 @@ export default function NetworkTopology() {
           const my = (l.source.y + l.target.y) / 2;
           ctx.font = '12px "JetBrains Mono Variable", "JetBrains Mono", monospace';
           ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
-          ctx.fillStyle = 'rgba(180,180,170,0.6)';
+          ctx.fillStyle = palette.edgeLabel;
           ctx.fillText(l.port, mx, my - 3);
         }
       }
 
       // nodes
       for (const n of nodes) {
-        const c = colorFor(n.status);
+        const meta = STATUS_META[normalizeStatus(n.status)];
+        const c = palette.status[meta.status];
         const drawShape = getCategoryShape(n.category);
 
-        // Glow ring
-        ctx.save();
-        ctx.globalAlpha = 0.25;
+        // Category shape, outlined in the status colour
+        ctx.fillStyle = palette.nodeFill;
         ctx.strokeStyle = c;
-        ctx.lineWidth = 1;
-        ctx.beginPath(); ctx.arc(n.x, n.y, n.r + 4, 0, 2 * Math.PI); ctx.stroke();
-        ctx.restore();
-
-        // Shape fill + stroke
-        ctx.fillStyle = 'rgba(38,38,29,0.95)';
-        ctx.strokeStyle = c;
-        ctx.lineWidth = 1.8;
+        ctx.lineWidth = 2;
         drawShape(ctx, n.x, n.y, n.r);
+
+        // Status shape badge (colour-blind safe)
+        drawStatusBadge(ctx, meta.shape, n.x + n.r * 0.85, n.y - n.r * 0.85, c, palette.nodeFill);
 
         // Label
         const label = n.name.length > 16 ? `${n.name.slice(0, 15)}…` : n.name;
         ctx.font = '12px "Instrument Sans Variable", "Instrument Sans", sans-serif';
         ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-        ctx.fillStyle = 'rgba(225,225,215,0.9)';
+        ctx.fillStyle = palette.label;
         ctx.fillText(label, n.x, n.y + n.r + 5);
       }
       ctx.restore();
       state.raf = requestAnimationFrame(tick);
     };
     state.raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(state.raf);
+    return () => {
+      cancelAnimationFrame(state.raf);
+      window.removeEventListener(THEME_CHANGE_EVENT, refreshPalette);
+    };
   }, [size, zoom, nodeById, topoEdges]);
 
   const toWorld = (clientX: number, clientY: number) => {
@@ -437,10 +484,14 @@ export default function NetworkTopology() {
 
       {/* Legend */}
       <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-fg-muted">
-        <span className="text-success">● Up</span>
-        <span className="text-warning">● Warning</span>
-        <span className="text-error">● Down</span>
+        {(['up', 'warning', 'down', 'unknown'] as const).map((s) => (
+          <span key={s} className={`inline-flex items-center gap-1.5 ${STATUS_META[s].text}`}>
+            <StatusShapeIcon shape={STATUS_META[s].shape} />
+            <span className="text-fg-muted">{STATUS_META[s].label}</span>
+          </span>
+        ))}
         <span className="border-l border-line pl-5">◯ Host</span>
+        <span>⊕ Router</span>
         <span>◇ Switch</span>
         <span>⬡ Firewall</span>
         <span>▢ Server</span>
@@ -449,7 +500,7 @@ export default function NetworkTopology() {
       <div className="grid grid-cols-1 xl:grid-cols-[1fr_280px] gap-5">
         <Card variant="low" className="p-4 overflow-hidden min-h-[600px] relative">
           <div className="text-xs text-fg-muted mb-3 flex items-center gap-3">
-            <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-success status-dot-live" /> Live topology</span>
+            <span className="flex items-center gap-1.5"><StatusDot status="up" label="" size={8} /> Live topology</span>
             <span className="font-mono">{visible.list.length} nodes</span>
             <span className="font-mono">{realEdgeCount} dependency edges</span>
             {edgeCount > realEdgeCount && <span className="font-mono text-fg-subtle">+{edgeCount - realEdgeCount} inferred</span>}
@@ -475,10 +526,7 @@ export default function NetworkTopology() {
                 <strong className="font-sans text-sm block truncate">{hovered.node.name}</strong>
                 <span className="text-fg-muted font-mono">{hovered.node.ip}</span>
                 <div className="mt-1.5 flex items-center gap-2">
-                  <span className="flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full" style={{ background: colorFor(hovered.node.status) }} />
-                    <span className="capitalize " style={{ color: colorFor(hovered.node.status) }}>{hovered.node.status}</span>
-                  </span>
+                  <StatusPill status={hovered.node.status} />
                   {hovered.node.category && <span className="text-fg-subtle">· {hovered.node.category}</span>}
                 </div>
               </div>
@@ -495,7 +543,7 @@ export default function NetworkTopology() {
               <dl className="mt-6 space-y-4 text-sm">
                 <div>
                   <dt className="text-xs text-fg-muted">Status</dt>
-                  <dd style={{ color: colorFor(metricsMap.get(selected.id)?.status || selected.status) }} className="font-semibold capitalize">{metricsMap.get(selected.id)?.status || selected.status}</dd>
+                  <dd className="mt-1"><StatusPill status={metricsMap.get(selected.id)?.status || selected.status} size="md" /></dd>
                 </div>
                 <div>
                   <dt className="text-xs text-fg-muted">Protocol</dt>

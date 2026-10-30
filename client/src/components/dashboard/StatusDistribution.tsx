@@ -1,7 +1,8 @@
 import { memo, useMemo, useState } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import type { Metric } from '../../api/types';
-import { STATUS_COLORS, STATUS_LABELS } from '../../utils/colors';
+import { STATUS_META, normalizeStatus, statusColorVar, type Status } from '../../utils/status';
+import { StatusShapeIcon } from '../ui/Status';
 import { TOOLTIP_STYLE } from '../../utils/chartConfig';
 import ChartDataTable from '../ui/ChartDataTable';
 
@@ -9,27 +10,23 @@ interface Props {
   metrics: Metric[];
 }
 
-interface DonutSlice { name: string; value: number; color: string }
+interface DonutSlice { status: Status; name: string; value: number; color: string }
+
+const ORDER: Status[] = ['down', 'warning', 'unknown', 'maintenance', 'up'];
 
 function buildDonutData(metrics: Metric[]): DonutSlice[] {
-  const byDevice = new Map<number, string>();
-  for (const m of metrics) byDevice.set(m.deviceId, m.status);
+  const byDevice = new Map<number, Status>();
+  for (const m of metrics) byDevice.set(m.deviceId, normalizeStatus(m.status));
 
-  const counts = { up: 0, warning: 0, down: 0, unknown: 0 };
-  for (const [, status] of byDevice) {
-    if (status === 'up' || status === 'ok') counts.up++;
-    else if (status === 'warning' || status === 'degraded') counts.warning++;
-    else if (status === 'down') counts.down++;
-    else counts.unknown++;
-  }
+  const counts = new Map<Status, number>();
+  for (const status of byDevice.values()) counts.set(status, (counts.get(status) ?? 0) + 1);
 
-  return Object.entries(counts)
-    .filter(([, v]) => v > 0)
-    .map(([name, value]) => ({
-      name: STATUS_LABELS[name] ?? name,
-      value,
-      color: STATUS_COLORS[name] ?? '#6b7280',
-    }));
+  return ORDER.filter((status) => (counts.get(status) ?? 0) > 0).map((status) => ({
+    status,
+    name: STATUS_META[status].label,
+    value: counts.get(status) ?? 0,
+    color: statusColorVar(status),
+  }));
 }
 
 function StatusDistributionInner({ metrics }: Props) {
@@ -40,7 +37,7 @@ function StatusDistributionInner({ metrics }: Props) {
 
   return (
     <div className="bg-surface-1 rounded-lg p-4 border border-line flex flex-col group">
-      <h3 className="text-sm font-sans font-semibold text-fg mb-3">Status Distribution</h3>
+      <h3 className="text-sm font-sans font-semibold text-fg mb-3">Status distribution</h3>
       {donutTotal === 0 ? (
         <p className="text-xs text-fg-muted text-center my-auto py-8">No data yet</p>
       ) : (
@@ -53,7 +50,7 @@ function StatusDistributionInner({ metrics }: Props) {
                 cy="50%"
                 innerRadius={54}
                 outerRadius={78}
-                paddingAngle={3}
+                paddingAngle={2}
                 dataKey="value"
                 labelLine={false}
                 animationBegin={120}
@@ -63,10 +60,11 @@ function StatusDistributionInner({ metrics }: Props) {
                   <Cell
                     key={entry.name}
                     fill={entry.color}
-                    stroke="transparent"
+                    stroke="var(--color-surface-1)"
+                    strokeWidth={2}
                     onMouseEnter={() => setActiveIndex(i)}
                     onMouseLeave={() => setActiveIndex(undefined)}
-                    style={{ filter: activeIndex === i ? `drop-shadow(0 0 6px ${entry.color})` : undefined, transition: 'filter 200ms', cursor: 'pointer', opacity: activeIndex != null && activeIndex !== i ? 0.55 : 1 }}
+                    style={{ cursor: 'pointer', opacity: activeIndex != null && activeIndex !== i ? 0.55 : 1 }}
                   />
                 ))}
               </Pie>
@@ -85,7 +83,7 @@ function StatusDistributionInner({ metrics }: Props) {
                 onMouseEnter={() => setActiveIndex(i)}
                 onMouseLeave={() => setActiveIndex(undefined)}
               >
-                <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: d.color, boxShadow: activeIndex === i ? `0 0 8px ${d.color}` : undefined }} />
+                <span className={STATUS_META[d.status].text}><StatusShapeIcon shape={STATUS_META[d.status].shape} /></span>
                 <span className="text-fg-muted">{d.name}</span>
                 <span className="font-semibold text-fg">{d.value}</span>
               </div>

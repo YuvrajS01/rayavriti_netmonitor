@@ -12,7 +12,8 @@ import SectionHeader from '../components/ui/SectionHeader';
 import ErrorState from '../components/ui/ErrorState';
 import { useToast } from '../components/ui/useToast';
 import { DevicesSkeleton } from '../components/dashboard/DevicesSkeleton';
-import { statusTextColor, statusBgColor } from '../utils/colors';
+import { statusMeta } from '../utils/status';
+import { StatusPill } from '../components/ui/Status';
 import { iconForProtocol } from '../utils/icons';
 import { lazyWithRetry } from '../utils/lazyWithRetry';
 
@@ -22,13 +23,6 @@ const DeviceModal = lazyWithRetry(() => import('../components/DeviceModal'));
 function statusOf(device: Device, metricsMap: Map<number, Metric>): string {
   return metricsMap.get(device.id)?.status || device.status || 'unknown';
 }
-
-const STATUS_GROUP_HOVER_TEXT: Record<string, string> = {
-  down: 'group-hover:text-error',
-  warning: 'group-hover:text-warning',
-  degraded: 'group-hover:text-warning',
-  unknown: 'group-hover:text-fg-subtle',
-};
 
 export default function Devices() {
   const { addToast } = useToast();
@@ -149,7 +143,7 @@ export default function Devices() {
         {filtered.map((device) => {
           const status = statusOf(device, metricsMap);
           const metric = metricsMap.get(device.id);
-          const hoverText = STATUS_GROUP_HOVER_TEXT[status] || 'group-hover:text-fg';
+          const meta = statusMeta(status);
           return (
             <div 
               key={device.id} 
@@ -162,15 +156,12 @@ export default function Devices() {
             >
               <div className="p-6">
                 <div className="flex justify-between items-start mb-6">
-                  <div className={`bg-inset p-3 rounded-lg ${statusTextColor(status)} ${status === 'up' || status === 'ok' ? 'glow-success' : ''}`}>
+                  <div className={`bg-inset p-3 rounded-md ${meta.text}`}>
                     <span className="material-symbols-outlined text-3xl">{iconForProtocol(device.protocol)}</span>
                   </div>
-                  <div className={`flex items-center gap-2 px-3 py-1 rounded-full ${statusBgColor(status)}/10`}>
-                    {(status === 'up' || status === 'ok') && <span className={`w-1.5 h-1.5 rounded-full ${statusBgColor(status)}`} />}
-                    <span className={`capitalize text-xs font-semibold ${statusTextColor(status)}`}>{status.toUpperCase()}</span>
-                  </div>
+                  <StatusPill status={meta} />
                 </div>
-                <h3 className={`font-sans text-xl font-semibold mb-1 ${hoverText} transition-colors`}>{device.name}</h3>
+                <h3 className={`font-sans text-xl font-semibold mb-1 group-hover:text-primary transition-colors`}>{device.name}</h3>
                 <code className="text-fg-muted text-xs mb-4 block">{device.protocol === 'http' || device.protocol === 'https' ? `${device.protocol}://${device.ipAddress}` : device.ipAddress}{device.port > 0 && !['http','https'].includes(device.protocol) ? `:${device.port}` : ''}</code>
                 <div className="space-y-2 text-xs">
                   <div className="flex justify-between"><span className="text-fg-muted">Protocol</span><span className="font-semibold">{device.protocol.toUpperCase()}</span></div>

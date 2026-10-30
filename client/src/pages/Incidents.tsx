@@ -9,7 +9,8 @@ import Button from '../components/ui/Button';
 import StatCard from '../components/ui/StatCard';
 import EmptyState from '../components/ui/EmptyState';
 import { useToast } from '../components/ui/useToast';
-import { severityIcon, severityTextColor, severityBgColor, statusTextColor } from '../utils/colors';
+import { lifecycleMeta, severityMeta } from '../utils/status';
+import { StatusPill } from '../components/ui/Status';
 import GanttTimeline from '../components/charts/GanttTimeline';
 
 const EMPTY_INCIDENTS: Incident[] = [];
@@ -150,14 +151,14 @@ export default function Incidents() {
               <article key={inc.id} className="p-5 hover:bg-surface-1/50 transition-colors cursor-pointer" onClick={() => navigate(`/incidents/${inc.id}`)}>
                 <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
                   <div className="flex items-start gap-4 min-w-0">
-                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${severityBgColor(inc.severity)}`}>
-                      <span className={`material-symbols-outlined text-xl ${severityTextColor(inc.severity)}`}>{severityIcon(inc.severity)}</span>
+                    <div className={`w-10 h-10 rounded-md flex items-center justify-center flex-shrink-0 ${severityMeta(inc.severity).chip}`}>
+                      <span className={`material-symbols-outlined text-xl ${severityMeta(inc.severity).text}`} aria-hidden="true">{severityMeta(inc.severity).icon}</span>
                     </div>
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <h3 className="font-sans font-semibold text-lg truncate">{inc.title}</h3>
                         {inc.sla_breached && (
-                          <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-error/10 text-error">SLA breach</span>
+                          <StatusPill status="down">SLA breach</StatusPill>
                         )}
                       </div>
                       <p className="text-xs text-fg-muted mt-0.5">
@@ -169,11 +170,11 @@ export default function Incidents() {
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 lg:max-w-xl flex-shrink-0">
                     <div>
                       <div className="text-xs text-fg-muted">Severity</div>
-                      <div className={`text-sm font-semibold capitalize ${severityTextColor(inc.severity)}`}>{inc.severity}</div>
+                      <StatusPill status={severityMeta(inc.severity)} className="mt-0.5" />
                     </div>
                     <div>
                       <div className="text-xs text-fg-muted">Status</div>
-                      <div className={`text-sm font-semibold capitalize ${statusTextColor(inc.status)}`}>{inc.status}</div>
+                      <StatusPill status={lifecycleMeta(inc.status)} className="mt-0.5" />
                     </div>
                     <div>
                       <div className="text-xs text-fg-muted">Devices</div>

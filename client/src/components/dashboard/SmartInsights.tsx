@@ -1,42 +1,45 @@
-import { memo } from 'react';
+import { memo, useMemo } from 'react';
 import type { InsightsResponse } from '../../api/types';
+import { healthMeta } from '../../utils/status';
+import { dedupeInsights } from '../../utils/insights';
+import { StatusPill } from '../ui/Status';
 
 interface Props {
   insights: InsightsResponse | null;
 }
 
 function SmartInsightsInner({ insights }: Props) {
-  const healthArray = insights?.health || [];
+  const items = useMemo(() => dedupeInsights(insights?.health ?? []).slice(0, 4), [insights?.health]);
 
   return (
-    <div className="xl:col-span-2 bg-surface-1 rounded-lg p-5 border border-line">
+    <section aria-labelledby="smart-insights-heading" className="xl:col-span-2 bg-surface-1 rounded-lg p-5 border border-line">
       <div className="flex items-center justify-between gap-4 mb-4">
-        <h3 className="text-sm font-sans font-semibold text-fg">Smart Insights</h3>
+        <h3 id="smart-insights-heading" className="text-sm font-semibold text-fg">Smart insights</h3>
         <span className="text-xs text-fg-muted">
           {insights?.generatedAt ? new Date(insights.generatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Pending'}
         </span>
       </div>
-      <div role="list" className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        {healthArray.slice(0, 4).map((item, idx) => {
-          const isCritical = item.score < 40;
-          const isWarn = item.score < 70;
-          const color = isCritical ? 'text-error' : isWarn ? 'text-warning' : 'text-success';
-          const bg = isCritical ? 'bg-error/10 border-error/25' : isWarn ? 'bg-warning/10 border-warning/25' : 'bg-success/10 border-success/25';
+      <ul className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {items.map((item) => {
+          const meta = healthMeta(item.score);
           return (
-            <div role="listitem" key={`${item.deviceId}-${idx}`} className={`rounded-lg border ${bg} p-3 flex gap-3 min-h-24`}>
-              <span className={`material-symbols-outlined ${color} text-lg mt-0.5`}>{isCritical ? 'error' : isWarn ? 'warning' : 'tips_and_updates'}</span>
-              <div className="min-w-0">
-                <p className={`text-xs font-semibold ${color}`}>{item.deviceName}</p>
-                <p className="text-xs text-fg-muted mt-1 leading-relaxed">Score: {item.score.toFixed(2)} — {item.label}</p>
+            <li key={item.deviceId} className="rounded-md border border-line bg-surface-2 p-3 flex flex-col gap-2 min-h-20">
+              <div className="flex items-start justify-between gap-2">
+                <p className="text-sm font-semibold text-fg truncate">{item.deviceName}</p>
+                <StatusPill status={meta} />
               </div>
-            </div>
+              <p className="text-xs text-fg-muted">
+                Health score <span className="font-mono text-fg">{item.score.toFixed(0)}</span>
+                <span className="text-fg-subtle"> / 100</span>
+              </p>
+            </li>
           );
         })}
-        {healthArray.length === 0 && (
-          <div className="md:col-span-2 py-8 text-center text-xs text-fg-muted">No anomalies or grouped risks detected</div>
+        {items.length === 0 && (
+          <li className="md:col-span-2 py-8 text-center text-sm text-fg-muted">No anomalies or grouped risks detected</li>
         )}
-      </div>
-    </div>
+      </ul>
+    </section>
   );
 }
 
