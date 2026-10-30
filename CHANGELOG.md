@@ -5,9 +5,41 @@ All notable changes to Rayavriti NetMonitor will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [5.1.0] - 2026-10-30
+
+This release covers Phases 2a and 2b of the v5 roadmap in `REVIEW_REPORT.md`: the operator workflow and network depth. It shipped as PRs #75 and #78–#81.
+
+> **Upgrade notes**
+> - **Migrations 48–52 run on first start.** They add alert assignment and notes, the `interface_metrics` hypertable, SNMPv3 credentials, flow exporter columns and `device_neighbors`. None of them rewrite existing data.
+> - **Flow ingest is off by default.** Turn it on with `FLOW_INGEST_ENABLED=true`, and firewall UDP 2055 and 6343 so only your exporters can reach them. There is no exporter allowlist yet.
+> - **Old URLs redirect.** For example, `/incidents` now goes to `/alerts/incidents` and `/campus` to `/topology/campus`, so bookmarks keep working.
 
 ### Added
+- **Operator API** (#75):
+  - `GET /metrics/history`: bucketed response-time history, served from the rollups for long ranges.
+  - `POST /alerts/bulk`, alert notes and alert assignees.
+  - `GET /search`, a scoped global search.
+- **Operator workflow UI** (#80):
+  - **Navigation:** four groups with hubs and breadcrumbs, a collapsible icon rail, and a separate settings layout.
+  - **Devices:** a data table with saved views, grouping, bulk actions and virtualisation.
+  - **Device detail page:** Overview history chart, Interfaces, Alerts, Ports, Dependencies and Settings tabs.
+  - **Alerts workbench:** optimistic and bulk actions, assignees and notes, and keyboard triage.
+  - **Command palette:** Ctrl/⌘K.
+  - **NOC wall mode:** `/wall`.
+  - **Dashboard:** history for the slowest devices.
+- **Per-interface SNMP throughput** (#78):
+  - Interfaces are walked from IF-MIB `ifTable`/`ifXTable` over GETBULK, preferring 64-bit counters.
+  - Rates come from counter deltas, with wrap and reset handling and a 1.5× line-speed sanity cap.
+  - Samples are stored in the `interface_metrics` hypertable, compressed after 3 days, with the same retention as metrics.
+  - `GET /devices/{id}/interfaces` and `GET /devices/{id}/interfaces/{ifIndex}/history`.
+- **SNMPv3** (#78):
+  - Security levels `noAuthNoPriv`, `authNoPriv` and `authPriv`, with MD5/SHA/SHA-2 auth and DES/AES privacy.
+  - The API never returns passphrases. Writers see a placeholder, and sending it back keeps the stored value.
+- **LLDP neighbour discovery** (#79):
+  - SNMP polls walk LLDP-MIB every 10 minutes per device.
+  - Remotes are matched to monitored devices by management address or system name.
+  - `GET /devices/{id}/neighbors` and `GET /topology/links`.
+  - The device page lists each device's neighbours.
 - **Flow ingest** (B13): NetFlow v5/v9, IPFIX and sFlow v5 are now received over UDP. Previously the only way flows arrived was the simulator. Enable it with `FLOW_INGEST_ENABLED=true`. NetFlow/IPFIX listens on `NETFLOW_ADDR` (default `:2055`) and sFlow on `SFLOW_ADDR` (default `:6343`); an empty address disables that listener.
   - Decoding uses goflow2. v9/IPFIX template state is kept per exporter and observation domain.
   - Flows are stamped with their end time and fall back to the receive time when the exporter's clock is implausible. Bytes and packets are scaled by the sampling rate, taken from the v5 header, v9/IPFIX options or data records, or the sFlow sample.
@@ -15,11 +47,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Records are batched with `COPY`. When the queue is full they are dropped, never blocking the UDP reader. Shutdown drains the queue and flushes.
   - Prometheus metrics for datagrams, decoded flows, decode errors, drops, batch write latency and errors, and queue length.
 
+### Changed
+- **SNMP walks** use GETBULK on v2c and v3. v1 still uses GETNEXT (#78).
+- **`alert:updated` WebSocket events** now carry the full alert, and the client patches its cache in place instead of refetching (#80).
+
 ### Fixed
-- `GET /api/v1/flows` failed to scan `inet` addresses, and top talkers returned addresses with a `/32` suffix.
+- **Interface tables were always empty on real agents (#78).** The IF-MIB walks used the table OIDs instead of the entry OIDs.
+- **Unknown `/api/*` paths return a JSON 404 (#80).** They used to return the app shell with a 200.
+- **Flow addresses (#81):** `GET /api/v1/flows` failed to scan `inet` addresses, and top talkers returned addresses with a `/32` suffix.
 
 ### Removed
-- The unused `NetFlowCollector` (v5 only) and `FlowAnalyzer`. `NETFLOW_PORT` is still honoured when `NETFLOW_ADDR` is unset.
+- **Dead flow code (#81):** the unused `NetFlowCollector` (v5 only) and `FlowAnalyzer`. `NETFLOW_PORT` is still honoured when `NETFLOW_ADDR` is unset.
+- **Separate inventory pages (#80):** the camera and biometric pages are now built-in views of the devices table.
 
 ## [5.0.1] - 2026-10-30
 
