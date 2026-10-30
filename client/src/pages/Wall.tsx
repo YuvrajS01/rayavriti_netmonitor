@@ -275,7 +275,7 @@ function DeviceGrid({ devices, loading }: { devices: WallDevice[]; loading: bool
             </div>
             <div className="mt-0.5 flex justify-between text-xs text-fg-muted">
               <span className={d.live === 'up' ? '' : meta.text}>{meta.label}</span>
-              <span className="font-mono">{d.metric?.responseTime != null ? `${d.metric.responseTime} ms` : '—'}</span>
+              <span className="font-mono">{d.metric?.responseTime != null ? `${Math.round(d.metric.responseTime)} ms` : '—'}</span>
             </div>
           </li>
         );
@@ -367,7 +367,7 @@ function LocationGrid({ devices, locations }: { devices: WallDevice[]; locations
                 <StatusDot status={status} size={16} />
                 <span className="truncate text-lg font-semibold">{t.name}</span>
               </div>
-              <p className="mt-1 text-sm text-fg-muted">{list.length} devices{t.type ? ` · ${t.type}` : ''}</p>
+              <p className="mt-1 text-sm text-fg-muted">{list.length} {list.length === 1 ? 'device' : 'devices'}{t.type ? ` · ${t.type}` : ''}</p>
               {bad.length > 0 && (
                 <p className="mt-2 flex flex-wrap gap-2">
                   {bad.map(([s, n]) => <StatusPill key={s} status={s}>{n} {STATUS_META[s].label.toLowerCase()}</StatusPill>)}

@@ -94,6 +94,8 @@ export default function CommandPalette({ open, onClose, initialQuery = '' }: Com
         const sections = visibleSections(item.sections, user);
         pages.push({ id: `page-${item.id}`, group: 'Pages', label: item.label, hint: group.label, icon: item.icon, to: itemTarget(item, user), keywords: item.keywords });
         for (const s of sections) {
+          // The item entry already goes to its first section.
+          if (s.to === itemTarget(item, user)) continue;
           pages.push({ id: `page-${item.id}-${s.id}`, group: 'Pages', label: `${item.label} › ${s.label}`, hint: group.label, icon: s.icon, to: s.to, keywords: s.keywords });
         }
       }

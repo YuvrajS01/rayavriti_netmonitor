@@ -43,8 +43,9 @@ async function bulkWithFallback(ids: number[], action: AlertBulkAction, note?: s
   try {
     return (await bulkAlertAction(ids, action, note)).data;
   } catch (error) {
+    // 404/405, or a non-JSON body (the SPA's index.html), mean "no such endpoint".
     const status = isAxiosError(error) ? error.response?.status : undefined;
-    if (status !== 404 && status !== 405) throw error;
+    if (isAxiosError(error) && status !== 404 && status !== 405) throw error;
     const call = action === 'acknowledge' ? acknowledgeAlert : resolveAlert;
     const results = await Promise.allSettled(ids.map((id) => call(id)));
     return {

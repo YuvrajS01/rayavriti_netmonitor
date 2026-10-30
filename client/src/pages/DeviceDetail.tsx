@@ -158,12 +158,6 @@ function OverviewTab({ device, latest }: { device: Device; latest?: Metric }) {
   const locations = useResourceList('/locations');
 
   const series = history.data ?? [];
-  const points = series[0]?.points ?? [];
-  const samples = points.reduce((n, p) => n + p.samples, 0);
-  const down = points.reduce((n, p) => n + p.down, 0);
-  const weighted = points.reduce((n, p) => n + (p.avg ?? 0) * p.samples, 0);
-  const availability = samples ? ((samples - down) / samples) * 100 : null;
-  const avg = samples ? weighted / samples : null;
 
   const fallbackSeries = useMemo<DeviceHistory[]>(() => {
     const rows = recent.data ?? [];
@@ -182,6 +176,17 @@ function OverviewTab({ device, latest }: { device: Device; latest?: Metric }) {
     }];
   }, [recent.data, device.id, device.name]);
 
+  // Stats come from whichever series is on screen.
+  const shown = history.isError ? fallbackSeries : series;
+  const points = shown[0]?.points ?? [];
+  const samples = points.reduce((n, p) => n + p.samples, 0);
+  const down = points.reduce((n, p) => n + p.down, 0);
+  const answered = points.filter((p) => p.avg != null);
+  const answeredSamples = answered.reduce((n, p) => n + p.samples, 0);
+  const availability = samples ? ((samples - down) / samples) * 100 : null;
+  const avg = answeredSamples ? answered.reduce((n, p) => n + (p.avg ?? 0) * p.samples, 0) / answeredSamples : null;
+  const windowLabel = history.isError ? `last ${RECENT_SAMPLES} polls` : range.label;
+
   const location = device.locationId != null ? (locations.data ?? []).find((l) => Number(l.id) === device.locationId) : undefined;
   const details: Array<[string, React.ReactNode]> = [
     ['Location', location ? String(location.name) : device.locationId != null ? `#${device.locationId}` : 'Unassigned'],
@@ -199,8 +204,8 @@ function OverviewTab({ device, latest }: { device: Device; latest?: Metric }) {
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
         <Tile label="Last response">{latest?.responseTime != null ? `${latest.responseTime} ms` : '—'}</Tile>
         <Tile label="Last poll"><RelativeTime value={latest ? latest.timestamp || latest.createdAt : null} /></Tile>
-        <Tile label={`Availability (${range.label})`}>{availability != null ? `${availability.toFixed(availability >= 99.95 ? 2 : 1)}%` : '—'}</Tile>
-        <Tile label={`Average (${range.label})`}>{avg != null ? `${Math.round(avg)} ms` : '—'}</Tile>
+        <Tile label={`Availability (${windowLabel})`}>{availability != null ? `${availability.toFixed(availability >= 99.95 ? 2 : 1)}%` : '—'}</Tile>
+        <Tile label={`Average (${windowLabel})`}>{avg != null ? `${Math.round(avg)} ms` : '—'}</Tile>
         <Tile label="Failed polls">{samples ? `${down} of ${samples}` : '—'}</Tile>
         <Tile label="Poll interval">{device.interval}s</Tile>
       </div>
@@ -231,11 +236,13 @@ function OverviewTab({ device, latest }: { device: Device; latest?: Metric }) {
         </div>
         {history.isPending || (history.isError && recent.isPending) ? (
           <div className="flex h-64 items-center justify-center text-sm text-fg-muted" role="status">Loading response times…</div>
-        ) : (history.isError ? fallbackSeries : series).every((s) => !s.points?.length) ? (
+        ) : samples === 0 ? (
           <EmptyState size="compact" icon="monitoring" title="No samples in this range" description="The device hasn't been polled in this window." />
+        ) : answered.length === 0 ? (
+          <EmptyState size="compact" icon="dangerous" title="No responses in this range" description={`All ${samples} polls failed, so there is no response time to plot.`} />
         ) : (
           <Suspense fallback={<div className="h-64" />}>
-            <ResponseHistoryChart series={history.isError ? fallbackSeries : series} showRange={!history.isError} title={`Response time for ${device.name}`} />
+            <ResponseHistoryChart series={shown} showRange={!history.isError} title={`Response time for ${device.name}`} />
           </Suspense>
         )}
       </section>

@@ -1,4 +1,4 @@
-import { v1, wrap, type RequestOptions } from './http';
+import { v1, wrapJson, type RequestOptions } from './http';
 import type { DeviceHistory, HistoryBucket } from './types';
 
 /** The backend accepts at most this many devices per history call. */
@@ -16,7 +16,7 @@ export const getMetricsHistory = ({ devices, from, to, bucket }: HistoryParams, 
   const qs = new URLSearchParams({ devices: devices.slice(0, HISTORY_MAX_DEVICES).join(','), from, to });
   if (bucket) qs.set('bucket', bucket);
   return v1.get(`/metrics/history?${qs}`, { signal }).then((r) => {
-    const { data } = wrap<DeviceHistory[] | null>(r.data);
+    const { data } = wrapJson<DeviceHistory[] | null>(r.data);
     return Array.isArray(data) ? data : [];
   });
 };

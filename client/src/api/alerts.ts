@@ -1,4 +1,4 @@
-import { v1, wrap, type RequestOptions } from './http';
+import { v1, wrap, wrapJson, type RequestOptions } from './http';
 import type { Alert, AlertBulkAction, AlertBulkResult, AlertCounts, AlertNote, AssignableUser } from './types';
 
 export interface AlertGroup {
@@ -40,16 +40,16 @@ export const resolveAlert = (id: number, { signal }: RequestOptions = {}) =>
 export const bulkAlertAction = (ids: number[], action: AlertBulkAction, note?: string, { signal }: RequestOptions = {}) =>
   v1
     .post('/alerts/bulk', note ? { ids, action, note } : { ids, action }, { signal })
-    .then((r) => wrap<AlertBulkResult>(r.data));
+    .then((r) => wrapJson<AlertBulkResult>(r.data));
 
 export const getAlertNotes = (id: number, { signal }: RequestOptions = {}) =>
-  v1.get(`/alerts/${id}/notes`, { signal }).then((r) => wrap<AlertNote[]>(r.data));
+  v1.get(`/alerts/${id}/notes`, { signal }).then((r) => wrapJson<AlertNote[]>(r.data));
 
 export const addAlertNote = (id: number, text: string, { signal }: RequestOptions = {}) =>
-  v1.post(`/alerts/${id}/notes`, { text }, { signal }).then((r) => wrap<AlertNote>(r.data));
+  v1.post(`/alerts/${id}/notes`, { text }, { signal }).then((r) => wrapJson<AlertNote>(r.data));
 
 export const setAlertAssignee = (id: number, userId: number | null, { signal }: RequestOptions = {}) =>
-  v1.put(`/alerts/${id}/assignee`, { userId }, { signal }).then((r) => wrap<Alert>(r.data));
+  v1.put(`/alerts/${id}/assignee`, { userId }, { signal }).then((r) => wrapJson<Alert>(r.data));
 
 export const getAssignableUsers = ({ signal }: RequestOptions = {}) =>
-  v1.get('/users/assignable', { signal }).then((r) => wrap<AssignableUser[]>(r.data));
+  v1.get('/users/assignable', { signal }).then((r) => wrapJson<AssignableUser[]>(r.data));

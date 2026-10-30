@@ -128,7 +128,7 @@ export default function Devices() {
     { id: 'address', header: 'Address', value: (d) => address(d), cell: (d) => <code className="font-mono text-xs text-fg-muted">{address(d)}</code>, filter: 'text', width: 'minmax(160px,1.5fr)' },
     { id: 'protocol', header: 'Protocol', value: (d) => d.protocol, cell: (d) => <span className="uppercase">{d.protocol}</span>, filter: protocols.map((p) => ({ value: p, label: p.toUpperCase() })), width: '112px' },
     { id: 'location', header: 'Location', value: (d) => d.locationName, filter: 'text', width: 'minmax(140px,1fr)' },
-    { id: 'response', header: 'Response', value: (d) => d.metric?.responseTime ?? null, cell: (d) => (d.metric?.responseTime != null ? <span className="font-mono">{d.metric.responseTime} ms</span> : '—'), align: 'end', width: '112px', searchable: false },
+    { id: 'response', header: 'Response', value: (d) => d.metric?.responseTime ?? null, cell: (d) => (d.metric?.responseTime != null ? <span className="font-mono">{Math.round(d.metric.responseTime)} ms</span> : '—'), align: 'end', width: '112px', searchable: false },
     { id: 'lastPoll', header: 'Last poll', value: (d) => (d.metric ? new Date(d.metric.timestamp || d.metric.createdAt).getTime() : null), cell: (d) => <RelativeTime value={d.metric ? d.metric.timestamp || d.metric.createdAt : null} className="text-fg-muted" />, width: '112px', searchable: false },
     { id: 'category', header: 'Category', value: (d) => d.deviceCategory || '', width: '120px' },
     { id: 'vendor', header: 'Vendor', value: (d) => [d.manufacturer, d.model].filter(Boolean).join(' '), width: 'minmax(120px,1fr)' },
@@ -292,7 +292,7 @@ export default function Devices() {
                   <code className="mb-3 block truncate font-mono text-xs text-fg-muted">{address(d)}</code>
                   <dl className="grid grid-cols-2 gap-y-1.5 text-xs">
                     <dt className="text-fg-muted">Location</dt><dd className="truncate text-right">{d.locationName || '—'}</dd>
-                    <dt className="text-fg-muted">Response</dt><dd className="text-right font-mono">{d.metric?.responseTime != null ? `${d.metric.responseTime} ms` : '—'}</dd>
+                    <dt className="text-fg-muted">Response</dt><dd className="text-right font-mono">{d.metric?.responseTime != null ? `${Math.round(d.metric.responseTime)} ms` : '—'}</dd>
                     <dt className="text-fg-muted">Last poll</dt><dd className="text-right"><RelativeTime value={d.metric ? d.metric.timestamp || d.metric.createdAt : null} /></dd>
                   </dl>
                 </div>

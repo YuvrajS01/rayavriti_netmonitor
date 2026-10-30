@@ -62,6 +62,11 @@ describe('v5.1 api contracts', () => {
     expect((await getAssignableUsers()).data[0]!.displayName).toBe('Ops');
   });
 
+  it('treats an HTML fallback page as an error, not as empty results', async () => {
+    api.onGet(/\/search\?/).reply(200, '<!doctype html><html></html>');
+    await expect(searchEntities('co')).rejects.toThrow(/non-JSON/);
+  });
+
   it('normalises partial search results', async () => {
     api.onGet(/\/search\?/).reply(200, { success: true, data: { devices: [{ id: 1, name: 'core', ipAddress: '10.0.0.1', status: 'up' }] } });
     const res = await searchEntities('co');
