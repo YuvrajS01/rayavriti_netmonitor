@@ -667,7 +667,7 @@ func (h spaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// If file exists, serve it
 	if info, err := fs.Stat(fsys, name); err == nil && !info.IsDir() {
-		http.ServeFileFS(w, r, fsys, name)
+		http.ServeFileFS(w, r, fsys, name) //nolint:gosec // G703 false positive: os.DirFS rejects ".." names (see spa_test.go)
 		return
 	}
 
