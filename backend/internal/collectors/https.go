@@ -17,5 +17,5 @@ func (HTTPSCollector) Name() string { return "https" }
 
 func (c HTTPSCollector) Collect(ctx context.Context, device *models.Device) (*Result, error) {
 	// Delegate to HTTPCollector — it already detects https based on protocol/port
-	return HTTPCollector{client: c.client}.Collect(ctx, device)
+	return HTTPCollector(c).Collect(ctx, device)
 }

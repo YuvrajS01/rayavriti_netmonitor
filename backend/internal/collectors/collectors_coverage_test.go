@@ -159,7 +159,7 @@ func TestHTTPSCollector_Collect_DelegatesToHTTP(t *testing.T) {
 	}))
 	defer server.Close()
 
-	c := HTTPSCollector{client: loopbackHTTPCollector.client}
+	c := HTTPSCollector(loopbackHTTPCollector)
 	// Use server.URL which will be https://127.0.0.1:<port>
 	device := &models.Device{IPAddress: server.URL, Protocol: "https"}
 	result, err := c.Collect(context.Background(), device)

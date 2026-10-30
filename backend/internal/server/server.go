@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"net/http"
 	"os"
-	"path/filepath"
+	"path"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -658,14 +660,17 @@ type spaHandler struct {
 }
 
 func (h spaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	path := filepath.Join(h.staticDir, filepath.Clean(r.URL.Path))
+	// os.DirFS rejects names containing "..", so a request can never escape
+	// staticDir regardless of how the URL path is encoded.
+	fsys := os.DirFS(h.staticDir)
+	name := strings.TrimPrefix(path.Clean("/"+r.URL.Path), "/")
 
 	// If file exists, serve it
-	if info, err := os.Stat(path); err == nil && !info.IsDir() {
-		http.ServeFile(w, r, path)
+	if info, err := fs.Stat(fsys, name); err == nil && !info.IsDir() {
+		http.ServeFileFS(w, r, fsys, name)
 		return
 	}
 
 	// Otherwise serve index.html (SPA fallback)
-	http.ServeFile(w, r, filepath.Join(h.staticDir, "index.html"))
+	http.ServeFileFS(w, r, fsys, "index.html")
 }
