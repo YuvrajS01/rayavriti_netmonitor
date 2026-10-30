@@ -161,6 +161,15 @@ func (rp *ResultPipeline) processBatch(ctx context.Context, batch []PollResult) 
 		}
 	}
 
+	for _, pr := range batch {
+		if pr.CollectResult == nil || !pr.CollectResult.NeighborsCollected {
+			continue
+		}
+		if err := rp.db.ReplaceDeviceNeighbors(ctx, pr.Device.ID, pr.CollectResult.Neighbors); err != nil {
+			slog.Warn("failed to persist LLDP neighbours", "device", pr.Device.ID, "error", err)
+		}
+	}
+
 	// Persist device statuses in one statement per batch; the database only
 	// rewrites rows whose status changed. Within a batch the latest poll
 	// of a device wins.

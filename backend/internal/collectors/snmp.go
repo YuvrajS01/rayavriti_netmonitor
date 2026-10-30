@@ -101,6 +101,12 @@ func (SNMPCollector) Collect(ctx context.Context, device *models.Device) (*Resul
 	t, err = collectTable(g, oidIfXTable, []int{1, 6, 10, 15}, 40)
 	ifXRes := tableResult{table: t, err: err}
 
+	var neighbors []models.LLDPNeighbor
+	var neighborsOK bool
+	if now := time.Now(); lldpDue.due(device.ID, now) {
+		neighbors, neighborsOK = collectLLDP(g, device.ID, now)
+	}
+
 	elapsed := float64(time.Since(start).Milliseconds())
 
 	// Parse uptime
@@ -226,6 +232,9 @@ func (SNMPCollector) Collect(ctx context.Context, device *models.Device) (*Resul
 		Details:      details,
 		Bandwidth:    totalBps,
 		Interfaces:   samples,
+
+		Neighbors:          neighbors,
+		NeighborsCollected: neighborsOK,
 	}, nil
 }
 
