@@ -1,3 +1,4 @@
+import { useCallback } from 'react';
 import { useMutation, useQueryClient, type QueryClient, type QueryKey } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
 import { acknowledgeAlert, bulkAlertAction, resolveAlert, ALERT_BULK_MAX } from '../api/alerts';
@@ -97,9 +98,13 @@ export function useAlertActions() {
     onSettled: settle,
   });
 
+  const { mutate: mutateSingle } = single;
+  const { mutateAsync: mutateBulk } = bulk;
+  const act = useCallback((id: number, action: AlertBulkAction) => mutateSingle({ id, action }), [mutateSingle]);
+  const bulkAct = useCallback((ids: number[], action: AlertBulkAction, note?: string) => mutateBulk({ ids, action, note }), [mutateBulk]);
   return {
-    act: (id: number, action: AlertBulkAction) => single.mutate({ id, action }),
-    bulkAct: (ids: number[], action: AlertBulkAction, note?: string) => bulk.mutateAsync({ ids, action, note }),
+    act,
+    bulkAct,
     pending: single.isPending || bulk.isPending,
   };
 }
