@@ -1,8 +1,8 @@
 export default function LoadingState({ message = 'Loading...' }: { message?: string }) {
   return (
     <div role="status" aria-live="polite" className="flex flex-col items-center justify-center min-h-[60vh] gap-3">
-      <span className="material-symbols-outlined text-3xl text-fg-muted animate-pulse">hourglass_top</span>
-      <p className="text-xs text-fg-muted font-sans font-medium">{message}</p>
+      <span className="material-symbols-outlined animate-spin text-3xl text-fg-muted" aria-hidden="true">progress_activity</span>
+      <p className="text-sm text-fg-muted">{message}</p>
     </div>
   );
 }

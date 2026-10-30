@@ -2,6 +2,7 @@ import { Suspense, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import ErrorBoundary from './components/ErrorBoundary';
 import PageLoader from './components/ui/PageLoader';
+import Button from './components/ui/Button';
 import { lazyWithRetry } from './utils/lazyWithRetry';
 import { SocketProvider } from './hooks/useSocket';
 import { setMaintenanceHandler } from './api/http';
@@ -47,10 +48,10 @@ const NotFound = lazyWithRetry(() => import('./pages/NotFound'));
 
 function FullScreenStatus({ message, children }: { message: string; children?: React.ReactNode }) {
   return (
-    <div className="flex items-center justify-center min-h-screen bg-canvas">
+    <div role="status" aria-live="polite" className="flex items-center justify-center min-h-screen bg-canvas">
       <div className="flex flex-col items-center gap-3">
-        <span className="material-symbols-outlined text-3xl text-primary animate-pulse">hourglass_top</span>
-        <p className="text-xs text-fg-muted">{message}</p>
+        <span className="material-symbols-outlined animate-spin text-3xl text-fg-muted" aria-hidden="true">progress_activity</span>
+        <p className="text-sm text-fg-muted">{message}</p>
         {children}
       </div>
     </div>
@@ -64,12 +65,9 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   if (status === 'unreachable') {
     return (
       <FullScreenStatus message="Unable to reach the server">
-        <button
-          onClick={() => void restoreSession()}
-          className="mt-2 text-xs text-fg-muted hover:text-primary transition-colors underline"
-        >
+        <Button variant="secondary" size="sm" icon="refresh" onClick={() => void restoreSession()} className="mt-2">
           Retry
-        </button>
+        </Button>
       </FullScreenStatus>
     );
   }

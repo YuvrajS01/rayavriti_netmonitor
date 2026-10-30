@@ -4,8 +4,8 @@ export default function SystemMaintenance() {
   return <main className="grid min-h-screen place-items-center bg-canvas p-6 text-fg">
     <section className="max-w-md text-center">
       <img src={IconColor} className="mx-auto h-16 w-16" alt="Rayavriti NetMonitor" />
-      <p className="mt-8 text-xs font-sans text-primary">Rayavriti NetMonitor</p>
-      <h1 className="mt-3 font-sans text-3xl font-semibold">System Under Maintenance</h1>
+      <p className="mt-8 text-sm text-primary">Rayavriti NetMonitor</p>
+      <h1 className="mt-3 text-3xl font-semibold">System under maintenance</h1>
       <p className="mt-4 text-sm leading-6 text-fg-muted">This NetMonitor instance is temporarily unavailable for operational updates. Please contact your administrator for assistance.</p>
     </section>
   </main>;

@@ -14,22 +14,28 @@ type PacketRow = CapturePacketItem & { id?: number };
 import { formatBytes } from '../utils/formatters';
 import SectionHeader from '../components/ui/SectionHeader';
 import EmptyState from '../components/ui/EmptyState';
-import Sparkline from '../components/ui/Sparkline';
-import RingGauge from '../components/ui/RingGauge';
+import Button from '../components/ui/Button';
+import { StatusPill } from '../components/ui/Status';
+import { STATUS_META, type StatusMeta } from '../utils/status';
 
-type ProtoStyle = { text: string; bg: string; border: string };
-
-const UNKNOWN_PROTO_STYLE: ProtoStyle = { text: 'var(--color-line-strong)', bg: 'color-mix(in srgb, var(--color-line-strong) 6%, transparent)', border: 'color-mix(in srgb, var(--color-line-strong) 15%, transparent)' };
-
-const PROTO_COLORS: Record<string, ProtoStyle> = {
-  TCP: { text: 'var(--color-chart-1)', bg: 'color-mix(in srgb, var(--color-chart-1) 8%, transparent)', border: 'color-mix(in srgb, var(--color-chart-1) 20%, transparent)' },
-  UDP: { text: 'var(--color-primary)', bg: 'color-mix(in srgb, var(--color-primary) 8%, transparent)', border: 'color-mix(in srgb, var(--color-primary) 20%, transparent)' },
-  ICMP: { text: 'var(--color-chart-3)', bg: 'color-mix(in srgb, var(--color-chart-3) 8%, transparent)', border: 'color-mix(in srgb, var(--color-chart-3) 20%, transparent)' },
-  UNKNOWN: UNKNOWN_PROTO_STYLE,
+/** Protocol identity marks use the categorical palette; their text stays in text tokens. */
+const PROTO_MARK: Record<string, string> = {
+  TCP: 'var(--color-chart-1)',
+  UDP: 'var(--color-chart-2)',
+  ICMP: 'var(--color-chart-3)',
 };
 
-function getProtoStyle(proto: string): ProtoStyle {
-  return PROTO_COLORS[proto] || UNKNOWN_PROTO_STYLE;
+function protoMark(proto: string): string {
+  return PROTO_MARK[proto] ?? 'var(--color-line-strong)';
+}
+
+function ProtoChip({ proto }: { proto: string }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded bg-surface-3 px-1.5 py-0.5 text-xs font-semibold text-fg">
+      <i className="inline-block h-2 w-2 rounded-sm" style={{ background: protoMark(proto) }} aria-hidden="true" />
+      {proto}
+    </span>
+  );
 }
 
 function captureErrorMessage(reason: unknown, fallback: string) {
@@ -48,7 +54,7 @@ const HexDump = ({ hex }: { hex?: string }) => {
     return result;
   }, [hex]);
 
-  if (rows.length === 0) return <p className="text-xs text-fg-muted opacity-50">No payload data</p>;
+  if (rows.length === 0) return <p className="text-xs text-fg-muted">No payload data</p>;
 
   return (
     <div className="font-mono text-xs leading-relaxed overflow-x-auto">
@@ -61,8 +67,8 @@ const HexDump = ({ hex }: { hex?: string }) => {
         }).join('');
 
         return (
-          <div key={ri} className="flex gap-4 hover:bg-inset/30 px-2 py-0.5 rounded">
-            <span className="text-primary/60 select-none">{offset}</span>
+          <div key={ri} className="flex gap-4 hover:bg-surface-2 px-2 py-0.5 rounded">
+            <span className="text-fg-subtle select-none">{offset}</span>
             <span className="text-fg-muted">{hexPart}</span>
             <span className="text-fg-muted border-l border-line pl-4">{asciiPart}</span>
           </div>
@@ -73,6 +79,13 @@ const HexDump = ({ hex }: { hex?: string }) => {
 };
 
 const VISIBLE_PACKETS = 200;
+
+function sessionMeta(status: string): StatusMeta {
+  if (status === 'running') return { ...STATUS_META.info, label: 'Running' };
+  if (status === 'error') return { ...STATUS_META.down, label: 'Error' };
+  if (status === 'stopped' || status === 'completed') return { ...STATUS_META.unknown, label: status.charAt(0).toUpperCase() + status.slice(1) };
+  return { ...STATUS_META.unknown, label: status || 'Unknown' };
+}
 
 const EMPTY_INTERFACES: NetworkInterface[] = [];
 const EMPTY_SESSIONS: CaptureSession[] = [];
@@ -187,115 +200,104 @@ export default function PacketCapture() {
     const buckets = [{ label: '0–64', min: 0, max: 64 }, { label: '65–128', min: 65, max: 128 }, { label: '129–256', min: 129, max: 256 }, { label: '257–512', min: 257, max: 512 }, { label: '512+', min: 513, max: Infinity }];
     return buckets.map(bucket => ({ ...bucket, count: packets.filter(packet => packet.length >= bucket.min && packet.length <= bucket.max).length }));
   }, [packets]);
-  const rateData = useMemo(() => Array.from({ length: 18 }, (_, index) => packets.slice(Math.max(0, packets.length - (index + 1) * 6), packets.length - index * 6).length).reverse(), [packets]);
 
   return (
     <div>
       <SectionHeader
-        title="Packet Capture"
+        title="Packet capture"
         subtitle="Capture, inspect, and analyze network traffic in real-time."
       />
 
       <div className="bg-surface-1 rounded-lg p-5 border border-line mb-6">
         <div className="flex flex-col md:flex-row items-start md:items-center gap-4">
           <div className="flex-shrink-0">
-            <label className="text-xs text-fg-muted block mb-1">Interface</label>
+            <label htmlFor="capture-iface" className="text-xs font-medium text-fg-muted block mb-1.5">Interface</label>
             <select
+              id="capture-iface"
               value={currentIface}
               onChange={(e) => setSelectedIface(e.target.value)}
               disabled={activeSession?.status === 'running'}
-              className="bg-inset border border-line rounded-lg px-4 py-2.5 text-sm text-fg font-mono focus:outline-none focus:border-primary/50 disabled:opacity-50 min-w-[140px]"
+              className="h-control bg-inset border border-line rounded-md px-3 text-sm text-fg font-mono outline-none focus:border-primary disabled:opacity-50 min-w-[140px]"
             >
               {interfaces.map((iface) => (
                 <option key={iface.name} value={iface.name}>
-                  {iface.name} {iface.flags?.includes('up') ? '●' : '○'}
+                  {iface.name} {iface.flags?.includes('up') ? '(up)' : '(down)'}
                 </option>
               ))}
             </select>
           </div>
 
           <div className="flex-1 min-w-0">
-            <label className="text-xs text-fg-muted block mb-1">BPF filter</label>
+            <label htmlFor="capture-bpf" className="text-xs font-medium text-fg-muted block mb-1.5">BPF filter</label>
             <input
+              id="capture-bpf"
               type="text"
               value={bpfFilter}
               onChange={(e) => setBpfFilter(e.target.value)}
               disabled={activeSession?.status === 'running'}
               placeholder="e.g. tcp port 80, icmp, host 192.168.1.1"
-              className="w-full bg-inset border border-line rounded-lg px-4 py-2.5 text-sm text-fg font-mono placeholder:text-fg-muted/40 focus:outline-none focus:border-primary/50 disabled:opacity-50"
+              className="w-full h-control bg-inset border border-line rounded-md px-3 text-sm text-fg font-mono placeholder:text-fg-subtle outline-none focus:border-primary disabled:opacity-50"
             />
           </div>
 
           <div className="flex-shrink-0 self-end">
             {activeSession?.status === 'running' ? (
-              <button
-                onClick={handleStop}
-                className="flex items-center gap-2 bg-error/20 text-error border border-error/30 px-6 py-2.5 rounded-lg font-sans font-semibold text-xs hover:bg-error hover:text-on-error transition-[background-color,color]"
-              >
-                <span className="material-symbols-outlined text-lg">stop_circle</span>
-                Stop Capture
-              </button>
+              <Button variant="danger" icon="stop_circle" onClick={handleStop}>Stop capture</Button>
             ) : (
-              <button
-                onClick={handleStart}
-                disabled={isStarting || !currentIface}
-                className="flex items-center gap-2 bg-primary/20 text-primary border border-primary/30 px-6 py-2.5 rounded-lg font-sans font-semibold text-xs hover:bg-primary hover:text-on-primary transition-[background-color,color] disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <span className="material-symbols-outlined text-lg">play_circle</span>
-                {isStarting ? 'Starting...' : 'Start Capture'}
-              </button>
+              <Button icon="play_circle" onClick={handleStart} disabled={isStarting || !currentIface}>
+                {isStarting ? 'Starting…' : 'Start capture'}
+              </Button>
             )}
           </div>
 
           {activeSession?.status === 'running' && (
             <div className="flex items-center gap-4 ml-auto">
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-error" />
-                <span className="text-error font-mono text-xsr">Live</span>
-              </div>
+              <StatusPill status={{ ...STATUS_META.info, label: 'Capturing' }} />
               <div className="text-center">
                 <p className="text-xs text-fg-muted">Packets</p>
-                <p className="font-sans font-semibold text-lg text-fg">{packets.length}</p>
+                <p className="font-semibold text-lg text-fg tabular-nums">{packets.length}</p>
               </div>
             </div>
           )}
         </div>
 
         {error && (
-          <div className="mt-3 flex items-center gap-2 p-3 rounded-lg bg-error/10 border border-error/20">
-            <span className="material-symbols-outlined text-error text-lg">error</span>
-            <span className="text-error text-xs">{error}</span>
+          <div role="alert" className="mt-3 flex items-center gap-2 p-3 rounded-md border border-line border-l-4 border-l-error bg-inset">
+            <span className="material-symbols-outlined text-error text-lg" aria-hidden="true">error</span>
+            <span className="text-fg text-sm">{error}</span>
           </div>
         )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-6">
-        <div className="bg-surface-1 rounded-lg p-4 border border-line"><p className="text-xs text-fg-muted">Packet rate</p><div className="flex items-end justify-between mt-2"><span className="font-sans text-2xl font-semibold">{packets.length}</span><Sparkline data={rateData.length ? rateData : [0, 0]} color="var(--color-info)" showTrend /></div><p className="text-xs text-fg-muted mt-2">Recent capture activity</p></div>
-        <div className="bg-surface-1 rounded-lg p-4 border border-line"><p className="text-xs text-fg-muted">Packet size histogram</p><div className="flex items-end gap-2 h-14 mt-2">{packetSizes.map(bucket => <div key={bucket.label} className="flex-1 flex flex-col justify-end h-full"><i className="bg-chart-1 rounded-t-sm" style={{ height: `${Math.max(5, packets.length ? bucket.count / packets.length * 100 : 5)}%` }} /><span className="text-xs text-fg-muted mt-1 text-center">{bucket.label}</span></div>)}</div></div>
-        <div className="bg-surface-1 rounded-lg p-3 border border-line flex items-center gap-4"><RingGauge value={activeSession?.status === 'running' ? 72 : packets.length ? 100 : 0} size={76} strokeWidth={6} label="capture" tone="neutral" /><div><p className="text-sm font-sans font-semibold">Session signal</p><p className="text-xs text-fg-muted mt-1">{activeSession?.status === 'running' ? 'Capturing packets in real time.' : 'Start a capture to activate the stream.'}</p></div></div>
+        <div className="bg-surface-1 rounded-lg p-4 border border-line"><p className="text-sm font-medium text-fg-muted">Packets captured</p><p className="mt-2 text-2xl font-semibold tabular-nums">{packets.length.toLocaleString()}</p><p className="text-xs text-fg-muted mt-2">In the current view</p></div>
+        <div className="bg-surface-1 rounded-lg p-4 border border-line"><p className="text-sm font-medium text-fg-muted">Packet size (bytes)</p><div className="flex items-end gap-2 h-14 mt-2">{packetSizes.map(bucket => <div key={bucket.label} className="flex-1 flex flex-col justify-end h-full"><i className="bg-chart-1 rounded-t-sm" title={`${bucket.label}: ${bucket.count}`} style={{ height: `${Math.max(5, packets.length ? bucket.count / packets.length * 100 : 5)}%` }} /><span className="text-xs text-fg-muted mt-1 text-center">{bucket.label}</span></div>)}</div></div>
+        <div className="bg-surface-1 rounded-lg p-4 border border-line"><p className="text-sm font-medium text-fg-muted">Session</p><div className="mt-2">{activeSession ? <StatusPill status={sessionMeta(activeSession.status)} size="md" /> : <span className="text-sm text-fg-muted">No session</span>}</div><p className="text-xs text-fg-muted mt-2">{activeSession?.status === 'running' ? 'Capturing packets in real time.' : 'Start a capture to activate the stream.'}</p></div>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-6">
         <div className="xl:col-span-2 bg-surface-1 rounded-lg border border-line flex flex-col" style={{ maxHeight: '600px' }}>
           <div className="flex items-center justify-between p-4 border-b border-line">
-            <h3 className="text-sm font-sans font-semibold flex items-center gap-2">
-              <span className="material-symbols-outlined text-primary text-lg">list_alt</span>
-              Captured Packets
+            <h3 className="text-sm font-semibold flex items-center gap-2">
+              <span className="material-symbols-outlined text-fg-muted text-lg" aria-hidden="true">list_alt</span>
+              Captured packets
               {packets.length > 0 && (
                 <span className="text-fg-muted font-mono text-xs ml-2">({packets.length})</span>
               )}
             </h3>
             <button
+              type="button"
+              aria-pressed={autoScroll}
               onClick={() => setAutoScroll(!autoScroll)}
-              className={`text-xs flex items-center gap-1 px-2 py-1 rounded ${autoScroll ? 'text-primary bg-primary/10' : 'text-fg-muted'}`}
+              className={`text-xs flex items-center gap-1 px-2 py-1 rounded ${autoScroll ? 'text-fg bg-surface-3' : 'text-fg-muted hover:text-fg'}`}
             >
-              <span className="material-symbols-outlined text-sm">{autoScroll ? 'vertical_align_bottom' : 'pause'}</span>
+              <span className="material-symbols-outlined text-sm" aria-hidden="true">{autoScroll ? 'vertical_align_bottom' : 'pause'}</span>
               {autoScroll ? 'Auto-scroll' : 'Paused'}
             </button>
           </div>
           <div className="overflow-auto flex-1">
             <table className="w-full text-left border-collapse">
-              <thead className="sticky top-0 bg-surface-1 z-10">
+              <thead className="sticky top-0 bg-surface-2 z-sticky">
                 <tr className="text-xs text-fg-muted border-b border-line">
                   <th className="py-2 px-3 font-medium w-12">No.</th>
                   <th className="py-2 px-2 font-medium">Time</th>
@@ -311,12 +313,11 @@ export default function PacketCapture() {
                   <tr><td colSpan={7} className="py-16">
                     <EmptyState
                       icon="network_check"
-                      title={activeSession ? 'Waiting for packets...' : 'Start a capture to see packets'}
+                      title={activeSession ? 'Waiting for packets…' : 'Start a capture to see packets'}
                     />
                   </td></tr>
                 ) : (
                   visiblePackets.map((pkt, idx) => {
-                    const style = getProtoStyle(pkt.protocol);
                     const globalIdx = packets.length - VISIBLE_PACKETS + idx;
                     const pktId = pkt.id ?? globalIdx;
                     const isSelected = selectedPacket && (selectedPacket.id ?? packets.indexOf(selectedPacket)) === pktId;
@@ -324,12 +325,10 @@ export default function PacketCapture() {
                       <tr
                         key={pktId}
                         onClick={() => setSelectedPacket(isSelected ? null : pkt)}
-                        className={`border-b cursor-pointer transition-colors ${
-                          isSelected
-                            ? 'bg-primary/10 border-primary/20'
-                            : 'border-line hover:bg-inset/50'
+                        aria-selected={!!isSelected}
+                        className={`border-b border-line cursor-pointer transition-colors ${
+                          isSelected ? 'bg-primary/12' : 'hover:bg-surface-2'
                         }`}
-                        style={{ borderLeftWidth: 2, borderLeftColor: style.text }}
                       >
                         <td className="py-1.5 px-3 text-fg-muted">{pkt.id ?? globalIdx}</td>
                         <td className="py-1.5 px-2 text-fg-muted">
@@ -342,10 +341,7 @@ export default function PacketCapture() {
                           {pkt.dstIp}{pkt.dstPort ? `:${pkt.dstPort}` : ''}
                         </td>
                         <td className="py-1.5 px-2">
-                          <span className="inline-block px-1.5 py-0.5 rounded text-xs font-semibold"
-                            style={{ color: style.text, background: style.bg, border: `1px solid ${style.border}` }}>
-                            {pkt.protocol}
-                          </span>
+                          <ProtoChip proto={pkt.protocol} />
                         </td>
                         <td className="py-1.5 px-2 text-right text-fg-muted">{pkt.length}</td>
                         <td className="py-1.5 px-2 text-fg-muted truncate max-w-[200px]" title={pkt.flags || ''}>{pkt.flags || ''}</td>
@@ -362,9 +358,9 @@ export default function PacketCapture() {
         <div className="flex flex-col gap-6">
           <div className="bg-surface-1 rounded-lg border border-line flex flex-col" style={{ maxHeight: '380px' }}>
             <div className="p-4 border-b border-line">
-              <h3 className="text-sm font-sans font-semibold flex items-center gap-2">
-                <span className="material-symbols-outlined text-fg-muted text-lg">search</span>
-                Packet Detail
+              <h3 className="text-sm font-semibold flex items-center gap-2">
+                <span className="material-symbols-outlined text-fg-muted text-lg" aria-hidden="true">search</span>
+                Packet detail
               </h3>
             </div>
             <div className="p-4 overflow-auto flex-1">
@@ -373,7 +369,7 @@ export default function PacketCapture() {
                   <div className="space-y-2">
                     <div className="flex items-center gap-2 text-xs">
                       <span className="text-fg-muted w-14">Proto:</span>
-                      <span className="font-semibold" style={{ color: getProtoStyle(selectedPacket.protocol).text }}>{selectedPacket.protocol}</span>
+                      <ProtoChip proto={selectedPacket.protocol} />
                     </div>
                     <div className="flex items-center gap-2 text-xs">
                       <span className="text-fg-muted w-14">Source:</span>
@@ -395,14 +391,14 @@ export default function PacketCapture() {
 
                   <div>
                     <p className="text-xs text-fg-muted mb-2">Hex dump</p>
-                    <div className="bg-canvas rounded-lg p-3 border border-line overflow-x-auto">
+                    <div className="bg-inset rounded-md p-3 border border-line overflow-x-auto">
                       <HexDump hex={selectedPacket.payload} />
                     </div>
                   </div>
                 </div>
               ) : (
-                <div className="flex flex-col items-center justify-center h-full opacity-50 py-8">
-                  <span className="material-symbols-outlined text-3xl mb-2 text-fg-muted">touch_app</span>
+                <div className="flex flex-col items-center justify-center h-full py-8">
+                  <span className="material-symbols-outlined text-3xl mb-2 text-fg-subtle" aria-hidden="true">touch_app</span>
                   <p className="text-xs text-fg-muted">Select a packet to inspect</p>
                 </div>
               )}
@@ -410,25 +406,24 @@ export default function PacketCapture() {
           </div>
 
           <div className="bg-surface-1 rounded-lg p-4 border border-line">
-            <h3 className="text-sm font-sans font-semibold mb-3 flex items-center gap-2">
-              <span className="material-symbols-outlined text-fg-muted text-lg">donut_small</span>
-              Protocol Stats
+            <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
+              <span className="material-symbols-outlined text-fg-muted text-lg" aria-hidden="true">donut_small</span>
+              Protocol mix
             </h3>
             {protoEntries.length === 0 ? (
-              <p className="text-xs text-fg-muted opacity-50 text-center py-4">No packets</p>
+              <p className="text-xs text-fg-muted text-center py-4">No packets</p>
             ) : (
               <div className="space-y-2">
                 {protoEntries.slice(0, 6).map(([proto, count]) => {
                   const pct = packets.length > 0 ? Math.round((count / packets.length) * 100) : 0;
-                  const style = getProtoStyle(proto);
                   return (
                     <div key={proto}>
                       <div className="flex justify-between text-xs mb-0.5">
-                        <span style={{ color: style.text }}>{proto}</span>
-                        <span className="text-fg-muted">{count} ({pct}%)</span>
+                        <span className="font-medium text-fg">{proto}</span>
+                        <span className="text-fg-muted tabular-nums">{count} ({pct}%)</span>
                       </div>
                       <div className="h-1.5 bg-inset rounded">
-                        <div className="h-1.5 rounded transition-[width] duration-500" style={{ width: `${pct}%`, background: style.text }} />
+                        <div className="h-1.5 rounded transition-[width] duration-[var(--duration-normal)]" style={{ width: `${pct}%`, background: protoMark(proto) }} />
                       </div>
                     </div>
                   );
@@ -440,12 +435,12 @@ export default function PacketCapture() {
       </div>
 
       <div className="bg-surface-1 rounded-lg p-5 border border-line">
-        <h3 className="text-sm font-sans font-semibold mb-4 flex items-center gap-2">
-          <span className="material-symbols-outlined text-fg-muted text-lg">history</span>
-          Capture History
+        <h3 className="text-sm font-semibold mb-4 flex items-center gap-2">
+          <span className="material-symbols-outlined text-fg-muted text-lg" aria-hidden="true">history</span>
+          Capture history
         </h3>
         {sessions.length === 0 ? (
-          <p className="text-xs text-fg-muted opacity-50 text-center py-6">No capture sessions yet</p>
+          <p className="text-xs text-fg-muted text-center py-6">No capture sessions yet</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
@@ -458,27 +453,19 @@ export default function PacketCapture() {
                   <th className="pb-2 font-medium text-right">Packets</th>
                   <th className="pb-2 font-medium text-right">Bytes</th>
                   <th className="pb-2 font-medium">Started</th>
-                  <th className="pb-2 font-medium">Actions</th>
+                  <th className="pb-2 font-medium"><span className="sr-only">Actions</span></th>
                 </tr>
               </thead>
               <tbody className="text-xs">
                 {sessions.map((s) => {
                   const isRunning = s.status === 'running';
-                  const isError = s.status === 'error';
                   return (
-                    <tr key={s.id} className="border-b border-line hover:bg-inset/50 transition-colors">
+                    <tr key={s.id} className="border-b border-line hover:bg-surface-2 transition-colors">
                       <td className="py-2.5 font-mono text-fg-muted">#{s.id}</td>
                       <td className="py-2.5 font-mono text-fg">{s.interfaceName}</td>
                       <td className="py-2.5 text-fg-muted font-mono">{s.filter || '—'}</td>
                       <td className="py-2.5">
-                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold uppercase ${
-                          isRunning ? 'text-primary bg-primary/10 border border-primary/20'
-                            : isError ? 'text-error bg-error/10 border border-error/20'
-                            : 'text-fg-muted bg-inset border border-line'
-                        }`}>
-                          {isRunning && <div className="w-1.5 h-1.5 rounded-full bg-primary" />}
-                          {s.status}
-                        </span>
+                        <StatusPill status={sessionMeta(s.status)} />
                       </td>
                       <td className="py-2.5 text-right font-mono text-fg">{s.totalPackets}</td>
                       <td className="py-2.5 text-right font-mono text-fg-muted">{formatBytes(s.totalBytes)}</td>
@@ -487,12 +474,9 @@ export default function PacketCapture() {
                       </td>
                       <td className="py-2.5">
                         {!isRunning && s.totalPackets > 0 && (
-                          <button
-                            onClick={() => { setActiveSession(s); void loadSessionPackets(s.id); }}
-                            className="text-primary hover:text-fg/80 text-xsr font-semibold"
-                          >
+                          <Button size="sm" variant="ghost" icon="visibility" onClick={() => { setActiveSession(s); void loadSessionPackets(s.id); }} aria-label={`View packets from session ${s.id}`}>
                             View packets
-                          </button>
+                          </Button>
                         )}
                       </td>
                     </tr>

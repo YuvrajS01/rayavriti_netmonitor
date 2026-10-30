@@ -3,12 +3,17 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '../api/queryKeys';
 import Button from '../components/ui/Button';
 import StatCard from '../components/ui/StatCard';
+import SectionHeader from '../components/ui/SectionHeader';
+import EmptyState from '../components/ui/EmptyState';
+import Dialog from '../components/ui/Dialog';
+import ConfirmDialog from '../components/ConfirmDialog';
+import { StatusPill } from '../components/ui/Status';
+import { healthMeta } from '../utils/status';
 import { createRemoteInstance, deleteRemoteInstance, getRemoteInstance, getRemoteInstances, getRemoteOverview, setRemoteMode, testRemoteInstance, type RemoteInput, type RemoteInstance, type RemoteOverview, type RemoteSnapshot } from '../api/remoteApi';
 
 const emptyInput: RemoteInput = { name: '', url: '', apiKey: '', locationLabel: '', tags: [], pollIntervalS: 60, tlsSkipVerify: false };
 const EMPTY_INSTANCES: RemoteInstance[] = [];
 const EMPTY_OVERVIEW: RemoteOverview = { totalInstances: 0, online: 0, offline: 0, degraded: 0, alertCount: 0 };
-const statusStyle: Record<string, string> = { online: 'bg-success', offline: 'bg-error', degraded: 'bg-warning', unknown: 'bg-line-strong' };
 
 function remoteInstancesFrom(value: unknown): RemoteInstance[] | null {
   if (Array.isArray(value)) return value as RemoteInstance[];
@@ -31,6 +36,7 @@ export default function RemoteMonitoring() {
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [actionError, setActionError] = useState('');
+  const [removeTarget, setRemoveTarget] = useState<RemoteInstance | null>(null);
 
   // Invalidated on remote:status / remote:metrics events by useLiveQueryBridge.
   const overviewQuery = useQuery({ queryKey: queryKeys.remote.overview(), queryFn: ({ signal }) => getRemoteOverview({ signal }) });
@@ -60,28 +66,146 @@ export default function RemoteMonitoring() {
   };
   const test = async (id: number) => { try { await testRemoteInstance(id); refresh(); } catch { setActionError('Connection test failed. Check the URL and API key.'); } };
   const setMode = async (id: number, mode: 'active' | 'readonly' | 'maintenance') => { try { await setRemoteMode(id, mode); select(id); refresh(); } catch { setActionError('Unable to update service mode.'); } };
-  const remove = async (id: number) => { if (!window.confirm('Remove this remote instance?')) return; try { await deleteRemoteInstance(id); setSelected(null); refresh(); } catch { setActionError('Unable to remove remote instance.'); } };
+  const remove = async (id: number) => {
+    setRemoveTarget(null);
+    try { await deleteRemoteInstance(id); setSelected(null); refresh(); } catch { setActionError('Unable to remove remote instance.'); }
+  };
 
-  return <div className="mx-auto max-w-7xl space-y-6 p-4 sm:p-6">
-    <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-      <div><p className="text-xs font-sansst text-primary">Fleet operations</p><h1 className="font-sans text-3xl font-semibold">Remote Monitoring</h1><p className="mt-1 text-sm text-fg-muted">Monitor connected NetMonitor sites from one workspace.</p></div>
-      <Button icon="add_link" onClick={() => setShowForm(true)}>Add instance</Button>
+  const snapshot = selected?.snapshot;
+
+  return (
+    <div className="space-y-6">
+      <SectionHeader
+        title="Remote monitoring"
+        subtitle="Monitor connected NetMonitor sites from one workspace."
+        action={<Button icon="add_link" onClick={() => setShowForm(true)}>Add instance</Button>}
+      />
+      {error && (
+        <div role="alert" className="flex items-start gap-3 rounded-md border border-line border-l-4 border-l-error bg-surface-1 px-4 py-3 text-sm text-fg">
+          <span className="material-symbols-outlined text-[18px] text-error" aria-hidden="true">error</span>
+          <span>{error}</span>
+        </div>
+      )}
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+        <StatCard label="Instances" value={overview.totalInstances} icon="hub" />
+        <StatCard label="Online" value={overview.online} icon="check_circle" />
+        <StatCard label="Offline" value={overview.offline} color={overview.offline > 0 ? 'text-error' : undefined} icon="error" />
+        <StatCard label="Degraded" value={overview.degraded} color={overview.degraded > 0 ? 'text-warning' : undefined} icon="warning" />
+        <StatCard label="Active alerts" value={overview.alertCount} color={overview.alertCount > 0 ? 'text-error' : undefined} icon="notifications_active" />
+      </div>
+      {instances.length === 0 ? (
+        <div className="rounded-lg border border-dashed border-line-strong bg-surface-1">
+          <EmptyState icon="lan" title="No remote instances yet" description="Add a reachable NetMonitor instance and its API key to start aggregating health data." />
+        </div>
+      ) : (
+        <ul className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {instances.map((item) => (
+            <li key={item.id}>
+              <button type="button" onClick={() => select(item.id)} className="w-full rounded-lg border border-line bg-surface-1 p-5 text-left transition-colors hover:border-line-strong hover:bg-surface-2">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <h2 className="text-lg font-semibold truncate">{item.name}</h2>
+                    <p className="mt-1 truncate text-sm text-fg-muted">{item.locationLabel || item.url}</p>
+                  </div>
+                  <StatusPill status={item.status} />
+                </div>
+                <div className="mt-5 flex items-center justify-between gap-2 text-xs text-fg-muted">
+                  <span>{item.locationLabel ? item.url : ''}</span>
+                  <span className="tabular-nums">{item.lastSeenAt ? `Seen ${new Date(item.lastSeenAt).toLocaleTimeString()}` : 'Awaiting poll'}</span>
+                </div>
+                {item.lastError && <p className="mt-3 truncate text-xs text-error">{item.lastError}</p>}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <Dialog
+        open={showForm}
+        onClose={() => setShowForm(false)}
+        size="lg"
+        closeOnBackdrop={false}
+        title="Register remote instance"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setShowForm(false)}>Cancel</Button>
+            <Button disabled={saving} type="submit" form="remote-form">{saving ? 'Saving…' : 'Register instance'}</Button>
+          </>
+        }
+      >
+        <form id="remote-form" onSubmit={submit} className="grid gap-4 sm:grid-cols-2">
+          <label className={LABEL_CLASS}>Name<input required className={INPUT_CLASS} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></label>
+          <label className={LABEL_CLASS}>Location<input className={INPUT_CLASS} value={form.locationLabel} onChange={(e) => setForm({ ...form, locationLabel: e.target.value })} /></label>
+          <label className={`${LABEL_CLASS} sm:col-span-2`}>URL<input required type="url" placeholder="https://site.example.com" className={INPUT_CLASS} value={form.url} onChange={(e) => setForm({ ...form, url: e.target.value })} /></label>
+          <label className={`${LABEL_CLASS} sm:col-span-2`}>API key<input required type="password" autoComplete="off" className={INPUT_CLASS} value={form.apiKey} onChange={(e) => setForm({ ...form, apiKey: e.target.value })} /></label>
+          <label className={LABEL_CLASS}>Poll interval (seconds)<input min="10" max="3600" type="number" className={INPUT_CLASS} value={form.pollIntervalS} onChange={(e) => setForm({ ...form, pollIntervalS: Number(e.target.value) })} /></label>
+          <label className="flex items-end gap-2 pb-2 text-sm text-fg"><input type="checkbox" className="h-4 w-4 accent-primary" checked={form.tlsSkipVerify} onChange={(e) => setForm({ ...form, tlsSkipVerify: e.target.checked })} />Allow unverified TLS</label>
+        </form>
+      </Dialog>
+
+      <Dialog
+        open={!!selected}
+        onClose={() => setSelected(null)}
+        placement="drawer"
+        title={selected?.instance.name ?? ''}
+        description={selected?.instance.url}
+        headerActions={selected ? <StatusPill status={selected.instance.status} /> : undefined}
+        footer={
+          selected ? (
+            <>
+              <Button variant="danger-outline" icon="delete" onClick={() => setRemoveTarget(selected.instance)}>Remove</Button>
+              <Button variant="secondary" icon="wifi_tethering" onClick={() => test(selected.instance.id)}>Test connection</Button>
+            </>
+          ) : undefined
+        }
+      >
+        {selected && (
+          <div className="space-y-6">
+            <dl className="grid grid-cols-2 gap-3">
+              {[
+                ['Devices', snapshot?.deviceCount ?? '—'],
+                ['Up', snapshot?.deviceUpCount ?? '—'],
+                ['Down', snapshot?.deviceDownCount ?? '—'],
+                ['Alerts', snapshot?.alertCount ?? '—'],
+                ['Latency', snapshot ? `${snapshot.latencyMs.toFixed(0)} ms` : '—'],
+              ].map(([label, value]) => (
+                <div key={String(label)} className="rounded-md border border-line bg-inset p-3">
+                  <dt className="text-xs text-fg-muted">{label}</dt>
+                  <dd className="mt-1 text-xl font-semibold tabular-nums">{value}</dd>
+                </div>
+              ))}
+              <div className="rounded-md border border-line bg-inset p-3">
+                <dt className="text-xs text-fg-muted">Health</dt>
+                <dd className="mt-1 flex items-center gap-2">
+                  <span className="text-xl font-semibold tabular-nums">{snapshot ? `${snapshot.healthScore.toFixed(0)}%` : '—'}</span>
+                  {snapshot && <StatusPill status={healthMeta(snapshot.healthScore)} />}
+                </dd>
+              </div>
+            </dl>
+            <label className={LABEL_CLASS}>
+              Service mode
+              <select value={selected.instance.serviceMode || 'active'} onChange={(event) => setMode(selected.instance.id, event.target.value as 'active' | 'readonly' | 'maintenance')} className={INPUT_CLASS}>
+                <option value="active">Active</option>
+                <option value="readonly">Read-only</option>
+                <option value="maintenance">Maintenance</option>
+              </select>
+            </label>
+          </div>
+        )}
+      </Dialog>
+
+      <ConfirmDialog
+        open={!!removeTarget}
+        title="Remove remote instance?"
+        message={`Stop monitoring "${removeTarget?.name}" and delete its stored snapshots from this workspace?`}
+        confirmLabel="Remove instance"
+        danger
+        onConfirm={() => { if (removeTarget) void remove(removeTarget.id); }}
+        onCancel={() => setRemoveTarget(null)}
+      />
     </div>
-    {error && <div className="rounded-md border border-error/30 bg-error/15 px-4 py-3 text-sm text-error">{error}</div>}
-    <div className="grid grid-cols-2 gap-3 lg:grid-cols-5"><StatCard label="Instances" value={overview.totalInstances} icon="hub" sparklineData={[overview.totalInstances, instances.length, overview.totalInstances]} /><StatCard label="Online" value={overview.online} color="text-success" icon="check_circle" trend="up" sparklineData={[overview.online, overview.totalInstances, overview.online]} /><StatCard label="Offline" value={overview.offline} color="text-error" icon="error" trend="down" sparklineData={[overview.offline, overview.degraded, overview.offline]} /><StatCard label="Degraded" value={overview.degraded} color="text-warning" icon="warning" sparklineData={[overview.degraded, overview.online, overview.degraded]} /><StatCard label="Active alerts" value={overview.alertCount} color="text-error" icon="notifications_active" sparklineData={[overview.alertCount, overview.offline, overview.alertCount]} /></div>
-    {instances.length === 0 ? <div className="rounded-lg border border-dashed border-line bg-surface-1 p-12 text-center"><span className="material-symbols-outlined text-4xl text-fg-muted">lan</span><h2 className="mt-3 font-sans text-lg font-semibold">No remote instances yet</h2><p className="mt-1 text-sm text-fg-muted">Add a reachable NetMonitor instance and its API key to start aggregating health data.</p></div> : <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{instances.map((item) => <button key={item.id} onClick={() => select(item.id)} className="rounded-lg border border-line bg-surface-1 p-5 text-left transition hover:border-primary/50 hover:bg-surface-2">
-      <div className="flex items-start justify-between gap-3"><div><h2 className="font-sans text-lg font-semibold">{item.name}</h2><p className="mt-1 truncate text-sm text-fg-muted">{item.locationLabel || item.url}</p></div><span className={`mt-1 h-3 w-3 shrink-0 rounded-full ${statusStyle[item.status] || statusStyle.unknown}`} title={item.status} /></div>
-      <div className="mt-5 flex items-center justify-between text-xs text-fg-muted"><span className="capitalize">{item.status}</span><span>{item.lastSeenAt ? `Seen ${new Date(item.lastSeenAt).toLocaleTimeString()}` : 'Awaiting poll'}</span></div>
-      {item.lastError && <p className="mt-3 truncate text-xs text-error">{item.lastError}</p>}
-    </button>)}</div>}
-    {showForm && <div className="fixed inset-0 z-50 grid place-items-center bg-scrim/60 p-4"><form onSubmit={submit} className="w-full max-w-xl rounded-xl bg-canvas p-6 shadow-2xl"><div className="flex items-center justify-between"><h2 className="font-sans text-xl font-semibold">Register remote instance</h2><button type="button" className="material-symbols-outlined" onClick={() => setShowForm(false)}>close</button></div><div className="mt-5 grid gap-4 sm:grid-cols-2">
-      <label className="text-sm">Name<input required className="mt-1 w-full rounded-md border border-line bg-surface-1 px-3 py-2" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></label>
-      <label className="text-sm">Location<label className="sr-only">Location</label><input className="mt-1 w-full rounded-md border border-line bg-surface-1 px-3 py-2" value={form.locationLabel} onChange={(e) => setForm({ ...form, locationLabel: e.target.value })} /></label>
-      <label className="text-sm sm:col-span-2">URL<input required type="url" placeholder="https://site.example.com" className="mt-1 w-full rounded-md border border-line bg-surface-1 px-3 py-2" value={form.url} onChange={(e) => setForm({ ...form, url: e.target.value })} /></label>
-      <label className="text-sm sm:col-span-2">API key<input required type="password" className="mt-1 w-full rounded-md border border-line bg-surface-1 px-3 py-2" value={form.apiKey} onChange={(e) => setForm({ ...form, apiKey: e.target.value })} /></label>
-      <label className="text-sm">Poll interval (seconds)<input min="10" max="3600" type="number" className="mt-1 w-full rounded-md border border-line bg-surface-1 px-3 py-2" value={form.pollIntervalS} onChange={(e) => setForm({ ...form, pollIntervalS: Number(e.target.value) })} /></label>
-      <label className="flex items-end gap-2 pb-2 text-sm"><input type="checkbox" checked={form.tlsSkipVerify} onChange={(e) => setForm({ ...form, tlsSkipVerify: e.target.checked })} />Allow unverified TLS</label>
-    </div><div className="mt-6 flex justify-end gap-3"><Button variant="ghost" type="button" onClick={() => setShowForm(false)}>Cancel</Button><Button disabled={saving} type="submit">{saving ? 'Saving…' : 'Register instance'}</Button></div></form></div>}
-    {selected && <div className="fixed inset-0 z-50 flex justify-end bg-scrim/40" onClick={() => setSelected(null)}><aside className="h-full w-full max-w-lg overflow-y-auto bg-canvas p-6 shadow-2xl" onClick={(event) => event.stopPropagation()}><div className="flex items-start justify-between"><div><h2 className="font-sans text-2xl font-semibold">{selected.instance.name}</h2><p className="mt-1 text-sm text-fg-muted">{selected.instance.url}</p></div><button className="material-symbols-outlined" onClick={() => setSelected(null)}>close</button></div><div className="mt-6 grid grid-cols-2 gap-3">{[['Devices', selected.snapshot?.deviceCount ?? '—'], ['Up', selected.snapshot?.deviceUpCount ?? '—'], ['Down', selected.snapshot?.deviceDownCount ?? '—'], ['Alerts', selected.snapshot?.alertCount ?? '—'], ['Health', selected.snapshot ? `${selected.snapshot.healthScore.toFixed(0)}%` : '—'], ['Latency', selected.snapshot ? `${selected.snapshot.latencyMs.toFixed(0)} ms` : '—']].map(([label, value]) => <StatCard key={String(label)} label={String(label)} value={String(value)} />)}</div><label className="mt-6 block text-sm font-medium">Service mode<select value={selected.instance.serviceMode || 'active'} onChange={(event) => setMode(selected.instance.id, event.target.value as 'active' | 'readonly' | 'maintenance')} className="mt-1 w-full rounded-md border border-line bg-surface-1 px-3 py-2"><option value="active">Active</option><option value="readonly">Read-only</option><option value="maintenance">Maintenance</option></select></label><div className="mt-6 flex gap-3"><Button variant="primary-outline" icon="wifi_tethering" onClick={() => test(selected.instance.id)}>Test connection</Button><Button variant="danger-outline" icon="delete" onClick={() => remove(selected.instance.id)}>Remove</Button></div></aside></div>}
-  </div>;
+  );
 }
+
+const INPUT_CLASS = 'mt-1.5 w-full h-control rounded-md border border-line bg-inset px-3 text-sm text-fg placeholder:text-fg-subtle outline-none focus:border-primary';
+const LABEL_CLASS = 'block text-xs font-medium text-fg-muted';

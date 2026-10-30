@@ -6,7 +6,7 @@ interface SkeletonProps {
 
 function SkeletonInner({ className = '' }: SkeletonProps) {
   return (
-    <div className={`bg-surface-3 rounded animate-pulse ${className}`} />
+    <div aria-hidden="true" className={`shimmer rounded-md ${className}`} />
   );
 }
 

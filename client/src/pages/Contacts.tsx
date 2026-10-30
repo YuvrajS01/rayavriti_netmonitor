@@ -7,6 +7,9 @@ import Button from '../components/ui/Button';
 import StatCard from '../components/ui/StatCard';
 import EmptyState from '../components/ui/EmptyState';
 import ConfirmDialog from '../components/ConfirmDialog';
+import Dialog from '../components/ui/Dialog';
+import IconButton from '../components/ui/IconButton';
+import { StatusPill } from '../components/ui/Status';
 import { useToast } from '../components/ui/useToast';
 import { asText } from '../utils/formatters';
 
@@ -100,14 +103,14 @@ export default function Contacts() {
   };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <SectionHeader
-        title="Contact Directory"
+        title="Contacts"
         subtitle="Manage escalation contacts, notification channels, and quiet hours."
-        action={<Button icon="add" onClick={openCreate}>New Contact</Button>}
+        action={<Button icon="add" onClick={openCreate}>New contact</Button>}
       />
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard label="Total" value={stats.total} icon="contacts" />
         <StatCard label="Enabled" value={stats.enabled} icon="check_circle" />
         <StatCard label="Telegram" value={stats.telegram} icon="send" />
@@ -115,168 +118,139 @@ export default function Contacts() {
       </div>
 
       <Card variant="low" className="overflow-hidden">
-        <div className="p-5 border-b border-line flex flex-col md:flex-row gap-4 md:items-center md:justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-md bg-primary/10 text-primary flex items-center justify-center">
-              <span className="material-symbols-outlined">contacts</span>
-            </div>
-            <div>
-              <h2 className="font-sans font-semibold text-lg">Contacts</h2>
-              <p className="text-xs text-fg-muted">{filtered.length} contacts</p>
-            </div>
-          </div>
+        <div className="p-4 border-b border-line flex flex-col md:flex-row gap-3 md:items-center md:justify-between">
+          <p className="text-sm text-fg-muted"><span className="font-semibold tabular-nums text-fg">{filtered.length}</span> contacts</p>
           <div className="flex gap-3">
-            <select
-              value={channelFilter}
-              onChange={(e) => setChannelFilter(e.target.value)}
-              className="bg-inset border border-line rounded-lg px-3 py-2.5 text-xs text-fg outline-none focus:ring-1 focus:ring-primary"
-            >
-              <option value="all">All channels</option>
-              {CHANNELS.map((ch) => <option key={ch} value={ch}>{ch.charAt(0).toUpperCase() + ch.slice(1)}</option>)}
-            </select>
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search contacts..."
-              className="bg-inset border border-line rounded-lg px-4 py-2.5 text-sm text-fg placeholder:text-fg-subtle focus:ring-1 focus:ring-primary outline-none md:w-64"
-            />
+            <label>
+              <span className="sr-only">Filter by channel</span>
+              <select value={channelFilter} onChange={(e) => setChannelFilter(e.target.value)} className={INPUT_CLASS}>
+                <option value="all">All channels</option>
+                {CHANNELS.map((ch) => <option key={ch} value={ch}>{ch.charAt(0).toUpperCase() + ch.slice(1)}</option>)}
+              </select>
+            </label>
+            <label className="relative md:w-64">
+              <span className="sr-only">Search contacts</span>
+              <span className="material-symbols-outlined pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-fg-subtle" aria-hidden="true">search</span>
+              <input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search contacts" className={`${INPUT_CLASS} pl-10`} />
+            </label>
           </div>
         </div>
 
         {loading ? (
-          <div className="p-8 text-sm text-fg-muted">Loading...</div>
+          <div className="p-8 text-sm text-fg-muted">Loading…</div>
         ) : filtered.length === 0 ? (
-          <EmptyState icon="contacts" title="No contacts found" description="Add contacts for escalation and notification routing." action={<Button icon="add" onClick={openCreate}>Add Contact</Button>} />
+          <EmptyState icon="contacts" title="No contacts found" description="Add contacts for escalation and notification routing." action={<Button icon="add" onClick={openCreate}>Add contact</Button>} />
         ) : (
-          <div className="divide-y divide-line">
+          <ul className="divide-y divide-line">
             {filtered.map((c) => (
-              <article key={c.id} className="p-5 hover:bg-surface-1/50 transition-colors">
+              <li key={c.id} className="p-4 hover:bg-surface-2 transition-colors">
                 <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
                   <div className="flex items-start gap-4 min-w-0">
-                    <div className="w-10 h-10 rounded-full bg-inset flex items-center justify-center flex-shrink-0">
-                      <span className="material-symbols-outlined text-primary text-xl">{channelIcon(c.preferred_channel)}</span>
+                    <div className="w-10 h-10 rounded-full bg-surface-3 flex items-center justify-center flex-shrink-0">
+                      <span className="material-symbols-outlined text-fg-muted text-xl" aria-hidden="true">{channelIcon(c.preferred_channel)}</span>
                     </div>
                     <div className="min-w-0">
-                      <h3 className="font-sans font-semibold text-lg truncate">{c.name}</h3>
+                      <h3 className="font-semibold truncate">{c.name}</h3>
                       <p className="text-xs text-fg-muted mt-0.5">
                         {c.designation || 'No designation'} {c.department ? `· ${c.department}` : ''}
                       </p>
                       <div className="flex flex-wrap gap-3 mt-2">
                         {c.email && (
                           <span className="text-xs text-fg-muted flex items-center gap-1">
-                            <span className="material-symbols-outlined text-sm">mail</span>{c.email}
+                            <span className="material-symbols-outlined text-sm" aria-hidden="true">mail</span>{c.email}
                           </span>
                         )}
                         {c.phone && (
                           <span className="text-xs text-fg-muted flex items-center gap-1">
-                            <span className="material-symbols-outlined text-sm">phone</span>{c.phone}
+                            <span className="material-symbols-outlined text-sm" aria-hidden="true">phone</span>{c.phone}
                           </span>
                         )}
                         {c.telegram_chat_id && (
                           <span className="text-xs text-fg-muted flex items-center gap-1">
-                            <span className="material-symbols-outlined text-sm">send</span>Telegram
+                            <span className="material-symbols-outlined text-sm" aria-hidden="true">send</span>Telegram
                           </span>
                         )}
                       </div>
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 lg:max-w-xl flex-shrink-0">
-                    <div>
-                      <div className="text-xs text-fg-muted">Channel</div>
-                      <div className="text-sm font-medium capitalize">{c.preferred_channel || '-'}</div>
-                    </div>
-                    <div>
-                      <div className="text-xs text-fg-muted">Quiet hours</div>
-                      <div className="text-sm font-medium">{c.quiet_hours_start && c.quiet_hours_end ? `${c.quiet_hours_start}–${c.quiet_hours_end}` : 'None'}</div>
-                    </div>
-                    <div>
-                      <div className="text-xs text-fg-muted">Notifications</div>
-                      <div className={`text-sm font-medium ${c.notification_enabled ? 'text-success' : 'text-fg-subtle'}`}>
-                        {c.notification_enabled ? 'Enabled' : 'Disabled'}
+                  <div className="flex items-start gap-4 flex-shrink-0">
+                    <dl className="grid grid-cols-2 sm:grid-cols-4 gap-4 lg:max-w-xl">
+                      <div>
+                        <dt className="text-xs text-fg-muted">Channel</dt>
+                        <dd className="text-sm font-medium capitalize">{c.preferred_channel || '-'}</dd>
                       </div>
-                    </div>
-                    <div>
-                      <div className="text-xs text-fg-muted">Status</div>
-                      <div className={`text-sm font-medium ${c.enabled ? 'text-success' : 'text-fg-subtle'}`}>
-                        {c.enabled ? 'Active' : 'Inactive'}
+                      <div>
+                        <dt className="text-xs text-fg-muted">Quiet hours</dt>
+                        <dd className="text-sm font-medium tabular-nums">{c.quiet_hours_start && c.quiet_hours_end ? `${c.quiet_hours_start}–${c.quiet_hours_end}` : 'None'}</dd>
                       </div>
+                      <div>
+                        <dt className="text-xs text-fg-muted">Notifications</dt>
+                        <dd className="mt-0.5"><StatusPill status={c.notification_enabled ? 'up' : 'unknown'}>{c.notification_enabled ? 'On' : 'Off'}</StatusPill></dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs text-fg-muted">Status</dt>
+                        <dd className="mt-0.5"><StatusPill status={c.enabled ? 'up' : 'unknown'}>{c.enabled ? 'Active' : 'Inactive'}</StatusPill></dd>
+                      </div>
+                    </dl>
+                    <div className="flex gap-1">
+                      <IconButton icon="edit" label={`Edit ${c.name}`} size="sm" onClick={() => openEdit(c)} />
+                      <IconButton icon="delete" label={`Delete ${c.name}`} size="sm" variant="danger" onClick={() => setDeleteTarget(c)} />
                     </div>
                   </div>
                 </div>
-                <div className="flex gap-2 mt-3 pt-3 border-t border-line">
-                  <button onClick={() => openEdit(c)} className="text-xs font-semibold text-primary hover:bg-primary/10 px-3 py-1 rounded transition-colors">Edit</button>
-                  <button onClick={() => setDeleteTarget(c)} className="text-xs font-semibold text-error hover:bg-error/10 px-3 py-1 rounded transition-colors">Delete</button>
-                </div>
-              </article>
+              </li>
             ))}
-          </div>
+          </ul>
         )}
       </Card>
 
-      {showForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pt-20 bg-black/60" onClick={() => setShowForm(false)}>
-          <div className="bg-surface-1 border border-line rounded-lg w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
-            <div className="p-6 border-b border-line shrink-0">
-              <h2 className="font-sans text-lg font-semibold">{editing ? 'Edit Contact' : 'New Contact'}</h2>
+      <Dialog
+        open={showForm}
+        onClose={() => setShowForm(false)}
+        closeOnBackdrop={false}
+        title={editing ? 'Edit contact' : 'New contact'}
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setShowForm(false)}>Cancel</Button>
+            <Button type="submit" form="contact-form" disabled={submitting}>{submitting ? 'Saving…' : editing ? 'Save changes' : 'Create contact'}</Button>
+          </>
+        }
+      >
+        <form id="contact-form" className="space-y-4" onSubmit={(e) => { e.preventDefault(); handleSubmit(); }}>
+          {(['name', 'designation', 'department', 'email', 'phone'] as const).map((f) => (
+            <div key={f}>
+              <label htmlFor={`contact_${f}`} className="text-xs font-medium text-fg-muted block mb-1.5">{f.charAt(0).toUpperCase() + f.slice(1).replace(/_/g, ' ')}</label>
+              <input
+                id={`contact_${f}`}
+                type={f === 'email' ? 'email' : f === 'phone' ? 'tel' : 'text'}
+                value={asText(form[f])}
+                onChange={(e) => setForm({ ...form, [f]: e.target.value })}
+                className={INPUT_CLASS}
+              />
             </div>
-            <div className="p-6 space-y-4 flex-1 min-h-0 overflow-y-auto">
-              {(['name', 'designation', 'department', 'email', 'phone'] as const).map((f) => (
-                <div key={f}>
-                  <label className="text-xs text-fg-muted block mb-1">{f.replace(/_/g, ' ')}</label>
-                  <input
-                    value={asText(form[f])}
-                    onChange={(e) => setForm({ ...form, [f]: e.target.value })}
-                    className="w-full bg-inset border border-line rounded-lg px-4 py-2.5 text-sm text-fg placeholder:text-fg-subtle focus:ring-1 focus:ring-primary outline-none"
-                  />
-                </div>
-              ))}
-              <div>
-                <label className="text-xs text-fg-muted block mb-1">Preferred channel</label>
-                <select
-                  value={asText(form.preferred_channel, 'email')}
-                  onChange={(e) => setForm({ ...form, preferred_channel: e.target.value })}
-                  className="w-full bg-inset border border-line rounded-lg px-4 py-2.5 text-sm text-fg outline-none focus:ring-1 focus:ring-primary"
-                >
-                  {CHANNELS.map((ch) => <option key={ch} value={ch}>{ch.charAt(0).toUpperCase() + ch.slice(1)}</option>)}
-                </select>
-              </div>
-              <div className="flex items-center gap-3">
-                <input
-                  type="checkbox"
-                  checked={!!form.notification_enabled}
-                  onChange={(e) => setForm({ ...form, notification_enabled: e.target.checked })}
-                  className="accent-primary"
-                  id="notif_enabled"
-                />
-                <label htmlFor="notif_enabled" className="text-sm text-fg">Notifications enabled</label>
-              </div>
-              <div className="flex items-center gap-3">
-                <input
-                  type="checkbox"
-                  checked={!!form.enabled}
-                  onChange={(e) => setForm({ ...form, enabled: e.target.checked })}
-                  className="accent-primary"
-                  id="contact_enabled"
-                />
-                <label htmlFor="contact_enabled" className="text-sm text-fg">Active</label>
-              </div>
-            </div>
-            <div className="flex border-t border-line shrink-0">
-              <button onClick={() => setShowForm(false)} className="flex-1 py-3 text-xs font-sans font-semibold text-fg-muted hover:bg-surface-1 transition-colors">Cancel</button>
-              <div className="w-px bg-line/20" />
-              <button onClick={handleSubmit} disabled={submitting} className="flex-1 py-3 text-xs font-sans font-semibold text-primary hover:bg-primary/10 transition-colors disabled:opacity-50">
-                {submitting ? 'Saving...' : editing ? 'Update' : 'Create'}
-              </button>
-            </div>
+          ))}
+          <div>
+            <label htmlFor="contact_channel" className="text-xs font-medium text-fg-muted block mb-1.5">Preferred channel</label>
+            <select id="contact_channel" value={asText(form.preferred_channel, 'email')} onChange={(e) => setForm({ ...form, preferred_channel: e.target.value })} className={INPUT_CLASS}>
+              {CHANNELS.map((ch) => <option key={ch} value={ch}>{ch.charAt(0).toUpperCase() + ch.slice(1)}</option>)}
+            </select>
           </div>
-        </div>
-      )}
+          <label className="flex items-center gap-3 text-sm text-fg">
+            <input type="checkbox" checked={!!form.notification_enabled} onChange={(e) => setForm({ ...form, notification_enabled: e.target.checked })} className="h-4 w-4 accent-primary" />
+            Notifications enabled
+          </label>
+          <label className="flex items-center gap-3 text-sm text-fg">
+            <input type="checkbox" checked={!!form.enabled} onChange={(e) => setForm({ ...form, enabled: e.target.checked })} className="h-4 w-4 accent-primary" />
+            Active
+          </label>
+        </form>
+      </Dialog>
 
       <ConfirmDialog
         open={!!deleteTarget}
-        title="Delete Contact"
+        title="Delete contact?"
         message={`Delete "${deleteTarget?.name}"? This removes them from all escalation paths.`}
-        confirmLabel="Delete"
+        confirmLabel="Delete contact"
         danger
         onConfirm={handleDelete}
         onCancel={() => setDeleteTarget(null)}
@@ -284,3 +258,5 @@ export default function Contacts() {
     </div>
   );
 }
+
+const INPUT_CLASS = 'w-full h-control bg-inset border border-line rounded-md px-3 text-sm text-fg placeholder:text-fg-subtle outline-none focus:border-primary';
