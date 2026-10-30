@@ -79,12 +79,12 @@ export default function Sensors() {
         title="Monitors & Sensors"
         subtitle="Monitor sensor health, protocol distribution, and response times."
         action={
-          <div className="bg-surface-container-low px-6 py-3 rounded-lg border border-outline-variant/10 flex items-center gap-4">
+          <div className="bg-surface-1 px-6 py-3 rounded-lg border border-line flex items-center gap-4">
             <div className="text-right">
-              <p className="text-xs uppercase tracking-wide text-outline">System Health</p>
+              <p className="text-xs uppercase tracking-wide text-fg-subtle">System Health</p>
               <p className="text-primary font-semibold">{healthPercent}%</p>
             </div>
-            <div className="w-12 h-1 bg-surface-container-lowest rounded-full overflow-hidden">
+            <div className="w-12 h-1 bg-inset rounded-full overflow-hidden">
               <div className="h-full bg-primary transition-[width]" style={{ width: `${healthPercent}%` }} />
             </div>
           </div>
@@ -105,10 +105,10 @@ export default function Sensors() {
           </div>
 
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-6">
-            <div className="xl:col-span-2 bg-surface-container-low rounded-lg p-4 border border-outline-variant/10">
-              <h3 className="text-sm font-headline font-semibold mb-3 uppercase tracking-wide">Protocol Health Breakdown</h3>
+            <div className="xl:col-span-2 bg-surface-1 rounded-lg p-4 border border-line">
+              <h3 className="text-sm font-sans font-semibold mb-3 uppercase tracking-wide">Protocol Health Breakdown</h3>
               {protocolBarData.length === 0 ? (
-                <p className="text-xs text-on-surface-variant text-center py-16">No data yet</p>
+                <p className="text-xs text-fg-muted text-center py-16">No data yet</p>
               ) : (
                 <ResponsiveContainer width="100%" height={220}>
                   <BarChart data={protocolBarData} margin={{ top: 4, right: 8, left: -20, bottom: 0 }} barSize={32}>
@@ -124,14 +124,14 @@ export default function Sensors() {
               )}
             </div>
 
-            <div className="bg-surface-container-low rounded-lg p-4 border border-outline-variant/10">
-              <h3 className="text-sm font-headline font-semibold mb-3 uppercase tracking-wide">Avg Response (ms) by Protocol</h3>
+            <div className="bg-surface-1 rounded-lg p-4 border border-line">
+              <h3 className="text-sm font-sans font-semibold mb-3 uppercase tracking-wide">Avg Response (ms) by Protocol</h3>
               {radarData.length === 0 ? (
-                <p className="text-xs text-on-surface-variant text-center py-16">No data yet</p>
+                <p className="text-xs text-fg-muted text-center py-16">No data yet</p>
               ) : (
                 <ResponsiveContainer width="100%" height={220}>
                   <RadarChart data={radarData} margin={{ top: 10, right: 20, left: 20, bottom: 10 }}>
-                    <PolarGrid stroke="var(--color-outline-variant)" />
+                    <PolarGrid stroke="var(--color-line)" />
                     <PolarAngleAxis dataKey="subject" tick={{ fill: '#77766d', fontSize: 10 }} />
                     <Radar name="Avg ms" dataKey="value" stroke="#d9fd3a" fill="#d9fd3a" fillOpacity={0.2} strokeWidth={2} />
                     <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: unknown) => [`${Number(v ?? 0)}ms`, 'Avg Response']} />
@@ -143,24 +143,24 @@ export default function Sensors() {
 
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
             <div className="xl:col-span-2 space-y-6">
-              <h2 className="font-headline text-xl font-semibold uppercase tracking-tight px-2">Active Sensor Feed</h2>
+              <h2 className="font-sans text-xl font-semibold uppercase tracking-tight px-2">Active Sensor Feed</h2>
               <div className="space-y-3">
                 {visibleMetrics.map((m, i) => (
-                   <div key={m.id || i} className={`bg-surface-container-low p-5 rounded-lg border ${statusBorderColor(m.status)} group hover:bg-surface-container-low transition-colors`}>
+                   <div key={m.id || i} className={`bg-surface-1 p-5 rounded-lg border ${statusBorderColor(m.status)} group hover:bg-surface-1 transition-colors`}>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-5">
-                        <div className={`w-10 h-10 rounded-lg ${m.status === 'down' ? 'bg-error/10' : 'bg-surface-container-lowest'} flex items-center justify-center relative`}>
+                        <div className={`w-10 h-10 rounded-lg ${m.status === 'down' ? 'bg-error/10' : 'bg-inset'} flex items-center justify-center relative`}>
                           <span className={`material-symbols-outlined ${statusTextColor(m.status)}`}>{sensorIconForProtocol(m.protocol)}</span>
-                          <span className={`absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 border-surface-container-low ${m.status === 'down' ? 'bg-error glow-error' : m.status === 'warning' || m.status === 'degraded' ? 'bg-warning' : 'bg-success status-dot-live'}`} />
+                          <span className={`absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 border-surface-1 ${m.status === 'down' ? 'bg-error glow-error' : m.status === 'warning' || m.status === 'degraded' ? 'bg-warning' : 'bg-success status-dot-live'}`} />
                         </div>
                         <div>
-                          <p className="font-semibold text-on-surface tracking-tight">{m.deviceName}</p>
+                          <p className="font-semibold text-fg tracking-tight">{m.deviceName}</p>
                           <div className="flex gap-3 mt-1">
-                            <span className="text-xs text-outline font-label flex items-center gap-1">
+                            <span className="text-xs text-fg-subtle font-sans flex items-center gap-1">
                               <span className="material-symbols-outlined text-[14px]">schedule</span>
                               {new Date(m.timestamp || m.createdAt).toLocaleTimeString()}
                             </span>
-                            <span className="text-xs text-outline font-label flex items-center gap-1">
+                            <span className="text-xs text-fg-subtle font-sans flex items-center gap-1">
                               <span className="material-symbols-outlined text-[14px]">lan</span>
                               {m.protocol?.toUpperCase()}
                             </span>
@@ -168,19 +168,19 @@ export default function Sensors() {
                         </div>
                       </div>
                       <div className="text-right">
-                        <p className={`text-xl font-headline font-semibold ${statusTextColor(m.status)} tracking-tighter`}>
+                        <p className={`text-xl font-sans font-semibold ${statusTextColor(m.status)} tracking-tighter`}>
                           {m.responseTime != null ? `${m.responseTime}ms` : (m.status ?? 'UNKNOWN').toUpperCase()}
                         </p>
-                        <p className="text-xs text-outline uppercase font-label max-w-xs truncate">{formatMetricDetails(m.details, m.protocol)}</p>
+                        <p className="text-xs text-fg-subtle uppercase font-sans max-w-xs truncate">{formatMetricDetails(m.details, m.protocol)}</p>
                       </div>
                     </div>
                   </div>
                 ))}
-                {metrics.length === 0 && <p className="text-sm text-on-surface-variant text-center py-8">No sensor data yet</p>}
+                {metrics.length === 0 && <p className="text-sm text-fg-muted text-center py-8">No sensor data yet</p>}
                 {visibleCount < metrics.length && (
                   <button
                     onClick={() => setVisibleCount((prev) => prev + 20)}
-                    className="w-full py-3 text-xs font-semibold uppercase tracking-wide text-on-surface-variant hover:text-on-surface border border-outline-variant/20 rounded-lg hover:border-outline/40 transition-colors"
+                    className="w-full py-3 text-xs font-semibold uppercase tracking-wide text-fg-muted hover:text-fg border border-line rounded-lg hover:border-line-strong/40 transition-colors"
                   >
                     Show more ({metrics.length - visibleCount} remaining)
                   </button>
@@ -189,9 +189,9 @@ export default function Sensors() {
             </div>
 
             <div className="space-y-8">
-              <div className="bg-surface-container-low p-6 rounded-lg border border-outline-variant/10">
-                <h3 className="font-headline font-semibold uppercase text-xs tracking-wide text-on-surface mb-6">Protocol Summary</h3>
-                <div className="space-y-4 font-label">
+              <div className="bg-surface-1 p-6 rounded-lg border border-line">
+                <h3 className="font-sans font-semibold uppercase text-xs tracking-wide text-fg mb-6">Protocol Summary</h3>
+                <div className="space-y-4 font-sans">
                   {KNOWN_PROTOCOLS.map((proto) => {
                     const count = metrics.filter((m) => m.protocol === proto).length;
                     if (count === 0) return null;
@@ -200,10 +200,10 @@ export default function Sensors() {
                     return (
                       <div key={proto}>
                         <div className="flex justify-between items-center mb-1">
-                          <span className="text-xs uppercase tracking-wide text-on-surface-variant">{proto}</span>
+                          <span className="text-xs uppercase tracking-wide text-fg-muted">{proto}</span>
                           <span className="text-xs font-semibold text-primary">{h}/{count}</span>
                         </div>
-                        <div className="h-1.5 bg-surface-container-lowest rounded-full">
+                        <div className="h-1.5 bg-inset rounded-full">
                           <div className="h-1.5 rounded-full bg-primary transition-[width]" style={{ width: `${pct}%` }} />
                         </div>
                       </div>

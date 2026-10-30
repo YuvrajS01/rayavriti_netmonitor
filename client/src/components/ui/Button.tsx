@@ -9,19 +9,19 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const VARIANT_CLASSES: Record<ButtonVariant, string> = {
-  primary: 'bg-primary text-on-primary hover:bg-primary-dim font-headline font-semibold',
-  secondary: 'bg-surface-container-highest text-on-surface border border-outline-variant/30 hover:bg-surface-bright',
-  danger: 'bg-error text-on-error hover:bg-error-dim',
-  'danger-outline': 'border border-error text-error hover:bg-error-container',
-  ghost: 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container',
-  'primary-outline': 'border border-primary/40 text-primary hover:bg-primary-container',
+  primary: 'bg-primary text-on-primary hover:bg-primary-hover font-sans font-semibold',
+  secondary: 'bg-surface-3 text-fg border border-line hover:bg-surface-3',
+  danger: 'bg-error text-on-error hover:bg-error-hover',
+  'danger-outline': 'border border-error text-error hover:bg-error/15',
+  ghost: 'text-fg-muted hover:text-fg hover:bg-surface-2',
+  'primary-outline': 'border border-primary/40 text-primary hover:bg-primary/15',
 };
 
 export default function Button({ variant = 'primary', children, icon, className = '', ...props }: ButtonProps) {
   return (
     <button
       className={[
-        'font-body font-medium text-sm rounded-md px-5 py-2.5 min-h-11 min-w-11 transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-surface active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none',
+        'font-sans font-medium text-sm rounded-md px-5 py-2.5 min-h-11 min-w-11 transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-canvas active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none',
         VARIANT_CLASSES[variant],
         className,
       ].filter(Boolean).join(' ')}

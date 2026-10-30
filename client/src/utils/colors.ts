@@ -31,21 +31,21 @@ export function statusLabel(status: string): string {
 export function statusTextColor(status: string): string {
   if (status === 'down') return 'text-error';
   if (status === 'warning' || status === 'degraded') return 'text-warning';
-  if (status === 'unknown') return 'text-outline';
+  if (status === 'unknown') return 'text-fg-subtle';
   return 'text-success';
 }
 
 export function statusBgColor(status: string): string {
   if (status === 'down') return 'bg-error';
   if (status === 'warning' || status === 'degraded') return 'bg-warning';
-  if (status === 'unknown') return 'bg-outline';
+  if (status === 'unknown') return 'bg-line-strong';
   return 'bg-success';
 }
 
 export function statusBorderColor(status: string): string {
   if (status === 'down') return 'border-error';
   if (status === 'warning' || status === 'degraded') return 'border-warning';
-  if (status === 'unknown') return 'border-outline-variant';
+  if (status === 'unknown') return 'border-line';
   return 'border-success';
 }
 

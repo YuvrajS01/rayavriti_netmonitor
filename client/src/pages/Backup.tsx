@@ -37,7 +37,7 @@ function statusColor(status: Backup['status']): string {
     case 'running': return 'text-amber-400';
     case 'pending': return 'text-blue-400';
     case 'failed': return 'text-error';
-    default: return 'text-on-surface-variant';
+    default: return 'text-fg-muted';
   }
 }
 
@@ -201,30 +201,30 @@ export default function BackupPage() {
           description="Create your first backup to protect your configuration and data."
         />
       ) : (
-        <div className="bg-surface-container-low rounded-lg border border-outline-variant/20 overflow-hidden">
+        <div className="bg-surface-1 rounded-lg border border-line overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-outline-variant/20">
-                  <th className="text-left py-3 px-4 font-label text-xs text-on-surface-variant uppercase tracking-wide">File</th>
-                  <th className="text-left py-3 px-4 font-label text-xs text-on-surface-variant uppercase tracking-wide">Type</th>
-                  <th className="text-left py-3 px-4 font-label text-xs text-on-surface-variant uppercase tracking-wide">Size</th>
-                  <th className="text-left py-3 px-4 font-label text-xs text-on-surface-variant uppercase tracking-wide">Status</th>
-                  <th className="text-left py-3 px-4 font-label text-xs text-on-surface-variant uppercase tracking-wide">Created</th>
-                  <th className="text-left py-3 px-4 font-label text-xs text-on-surface-variant uppercase tracking-wide">Restored</th>
-                  <th className="text-right py-3 px-4 font-label text-xs text-on-surface-variant uppercase tracking-wide">Actions</th>
+                <tr className="border-b border-line">
+                  <th className="text-left py-3 px-4 font-sans text-xs text-fg-muted uppercase tracking-wide">File</th>
+                  <th className="text-left py-3 px-4 font-sans text-xs text-fg-muted uppercase tracking-wide">Type</th>
+                  <th className="text-left py-3 px-4 font-sans text-xs text-fg-muted uppercase tracking-wide">Size</th>
+                  <th className="text-left py-3 px-4 font-sans text-xs text-fg-muted uppercase tracking-wide">Status</th>
+                  <th className="text-left py-3 px-4 font-sans text-xs text-fg-muted uppercase tracking-wide">Created</th>
+                  <th className="text-left py-3 px-4 font-sans text-xs text-fg-muted uppercase tracking-wide">Restored</th>
+                  <th className="text-right py-3 px-4 font-sans text-xs text-fg-muted uppercase tracking-wide">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {backups.map(backup => (
-                  <tr key={backup.id} className="border-b border-outline-variant/10 hover:bg-surface-container-lowest transition-colors">
+                  <tr key={backup.id} className="border-b border-line hover:bg-inset transition-colors">
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-2">
-                        <span className="material-symbols-outlined text-lg text-on-surface-variant">description</span>
-                        <span className="font-mono text-xs text-on-surface">{backup.filename}</span>
+                        <span className="material-symbols-outlined text-lg text-fg-muted">description</span>
+                        <span className="font-mono text-xs text-fg">{backup.filename}</span>
                       </div>
                       {backup.checksum && (
-                        <p className="text-[10px] text-on-surface-variant mt-0.5 font-mono truncate max-w-[300px]">
+                        <p className="text-[10px] text-fg-muted mt-0.5 font-mono truncate max-w-[300px]">
                           SHA256: {backup.checksum}
                         </p>
                       )}
@@ -244,7 +244,7 @@ export default function BackupPage() {
                         {backup.type}
                       </span>
                     </td>
-                    <td className="py-3 px-4 text-on-surface-variant text-xs">
+                    <td className="py-3 px-4 text-fg-muted text-xs">
                       {formatBytes(backup.size)}
                     </td>
                     <td className="py-3 px-4">
@@ -253,19 +253,19 @@ export default function BackupPage() {
                         {backup.status}
                       </span>
                     </td>
-                    <td className="py-3 px-4 text-on-surface-variant text-xs">
+                    <td className="py-3 px-4 text-fg-muted text-xs">
                       {formatDate(backup.createdAt)}
                     </td>
-                    <td className="py-3 px-4 text-on-surface-variant text-xs">
+                    <td className="py-3 px-4 text-fg-muted text-xs">
                       {backup.restoredAt ? (
                         <div>
                           <span>{formatDate(backup.restoredAt)}</span>
                           {backup.restoredBy && (
-                            <span className="text-on-surface-variant/60 block">by {backup.restoredBy}</span>
+                            <span className="text-fg-muted/60 block">by {backup.restoredBy}</span>
                           )}
                         </div>
                       ) : (
-                        <span className="text-on-surface-variant/40">—</span>
+                        <span className="text-fg-muted/40">—</span>
                       )}
                     </td>
                     <td className="py-3 px-4">
@@ -274,14 +274,14 @@ export default function BackupPage() {
                           <>
                             <button
                               onClick={() => handleDownload(backup)}
-                              className="p-1.5 rounded-md text-on-surface-variant hover:text-primary hover:bg-surface-container transition-colors"
+                              className="p-1.5 rounded-md text-fg-muted hover:text-primary hover:bg-surface-2 transition-colors"
                               title="Download"
                             >
                               <span className="material-symbols-outlined text-lg">download</span>
                             </button>
                             <button
                               onClick={() => setConfirmRestore(backup)}
-                              className="p-1.5 rounded-md text-on-surface-variant hover:text-amber-400 hover:bg-amber-500/10 transition-colors"
+                              className="p-1.5 rounded-md text-fg-muted hover:text-amber-400 hover:bg-amber-500/10 transition-colors"
                               title="Restore from this backup"
                             >
                               <span className="material-symbols-outlined text-lg">restore</span>
@@ -290,7 +290,7 @@ export default function BackupPage() {
                         )}
                         <button
                           onClick={() => setConfirmDelete(backup)}
-                          className="p-1.5 rounded-md text-on-surface-variant hover:text-error hover:bg-error/10 transition-colors"
+                          className="p-1.5 rounded-md text-fg-muted hover:text-error hover:bg-error/10 transition-colors"
                           title="Delete"
                         >
                           <span className="material-symbols-outlined text-lg">delete</span>
@@ -307,23 +307,23 @@ export default function BackupPage() {
 
       {/* Backup Config Info */}
       {config && (
-        <div className="mt-8 bg-surface-container-low rounded-lg p-6 border border-outline-variant/20">
-          <h3 className="font-headline text-sm font-semibold text-on-surface-variant uppercase tracking-wide mb-4 flex items-center gap-2">
+        <div className="mt-8 bg-surface-1 rounded-lg p-6 border border-line">
+          <h3 className="font-sans text-sm font-semibold text-fg-muted uppercase tracking-wide mb-4 flex items-center gap-2">
             <span className="material-symbols-outlined text-lg">settings</span>
             Backup Configuration
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
             <div>
-              <p className="text-xs text-on-surface-variant/60 uppercase tracking-wide mb-1">Backup Directory</p>
-              <p className="font-mono text-on-surface">{config.backupDir}</p>
+              <p className="text-xs text-fg-muted/60 uppercase tracking-wide mb-1">Backup Directory</p>
+              <p className="font-mono text-fg">{config.backupDir}</p>
             </div>
             <div>
-              <p className="text-xs text-on-surface-variant/60 uppercase tracking-wide mb-1">Max Backups</p>
-              <p className="text-on-surface">{config.maxBackups}</p>
+              <p className="text-xs text-fg-muted/60 uppercase tracking-wide mb-1">Max Backups</p>
+              <p className="text-fg">{config.maxBackups}</p>
             </div>
             <div>
-              <p className="text-xs text-on-surface-variant/60 uppercase tracking-wide mb-1">Retention</p>
-              <p className="text-on-surface">{config.retentionDays} days</p>
+              <p className="text-xs text-fg-muted/60 uppercase tracking-wide mb-1">Retention</p>
+              <p className="text-fg">{config.retentionDays} days</p>
             </div>
           </div>
         </div>

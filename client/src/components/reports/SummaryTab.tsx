@@ -4,17 +4,17 @@ import {
   CartesianGrid, Bar, BarChart, Legend,
 } from 'recharts';
 
-const TT = { background: 'var(--color-surface-container)', border: '1px solid var(--color-outline-variant)', borderRadius: '8px', fontSize: '12px', color: 'var(--color-on-surface)' };
+const TT = { background: 'var(--color-surface-2)', border: '1px solid var(--color-line)', borderRadius: '8px', fontSize: '12px', color: 'var(--color-fg)' };
 
 function KpiCard({ icon, label, value, sub, color = 'text-primary' }: { icon: string; label: string; value: string | number; sub?: string; color?: string }) {
   return (
-    <div className="bg-surface-container-low rounded-lg p-5 border border-outline-variant/20 flex flex-col gap-2 hover:border-outline/30 transition-colors duration-200">
+    <div className="bg-surface-1 rounded-lg p-5 border border-line flex flex-col gap-2 hover:border-line-strong/30 transition-colors duration-200">
       <div className="flex items-center gap-2">
         <span className="material-symbols-outlined text-lg opacity-60">{icon}</span>
-        <span className="text-[10px] text-on-surface-variant uppercase tracking-wide font-semibold">{label}</span>
+        <span className="text-[10px] text-fg-muted uppercase tracking-wide font-semibold">{label}</span>
       </div>
-      <p className={`font-headline text-3xl font-semibold ${color}`}>{value}</p>
-      {sub && <p className="text-[11px] text-on-surface-variant">{sub}</p>}
+      <p className={`font-sans text-3xl font-semibold ${color}`}>{value}</p>
+      {sub && <p className="text-[11px] text-fg-muted">{sub}</p>}
     </div>
   );
 }
@@ -48,17 +48,17 @@ export default function SummaryTab({ summary, series }: { summary: ReportSummary
       {summary && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <KpiCard icon="verified" label="Availability" value={`${summary.availabilityPercent}%`} color={availColor} sub={`${summary.totalSamples - summary.downSamples} of ${summary.totalSamples} checks passed`} />
-          <KpiCard icon="speed" label="Avg Response" value={`${summary.averageResponseMs}ms`} color="text-on-surface" sub="Mean response time across all devices" />
-          <KpiCard icon="monitoring" label="Total Samples" value={summary.totalSamples.toLocaleString()} color="text-on-surface" sub={`${summary.warningSamples} warnings detected`} />
+          <KpiCard icon="speed" label="Avg Response" value={`${summary.averageResponseMs}ms`} color="text-fg" sub="Mean response time across all devices" />
+          <KpiCard icon="monitoring" label="Total Samples" value={summary.totalSamples.toLocaleString()} color="text-fg" sub={`${summary.warningSamples} warnings detected`} />
           <KpiCard icon="cancel" label="Down Events" value={summary.downSamples} color={summary.downSamples > 0 ? 'text-error' : 'text-primary'} sub={summary.downSamples > 0 ? 'Service interruptions detected' : 'No interruptions — all clear'} />
         </div>
       )}
 
       {/* Combined Chart */}
-      <div className="bg-surface-container-low rounded-lg p-5 border border-outline-variant/20">
-        <h3 className="text-sm font-headline font-semibold mb-1 uppercase tracking-wide">Availability & Response Time</h3>
-        <p className="text-[11px] text-on-surface-variant mb-3">Availability % (left) · Avg response ms (right)</p>
-        {chartSeries.length === 0 ? <p className="text-xs text-on-surface-variant text-center py-16">No data for selected range</p> : (
+      <div className="bg-surface-1 rounded-lg p-5 border border-line">
+        <h3 className="text-sm font-sans font-semibold mb-1 uppercase tracking-wide">Availability & Response Time</h3>
+        <p className="text-[11px] text-fg-muted mb-3">Availability % (left) · Avg response ms (right)</p>
+        {chartSeries.length === 0 ? <p className="text-xs text-fg-muted text-center py-16">No data for selected range</p> : (
           <ResponsiveContainer width="100%" height={280}>
             <ComposedChart data={chartSeries} margin={{ top: 4, right: 48, left: 0, bottom: 0 }}>
               <defs>
@@ -81,10 +81,10 @@ export default function SummaryTab({ summary, series }: { summary: ReportSummary
       </div>
 
       {/* Sample Distribution */}
-      <div className="bg-surface-container-low rounded-lg p-5 border border-outline-variant/20">
-        <h3 className="text-sm font-headline font-semibold mb-1 uppercase tracking-wide">Sample Distribution</h3>
-        <p className="text-[11px] text-on-surface-variant mb-3">Count of healthy / down checks per time bucket</p>
-        {chartSeries.length === 0 ? <p className="text-xs text-on-surface-variant text-center py-12">No data</p> : (
+      <div className="bg-surface-1 rounded-lg p-5 border border-line">
+        <h3 className="text-sm font-sans font-semibold mb-1 uppercase tracking-wide">Sample Distribution</h3>
+        <p className="text-[11px] text-fg-muted mb-3">Count of healthy / down checks per time bucket</p>
+        {chartSeries.length === 0 ? <p className="text-xs text-fg-muted text-center py-12">No data</p> : (
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={downBarData} margin={{ top: 4, right: 8, left: -20, bottom: 0 }} barSize={16}>
               <XAxis dataKey="label" tick={{ fill: '#77766d', fontSize: 10 }} tickLine={false} axisLine={false} interval="preserveStartEnd" />

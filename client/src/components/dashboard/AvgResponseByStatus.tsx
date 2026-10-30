@@ -25,17 +25,17 @@ function AvgResponseByStatusInner({ metrics }: Props) {
   }, [metrics]);
 
   return (
-    <div className="bg-surface-container-low rounded-lg p-4 border border-outline-variant/20">
-      <h3 className="text-sm font-headline font-semibold text-on-surface mb-1">Avg Response by Status</h3>
-      <p className="text-xs text-on-surface-variant mb-4">Latest poll of each device</p>
+    <div className="bg-surface-1 rounded-lg p-4 border border-line">
+      <h3 className="text-sm font-sans font-semibold text-fg mb-1">Avg Response by Status</h3>
+      <p className="text-xs text-fg-muted mb-4">Latest poll of each device</p>
       <div className="space-y-4">
         {rows.map((r) => (
           <div key={r.key}>
             <div className="flex justify-between text-xs mb-1">
-              <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full" style={{ background: r.color }} />{r.label} <span className="text-on-surface-variant">({r.count})</span></span>
-              <span className="font-data tabular-nums">{r.avg == null ? '—' : `${r.avg.toFixed(1)} ms`}</span>
+              <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full" style={{ background: r.color }} />{r.label} <span className="text-fg-muted">({r.count})</span></span>
+              <span className="font-mono tabular-nums">{r.avg == null ? '—' : `${r.avg.toFixed(1)} ms`}</span>
             </div>
-            <div className="h-2 bg-surface-container rounded overflow-hidden">
+            <div className="h-2 bg-surface-2 rounded overflow-hidden">
               <div className="h-2 rounded transition-[width] duration-500" style={{ width: `${r.pct}%`, background: r.color }} />
             </div>
           </div>

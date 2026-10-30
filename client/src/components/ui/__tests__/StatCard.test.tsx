@@ -18,10 +18,10 @@ describe('StatCard', () => {
     expect(screen.getByText('All Clear')).toBeInTheDocument();
   });
 
-  it('applies default text-on-surface color', () => {
+  it('applies default text-fg color', () => {
     render(<StatCard label="Test" value="Val" />);
     const valueEl = screen.getByText('Val');
-    expect(valueEl.className).toContain('text-on-surface');
+    expect(valueEl.className).toContain('text-fg');
   });
 
   it('applies custom color', () => {
@@ -42,7 +42,7 @@ describe('StatCard', () => {
 
   it('applies surface-container-low bg', () => {
     const { container } = render(<StatCard label="Test" value="Val" />);
-    expect(container.firstChild).toHaveClass('bg-surface-container-low');
+    expect(container.firstChild).toHaveClass('bg-surface-1');
   });
 
   it('applies rounded-lg', () => {
@@ -50,10 +50,10 @@ describe('StatCard', () => {
     expect(container.firstChild).toHaveClass('rounded-lg');
   });
 
-  it('applies font-headline and text-2xl to value', () => {
+  it('applies font-sans and text-2xl to value', () => {
     render(<StatCard label="Test" value="Big" />);
     const valueEl = screen.getByText('Big');
-    expect(valueEl.className).toContain('font-headline');
+    expect(valueEl.className).toContain('font-sans');
     expect(valueEl.className).toContain('text-2xl');
   });
 });

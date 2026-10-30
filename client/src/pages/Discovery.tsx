@@ -90,56 +90,56 @@ export default function Discovery() {
         <StatCard label="Devices Found" value={stats.totalFound} icon="devices" sparklineData={jobs.map(job => job.devicesFound)} />
       </div>
 
-      <Card variant="low" className="p-6 overflow-hidden"><div className="flex items-center justify-between"><div><h2 className="font-headline text-sm font-semibold uppercase tracking-wide">Discovery sweep</h2><p className="text-xs text-on-surface-variant mt-1">Live scan coverage and discovered nodes</p></div><span className={`material-symbols-outlined text-4xl text-primary ${stats.running ? 'animate-spin' : ''}`}>radar</span></div><div className="mt-6 grid grid-cols-12 gap-1.5">{Array.from({ length: 48 }, (_, index) => <i key={index} className={`h-6 rounded-sm ${index < Math.min(48, stats.totalFound) ? 'bg-success/80' : index < Math.min(48, stats.totalFound + stats.running * 8) ? 'bg-warning/60' : 'bg-surface-container-lowest'}`} />)}</div></Card>
+      <Card variant="low" className="p-6 overflow-hidden"><div className="flex items-center justify-between"><div><h2 className="font-sans text-sm font-semibold uppercase tracking-wide">Discovery sweep</h2><p className="text-xs text-fg-muted mt-1">Live scan coverage and discovered nodes</p></div><span className={`material-symbols-outlined text-4xl text-primary ${stats.running ? 'animate-spin' : ''}`}>radar</span></div><div className="mt-6 grid grid-cols-12 gap-1.5">{Array.from({ length: 48 }, (_, index) => <i key={index} className={`h-6 rounded-sm ${index < Math.min(48, stats.totalFound) ? 'bg-success/80' : index < Math.min(48, stats.totalFound + stats.running * 8) ? 'bg-warning/60' : 'bg-inset'}`} />)}</div></Card>
 
       <Card variant="low" className="overflow-hidden">
-        <div className="p-5 border-b border-outline-variant/20 flex flex-col md:flex-row gap-4 md:items-center md:justify-between">
+        <div className="p-5 border-b border-line flex flex-col md:flex-row gap-4 md:items-center md:justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-md bg-primary/10 text-primary flex items-center justify-center">
               <span className="material-symbols-outlined">radar</span>
             </div>
             <div>
-              <h2 className="font-headline font-semibold text-lg">Scan Jobs</h2>
-              <p className="text-xs text-on-surface-variant uppercase tracking-wide">{filtered.length} jobs</p>
+              <h2 className="font-sans font-semibold text-lg">Scan Jobs</h2>
+              <p className="text-xs text-fg-muted uppercase tracking-wide">{filtered.length} jobs</p>
             </div>
           </div>
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search scans..." className="bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary outline-none md:w-64" />
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search scans..." className="bg-inset border border-line rounded-lg px-4 py-2.5 text-sm text-fg placeholder:text-fg-subtle focus:ring-1 focus:ring-primary outline-none md:w-64" />
         </div>
 
         {loading ? (
-          <div className="p-8 text-sm text-on-surface-variant">Loading...</div>
+          <div className="p-8 text-sm text-fg-muted">Loading...</div>
         ) : filtered.length === 0 ? (
           <EmptyState icon="radar" title="No scans yet" description="Launch a subnet scan to discover devices on the network." action={<Button icon="radar" onClick={() => setShowScanForm(true)}>Start Scan</Button>} />
         ) : (
-          <div className="divide-y divide-outline-variant/20">
+          <div className="divide-y divide-line">
             {filtered.map((job) => (
-              <article key={job.id} className="p-5 hover:bg-surface-container-low/50 transition-colors cursor-pointer" onClick={() => openJob(job)}>
+              <article key={job.id} className="p-5 hover:bg-surface-1/50 transition-colors cursor-pointer" onClick={() => openJob(job)}>
                 <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
                   <div className="flex items-start gap-4 min-w-0">
-                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${job.status === 'completed' ? 'bg-success/10' : job.status === 'running' ? 'bg-warning/10' : job.status === 'failed' ? 'bg-error/10' : 'bg-surface-container-lowest'}`}>
-                      <span className={`material-symbols-outlined text-xl ${job.status === 'completed' ? 'text-success' : job.status === 'running' ? 'text-warning' : job.status === 'failed' ? 'text-error' : 'text-on-surface-variant'}`}>{job.status === 'completed' ? 'check_circle' : job.status === 'running' ? 'progress_activity' : 'radar'}</span>
+                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${job.status === 'completed' ? 'bg-success/10' : job.status === 'running' ? 'bg-warning/10' : job.status === 'failed' ? 'bg-error/10' : 'bg-inset'}`}>
+                      <span className={`material-symbols-outlined text-xl ${job.status === 'completed' ? 'text-success' : job.status === 'running' ? 'text-warning' : job.status === 'failed' ? 'text-error' : 'text-fg-muted'}`}>{job.status === 'completed' ? 'check_circle' : job.status === 'running' ? 'progress_activity' : 'radar'}</span>
                     </div>
                     <div className="min-w-0">
-                      <h3 className="font-headline font-semibold text-lg font-data">{job.subnet}</h3>
-                      <p className="text-xs text-on-surface-variant mt-0.5 capitalize">{job.scanType.replace(/_/g, ' ')} · {job.status} · {formatDate(job.completedAt)}</p>
+                      <h3 className="font-sans font-semibold text-lg font-mono">{job.subnet}</h3>
+                      <p className="text-xs text-fg-muted mt-0.5 capitalize">{job.scanType.replace(/_/g, ' ')} · {job.status} · {formatDate(job.completedAt)}</p>
                       {job.errorMessage && <p className="text-sm text-error mt-1">{job.errorMessage}</p>}
                     </div>
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 lg:max-w-xl flex-shrink-0">
                     <div>
-                      <div className="text-[10px] text-on-surface-variant uppercase tracking-wide">Scanned</div>
+                      <div className="text-[10px] text-fg-muted uppercase tracking-wide">Scanned</div>
                       <div className="text-sm font-medium">{job.totalIpsScanned}</div>
                     </div>
                     <div>
-                      <div className="text-[10px] text-on-surface-variant uppercase tracking-wide">Found</div>
+                      <div className="text-[10px] text-fg-muted uppercase tracking-wide">Found</div>
                       <div className="text-sm font-semibold text-primary">{job.devicesFound}</div>
                     </div>
                     <div>
-                      <div className="text-[10px] text-on-surface-variant uppercase tracking-wide">New</div>
+                      <div className="text-[10px] text-fg-muted uppercase tracking-wide">New</div>
                       <div className="text-sm font-medium text-success">{job.devicesNew}</div>
                     </div>
                     <div>
-                      <div className="text-[10px] text-on-surface-variant uppercase tracking-wide">Known</div>
+                      <div className="text-[10px] text-fg-muted uppercase tracking-wide">Known</div>
                       <div className="text-sm font-medium">{job.devicesKnown}</div>
                     </div>
                   </div>
@@ -152,30 +152,30 @@ export default function Discovery() {
 
       {selectedJob && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pt-20 bg-black/60" onClick={() => setSelectedJob(null)}>
-          <div className="bg-surface-container-low border border-outline-variant/30 rounded-lg w-full max-w-3xl overflow-hidden max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
-            <div className="p-6 border-b border-outline-variant/20 flex items-center justify-between shrink-0">
+          <div className="bg-surface-1 border border-line rounded-lg w-full max-w-3xl overflow-hidden max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="p-6 border-b border-line flex items-center justify-between shrink-0">
               <div>
-                <h2 className="font-headline text-lg font-semibold font-data">{selectedJob.subnet}</h2>
-                <p className="text-xs text-on-surface-variant mt-0.5 capitalize">{selectedJob.status} · {results.length} results</p>
+                <h2 className="font-sans text-lg font-semibold font-mono">{selectedJob.subnet}</h2>
+                <p className="text-xs text-fg-muted mt-0.5 capitalize">{selectedJob.status} · {results.length} results</p>
               </div>
-              <button onClick={() => setSelectedJob(null)} className="text-on-surface-variant hover:text-on-surface p-1"><span className="material-symbols-outlined">close</span></button>
+              <button onClick={() => setSelectedJob(null)} className="text-fg-muted hover:text-fg p-1"><span className="material-symbols-outlined">close</span></button>
             </div>
             <div className="p-6 overflow-y-auto flex-1">
               {results.length === 0 ? (
-                <p className="text-sm text-on-surface-variant text-center py-8">No results found.</p>
+                <p className="text-sm text-fg-muted text-center py-8">No results found.</p>
               ) : (
                 <div className="space-y-3">
                   {results.map((r) => (
-                    <div key={r.id} className="bg-surface-container-lowest rounded-lg p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div key={r.id} className="bg-inset rounded-lg p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
-                          <span className="font-data text-sm font-semibold">{r.ipAddress}</span>
+                          <span className="font-mono text-sm font-semibold">{r.ipAddress}</span>
                           {r.approvedDeviceId && <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-success/10 text-success">Approved</span>}
                           {!r.approvedDeviceId && r.status === 'pending' && <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-warning/10 text-warning">Pending</span>}
                           {r.guessedCategory && <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-primary/10 text-primary">{r.guessedCategory.replace(/_/g, ' ')}</span>}
-                          {r.guessedOs && <span className="text-[10px] px-2 py-0.5 rounded bg-surface-container text-on-surface-variant">{r.guessedOs}</span>}
+                          {r.guessedOs && <span className="text-[10px] px-2 py-0.5 rounded bg-surface-2 text-fg-muted">{r.guessedOs}</span>}
                         </div>
-                        <div className="text-xs text-on-surface-variant mt-1 space-y-0.5">
+                        <div className="text-xs text-fg-muted mt-1 space-y-0.5">
                           {r.manufacturer && <div>Vendor: {r.manufacturer}</div>}
                           {r.hostname && <div>Host: {r.hostname}</div>}
                           {r.httpTitle && <div>HTTP: {r.httpTitle}</div>}
@@ -202,26 +202,26 @@ export default function Discovery() {
 
       {showScanForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pt-20 bg-black/60" onClick={() => setShowScanForm(false)}>
-          <div className="bg-surface-container-low border border-outline-variant/30 rounded-lg w-full max-w-md max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
-            <div className="p-6 border-b border-outline-variant/20 shrink-0"><h2 className="font-headline text-lg font-semibold">New Subnet Scan</h2></div>
+          <div className="bg-surface-1 border border-line rounded-lg w-full max-w-md max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="p-6 border-b border-line shrink-0"><h2 className="font-sans text-lg font-semibold">New Subnet Scan</h2></div>
             <div className="p-6 space-y-4 flex-1 min-h-0 overflow-y-auto">
               <div>
-                <label className="text-[10px] text-on-surface-variant uppercase tracking-wide block mb-1">Subnet (CIDR)</label>
-                <input value={scanForm.subnet} onChange={(e) => setScanForm({ ...scanForm, subnet: e.target.value })} className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface font-data placeholder:text-outline focus:ring-1 focus:ring-primary outline-none" placeholder="10.0.0.0/24" />
+                <label className="text-[10px] text-fg-muted uppercase tracking-wide block mb-1">Subnet (CIDR)</label>
+                <input value={scanForm.subnet} onChange={(e) => setScanForm({ ...scanForm, subnet: e.target.value })} className="w-full bg-inset border border-line rounded-lg px-4 py-2.5 text-sm text-fg font-mono placeholder:text-fg-subtle focus:ring-1 focus:ring-primary outline-none" placeholder="10.0.0.0/24" />
               </div>
               <div>
-                <label className="text-[10px] text-on-surface-variant uppercase tracking-wide block mb-1">Scan Type</label>
-                <select value={scanForm.scan_type} onChange={(e) => setScanForm({ ...scanForm, scan_type: e.target.value })} className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary">
+                <label className="text-[10px] text-fg-muted uppercase tracking-wide block mb-1">Scan Type</label>
+                <select value={scanForm.scan_type} onChange={(e) => setScanForm({ ...scanForm, scan_type: e.target.value })} className="w-full bg-inset border border-line rounded-lg px-4 py-2.5 text-sm text-fg outline-none focus:ring-1 focus:ring-primary">
                   <option value="ping_only">Ping Only</option>
                   <option value="ping_snmp">Ping + SNMP</option>
                   <option value="full">Full Scan</option>
                 </select>
               </div>
             </div>
-            <div className="flex border-t border-outline-variant/20 shrink-0">
-              <button onClick={() => setShowScanForm(false)} className="flex-1 py-3 text-xs font-headline font-semibold uppercase tracking-wide text-on-surface-variant hover:bg-surface-container-low transition-colors">Cancel</button>
-              <div className="w-px bg-outline-variant/20" />
-              <button onClick={handleScan} disabled={submitting || !scanForm.subnet} className="flex-1 py-3 text-xs font-headline font-semibold uppercase tracking-wide text-primary hover:bg-primary/10 transition-colors disabled:opacity-50">{submitting ? 'Starting...' : 'Start Scan'}</button>
+            <div className="flex border-t border-line shrink-0">
+              <button onClick={() => setShowScanForm(false)} className="flex-1 py-3 text-xs font-sans font-semibold uppercase tracking-wide text-fg-muted hover:bg-surface-1 transition-colors">Cancel</button>
+              <div className="w-px bg-line/20" />
+              <button onClick={handleScan} disabled={submitting || !scanForm.subnet} className="flex-1 py-3 text-xs font-sans font-semibold uppercase tracking-wide text-primary hover:bg-primary/10 transition-colors disabled:opacity-50">{submitting ? 'Starting...' : 'Start Scan'}</button>
             </div>
           </div>
         </div>

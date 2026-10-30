@@ -26,18 +26,18 @@ function ResponseTimeChartInner({ data, devices, onExpand }: Props) {
 
   return (
     <div
-      className="xl:col-span-2 bg-surface-container-low rounded-lg p-4 border border-outline-variant/20 hover:border-outline transition-colors duration-200 cursor-pointer group"
+      className="xl:col-span-2 bg-surface-1 rounded-lg p-4 border border-line hover:border-line-strong transition-colors duration-200 cursor-pointer group"
       role="button"
       tabIndex={0}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onExpand(); } }}
       onClick={onExpand}
     >
       <div className="flex justify-between items-center mb-3">
-        <h3 className="text-sm font-headline font-semibold text-on-surface group-hover:text-on-surface transition-colors">Response Time per Device</h3>
-        <span className="material-symbols-outlined text-on-surface-variant group-hover:text-on-surface text-sm transition-colors">open_in_full</span>
+        <h3 className="text-sm font-sans font-semibold text-fg group-hover:text-fg transition-colors">Response Time per Device</h3>
+        <span className="material-symbols-outlined text-fg-muted group-hover:text-fg text-sm transition-colors">open_in_full</span>
       </div>
       {devices.length === 0 ? (
-        <p className="text-xs text-on-surface-variant text-center py-16">No device metrics yet</p>
+        <p className="text-xs text-fg-muted text-center py-16">No device metrics yet</p>
       ) : (
         <>
           <ResponsiveContainer width="100%" height={240}>

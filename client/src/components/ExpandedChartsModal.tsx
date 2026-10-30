@@ -64,27 +64,27 @@ export default function ExpandedChartsModal({ metrics, onClose }: ExpandedCharts
         aria-modal="true"
         aria-label="Detailed response times"
         tabIndex={-1}
-        className="bg-surface-container-low border border-outline-variant/30 rounded-lg w-full max-w-7xl h-[90vh] overflow-hidden flex flex-col outline-none"
+        className="bg-surface-1 border border-line rounded-lg w-full max-w-7xl h-[90vh] overflow-hidden flex flex-col outline-none"
         onClick={e => e.stopPropagation()}
       >
-        <div className="p-6 border-b border-outline-variant/20 flex justify-between items-center bg-surface-container-low shrink-0">
+        <div className="p-6 border-b border-line flex justify-between items-center bg-surface-1 shrink-0">
           <div className="flex items-center gap-3">
             <span className="material-symbols-outlined text-primary text-3xl">query_stats</span>
             <div>
-              <h2 className="font-headline text-2xl font-semibold text-on-surface uppercase tracking-tight">Detailed Response Times</h2>
-              <p className="text-on-surface-variant text-xs font-data uppercase tracking-wide">Individual node performance telemetry</p>
+              <h2 className="font-sans text-2xl font-semibold text-fg uppercase tracking-tight">Detailed Response Times</h2>
+              <p className="text-fg-muted text-xs font-mono uppercase tracking-wide">Individual node performance telemetry</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-surface-container-lowest rounded-full transition-colors" aria-label="Close dialog">
-            <span className="material-symbols-outlined text-outline hover:text-on-surface">close</span>
+          <button onClick={onClose} className="p-2 hover:bg-inset rounded-full transition-colors" aria-label="Close dialog">
+            <span className="material-symbols-outlined text-fg-subtle hover:text-fg">close</span>
           </button>
         </div>
 
-        <div className="p-6 overflow-y-auto flex-1 bg-surface-container-lowest">
+        <div className="p-6 overflow-y-auto flex-1 bg-inset">
           {devices.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full opacity-50">
               <span className="material-symbols-outlined text-6xl mb-4">monitoring</span>
-              <p className="text-sm font-headline uppercase tracking-wide text-on-surface-variant">No telemetry data available</p>
+              <p className="text-sm font-sans uppercase tracking-wide text-fg-muted">No telemetry data available</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -99,11 +99,11 @@ export default function ExpandedChartsModal({ metrics, onClose }: ExpandedCharts
                 const color = DEVICE_COLORS[i % DEVICE_COLORS.length];
 
                 return (
-                  <div key={dev} className="bg-surface-container-low rounded-lg p-5 border border-outline-variant/20 flex flex-col">
+                  <div key={dev} className="bg-surface-1 rounded-lg p-5 border border-line flex flex-col">
                     <div className="flex justify-between items-start mb-4">
                       <div>
-                        <h3 className="font-headline text-lg font-semibold text-on-surface truncate pr-2">{dev}</h3>
-                        <p className="text-[10px] text-on-surface-variant uppercase tracking-wide font-data mt-1">
+                        <h3 className="font-sans text-lg font-semibold text-fg truncate pr-2">{dev}</h3>
+                        <p className="text-[10px] text-fg-muted uppercase tracking-wide font-mono mt-1">
                           Latest: <span style={{ color }}>{latest?.response ?? '-'}ms</span>
                         </p>
                       </div>

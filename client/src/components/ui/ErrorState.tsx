@@ -9,7 +9,7 @@ export default function ErrorState({ message, onRetry }: ErrorStateProps) {
       <span className="material-symbols-outlined text-error text-3xl mb-2">error</span>
       <p className="text-sm text-error font-medium">{message}</p>
       {onRetry && (
-        <button onClick={onRetry} className="mt-3 text-xs text-on-surface-variant hover:text-primary transition-colors underline">
+        <button onClick={onRetry} className="mt-3 text-xs text-fg-muted hover:text-primary transition-colors underline">
           Retry
         </button>
       )}

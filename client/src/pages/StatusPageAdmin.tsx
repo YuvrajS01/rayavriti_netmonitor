@@ -99,46 +99,46 @@ export default function StatusPageAdmin() {
         <StatCard label="Enabled" value={stats.enabledServices} icon="check_circle" />
       </div>
 
-      <div className="flex gap-1 bg-surface-container-low rounded-lg p-1 w-fit">
+      <div className="flex gap-1 bg-surface-1 rounded-lg p-1 w-fit">
         {(['services', 'incidents'] as const).map((t) => (
-          <button key={t} onClick={() => { setTab(t); setSearch(''); }} className={`px-4 py-2 text-xs font-headline font-semibold uppercase tracking-wide rounded-md transition-colors ${tab === t ? 'bg-primary text-on-primary' : 'text-on-surface-variant hover:text-on-surface'}`}>
+          <button key={t} onClick={() => { setTab(t); setSearch(''); }} className={`px-4 py-2 text-xs font-sans font-semibold uppercase tracking-wide rounded-md transition-colors ${tab === t ? 'bg-primary text-on-primary' : 'text-fg-muted hover:text-fg'}`}>
             {t === 'services' ? 'Services' : 'Incidents'}
           </button>
         ))}
       </div>
 
       <Card variant="low" className="overflow-hidden">
-        <div className="p-5 border-b border-outline-variant/20 flex flex-col md:flex-row gap-4 md:items-center md:justify-between">
+        <div className="p-5 border-b border-line flex flex-col md:flex-row gap-4 md:items-center md:justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-md bg-primary/10 text-primary flex items-center justify-center">
               <span className="material-symbols-outlined">{tab === 'services' ? 'dns' : 'crisis_alert'}</span>
             </div>
             <div>
-              <h2 className="font-headline font-semibold text-lg">{tab === 'services' ? 'Services' : 'Incidents'}</h2>
-              <p className="text-xs text-on-surface-variant uppercase tracking-wide">{tab === 'services' ? filteredServices.length : filteredIncidents.length} items</p>
+              <h2 className="font-sans font-semibold text-lg">{tab === 'services' ? 'Services' : 'Incidents'}</h2>
+              <p className="text-xs text-fg-muted uppercase tracking-wide">{tab === 'services' ? filteredServices.length : filteredIncidents.length} items</p>
             </div>
           </div>
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search..." className="bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary outline-none md:w-64" />
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search..." className="bg-inset border border-line rounded-lg px-4 py-2.5 text-sm text-fg placeholder:text-fg-subtle focus:ring-1 focus:ring-primary outline-none md:w-64" />
         </div>
 
         {loading ? (
-          <div className="p-8 text-sm text-on-surface-variant">Loading...</div>
+          <div className="p-8 text-sm text-fg-muted">Loading...</div>
         ) : tab === 'services' ? (
           filteredServices.length === 0 ? (
             <EmptyState icon="dns" title="No services configured" description="Add services to display on the public status page." action={<Button icon="add" onClick={openCreateService}>Add Service</Button>} />
           ) : (
-            <div className="divide-y divide-outline-variant/20">
+            <div className="divide-y divide-line">
               {filteredServices.map((s) => (
-                <article key={s.id} className="p-5 hover:bg-surface-container-low/50 transition-colors">
+                <article key={s.id} className="p-5 hover:bg-surface-1/50 transition-colors">
                   <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
                     <div className="flex items-center gap-4 min-w-0">
-                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${s.enabled ? 'bg-success/10' : 'bg-surface-container-lowest'}`}>
-                        <span className={`material-symbols-outlined text-xl ${s.enabled ? 'text-success' : 'text-outline'}`}>{s.enabled ? 'check_circle' : 'radio_button_unchecked'}</span>
+                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${s.enabled ? 'bg-success/10' : 'bg-inset'}`}>
+                        <span className={`material-symbols-outlined text-xl ${s.enabled ? 'text-success' : 'text-fg-subtle'}`}>{s.enabled ? 'check_circle' : 'radio_button_unchecked'}</span>
                       </div>
                       <div className="min-w-0">
-                        <h3 className="font-headline font-semibold text-lg truncate">{s.name}</h3>
-                        <p className="text-xs text-on-surface-variant mt-0.5">{s.group_name || 'Ungrouped'} · {s.aggregation?.replace('_', ' ')}</p>
-                        {s.description && <p className="text-sm text-on-surface-variant mt-1 line-clamp-1">{s.description}</p>}
+                        <h3 className="font-sans font-semibold text-lg truncate">{s.name}</h3>
+                        <p className="text-xs text-fg-muted mt-0.5">{s.group_name || 'Ungrouped'} · {s.aggregation?.replace('_', ' ')}</p>
+                        {s.description && <p className="text-sm text-fg-muted mt-1 line-clamp-1">{s.description}</p>}
                       </div>
                     </div>
                     <div className="flex gap-2 items-center">
@@ -155,20 +155,20 @@ export default function StatusPageAdmin() {
         ) : filteredIncidents.length === 0 ? (
           <EmptyState icon="crisis_alert" title="No public incidents" description="Active incidents will appear here." />
         ) : (
-          <div className="divide-y divide-outline-variant/20">
+          <div className="divide-y divide-line">
             {filteredIncidents.map((i) => (
-              <article key={i.id} className="p-5 hover:bg-surface-container-low/50 transition-colors">
+              <article key={i.id} className="p-5 hover:bg-surface-1/50 transition-colors">
                 <div className="flex items-start gap-4">
                   <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${i.resolved_at ? 'bg-success/10' : i.severity === 'critical' ? 'bg-error/10' : 'bg-warning/10'}`}>
                     <span className={`material-symbols-outlined text-xl ${i.resolved_at ? 'text-success' : i.severity === 'critical' ? 'text-error' : 'text-warning'}`}>{i.resolved_at ? 'check_circle' : 'crisis_alert'}</span>
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <h3 className="font-headline font-semibold text-lg">{i.title}</h3>
+                      <h3 className="font-sans font-semibold text-lg">{i.title}</h3>
                       <span className={`text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full ${i.resolved_at ? 'bg-success/10 text-success' : 'bg-error/10 text-error'}`}>{i.resolved_at ? 'resolved' : i.status}</span>
                     </div>
-                    <p className="text-xs text-on-surface-variant mt-0.5 capitalize">{i.severity} · #{i.id}</p>
-                    {i.message && <p className="text-sm text-on-surface-variant mt-2 line-clamp-2">{i.message}</p>}
+                    <p className="text-xs text-fg-muted mt-0.5 capitalize">{i.severity} · #{i.id}</p>
+                    {i.message && <p className="text-sm text-fg-muted mt-2 line-clamp-2">{i.message}</p>}
                   </div>
                 </div>
               </article>
@@ -179,8 +179,8 @@ export default function StatusPageAdmin() {
 
       {showServiceForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pt-20 bg-black/60" onClick={() => setShowServiceForm(false)}>
-          <div className="bg-surface-container-low border border-outline-variant/30 rounded-lg w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
-            <div className="p-6 border-b border-outline-variant/20 shrink-0"><h2 className="font-headline text-lg font-semibold">{editingService ? 'Edit Service' : 'New Service'}</h2></div>
+          <div className="bg-surface-1 border border-line rounded-lg w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="p-6 border-b border-line shrink-0"><h2 className="font-sans text-lg font-semibold">{editingService ? 'Edit Service' : 'New Service'}</h2></div>
             <div className="p-6 space-y-4 flex-1 min-h-0 overflow-y-auto">
               {[
                 { key: 'name', label: 'Service Name', type: 'text' },
@@ -188,13 +188,13 @@ export default function StatusPageAdmin() {
                 { key: 'group_name', label: 'Group', type: 'text' },
               ].map(({ key, label }) => (
                 <div key={key}>
-                  <label className="text-[10px] text-on-surface-variant uppercase tracking-wide block mb-1">{label}</label>
-                  <input value={asText(serviceForm[key])} onChange={(e) => setServiceForm({ ...serviceForm, [key]: e.target.value })} className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary outline-none" />
+                  <label className="text-[10px] text-fg-muted uppercase tracking-wide block mb-1">{label}</label>
+                  <input value={asText(serviceForm[key])} onChange={(e) => setServiceForm({ ...serviceForm, [key]: e.target.value })} className="w-full bg-inset border border-line rounded-lg px-4 py-2.5 text-sm text-fg placeholder:text-fg-subtle focus:ring-1 focus:ring-primary outline-none" />
                 </div>
               ))}
               <div>
-                <label className="text-[10px] text-on-surface-variant uppercase tracking-wide block mb-1">Aggregation</label>
-                <select value={asText(serviceForm.aggregation, 'any_down')} onChange={(e) => setServiceForm({ ...serviceForm, aggregation: e.target.value })} className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary">
+                <label className="text-[10px] text-fg-muted uppercase tracking-wide block mb-1">Aggregation</label>
+                <select value={asText(serviceForm.aggregation, 'any_down')} onChange={(e) => setServiceForm({ ...serviceForm, aggregation: e.target.value })} className="w-full bg-inset border border-line rounded-lg px-4 py-2.5 text-sm text-fg outline-none focus:ring-1 focus:ring-primary">
                   <option value="any_down">Any Down</option>
                   <option value="all_down">All Down</option>
                   <option value="worst">Worst Status</option>
@@ -208,15 +208,15 @@ export default function StatusPageAdmin() {
                 ].map(({ key, label }) => (
                   <div key={key} className="flex items-center gap-3">
                     <input type="checkbox" checked={!!serviceForm[key]} onChange={(e) => setServiceForm({ ...serviceForm, [key]: e.target.checked })} className="accent-primary" id={`sp_${key}`} />
-                    <label htmlFor={`sp_${key}`} className="text-sm text-on-surface">{label}</label>
+                    <label htmlFor={`sp_${key}`} className="text-sm text-fg">{label}</label>
                   </div>
                 ))}
               </div>
             </div>
-            <div className="flex border-t border-outline-variant/20 shrink-0">
-              <button onClick={() => setShowServiceForm(false)} className="flex-1 py-3 text-xs font-headline font-semibold uppercase tracking-wide text-on-surface-variant hover:bg-surface-container-low transition-colors">Cancel</button>
-              <div className="w-px bg-outline-variant/20" />
-              <button onClick={handleServiceSubmit} disabled={submitting || !serviceForm.name} className="flex-1 py-3 text-xs font-headline font-semibold uppercase tracking-wide text-primary hover:bg-primary/10 transition-colors disabled:opacity-50">{submitting ? 'Saving...' : editingService ? 'Update' : 'Create'}</button>
+            <div className="flex border-t border-line shrink-0">
+              <button onClick={() => setShowServiceForm(false)} className="flex-1 py-3 text-xs font-sans font-semibold uppercase tracking-wide text-fg-muted hover:bg-surface-1 transition-colors">Cancel</button>
+              <div className="w-px bg-line/20" />
+              <button onClick={handleServiceSubmit} disabled={submitting || !serviceForm.name} className="flex-1 py-3 text-xs font-sans font-semibold uppercase tracking-wide text-primary hover:bg-primary/10 transition-colors disabled:opacity-50">{submitting ? 'Saving...' : editingService ? 'Update' : 'Create'}</button>
             </div>
           </div>
         </div>

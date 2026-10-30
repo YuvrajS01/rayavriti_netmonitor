@@ -115,21 +115,21 @@ export default function Contacts() {
       </div>
 
       <Card variant="low" className="overflow-hidden">
-        <div className="p-5 border-b border-outline-variant/20 flex flex-col md:flex-row gap-4 md:items-center md:justify-between">
+        <div className="p-5 border-b border-line flex flex-col md:flex-row gap-4 md:items-center md:justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-md bg-primary/10 text-primary flex items-center justify-center">
               <span className="material-symbols-outlined">contacts</span>
             </div>
             <div>
-              <h2 className="font-headline font-semibold text-lg">Contacts</h2>
-              <p className="text-xs text-on-surface-variant uppercase tracking-wide">{filtered.length} contacts</p>
+              <h2 className="font-sans font-semibold text-lg">Contacts</h2>
+              <p className="text-xs text-fg-muted uppercase tracking-wide">{filtered.length} contacts</p>
             </div>
           </div>
           <div className="flex gap-3">
             <select
               value={channelFilter}
               onChange={(e) => setChannelFilter(e.target.value)}
-              className="bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-3 py-2.5 text-xs text-on-surface outline-none focus:ring-1 focus:ring-primary"
+              className="bg-inset border border-line rounded-lg px-3 py-2.5 text-xs text-fg outline-none focus:ring-1 focus:ring-primary"
             >
               <option value="all">All channels</option>
               {CHANNELS.map((ch) => <option key={ch} value={ch}>{ch.charAt(0).toUpperCase() + ch.slice(1)}</option>)}
@@ -138,42 +138,42 @@ export default function Contacts() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search contacts..."
-              className="bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary outline-none md:w-64"
+              className="bg-inset border border-line rounded-lg px-4 py-2.5 text-sm text-fg placeholder:text-fg-subtle focus:ring-1 focus:ring-primary outline-none md:w-64"
             />
           </div>
         </div>
 
         {loading ? (
-          <div className="p-8 text-sm text-on-surface-variant">Loading...</div>
+          <div className="p-8 text-sm text-fg-muted">Loading...</div>
         ) : filtered.length === 0 ? (
           <EmptyState icon="contacts" title="No contacts found" description="Add contacts for escalation and notification routing." action={<Button icon="add" onClick={openCreate}>Add Contact</Button>} />
         ) : (
-          <div className="divide-y divide-outline-variant/20">
+          <div className="divide-y divide-line">
             {filtered.map((c) => (
-              <article key={c.id} className="p-5 hover:bg-surface-container-low/50 transition-colors">
+              <article key={c.id} className="p-5 hover:bg-surface-1/50 transition-colors">
                 <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
                   <div className="flex items-start gap-4 min-w-0">
-                    <div className="w-10 h-10 rounded-full bg-surface-container-lowest flex items-center justify-center flex-shrink-0">
+                    <div className="w-10 h-10 rounded-full bg-inset flex items-center justify-center flex-shrink-0">
                       <span className="material-symbols-outlined text-primary text-xl">{channelIcon(c.preferred_channel)}</span>
                     </div>
                     <div className="min-w-0">
-                      <h3 className="font-headline font-semibold text-lg truncate">{c.name}</h3>
-                      <p className="text-xs text-on-surface-variant mt-0.5">
+                      <h3 className="font-sans font-semibold text-lg truncate">{c.name}</h3>
+                      <p className="text-xs text-fg-muted mt-0.5">
                         {c.designation || 'No designation'} {c.department ? `· ${c.department}` : ''}
                       </p>
                       <div className="flex flex-wrap gap-3 mt-2">
                         {c.email && (
-                          <span className="text-xs text-on-surface-variant flex items-center gap-1">
+                          <span className="text-xs text-fg-muted flex items-center gap-1">
                             <span className="material-symbols-outlined text-sm">mail</span>{c.email}
                           </span>
                         )}
                         {c.phone && (
-                          <span className="text-xs text-on-surface-variant flex items-center gap-1">
+                          <span className="text-xs text-fg-muted flex items-center gap-1">
                             <span className="material-symbols-outlined text-sm">phone</span>{c.phone}
                           </span>
                         )}
                         {c.telegram_chat_id && (
-                          <span className="text-xs text-on-surface-variant flex items-center gap-1">
+                          <span className="text-xs text-fg-muted flex items-center gap-1">
                             <span className="material-symbols-outlined text-sm">send</span>Telegram
                           </span>
                         )}
@@ -182,28 +182,28 @@ export default function Contacts() {
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 lg:max-w-xl flex-shrink-0">
                     <div>
-                      <div className="text-[10px] text-on-surface-variant uppercase tracking-wide">Channel</div>
+                      <div className="text-[10px] text-fg-muted uppercase tracking-wide">Channel</div>
                       <div className="text-sm font-medium capitalize">{c.preferred_channel || '-'}</div>
                     </div>
                     <div>
-                      <div className="text-[10px] text-on-surface-variant uppercase tracking-wide">Quiet Hours</div>
+                      <div className="text-[10px] text-fg-muted uppercase tracking-wide">Quiet Hours</div>
                       <div className="text-sm font-medium">{c.quiet_hours_start && c.quiet_hours_end ? `${c.quiet_hours_start}–${c.quiet_hours_end}` : 'None'}</div>
                     </div>
                     <div>
-                      <div className="text-[10px] text-on-surface-variant uppercase tracking-wide">Notifications</div>
-                      <div className={`text-sm font-medium ${c.notification_enabled ? 'text-success' : 'text-outline'}`}>
+                      <div className="text-[10px] text-fg-muted uppercase tracking-wide">Notifications</div>
+                      <div className={`text-sm font-medium ${c.notification_enabled ? 'text-success' : 'text-fg-subtle'}`}>
                         {c.notification_enabled ? 'Enabled' : 'Disabled'}
                       </div>
                     </div>
                     <div>
-                      <div className="text-[10px] text-on-surface-variant uppercase tracking-wide">Status</div>
-                      <div className={`text-sm font-medium ${c.enabled ? 'text-success' : 'text-outline'}`}>
+                      <div className="text-[10px] text-fg-muted uppercase tracking-wide">Status</div>
+                      <div className={`text-sm font-medium ${c.enabled ? 'text-success' : 'text-fg-subtle'}`}>
                         {c.enabled ? 'Active' : 'Inactive'}
                       </div>
                     </div>
                   </div>
                 </div>
-                <div className="flex gap-2 mt-3 pt-3 border-t border-outline-variant/10">
+                <div className="flex gap-2 mt-3 pt-3 border-t border-line">
                   <button onClick={() => openEdit(c)} className="text-xs font-semibold text-primary hover:bg-primary/10 px-3 py-1 rounded transition-colors">Edit</button>
                   <button onClick={() => setDeleteTarget(c)} className="text-xs font-semibold text-error hover:bg-error/10 px-3 py-1 rounded transition-colors">Delete</button>
                 </div>
@@ -215,27 +215,27 @@ export default function Contacts() {
 
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pt-20 bg-black/60" onClick={() => setShowForm(false)}>
-          <div className="bg-surface-container-low border border-outline-variant/30 rounded-lg w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
-            <div className="p-6 border-b border-outline-variant/20 shrink-0">
-              <h2 className="font-headline text-lg font-semibold">{editing ? 'Edit Contact' : 'New Contact'}</h2>
+          <div className="bg-surface-1 border border-line rounded-lg w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="p-6 border-b border-line shrink-0">
+              <h2 className="font-sans text-lg font-semibold">{editing ? 'Edit Contact' : 'New Contact'}</h2>
             </div>
             <div className="p-6 space-y-4 flex-1 min-h-0 overflow-y-auto">
               {(['name', 'designation', 'department', 'email', 'phone'] as const).map((f) => (
                 <div key={f}>
-                  <label className="text-[10px] text-on-surface-variant uppercase tracking-wide block mb-1">{f.replace(/_/g, ' ')}</label>
+                  <label className="text-[10px] text-fg-muted uppercase tracking-wide block mb-1">{f.replace(/_/g, ' ')}</label>
                   <input
                     value={asText(form[f])}
                     onChange={(e) => setForm({ ...form, [f]: e.target.value })}
-                    className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary outline-none"
+                    className="w-full bg-inset border border-line rounded-lg px-4 py-2.5 text-sm text-fg placeholder:text-fg-subtle focus:ring-1 focus:ring-primary outline-none"
                   />
                 </div>
               ))}
               <div>
-                <label className="text-[10px] text-on-surface-variant uppercase tracking-wide block mb-1">Preferred Channel</label>
+                <label className="text-[10px] text-fg-muted uppercase tracking-wide block mb-1">Preferred Channel</label>
                 <select
                   value={asText(form.preferred_channel, 'email')}
                   onChange={(e) => setForm({ ...form, preferred_channel: e.target.value })}
-                  className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary"
+                  className="w-full bg-inset border border-line rounded-lg px-4 py-2.5 text-sm text-fg outline-none focus:ring-1 focus:ring-primary"
                 >
                   {CHANNELS.map((ch) => <option key={ch} value={ch}>{ch.charAt(0).toUpperCase() + ch.slice(1)}</option>)}
                 </select>
@@ -248,7 +248,7 @@ export default function Contacts() {
                   className="accent-primary"
                   id="notif_enabled"
                 />
-                <label htmlFor="notif_enabled" className="text-sm text-on-surface">Notifications enabled</label>
+                <label htmlFor="notif_enabled" className="text-sm text-fg">Notifications enabled</label>
               </div>
               <div className="flex items-center gap-3">
                 <input
@@ -258,13 +258,13 @@ export default function Contacts() {
                   className="accent-primary"
                   id="contact_enabled"
                 />
-                <label htmlFor="contact_enabled" className="text-sm text-on-surface">Active</label>
+                <label htmlFor="contact_enabled" className="text-sm text-fg">Active</label>
               </div>
             </div>
-            <div className="flex border-t border-outline-variant/20 shrink-0">
-              <button onClick={() => setShowForm(false)} className="flex-1 py-3 text-xs font-headline font-semibold uppercase tracking-wide text-on-surface-variant hover:bg-surface-container-low transition-colors">Cancel</button>
-              <div className="w-px bg-outline-variant/20" />
-              <button onClick={handleSubmit} disabled={submitting} className="flex-1 py-3 text-xs font-headline font-semibold uppercase tracking-wide text-primary hover:bg-primary/10 transition-colors disabled:opacity-50">
+            <div className="flex border-t border-line shrink-0">
+              <button onClick={() => setShowForm(false)} className="flex-1 py-3 text-xs font-sans font-semibold uppercase tracking-wide text-fg-muted hover:bg-surface-1 transition-colors">Cancel</button>
+              <div className="w-px bg-line/20" />
+              <button onClick={handleSubmit} disabled={submitting} className="flex-1 py-3 text-xs font-sans font-semibold uppercase tracking-wide text-primary hover:bg-primary/10 transition-colors disabled:opacity-50">
                 {submitting ? 'Saving...' : editing ? 'Update' : 'Create'}
               </button>
             </div>

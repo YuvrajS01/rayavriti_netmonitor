@@ -42,7 +42,7 @@ function ToastContainer({ toasts, onRemove }: { toasts: Toast[]; onRemove: (id: 
               ? 'bg-success/10 border-success/30 text-success'
               : toast.type === 'error'
                 ? 'bg-error/10 border-error/30 text-error'
-                : 'bg-surface-container-high border-outline-variant/30 text-on-surface'
+                : 'bg-surface-2 border-line text-fg'
           }`}
         >
           <span className="material-symbols-outlined text-lg">

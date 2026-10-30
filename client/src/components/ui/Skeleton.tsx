@@ -6,7 +6,7 @@ interface SkeletonProps {
 
 function SkeletonInner({ className = '' }: SkeletonProps) {
   return (
-    <div className={`bg-surface-container-highest rounded animate-pulse ${className}`} />
+    <div className={`bg-surface-3 rounded animate-pulse ${className}`} />
   );
 }
 

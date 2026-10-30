@@ -9,15 +9,15 @@ interface Props {
 function LatestMetricsTableInner({ metrics }: Props) {
   const maxResponse = Math.max(1, ...metrics.map((m) => m.responseTime || 0));
   return (
-    <div className="bg-surface-container-low rounded-lg p-5 border border-outline-variant/20 flex flex-col">
+    <div className="bg-surface-1 rounded-lg p-5 border border-line flex flex-col">
       <div className="flex items-center gap-2 mb-4">
-        <span className="material-symbols-outlined text-on-surface-variant text-xl">speed</span>
-        <h3 className="text-sm font-headline font-semibold text-on-surface">Latest Metrics</h3>
+        <span className="material-symbols-outlined text-fg-muted text-xl">speed</span>
+        <h3 className="text-sm font-sans font-semibold text-fg">Latest Metrics</h3>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-left border-collapse">
           <thead>
-            <tr className="text-xs uppercase tracking-wide text-on-surface-variant border-b border-outline-variant/20">
+            <tr className="text-xs uppercase tracking-wide text-fg-muted border-b border-line">
               <th className="pb-3 font-medium">Device</th>
               <th className="pb-3 font-medium">Protocol</th>
               <th className="pb-3 font-medium">Status</th>
@@ -35,9 +35,9 @@ function LatestMetricsTableInner({ metrics }: Props) {
               const barPct = Math.min(100, ((m.responseTime || 0) / maxResponse) * 100);
 
               return (
-                <tr key={m.id || i} className="border-b border-outline-variant/10 hover:bg-surface-container/50 transition-colors group card-stagger" style={{ '--i': i } as React.CSSProperties}>
-                  <td className="py-3 font-body font-medium text-on-surface">{m.deviceName}</td>
-                  <td className="py-3 text-on-surface-variant text-xs uppercase tracking-wider">
+                <tr key={m.id || i} className="border-b border-line hover:bg-surface-2/50 transition-colors group card-stagger" style={{ '--i': i } as React.CSSProperties}>
+                  <td className="py-3 font-sans font-medium text-fg">{m.deviceName}</td>
+                  <td className="py-3 text-fg-muted text-xs uppercase tracking-wider">
                     <div className="flex items-center gap-1.5">
                       <span className="material-symbols-outlined text-[14px] opacity-70">
                         {iconForProtocol(m.protocol)}
@@ -54,13 +54,13 @@ function LatestMetricsTableInner({ metrics }: Props) {
                   </td>
                   <td className="py-3 text-right">
                     <div className="flex items-center justify-end gap-2">
-                      <span className="font-data text-on-surface">{m.responseTime ?? '-'}ms</span>
-                      <span className="hidden sm:block h-1.5 w-16 rounded-full bg-surface-container overflow-hidden">
+                      <span className="font-mono text-fg">{m.responseTime ?? '-'}ms</span>
+                      <span className="hidden sm:block h-1.5 w-16 rounded-full bg-surface-2 overflow-hidden">
                         <span className="block h-full rounded-full transition-[width] duration-500" style={{ width: `${barPct}%`, background: dotColor }} />
                       </span>
                     </div>
                   </td>
-                  <td className="py-3 text-right text-xs text-on-surface-variant font-data">{new Date(m.timestamp || m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</td>
+                  <td className="py-3 text-right text-xs text-fg-muted font-mono">{new Date(m.timestamp || m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</td>
                 </tr>
               );
             })}
@@ -69,7 +69,7 @@ function LatestMetricsTableInner({ metrics }: Props) {
         {metrics.length === 0 && (
           <div className="flex flex-col items-center justify-center py-12">
             <span className="material-symbols-outlined text-4xl mb-2">monitoring</span>
-            <p className="text-xs text-on-surface-variant uppercase tracking-wide">No metrics data yet</p>
+            <p className="text-xs text-fg-muted uppercase tracking-wide">No metrics data yet</p>
           </div>
         )}
       </div>

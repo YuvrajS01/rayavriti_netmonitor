@@ -27,7 +27,7 @@ const STATUS_GROUP_HOVER_TEXT: Record<string, string> = {
   down: 'group-hover:text-error',
   warning: 'group-hover:text-warning',
   degraded: 'group-hover:text-warning',
-  unknown: 'group-hover:text-outline',
+  unknown: 'group-hover:text-fg-subtle',
 };
 
 export default function Devices() {
@@ -118,7 +118,7 @@ export default function Devices() {
         title="My Devices"
         subtitle="Manage and monitor all connected network devices."
         action={
-          <div className="flex gap-2"><Link to="/devices/topology" className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold border border-outline-variant/40 rounded-md text-on-surface-variant hover:text-on-surface hover:border-primary/50"><span className="material-symbols-outlined text-base">hub</span>Topology</Link><Button onClick={() => setShowForm(!showForm)} icon="add_circle">Add Device</Button></div>
+          <div className="flex gap-2"><Link to="/devices/topology" className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold border border-line rounded-md text-fg-muted hover:text-fg hover:border-primary/50"><span className="material-symbols-outlined text-base">hub</span>Topology</Link><Button onClick={() => setShowForm(!showForm)} icon="add_circle">Add Device</Button></div>
         }
       />
 
@@ -133,9 +133,9 @@ export default function Devices() {
       {/* Filters */}
       <div className="flex flex-wrap gap-4 mb-6">
         <div className="flex-1 min-w-48">
-          <input value={search} onChange={(e) => setSearch(e.target.value)} className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary outline-none" placeholder="Search devices..." />
+          <input value={search} onChange={(e) => setSearch(e.target.value)} className="w-full bg-inset border border-line rounded-lg px-4 py-2.5 text-sm text-fg placeholder:text-fg-subtle focus:ring-1 focus:ring-primary outline-none" placeholder="Search devices..." />
         </div>
-        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-3 py-2.5 text-xs text-on-surface outline-none focus:ring-1 focus:ring-primary">
+        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="bg-inset border border-line rounded-lg px-3 py-2.5 text-xs text-fg outline-none focus:ring-1 focus:ring-primary">
           <option value="all">All statuses</option>
           <option value="up">Up</option>
           <option value="warning">Warning</option>
@@ -149,20 +149,20 @@ export default function Devices() {
         {filtered.map((device) => {
           const status = statusOf(device, metricsMap);
           const metric = metricsMap.get(device.id);
-          const hoverText = STATUS_GROUP_HOVER_TEXT[status] || 'group-hover:text-on-surface';
+          const hoverText = STATUS_GROUP_HOVER_TEXT[status] || 'group-hover:text-fg';
           return (
             <div 
               key={device.id} 
               role="button"
               tabIndex={0}
               onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedDevice(device); } }}
-              className={`bg-surface-container-low rounded-lg group overflow-hidden border border-outline-variant/20 hover:border-primary/35 transition-[transform,border-color,box-shadow] duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-surface-dim/40 flex flex-col cursor-pointer card-stagger`}
+              className={`bg-surface-1 rounded-lg group overflow-hidden border border-line hover:border-primary/35 transition-[transform,border-color,box-shadow] duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-canvas/40 flex flex-col cursor-pointer card-stagger`}
               style={{ '--i': filtered.indexOf(device) } as React.CSSProperties}
               onClick={() => setSelectedDevice(device)}
             >
               <div className="p-6">
                 <div className="flex justify-between items-start mb-6">
-                  <div className={`bg-surface-container-lowest p-3 rounded-lg ${statusTextColor(status)} ${status === 'up' || status === 'ok' ? 'glow-success' : ''}`}>
+                  <div className={`bg-inset p-3 rounded-lg ${statusTextColor(status)} ${status === 'up' || status === 'ok' ? 'glow-success' : ''}`}>
                     <span className="material-symbols-outlined text-3xl">{iconForProtocol(device.protocol)}</span>
                   </div>
                   <div className={`flex items-center gap-2 px-3 py-1 rounded-full ${statusBgColor(status)}/10`}>
@@ -170,16 +170,16 @@ export default function Devices() {
                     <span className={`text-xs font-semibold uppercase tracking-wide ${statusTextColor(status)}`}>{status.toUpperCase()}</span>
                   </div>
                 </div>
-                <h3 className={`font-headline text-xl font-semibold mb-1 ${hoverText} transition-colors`}>{device.name}</h3>
-                <code className="text-on-surface-variant text-xs mb-4 block">{device.protocol === 'http' || device.protocol === 'https' ? `${device.protocol}://${device.ipAddress}` : device.ipAddress}{device.port > 0 && !['http','https'].includes(device.protocol) ? `:${device.port}` : ''}</code>
+                <h3 className={`font-sans text-xl font-semibold mb-1 ${hoverText} transition-colors`}>{device.name}</h3>
+                <code className="text-fg-muted text-xs mb-4 block">{device.protocol === 'http' || device.protocol === 'https' ? `${device.protocol}://${device.ipAddress}` : device.ipAddress}{device.port > 0 && !['http','https'].includes(device.protocol) ? `:${device.port}` : ''}</code>
                 <div className="space-y-2 text-xs">
-                  <div className="flex justify-between"><span className="text-on-surface-variant uppercase tracking-wide">Protocol</span><span className="font-semibold">{device.protocol.toUpperCase()}</span></div>
-                  <div className="flex justify-between"><span className="text-on-surface-variant uppercase tracking-wide">Interval</span><span className="font-semibold">{device.interval}s</span></div>
-                  {metric && <div className="flex justify-between"><span className="text-on-surface-variant uppercase tracking-wide">Response</span><span className="font-semibold">{metric.responseTime ?? '-'}ms</span></div>}
+                  <div className="flex justify-between"><span className="text-fg-muted uppercase tracking-wide">Protocol</span><span className="font-semibold">{device.protocol.toUpperCase()}</span></div>
+                  <div className="flex justify-between"><span className="text-fg-muted uppercase tracking-wide">Interval</span><span className="font-semibold">{device.interval}s</span></div>
+                  {metric && <div className="flex justify-between"><span className="text-fg-muted uppercase tracking-wide">Response</span><span className="font-semibold">{metric.responseTime ?? '-'}ms</span></div>}
                 </div>
               </div>
-              <div className="mt-auto bg-surface-container-low p-4 flex justify-between items-center">
-                <span className="text-[10px] text-on-surface-variant uppercase">{metric ? new Date(metric.timestamp || metric.createdAt).toLocaleTimeString() : 'No data'}</span>
+              <div className="mt-auto bg-surface-1 p-4 flex justify-between items-center">
+                <span className="text-[10px] text-fg-muted uppercase">{metric ? new Date(metric.timestamp || metric.createdAt).toLocaleTimeString() : 'No data'}</span>
                 <button 
                   onClick={(e) => { e.stopPropagation(); handleDelete(device); }} 
                   className="text-error text-[10px] font-semibold uppercase tracking-wide hover:bg-error/10 px-2 py-1 rounded transition-colors"
@@ -192,12 +192,12 @@ export default function Devices() {
         })}
 
         {/* Add New Card */}
-        <div onClick={() => setShowForm(true)} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setShowForm(true); } }} className="bg-surface-container-low rounded-lg border-2 border-dashed border-outline-variant/30 hover:border-outline/50 transition-colors duration-200 duration-300 flex flex-col items-center justify-center p-12 text-center group cursor-pointer min-h-[200px]">
-          <div className="w-16 h-16 rounded-full bg-surface-container-low flex items-center justify-center mb-4 group-hover:bg-primary/10 transition-colors">
-            <span className="material-symbols-outlined text-3xl text-outline group-hover:text-on-surface">add</span>
+        <div onClick={() => setShowForm(true)} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setShowForm(true); } }} className="bg-surface-1 rounded-lg border-2 border-dashed border-line hover:border-line-strong/50 transition-colors duration-200 duration-300 flex flex-col items-center justify-center p-12 text-center group cursor-pointer min-h-[200px]">
+          <div className="w-16 h-16 rounded-full bg-surface-1 flex items-center justify-center mb-4 group-hover:bg-primary/10 transition-colors">
+            <span className="material-symbols-outlined text-3xl text-fg-subtle group-hover:text-fg">add</span>
           </div>
-          <h3 className="font-headline text-lg font-semibold text-outline group-hover:text-on-surface tracking-wide">Add Device</h3>
-          <p className="text-on-surface-variant text-xs max-w-[120px] mx-auto mt-2">Deploy a new probe or add an existing node</p>
+          <h3 className="font-sans text-lg font-semibold text-fg-subtle group-hover:text-fg tracking-wide">Add Device</h3>
+          <p className="text-fg-muted text-xs max-w-[120px] mx-auto mt-2">Deploy a new probe or add an existing node</p>
         </div>
       </div>
       {selectedDevice && (

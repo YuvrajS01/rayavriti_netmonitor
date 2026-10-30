@@ -69,7 +69,7 @@ export default function ConfirmDialog({
         aria-modal="true"
         aria-labelledby="confirm-title"
         aria-describedby="confirm-message"
-        className="bg-surface-container-low border border-outline-variant/30 rounded-lg w-full max-w-md max-h-[90vh] overflow-hidden flex flex-col"
+        className="bg-surface-1 border border-line rounded-lg w-full max-w-md max-h-[90vh] overflow-hidden flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="p-6 shrink-0">
@@ -77,26 +77,26 @@ export default function ConfirmDialog({
             <span className={`material-symbols-outlined text-3xl ${danger ? 'text-error' : 'text-primary'}`}>
               {danger ? 'warning' : 'help'}
             </span>
-            <h2 id="confirm-title" className="font-headline text-lg font-semibold text-on-surface uppercase tracking-tight">
+            <h2 id="confirm-title" className="font-sans text-lg font-semibold text-fg uppercase tracking-tight">
               {title}
             </h2>
           </div>
-          <p id="confirm-message" className="text-sm text-on-surface-variant leading-relaxed">
+          <p id="confirm-message" className="text-sm text-fg-muted leading-relaxed">
             {message}
           </p>
         </div>
-        <div className="flex border-t border-outline-variant/20 shrink-0">
+        <div className="flex border-t border-line shrink-0">
           <button
             onClick={onCancel}
-            className="flex-1 py-3 text-xs font-headline font-semibold uppercase tracking-wide text-on-surface-variant hover:bg-surface-container-low transition-colors"
+            className="flex-1 py-3 text-xs font-sans font-semibold uppercase tracking-wide text-fg-muted hover:bg-surface-1 transition-colors"
           >
             {cancelLabel}
           </button>
-          <div className="w-px bg-outline-variant/20" />
+          <div className="w-px bg-line/20" />
           <button
             ref={confirmBtnRef}
             onClick={onConfirm}
-            className={`flex-1 py-3 text-xs font-headline font-semibold uppercase tracking-wide transition-colors ${
+            className={`flex-1 py-3 text-xs font-sans font-semibold uppercase tracking-wide transition-colors ${
               danger
                 ? 'text-error hover:bg-error/10'
                 : 'text-primary hover:bg-primary/10'

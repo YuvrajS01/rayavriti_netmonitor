@@ -9,10 +9,10 @@ function SmartInsightsInner({ insights }: Props) {
   const healthArray = insights?.health || [];
 
   return (
-    <div className="xl:col-span-2 bg-surface-container-low rounded-lg p-5 border border-outline-variant/20">
+    <div className="xl:col-span-2 bg-surface-1 rounded-lg p-5 border border-line">
       <div className="flex items-center justify-between gap-4 mb-4">
-        <h3 className="text-sm font-headline font-semibold text-on-surface">Smart Insights</h3>
-        <span className="text-xs text-on-surface-variant uppercase tracking-wide">
+        <h3 className="text-sm font-sans font-semibold text-fg">Smart Insights</h3>
+        <span className="text-xs text-fg-muted uppercase tracking-wide">
           {insights?.generatedAt ? new Date(insights.generatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Pending'}
         </span>
       </div>
@@ -27,13 +27,13 @@ function SmartInsightsInner({ insights }: Props) {
               <span className={`material-symbols-outlined ${color} text-lg mt-0.5`}>{isCritical ? 'error' : isWarn ? 'warning' : 'tips_and_updates'}</span>
               <div className="min-w-0">
                 <p className={`text-xs font-semibold uppercase tracking-wide ${color}`}>{item.deviceName}</p>
-                <p className="text-xs text-on-surface-variant mt-1 leading-relaxed">Score: {item.score.toFixed(2)} — {item.label}</p>
+                <p className="text-xs text-fg-muted mt-1 leading-relaxed">Score: {item.score.toFixed(2)} — {item.label}</p>
               </div>
             </div>
           );
         })}
         {healthArray.length === 0 && (
-          <div className="md:col-span-2 py-8 text-center text-xs text-on-surface-variant">No anomalies or grouped risks detected</div>
+          <div className="md:col-span-2 py-8 text-center text-xs text-fg-muted">No anomalies or grouped risks detected</div>
         )}
       </div>
     </div>

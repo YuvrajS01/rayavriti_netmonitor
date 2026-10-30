@@ -27,10 +27,10 @@ export default function Login() {
   };
 
   return (
-    <div className="bg-surface text-on-surface font-body min-h-screen flex login-atmosphere">
+    <div className="bg-canvas text-fg font-sans min-h-screen flex login-atmosphere">
       {/* Left Panel — Brand */}
       <div
-        className="hidden lg:flex lg:w-1/2 bg-surface-dim items-center justify-center"
+        className="hidden lg:flex lg:w-1/2 bg-canvas items-center justify-center"
         style={{
           backgroundImage: 'radial-gradient(circle, oklch(22% 0.016 150) 1px, transparent 1px)',
           backgroundSize: '24px 24px',
@@ -48,16 +48,16 @@ export default function Login() {
           {/* Login Card */}
           <div className="glass-card rounded-xl p-8 w-full max-w-md login-card">
             <div className="mb-8">
-              <h2 className="font-headline text-2xl font-semibold text-on-surface">Sign in</h2>
+              <h2 className="font-sans text-2xl font-semibold text-fg">Sign in</h2>
             </div>
 
             <form className="space-y-6" onSubmit={handleSubmit}>
               <div className="space-y-2">
-                <label className="font-label text-xs tracking-wide text-on-surface-variant ml-1">Username</label>
-                <div className="relative flex items-center bg-surface-container rounded-lg px-4 py-3 border border-outline-variant/20 text-on-surface placeholder:text-outline focus-within:border-primary focus-within:ring-1 focus-within:ring-primary/30">
-                  <span className="material-symbols-outlined text-outline text-lg mr-3">person</span>
+                <label className="font-sans text-xs tracking-wide text-fg-muted ml-1">Username</label>
+                <div className="relative flex items-center bg-surface-2 rounded-lg px-4 py-3 border border-line text-fg placeholder:text-fg-subtle focus-within:border-primary focus-within:ring-1 focus-within:ring-primary/30">
+                  <span className="material-symbols-outlined text-fg-subtle text-lg mr-3">person</span>
                   <input
-                    className="bg-transparent border-none p-0 w-full text-on-surface placeholder:text-outline focus:ring-0 text-sm tracking-tight font-body outline-none"
+                    className="bg-transparent border-none p-0 w-full text-fg placeholder:text-fg-subtle focus:ring-0 text-sm tracking-tight font-sans outline-none"
                     placeholder="Username"
                     type="text"
                     value={username}
@@ -67,11 +67,11 @@ export default function Login() {
               </div>
 
               <div className="space-y-2">
-                <label className="font-label text-xs tracking-wide text-on-surface-variant ml-1">Password</label>
-                <div className="relative flex items-center bg-surface-container rounded-lg px-4 py-3 border border-outline-variant/20 text-on-surface placeholder:text-outline focus-within:border-primary focus-within:ring-1 focus-within:ring-primary/30">
-                  <span className="material-symbols-outlined text-outline text-lg mr-3">lock</span>
+                <label className="font-sans text-xs tracking-wide text-fg-muted ml-1">Password</label>
+                <div className="relative flex items-center bg-surface-2 rounded-lg px-4 py-3 border border-line text-fg placeholder:text-fg-subtle focus-within:border-primary focus-within:ring-1 focus-within:ring-primary/30">
+                  <span className="material-symbols-outlined text-fg-subtle text-lg mr-3">lock</span>
                   <input
-                    className="bg-transparent border-none p-0 w-full text-on-surface placeholder:text-outline focus:ring-0 text-sm tracking-tight font-body outline-none"
+                    className="bg-transparent border-none p-0 w-full text-fg placeholder:text-fg-subtle focus:ring-0 text-sm tracking-tight font-sans outline-none"
                     placeholder="••••••••••••"
                     type="password"
                     value={password}
@@ -83,7 +83,7 @@ export default function Login() {
               <button
                 type="submit"
                 disabled={loading}
-                className="bg-primary text-on-primary font-body font-medium py-3 rounded-md w-full hover:bg-primary-dim transition-colors duration-200 flex items-center justify-center disabled:opacity-50"
+                className="bg-primary text-on-primary font-sans font-medium py-3 rounded-md w-full hover:bg-primary-hover transition-colors duration-200 flex items-center justify-center disabled:opacity-50"
               >
                 <span>{loading ? 'Signing In...' : 'Sign In'}</span>
               </button>

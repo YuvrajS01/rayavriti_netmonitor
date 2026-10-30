@@ -210,16 +210,16 @@ export default function BulkImport() {
           const isDone = stepKeys.indexOf(step) > i;
           return (
             <div key={s} className="flex items-center gap-2">
-              {i > 0 && <span className="w-8 h-px bg-outline-variant/30" />}
+              {i > 0 && <span className="w-8 h-px bg-line/30" />}
               <span
                 className={[
                   'w-7 h-7 rounded-full flex items-center justify-center font-semibold text-xs transition-colors',
-                  isActive ? 'bg-primary text-on-primary' : isDone ? 'bg-primary/20 text-primary' : 'bg-surface-container-lowest text-on-surface-variant',
+                  isActive ? 'bg-primary text-on-primary' : isDone ? 'bg-primary/20 text-primary' : 'bg-inset text-fg-muted',
                 ].join(' ')}
               >
                 {isDone ? '✓' : i + 1}
               </span>
-              <span className={isActive ? 'text-primary font-semibold uppercase tracking-wide' : 'text-on-surface-variant uppercase tracking-wide'}>
+              <span className={isActive ? 'text-primary font-semibold uppercase tracking-wide' : 'text-fg-muted uppercase tracking-wide'}>
                 {s}
               </span>
             </div>
@@ -236,7 +236,7 @@ export default function BulkImport() {
             onDrop={handleDrop}
             className={[
               'border-2 border-dashed rounded-xl p-12 text-center transition-colors duration-200 cursor-pointer',
-              dragOver ? 'border-primary bg-primary/5' : 'border-outline-variant/30 hover:border-outline/50',
+              dragOver ? 'border-primary bg-primary/5' : 'border-line hover:border-line-strong/50',
             ].join(' ')}
             onClick={() => document.getElementById('csv-input')?.click()}
           >
@@ -247,14 +247,14 @@ export default function BulkImport() {
               className="hidden"
               onChange={handleInputChange}
             />
-            <span className={`material-symbols-outlined text-5xl mb-4 block transition-colors ${dragOver ? 'text-primary' : 'text-outline'}`}>
+            <span className={`material-symbols-outlined text-5xl mb-4 block transition-colors ${dragOver ? 'text-primary' : 'text-fg-subtle'}`}>
               upload_file
             </span>
-            <p className="font-headline font-semibold text-lg mb-2">
+            <p className="font-sans font-semibold text-lg mb-2">
               {dragOver ? 'Drop your CSV file' : 'Drag & drop your CSV file'}
             </p>
-            <p className="text-sm text-on-surface-variant mb-4">or click to browse</p>
-            <p className="text-xs text-outline">
+            <p className="text-sm text-fg-muted mb-4">or click to browse</p>
+            <p className="text-xs text-fg-subtle">
               Expected columns: {EXPECTED_HEADERS.join(', ')}
             </p>
           </div>
@@ -267,15 +267,15 @@ export default function BulkImport() {
           {/* Summary bar */}
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
             {[
-              { label: 'Total Rows', value: stats.total, color: 'text-on-surface' },
+              { label: 'Total Rows', value: stats.total, color: 'text-fg' },
               { label: 'Valid', value: stats.valid, color: 'text-success' },
               { label: 'Warnings', value: stats.warnings, color: 'text-warning' },
               { label: 'Errors', value: stats.errors, color: 'text-error' },
               { label: 'Duplicates', value: stats.dupes, color: 'text-info' },
             ].map((s) => (
               <Card key={s.label} variant="low" className="p-3 text-center">
-                <div className={`font-headline text-2xl font-semibold ${s.color}`}>{s.value}</div>
-                <div className="text-[10px] uppercase tracking-wide text-on-surface-variant mt-1">{s.label}</div>
+                <div className={`font-sans text-2xl font-semibold ${s.color}`}>{s.value}</div>
+                <div className="text-[10px] uppercase tracking-wide text-fg-muted mt-1">{s.label}</div>
               </Card>
             ))}
           </div>
@@ -285,14 +285,14 @@ export default function BulkImport() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-outline-variant/20 bg-surface-container">
-                    <th className="px-4 py-3 text-left text-[10px] uppercase tracking-wide text-on-surface-variant font-semibold w-12">#</th>
-                    <th className="px-4 py-3 text-left text-[10px] uppercase tracking-wide text-on-surface-variant font-semibold">Status</th>
-                    <th className="px-4 py-3 text-left text-[10px] uppercase tracking-wide text-on-surface-variant font-semibold">Name</th>
-                    <th className="px-4 py-3 text-left text-[10px] uppercase tracking-wide text-on-surface-variant font-semibold">Host</th>
-                    <th className="px-4 py-3 text-left text-[10px] uppercase tracking-wide text-on-surface-variant font-semibold">Protocol</th>
-                    <th className="px-4 py-3 text-left text-[10px] uppercase tracking-wide text-on-surface-variant font-semibold">Category</th>
-                    <th className="px-4 py-3 text-left text-[10px] uppercase tracking-wide text-on-surface-variant font-semibold">Location</th>
+                  <tr className="border-b border-line bg-surface-2">
+                    <th className="px-4 py-3 text-left text-[10px] uppercase tracking-wide text-fg-muted font-semibold w-12">#</th>
+                    <th className="px-4 py-3 text-left text-[10px] uppercase tracking-wide text-fg-muted font-semibold">Status</th>
+                    <th className="px-4 py-3 text-left text-[10px] uppercase tracking-wide text-fg-muted font-semibold">Name</th>
+                    <th className="px-4 py-3 text-left text-[10px] uppercase tracking-wide text-fg-muted font-semibold">Host</th>
+                    <th className="px-4 py-3 text-left text-[10px] uppercase tracking-wide text-fg-muted font-semibold">Protocol</th>
+                    <th className="px-4 py-3 text-left text-[10px] uppercase tracking-wide text-fg-muted font-semibold">Category</th>
+                    <th className="px-4 py-3 text-left text-[10px] uppercase tracking-wide text-fg-muted font-semibold">Location</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -307,10 +307,10 @@ export default function BulkImport() {
                             className={[
                               'flex items-center px-4 py-2.5 transition-colors',
                               !rv.valid ? 'bg-error/5' : rv.warnings.length > 0 ? 'bg-warning/5' : '',
-                              hasIssues ? 'cursor-pointer hover:bg-surface-container-low/60' : '',
+                              hasIssues ? 'cursor-pointer hover:bg-surface-1/60' : '',
                             ].join(' ')}
                           >
-                            <span className="w-12 text-on-surface-variant text-xs shrink-0">{rv.lineNumber}</span>
+                            <span className="w-12 text-fg-muted text-xs shrink-0">{rv.lineNumber}</span>
                             <span className="w-16 shrink-0">
                               {!rv.valid ? (
                                 <span className="material-symbols-outlined text-error text-base">error</span>
@@ -321,10 +321,10 @@ export default function BulkImport() {
                               )}
                             </span>
                             <span className="flex-1 min-w-0 font-medium truncate">{rv.row.name || '—'}</span>
-                            <span className="flex-1 min-w-0 text-on-surface-variant font-data text-xs truncate">{rv.row.host || '—'}</span>
-                            <span className="w-20 text-on-surface-variant text-xs uppercase shrink-0">{rv.row.protocol || 'ping'}</span>
-                            <span className="w-24 text-on-surface-variant text-xs truncate shrink-0">{rv.row.device_category || '—'}</span>
-                            <span className="w-20 text-on-surface-variant text-xs truncate shrink-0">{rv.row.location_code || '—'}</span>
+                            <span className="flex-1 min-w-0 text-fg-muted font-mono text-xs truncate">{rv.row.host || '—'}</span>
+                            <span className="w-20 text-fg-muted text-xs uppercase shrink-0">{rv.row.protocol || 'ping'}</span>
+                            <span className="w-24 text-fg-muted text-xs truncate shrink-0">{rv.row.device_category || '—'}</span>
+                            <span className="w-20 text-fg-muted text-xs truncate shrink-0">{rv.row.location_code || '—'}</span>
                           </div>
                           {/* Expanded validation messages */}
                           {isExpanded && hasIssues && (
@@ -370,8 +370,8 @@ export default function BulkImport() {
       {step === 'result' && result && (
         <Card variant="low" className="p-8 text-center">
           <span className="material-symbols-outlined text-6xl text-success mb-4 block">task_alt</span>
-          <h2 className="font-headline font-semibold text-2xl mb-2">Import Complete</h2>
-          <p className="text-on-surface-variant mb-6">
+          <h2 className="font-sans font-semibold text-2xl mb-2">Import Complete</h2>
+          <p className="text-fg-muted mb-6">
             <span className="text-success font-semibold">{result.created}</span> devices imported successfully
             {result.errors.length > 0 && (
               <>, <span className="text-error font-semibold">{result.errors.length}</span> failed</>
@@ -386,7 +386,7 @@ export default function BulkImport() {
                   <p key={i} className="text-xs text-error">{e}</p>
                 ))}
                 {result.errors.length > 10 && (
-                  <p className="text-xs text-on-surface-variant">...and {result.errors.length - 10} more</p>
+                  <p className="text-xs text-fg-muted">...and {result.errors.length - 10} more</p>
                 )}
               </div>
             </div>

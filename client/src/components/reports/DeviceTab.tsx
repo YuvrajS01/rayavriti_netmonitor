@@ -25,26 +25,26 @@ export default function DeviceTab({ devices, onSelectDevice }: { devices: Device
   });
 
   const hdr = (label: string, key: SortKey, align = 'text-left') => (
-    <th className={`pb-3 font-medium cursor-pointer select-none hover:text-on-surface transition-colors ${align}`} onClick={() => toggle(key)}>
+    <th className={`pb-3 font-medium cursor-pointer select-none hover:text-fg transition-colors ${align}`} onClick={() => toggle(key)}>
       {label} {sortKey === key ? (sortDesc ? '↓' : '↑') : ''}
     </th>
   );
 
   return (
     <div className="report-section">
-      <div className="bg-surface-container-low rounded-lg p-6 border border-outline-variant/20">
+      <div className="bg-surface-1 rounded-lg p-6 border border-line">
         <div className="flex items-center gap-2 mb-6">
           <span className="material-symbols-outlined text-primary text-xl">devices</span>
-          <h3 className="text-sm font-headline font-semibold uppercase tracking-wide">Per-Device Performance</h3>
-          <span className="ml-auto text-[10px] text-on-surface-variant uppercase tracking-wide">{devices.length} devices</span>
+          <h3 className="text-sm font-sans font-semibold uppercase tracking-wide">Per-Device Performance</h3>
+          <span className="ml-auto text-[10px] text-fg-muted uppercase tracking-wide">{devices.length} devices</span>
         </div>
         {devices.length === 0 ? (
-          <p className="text-xs text-on-surface-variant text-center py-16">No device data for selected range</p>
+          <p className="text-xs text-fg-muted text-center py-16">No device data for selected range</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="text-[10px] uppercase tracking-wide text-on-surface-variant border-b border-outline-variant/20">
+                <tr className="text-[10px] uppercase tracking-wide text-fg-muted border-b border-line">
                   {hdr('Device', 'deviceName')}
                   {hdr('Availability', 'availabilityPercent', 'text-center')}
                   {hdr('Avg Response', 'avgResponse', 'text-right')}
@@ -54,14 +54,14 @@ export default function DeviceTab({ devices, onSelectDevice }: { devices: Device
               </thead>
               <tbody className="text-sm">
                 {sorted.map((d) => (
-                  <tr key={d.deviceId} className="border-b border-outline-variant/10 hover:bg-surface-container-lowest/50 transition-colors cursor-pointer group" onClick={() => onSelectDevice(d.deviceId)}>
+                  <tr key={d.deviceId} className="border-b border-line hover:bg-inset/50 transition-colors cursor-pointer group" onClick={() => onSelectDevice(d.deviceId)}>
                     <td className="py-3">
                       <div className="flex items-center gap-2">
                         <span className="material-symbols-outlined text-sm opacity-60">
                           {d.protocol === 'ping' ? 'router' : d.protocol === 'http' || d.protocol === 'https' ? 'public' : d.protocol === 'system' ? 'memory' : d.protocol === 'snmp' ? 'settings_input_antenna' : 'hub'}
                         </span>
-                        <span className="font-headline font-semibold group-hover:text-on-surface transition-colors">{d.deviceName}</span>
-                        <span className="text-[10px] text-on-surface-variant uppercase">{d.protocol}</span>
+                        <span className="font-sans font-semibold group-hover:text-fg transition-colors">{d.deviceName}</span>
+                        <span className="text-[10px] text-fg-muted uppercase">{d.protocol}</span>
                       </div>
                     </td>
                     <td className="py-3 text-center">
@@ -69,9 +69,9 @@ export default function DeviceTab({ devices, onSelectDevice }: { devices: Device
                         {d.availabilityPercent ?? (d.sampleCount > 0 ? (100 - (d.downCount / d.sampleCount) * 100).toFixed(1) : '100')}%
                       </span>
                     </td>
-                    <td className="py-3 text-right font-data">{d.avgResponse}ms</td>
-                    <td className="py-3 text-right font-data text-on-surface-variant">{d.sampleCount}</td>
-                    <td className="py-3 text-right font-data text-error">{d.downCount || '—'}</td>
+                    <td className="py-3 text-right font-mono">{d.avgResponse}ms</td>
+                    <td className="py-3 text-right font-mono text-fg-muted">{d.sampleCount}</td>
+                    <td className="py-3 text-right font-mono text-error">{d.downCount || '—'}</td>
                   </tr>
                 ))}
               </tbody>

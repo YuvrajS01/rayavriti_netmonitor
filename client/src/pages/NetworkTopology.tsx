@@ -414,33 +414,33 @@ export default function NetworkTopology() {
       />
 
       <div className="flex flex-wrap items-center gap-3">
-        <select value={filters.status} onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value }))} className="bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-3 py-2 text-xs text-on-surface outline-none focus:ring-1 focus:ring-primary">
+        <select value={filters.status} onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value }))} className="bg-inset border border-line rounded-lg px-3 py-2 text-xs text-fg outline-none focus:ring-1 focus:ring-primary">
           <option value="all">All statuses</option>
           <option value="up">Up</option>
           <option value="warning">Warning</option>
           <option value="down">Down</option>
         </select>
-        <select value={filters.protocol} onChange={(e) => setFilters((f) => ({ ...f, protocol: e.target.value }))} className="bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-3 py-2 text-xs text-on-surface outline-none focus:ring-1 focus:ring-primary">
+        <select value={filters.protocol} onChange={(e) => setFilters((f) => ({ ...f, protocol: e.target.value }))} className="bg-inset border border-line rounded-lg px-3 py-2 text-xs text-fg outline-none focus:ring-1 focus:ring-primary">
           <option value="all">All protocols</option>
           {protocols.map((p) => <option key={p} value={p}>{p.toUpperCase()}</option>)}
         </select>
-        <select value={filters.category} onChange={(e) => setFilters((f) => ({ ...f, category: e.target.value }))} className="bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-3 py-2 text-xs text-on-surface outline-none focus:ring-1 focus:ring-primary">
+        <select value={filters.category} onChange={(e) => setFilters((f) => ({ ...f, category: e.target.value }))} className="bg-inset border border-line rounded-lg px-3 py-2 text-xs text-fg outline-none focus:ring-1 focus:ring-primary">
           <option value="all">All categories</option>
           {categories.map((c) => <option key={c} value={c}>{c}</option>)}
         </select>
         <div className="ml-auto flex items-center gap-2">
-          <button onClick={() => zoomBy(1.2)} className="w-8 h-8 grid place-items-center rounded-md border border-outline-variant/30 text-on-surface-variant hover:text-on-surface hover:border-primary/50"><span className="material-symbols-outlined text-base">add</span></button>
-          <button onClick={() => zoomBy(0.83)} className="w-8 h-8 grid place-items-center rounded-md border border-outline-variant/30 text-on-surface-variant hover:text-on-surface hover:border-primary/50"><span className="material-symbols-outlined text-base">remove</span></button>
-          <button onClick={() => { setZoom(1); sim.current.pan = { x: 0, y: 0 }; }} className="px-3 h-8 rounded-md border border-outline-variant/30 text-xs text-on-surface-variant hover:text-on-surface hover:border-primary/50">Reset</button>
+          <button onClick={() => zoomBy(1.2)} className="w-8 h-8 grid place-items-center rounded-md border border-line text-fg-muted hover:text-fg hover:border-primary/50"><span className="material-symbols-outlined text-base">add</span></button>
+          <button onClick={() => zoomBy(0.83)} className="w-8 h-8 grid place-items-center rounded-md border border-line text-fg-muted hover:text-fg hover:border-primary/50"><span className="material-symbols-outlined text-base">remove</span></button>
+          <button onClick={() => { setZoom(1); sim.current.pan = { x: 0, y: 0 }; }} className="px-3 h-8 rounded-md border border-line text-xs text-fg-muted hover:text-fg hover:border-primary/50">Reset</button>
         </div>
       </div>
 
       {/* Legend */}
-      <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-[10px] uppercase tracking-wide text-on-surface-variant">
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-[10px] uppercase tracking-wide text-fg-muted">
         <span className="text-success">● Up</span>
         <span className="text-warning">● Warning</span>
         <span className="text-error">● Down</span>
-        <span className="border-l border-outline-variant/30 pl-5">◯ Host</span>
+        <span className="border-l border-line pl-5">◯ Host</span>
         <span>◇ Switch</span>
         <span>⬡ Firewall</span>
         <span>▢ Server</span>
@@ -448,11 +448,11 @@ export default function NetworkTopology() {
 
       <div className="grid grid-cols-1 xl:grid-cols-[1fr_280px] gap-5">
         <Card variant="low" className="p-4 overflow-hidden min-h-[600px] relative">
-          <div className="text-[10px] uppercase tracking-wide text-on-surface-variant mb-3 flex items-center gap-3">
+          <div className="text-[10px] uppercase tracking-wide text-fg-muted mb-3 flex items-center gap-3">
             <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-success status-dot-live" /> Live topology</span>
-            <span className="font-data">{visible.list.length} nodes</span>
-            <span className="font-data">{realEdgeCount} dependency edges</span>
-            {edgeCount > realEdgeCount && <span className="font-data text-outline">+{edgeCount - realEdgeCount} inferred</span>}
+            <span className="font-mono">{visible.list.length} nodes</span>
+            <span className="font-mono">{realEdgeCount} dependency edges</span>
+            {edgeCount > realEdgeCount && <span className="font-mono text-fg-subtle">+{edgeCount - realEdgeCount} inferred</span>}
           </div>
           <div ref={wrapRef} className="relative">
             {visible.list.length ? (
@@ -468,18 +468,18 @@ export default function NetworkTopology() {
                 onWheel={onWheel}
               />
             ) : (
-              <div className="h-[540px] grid place-items-center text-sm text-on-surface-variant">No devices available for topology mapping.</div>
+              <div className="h-[540px] grid place-items-center text-sm text-fg-muted">No devices available for topology mapping.</div>
             )}
             {hovered && (
-              <div className="absolute top-2 left-2 z-10 bg-surface-container-high border border-outline-variant/30 rounded-lg p-3 text-xs max-w-[240px] pointer-events-none">
-                <strong className="font-headline text-sm block truncate">{hovered.node.name}</strong>
-                <span className="text-on-surface-variant font-data">{hovered.node.ip}</span>
+              <div className="absolute top-2 left-2 z-10 bg-surface-2 border border-line rounded-lg p-3 text-xs max-w-[240px] pointer-events-none">
+                <strong className="font-sans text-sm block truncate">{hovered.node.name}</strong>
+                <span className="text-fg-muted font-mono">{hovered.node.ip}</span>
                 <div className="mt-1.5 flex items-center gap-2">
                   <span className="flex items-center gap-1.5">
                     <span className="w-2 h-2 rounded-full" style={{ background: colorFor(hovered.node.status) }} />
                     <span className="uppercase tracking-wide" style={{ color: colorFor(hovered.node.status) }}>{hovered.node.status}</span>
                   </span>
-                  {hovered.node.category && <span className="text-outline">· {hovered.node.category}</span>}
+                  {hovered.node.category && <span className="text-fg-subtle">· {hovered.node.category}</span>}
                 </div>
               </div>
             )}
@@ -489,37 +489,37 @@ export default function NetworkTopology() {
         <Card variant="low" className="p-5">
           {selected ? (
             <>
-              <p className="text-[10px] text-on-surface-variant uppercase tracking-wide">Selected node</p>
-              <h2 className="font-headline text-xl font-semibold mt-1">{selected.name}</h2>
-              <p className="font-data text-xs text-on-surface-variant mt-1">{selected.ipAddress}{selected.port > 0 ? `:${selected.port}` : ''}</p>
+              <p className="text-[10px] text-fg-muted uppercase tracking-wide">Selected node</p>
+              <h2 className="font-sans text-xl font-semibold mt-1">{selected.name}</h2>
+              <p className="font-mono text-xs text-fg-muted mt-1">{selected.ipAddress}{selected.port > 0 ? `:${selected.port}` : ''}</p>
               <dl className="mt-6 space-y-4 text-sm">
                 <div>
-                  <dt className="text-[10px] uppercase text-on-surface-variant">Status</dt>
+                  <dt className="text-[10px] uppercase text-fg-muted">Status</dt>
                   <dd style={{ color: colorFor(metricsMap.get(selected.id)?.status || selected.status) }} className="font-semibold capitalize">{metricsMap.get(selected.id)?.status || selected.status}</dd>
                 </div>
                 <div>
-                  <dt className="text-[10px] uppercase text-on-surface-variant">Protocol</dt>
+                  <dt className="text-[10px] uppercase text-fg-muted">Protocol</dt>
                   <dd className="font-semibold uppercase">{selected.protocol}</dd>
                 </div>
                 {selected.deviceCategory && (
                   <div>
-                    <dt className="text-[10px] uppercase text-on-surface-variant">Category</dt>
+                    <dt className="text-[10px] uppercase text-fg-muted">Category</dt>
                     <dd className="capitalize">{selected.deviceCategory}</dd>
                   </div>
                 )}
                 <div>
-                  <dt className="text-[10px] uppercase text-on-surface-variant">Parent dependency</dt>
+                  <dt className="text-[10px] uppercase text-fg-muted">Parent dependency</dt>
                   <dd>{selected.parentDeviceId ? (nodeById.get(selected.parentDeviceId)?.name || `Device #${selected.parentDeviceId}`) : 'Root / auto-discovered'}</dd>
                 </div>
                 <div>
-                  <dt className="text-[10px] uppercase text-on-surface-variant">Response</dt>
-                  <dd className="font-data">{metricsMap.get(selected.id)?.responseTime != null ? `${metricsMap.get(selected.id)!.responseTime}ms` : '—'}</dd>
+                  <dt className="text-[10px] uppercase text-fg-muted">Response</dt>
+                  <dd className="font-mono">{metricsMap.get(selected.id)?.responseTime != null ? `${metricsMap.get(selected.id)!.responseTime}ms` : '—'}</dd>
                 </div>
               </dl>
               <button onClick={() => setSelected(null)} className="mt-6 text-xs text-primary font-semibold hover:underline">Clear selection</button>
             </>
           ) : (
-            <div className="text-sm text-on-surface-variant pt-12">Select a node to inspect its live status and dependency chain.</div>
+            <div className="text-sm text-fg-muted pt-12">Select a node to inspect its live status and dependency chain.</div>
           )}
         </Card>
       </div>

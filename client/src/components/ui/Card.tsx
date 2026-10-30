@@ -9,9 +9,9 @@ interface CardProps extends HTMLAttributes<HTMLDivElement> {
 
 export default function Card({ children, variant = 'high', hover = false, borderless = false, className = '', ...props }: CardProps) {
   const bgMap = {
-    high: 'bg-surface-container-high',
-    low: 'bg-surface-container-low',
-    highest: 'bg-surface-container-highest',
+    high: 'bg-surface-1',
+    low: 'bg-inset',
+    highest: 'bg-surface-3',
   };
 
   return (
@@ -20,7 +20,7 @@ export default function Card({ children, variant = 'high', hover = false, border
       className={[
         bgMap[variant],
         'rounded-lg',
-        borderless ? '' : 'border border-outline-variant/20',
+        borderless ? '' : 'border border-line',
         hover ? 'hover:border-primary/50 transition-[border-color] cursor-pointer' : '',
         className,
       ].filter(Boolean).join(' ')}

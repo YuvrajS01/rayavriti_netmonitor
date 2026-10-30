@@ -10,23 +10,23 @@ describe('Card', () => {
 
   it('applies high variant class by default', () => {
     const { container } = render(<Card>High</Card>);
-    expect(container.firstChild).toHaveClass('bg-surface-container-high');
+    expect(container.firstChild).toHaveClass('bg-surface-1');
   });
 
   it('applies low variant class', () => {
     const { container } = render(<Card variant="low">Low</Card>);
-    expect(container.firstChild).toHaveClass('bg-surface-container-low');
+    expect(container.firstChild).toHaveClass('bg-inset');
   });
 
   it('applies highest variant class', () => {
     const { container } = render(<Card variant="highest">Highest</Card>);
-    expect(container.firstChild).toHaveClass('bg-surface-container-highest');
+    expect(container.firstChild).toHaveClass('bg-surface-3');
   });
 
   it('applies border by default', () => {
     const { container } = render(<Card>Bordered</Card>);
     expect(container.firstChild).toHaveClass('border');
-    expect(container.firstChild).toHaveClass('border-outline-variant/20');
+    expect(container.firstChild).toHaveClass('border-line');
   });
 
   it('hides border when borderless', () => {

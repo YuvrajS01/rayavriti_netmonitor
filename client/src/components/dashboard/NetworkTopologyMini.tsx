@@ -141,11 +141,11 @@ export default function NetworkTopologyMini() {
   }, [width]);
 
   return (
-    <section className="bg-surface-container-low rounded-lg p-5 border border-outline-variant/20 flex flex-col">
+    <section className="bg-surface-1 rounded-lg p-5 border border-line flex flex-col">
       <div className="flex items-center justify-between mb-3">
         <div>
-          <h3 className="text-sm font-headline font-semibold uppercase tracking-wide">Topology preview</h3>
-          <p className="text-[10px] uppercase tracking-wide text-on-surface-variant">Top {count} nodes · click to expand</p>
+          <h3 className="text-sm font-sans font-semibold uppercase tracking-wide">Topology preview</h3>
+          <p className="text-[10px] uppercase tracking-wide text-fg-muted">Top {count} nodes · click to expand</p>
         </div>
         <button onClick={() => navigate('/devices/topology')} className="text-xs text-primary font-semibold hover:underline">Open full ↗</button>
       </div>
@@ -153,7 +153,7 @@ export default function NetworkTopologyMini() {
         {count ? (
           <canvas ref={fgRef} className="cursor-pointer rounded" onClick={() => navigate('/devices/topology')} style={{ width, height: 210 }} />
         ) : (
-          <div className="h-[210px] grid place-items-center text-xs text-on-surface-variant">Building topology…</div>
+          <div className="h-[210px] grid place-items-center text-xs text-fg-muted">Building topology…</div>
         )}
       </div>
     </section>

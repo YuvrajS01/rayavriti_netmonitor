@@ -10,7 +10,7 @@ interface FloorPlanViewProps {
   onDeviceClick?: (device: Device) => void;
 }
 
-const UNKNOWN_STATUS_COLOR = 'bg-outline border-outline';
+const UNKNOWN_STATUS_COLOR = 'bg-line-strong border-line-strong';
 const statusColors: Record<string, string> = {
   up: 'bg-success border-success',
   down: 'bg-error border-error',
@@ -48,10 +48,10 @@ export default function FloorPlanView({
 }: FloorPlanViewProps) {
   if (!location) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[440px] bg-surface-container-lowest rounded-lg border border-outline-variant/20 p-8 text-center">
-        <span className="material-symbols-outlined text-5xl text-outline mb-4">architecture</span>
-        <h2 className="font-headline text-xl font-semibold">Floor plan workspace</h2>
-        <p className="text-sm text-on-surface-variant mt-2 max-w-md">
+      <div className="flex flex-col items-center justify-center min-h-[440px] bg-inset rounded-lg border border-line p-8 text-center">
+        <span className="material-symbols-outlined text-5xl text-fg-subtle mb-4">architecture</span>
+        <h2 className="font-sans text-xl font-semibold">Floor plan workspace</h2>
+        <p className="text-sm text-fg-muted mt-2 max-w-md">
           Select a location from the tree to view its floor plan
         </p>
       </div>
@@ -67,10 +67,10 @@ export default function FloorPlanView({
 
   if (items.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[440px] bg-surface-container-lowest rounded-lg border border-outline-variant/20 p-8 text-center">
-        <span className="material-symbols-outlined text-5xl text-outline mb-4">architecture</span>
-        <h2 className="font-headline text-xl font-semibold">No floor plan data</h2>
-        <p className="text-sm text-on-surface-variant mt-2">
+      <div className="flex flex-col items-center justify-center min-h-[440px] bg-inset rounded-lg border border-line p-8 text-center">
+        <span className="material-symbols-outlined text-5xl text-fg-subtle mb-4">architecture</span>
+        <h2 className="font-sans text-xl font-semibold">No floor plan data</h2>
+        <p className="text-sm text-fg-muted mt-2">
           This location has no rooms or racks configured.
         </p>
       </div>
@@ -78,7 +78,7 @@ export default function FloorPlanView({
   }
 
   return (
-    <div className="min-h-[440px] bg-surface-container-lowest rounded-lg border border-outline-variant/20 p-6">
+    <div className="min-h-[440px] bg-inset rounded-lg border border-line p-6">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {items.map((item) => {
           const itemId = Number(item.id);
@@ -120,16 +120,16 @@ function RoomVisual({
 }) {
   return (
     <Card variant="low" className="flex flex-col h-full overflow-hidden">
-      <div className="p-4 border-b border-outline-variant/20 flex items-center gap-2">
+      <div className="p-4 border-b border-line flex items-center gap-2">
         <span className="material-symbols-outlined text-primary">meeting_room</span>
         <div>
-          <h3 className="font-headline font-semibold text-base">{String(location.name)}</h3>
-          <p className="text-[10px] uppercase tracking-wide text-on-surface-variant">Room</p>
+          <h3 className="font-sans font-semibold text-base">{String(location.name)}</h3>
+          <p className="text-[10px] uppercase tracking-wide text-fg-muted">Room</p>
         </div>
       </div>
       <div className="p-4 flex-1 flex flex-col gap-3">
         {devices.length === 0 ? (
-          <div className="text-center text-on-surface-variant text-sm py-4">
+          <div className="text-center text-fg-muted text-sm py-4">
             No devices
           </div>
         ) : (
@@ -142,7 +142,7 @@ function RoomVisual({
               <div
                 key={d.id}
                 onClick={() => onClick?.(d)}
-                className={`flex items-center gap-3 p-3 rounded bg-surface-container border-l-4 ${borderClass} border-y border-r border-y-outline-variant/10 border-r-outline-variant/10 hover:bg-surface-container-high transition-colors cursor-pointer`}
+                className={`flex items-center gap-3 p-3 rounded bg-surface-2 border-l-4 ${borderClass} border-y border-r border-y-line border-r-line hover:bg-surface-2 transition-colors cursor-pointer`}
               >
                 <div className="relative shrink-0">
                   <span className={`absolute -inset-1 rounded-full ${bgClass} opacity-20 status-dot-live`}></span>
@@ -150,14 +150,14 @@ function RoomVisual({
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="material-symbols-outlined text-[16px] text-on-surface-variant">
+                    <span className="material-symbols-outlined text-[16px] text-fg-muted">
                       {getCategoryIcon(d.deviceCategory)}
                     </span>
                     <span className="font-semibold text-sm truncate">{d.name}</span>
                   </div>
                   <div className="flex items-center justify-between mt-1">
-                    <span className="font-data text-[11px] text-on-surface-variant">{d.ipAddress}</span>
-                    <span className="text-[9px] uppercase tracking-wide bg-surface-container-highest px-1.5 py-0.5 rounded text-on-surface-variant">
+                    <span className="font-mono text-[11px] text-fg-muted">{d.ipAddress}</span>
+                    <span className="text-[9px] uppercase tracking-wide bg-surface-3 px-1.5 py-0.5 rounded text-fg-muted">
                       {d.protocol}
                     </span>
                   </div>
@@ -210,15 +210,15 @@ function RackVisual({
 
   return (
     <Card variant="low" className="flex flex-col h-[500px] overflow-hidden">
-      <div className="p-4 border-b border-outline-variant/20 flex items-center gap-2 shrink-0">
+      <div className="p-4 border-b border-line flex items-center gap-2 shrink-0">
         <span className="material-symbols-outlined text-primary">dns</span>
         <div>
-          <h3 className="font-headline font-semibold text-base">{String(location.name)}</h3>
-          <p className="text-[10px] uppercase tracking-wide text-on-surface-variant">42U Rack</p>
+          <h3 className="font-sans font-semibold text-base">{String(location.name)}</h3>
+          <p className="text-[10px] uppercase tracking-wide text-fg-muted">42U Rack</p>
         </div>
       </div>
-      <div className="flex-1 overflow-y-auto p-4 bg-surface-container-lowest">
-        <div className="flex flex-col gap-[2px] border-x-4 border-surface-container-highest rounded-sm bg-surface-container-highest">
+      <div className="flex-1 overflow-y-auto p-4 bg-inset">
+        <div className="flex flex-col gap-[2px] border-x-4 border-surface-3 rounded-sm bg-surface-3">
           {units.map((u) => {
             const device = devicesByUnit.get(u);
             
@@ -230,14 +230,14 @@ function RackVisual({
                 <div
                   key={u}
                   onClick={() => onClick?.(device)}
-                  className={`flex items-center h-8 bg-surface-container border-l-4 ${borderClass} px-2 hover:bg-surface-container-high cursor-pointer transition-colors group`}
+                  className={`flex items-center h-8 bg-surface-2 border-l-4 ${borderClass} px-2 hover:bg-surface-2 cursor-pointer transition-colors group`}
                   title={`${device.name} (${device.ipAddress})`}
                 >
-                  <div className="w-5 text-[9px] text-on-surface-variant font-data text-right pr-2 select-none">
+                  <div className="w-5 text-[9px] text-fg-muted font-mono text-right pr-2 select-none">
                     {u}
                   </div>
                   <div className="flex-1 min-w-0 flex items-center gap-2">
-                    <span className="material-symbols-outlined text-[14px] text-on-surface-variant">
+                    <span className="material-symbols-outlined text-[14px] text-fg-muted">
                       {getCategoryIcon(device.deviceCategory)}
                     </span>
                     <span className="text-xs font-medium truncate group-hover:text-primary transition-colors">
@@ -249,8 +249,8 @@ function RackVisual({
             }
             
             return (
-              <div key={u} className="flex items-center h-8 bg-surface-container-lowest border border-dashed border-outline-variant/20 px-2 opacity-50">
-                <div className="w-5 text-[9px] text-outline-variant font-data text-right pr-2 select-none">
+              <div key={u} className="flex items-center h-8 bg-inset border border-dashed border-line px-2 opacity-50">
+                <div className="w-5 text-[9px] text-line font-mono text-right pr-2 select-none">
                   {u}
                 </div>
               </div>

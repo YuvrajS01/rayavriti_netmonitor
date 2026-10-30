@@ -39,10 +39,10 @@ function StatusDistributionInner({ metrics }: Props) {
   const active = activeIndex != null ? donutData[activeIndex] : undefined;
 
   return (
-    <div className="bg-surface-container-low rounded-lg p-4 border border-outline-variant/20 flex flex-col group">
-      <h3 className="text-sm font-headline font-semibold text-on-surface mb-3">Status Distribution</h3>
+    <div className="bg-surface-1 rounded-lg p-4 border border-line flex flex-col group">
+      <h3 className="text-sm font-sans font-semibold text-fg mb-3">Status Distribution</h3>
       {donutTotal === 0 ? (
-        <p className="text-xs text-on-surface-variant text-center my-auto py-8">No data yet</p>
+        <p className="text-xs text-fg-muted text-center my-auto py-8">No data yet</p>
       ) : (
         <div className="flex flex-col items-center justify-center flex-1">
           <ResponsiveContainer width="100%" height={190}>
@@ -71,9 +71,9 @@ function StatusDistributionInner({ metrics }: Props) {
                 ))}
               </Pie>
               <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: unknown, name: unknown) => [Number(v ?? 0), String(name)]} />
-              <text x="50%" y="46%" textAnchor="middle" dominantBaseline="middle" fill="currentColor" className="text-on-surface">
+              <text x="50%" y="46%" textAnchor="middle" dominantBaseline="middle" fill="currentColor" className="text-fg">
                 <tspan x="50%" dy="-0.3em" fontSize="24" fontWeight="600" fontFamily="'Instrument Sans Variable', sans-serif">{active ? active.value : donutTotal}</tspan>
-                <tspan x="50%" dy="1.3em" fontSize="9" className="text-on-surface-variant" fontFamily="'Plus Jakarta Sans Variable', sans-serif" letterSpacing="0.12em">{active ? active.name.toUpperCase() : 'DEVICES'}</tspan>
+                <tspan x="50%" dy="1.3em" fontSize="9" className="text-fg-muted" fontFamily="'Plus Jakarta Sans Variable', sans-serif" letterSpacing="0.12em">{active ? active.name.toUpperCase() : 'DEVICES'}</tspan>
               </text>
             </PieChart>
           </ResponsiveContainer>
@@ -86,8 +86,8 @@ function StatusDistributionInner({ metrics }: Props) {
                 onMouseLeave={() => setActiveIndex(undefined)}
               >
                 <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: d.color, boxShadow: activeIndex === i ? `0 0 8px ${d.color}` : undefined }} />
-                <span className="text-on-surface-variant">{d.name}</span>
-                <span className="font-semibold text-on-surface">{d.value}</span>
+                <span className="text-fg-muted">{d.name}</span>
+                <span className="font-semibold text-fg">{d.value}</span>
               </div>
             ))}
           </div>

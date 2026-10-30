@@ -118,39 +118,39 @@ export default function DeviceAddModal({ open, onClose, onAdded, initialProtocol
     }
   };
 
-  const inputClass = 'bg-surface-container-lowest border rounded-lg px-3 py-2.5 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary transition-colors';
-  const borderClass = (field: string) => errors[field] ? 'border-error/50' : 'border-outline-variant/20';
+  const inputClass = 'bg-inset border rounded-lg px-3 py-2.5 text-sm text-fg outline-none focus:ring-1 focus:ring-primary transition-colors';
+  const borderClass = (field: string) => errors[field] ? 'border-error/50' : 'border-line';
 
   return (
     <div className="fixed inset-0 z-[90] flex items-center justify-center p-4 pt-20" role="dialog" aria-modal="true" aria-label="Add new device">
       <div className="absolute inset-0 bg-black/60 " onClick={onClose} />
-      <div ref={dialogRef} className="relative bg-surface-container-low rounded-lg border border-outline-variant/20 w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col">
-        <div className="flex items-center justify-between p-6 border-b border-outline-variant/20 shrink-0">
+      <div ref={dialogRef} className="relative bg-surface-1 rounded-lg border border-line w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col">
+        <div className="flex items-center justify-between p-6 border-b border-line shrink-0">
           <div>
-            <h2 className="font-headline text-xl font-semibold text-on-surface uppercase tracking-wide">New Device</h2>
-            <p className="text-xs text-on-surface-variant mt-1">Add a node to your monitoring network</p>
+            <h2 className="font-sans text-xl font-semibold text-fg uppercase tracking-wide">New Device</h2>
+            <p className="text-xs text-fg-muted mt-1">Add a node to your monitoring network</p>
           </div>
-          <button onClick={onClose} className="material-symbols-outlined text-on-surface-variant hover:text-on-surface transition-colors" aria-label="Close">
+          <button onClick={onClose} className="material-symbols-outlined text-fg-muted hover:text-fg transition-colors" aria-label="Close">
             close
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4 flex-1 min-h-0 overflow-y-auto">
           <div>
-            <label htmlFor="device-name" className="block text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant mb-1.5">Device Name *</label>
+            <label htmlFor="device-name" className="block text-[10px] font-semibold uppercase tracking-wide text-fg-muted mb-1.5">Device Name *</label>
             <input id="device-name" name="name" required placeholder="e.g. Core Router 01" className={`${inputClass} w-full ${borderClass('name')}`} />
             {errors.name && <p className="text-error text-[10px] mt-1">{errors.name}</p>}
           </div>
 
           <div>
-            <label htmlFor="device-host" className="block text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant mb-1.5">Host / IP Address *</label>
+            <label htmlFor="device-host" className="block text-[10px] font-semibold uppercase tracking-wide text-fg-muted mb-1.5">Host / IP Address *</label>
             <input id="device-host" name="host" required placeholder="e.g. 192.168.1.1 or example.com" className={`${inputClass} w-full ${borderClass('host')}`} />
             {errors.host && <p className="text-error text-[10px] mt-1">{errors.host}</p>}
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label htmlFor="device-protocol" className="block text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant mb-1.5">Protocol</label>
+              <label htmlFor="device-protocol" className="block text-[10px] font-semibold uppercase tracking-wide text-fg-muted mb-1.5">Protocol</label>
               <select
                 id="device-protocol"
                 name="protocol"
@@ -178,7 +178,7 @@ export default function DeviceAddModal({ open, onClose, onAdded, initialProtocol
               </select>
             </div>
             <div>
-              <label htmlFor="device-port" className="block text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant mb-1.5">Port</label>
+              <label htmlFor="device-port" className="block text-[10px] font-semibold uppercase tracking-wide text-fg-muted mb-1.5">Port</label>
 			  {['https', 'http', 'snmp', 'port', 'camera', 'biometric'].includes(protocol) ? (
                 <>
                   <input
@@ -196,7 +196,7 @@ export default function DeviceAddModal({ open, onClose, onAdded, initialProtocol
                   {errors.port && <p className="text-error text-[10px] mt-1">{errors.port}</p>}
                 </>
               ) : (
-                <div className={`${inputClass} w-full text-on-surface-variant`}>N/A</div>
+                <div className={`${inputClass} w-full text-fg-muted`}>N/A</div>
               )}
             </div>
           </div>
@@ -204,7 +204,7 @@ export default function DeviceAddModal({ open, onClose, onAdded, initialProtocol
           {protocol === 'snmp' && (
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label htmlFor="device-snmp-community" className="block text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant mb-1.5">SNMP Community</label>
+                <label htmlFor="device-snmp-community" className="block text-[10px] font-semibold uppercase tracking-wide text-fg-muted mb-1.5">SNMP Community</label>
                 <input
                   id="device-snmp-community"
                   value={snmpCommunity}
@@ -214,7 +214,7 @@ export default function DeviceAddModal({ open, onClose, onAdded, initialProtocol
                 />
               </div>
               <div>
-                <label htmlFor="device-snmp-version" className="block text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant mb-1.5">SNMP Version</label>
+                <label htmlFor="device-snmp-version" className="block text-[10px] font-semibold uppercase tracking-wide text-fg-muted mb-1.5">SNMP Version</label>
                 <select id="device-snmp-version" value={snmpVersion} onChange={(e) => setSnmpVersion(e.target.value)} className={`${inputClass} w-full cursor-pointer`}>
                   <option value="2c">v2c</option>
                   <option value="1">v1</option>
@@ -224,33 +224,33 @@ export default function DeviceAddModal({ open, onClose, onAdded, initialProtocol
           )}
 
 		  {(protocol === 'camera' || protocol === 'biometric') && (
-			<div className="border-y border-outline-variant/20 py-4 space-y-4">
+			<div className="border-y border-line py-4 space-y-4">
 			  <div className="flex items-center gap-2 text-primary">
 				<span className="material-symbols-outlined text-lg">{protocol === 'camera' ? 'videocam' : 'fingerprint'}</span>
 				<h3 className="text-xs font-semibold uppercase tracking-wide">{protocol === 'camera' ? 'CCTV profile' : 'Biometric profile'}</h3>
 			  </div>
 			  {protocol === 'camera' && <div>
-				<label htmlFor="security-category" className="block text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant mb-1.5">Device type</label>
+				<label htmlFor="security-category" className="block text-[10px] font-semibold uppercase tracking-wide text-fg-muted mb-1.5">Device type</label>
 				<select id="security-category" value={securityCategory} onChange={(e) => setSecurityCategory(e.target.value as 'camera' | 'nvr')} className={`${inputClass} w-full cursor-pointer`}>
 				  <option value="camera">IP Camera</option><option value="nvr">NVR / DVR</option>
 				</select>
 			  </div>}
 			  <div className="grid grid-cols-2 gap-4">
-				<div><label htmlFor="management-scheme" className="block text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant mb-1.5">Management protocol</label><select id="management-scheme" name="managementScheme" className={`${inputClass} w-full`}><option value="http">HTTP</option><option value="https">HTTPS</option></select></div>
-				<div><label htmlFor="management-path" className="block text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant mb-1.5">Management path</label><input id="management-path" name="managementPath" defaultValue="/" className={`${inputClass} w-full`} /></div>
+				<div><label htmlFor="management-scheme" className="block text-[10px] font-semibold uppercase tracking-wide text-fg-muted mb-1.5">Management protocol</label><select id="management-scheme" name="managementScheme" className={`${inputClass} w-full`}><option value="http">HTTP</option><option value="https">HTTPS</option></select></div>
+				<div><label htmlFor="management-path" className="block text-[10px] font-semibold uppercase tracking-wide text-fg-muted mb-1.5">Management path</label><input id="management-path" name="managementPath" defaultValue="/" className={`${inputClass} w-full`} /></div>
 			  </div>
-			  {protocol === 'camera' ? <div className="grid grid-cols-2 gap-4"><div><label htmlFor="rtsp-port" className="block text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant mb-1.5">RTSP port</label><input id="rtsp-port" name="rtspPort" type="number" min="1" max="65535" defaultValue={554} className={`${inputClass} w-full`} /></div><div><label htmlFor="rtsp-path" className="block text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant mb-1.5">RTSP path</label><input id="rtsp-path" name="rtspPath" defaultValue="/" className={`${inputClass} w-full`} /></div></div> : <div><label htmlFor="attendance-port" className="block text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant mb-1.5">Attendance port</label><input id="attendance-port" name="attendancePort" type="number" min="1" max="65535" defaultValue={4370} className={`${inputClass} w-full`} /><p className="mt-1 text-[10px] text-on-surface-variant">4370 is the standard ZKTeco-compatible terminal port.</p></div>}
+			  {protocol === 'camera' ? <div className="grid grid-cols-2 gap-4"><div><label htmlFor="rtsp-port" className="block text-[10px] font-semibold uppercase tracking-wide text-fg-muted mb-1.5">RTSP port</label><input id="rtsp-port" name="rtspPort" type="number" min="1" max="65535" defaultValue={554} className={`${inputClass} w-full`} /></div><div><label htmlFor="rtsp-path" className="block text-[10px] font-semibold uppercase tracking-wide text-fg-muted mb-1.5">RTSP path</label><input id="rtsp-path" name="rtspPath" defaultValue="/" className={`${inputClass} w-full`} /></div></div> : <div><label htmlFor="attendance-port" className="block text-[10px] font-semibold uppercase tracking-wide text-fg-muted mb-1.5">Attendance port</label><input id="attendance-port" name="attendancePort" type="number" min="1" max="65535" defaultValue={4370} className={`${inputClass} w-full`} /><p className="mt-1 text-[10px] text-fg-muted">4370 is the standard ZKTeco-compatible terminal port.</p></div>}
 			</div>
 		  )}
 
           <div>
-            <label htmlFor="device-interval" className="block text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant mb-1.5">Check Interval (seconds)</label>
+            <label htmlFor="device-interval" className="block text-[10px] font-semibold uppercase tracking-wide text-fg-muted mb-1.5">Check Interval (seconds)</label>
             <input id="device-interval" name="interval" type="number" min="10" defaultValue={60} className={`${inputClass} w-full`} />
           </div>
 
           {locations.length > 0 && (
             <div>
-              <label htmlFor="device-location" className="block text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant mb-1.5">Location</label>
+              <label htmlFor="device-location" className="block text-[10px] font-semibold uppercase tracking-wide text-fg-muted mb-1.5">Location</label>
               <select id="device-location" name="locationId" defaultValue="" className={`${inputClass} w-full cursor-pointer`}>
                 <option value="">Unassigned</option>
                 {locations.map((loc) => (

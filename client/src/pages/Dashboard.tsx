@@ -153,7 +153,7 @@ export default function Dashboard() {
         title="Network Overview"
         subtitle="Real-time monitoring dashboard for all connected devices."
         action={
-          <span className="text-on-surface-variant font-data text-xs">{lastUpdated}</span>
+          <span className="text-fg-muted font-mono text-xs">{lastUpdated}</span>
         }
       />
 
@@ -161,7 +161,7 @@ export default function Dashboard() {
         <StatCard label="Total Devices" value={stats.totalDevices} />
         <StatCard label="Online" value={stats.onlineDevices} delta={`${stats.onlineDevices}/${stats.totalDevices || 0}`} />
         <StatCard label="Devices Up" value={stats.uptimePercent ?? 100} format="percent" />
-        <StatCard label="Active Alerts" value={stats.activeAlerts} color={stats.activeAlerts ? 'text-error' : 'text-on-surface'} delta={stats.activeAlerts ? 'needs attention' : 'clear'} />
+        <StatCard label="Active Alerts" value={stats.activeAlerts} color={stats.activeAlerts ? 'text-error' : 'text-fg'} delta={stats.activeAlerts ? 'needs attention' : 'clear'} />
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-6 content-visibility-auto">

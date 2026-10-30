@@ -114,14 +114,14 @@ export default function IncidentDetail() {
   };
 
   if (loading) {
-    return <div className="p-8 text-sm text-on-surface-variant">Loading incident...</div>;
+    return <div className="p-8 text-sm text-fg-muted">Loading incident...</div>;
   }
 
   if (!incident) {
     return (
       <div className="text-center py-20">
-        <span className="material-symbols-outlined text-4xl text-outline">error</span>
-        <p className="text-on-surface-variant mt-3">Incident not found.</p>
+        <span className="material-symbols-outlined text-4xl text-fg-subtle">error</span>
+        <p className="text-fg-muted mt-3">Incident not found.</p>
         <Button variant="ghost" icon="arrow_back" onClick={() => navigate('/incidents')} className="mt-4">Back to Incidents</Button>
       </div>
     );
@@ -133,17 +133,17 @@ export default function IncidentDetail() {
     <div className="space-y-8">
       <header className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div className="flex items-start gap-4">
-          <button onClick={() => navigate('/incidents')} className="mt-1 text-on-surface-variant hover:text-on-surface transition-colors">
+          <button onClick={() => navigate('/incidents')} className="mt-1 text-fg-muted hover:text-fg transition-colors">
             <span className="material-symbols-outlined">arrow_back</span>
           </button>
           <div>
             <div className="flex items-center gap-3 flex-wrap">
-              <h1 className="font-headline text-2xl font-semibold text-on-surface">{incident.title}</h1>
+              <h1 className="font-sans text-2xl font-semibold text-fg">{incident.title}</h1>
               <span className={`text-xs font-semibold uppercase px-2.5 py-0.5 rounded-full ${severityBgColor(incident.severity)} ${severityTextColor(incident.severity)}`}>{incident.severity}</span>
               <span className={`text-xs font-semibold uppercase px-2.5 py-0.5 rounded-full ${statusBgColor(incident.status)} ${statusTextColor(incident.status)}`}>{incident.status}</span>
               {incident.sla_breached && <span className="text-xs font-semibold uppercase px-2.5 py-0.5 rounded-full bg-error/10 text-error">SLA Breach</span>}
             </div>
-            <p className="text-on-surface-variant text-sm mt-1">#{incident.id} · Started {formatTime(incident.started_at)}</p>
+            <p className="text-fg-muted text-sm mt-1">#{incident.id} · Started {formatTime(incident.started_at)}</p>
           </div>
         </div>
         <div className="flex gap-2 flex-wrap">
@@ -165,12 +165,12 @@ export default function IncidentDetail() {
           {STATUS_FLOW.map((s, i) => (
             <div key={s} className="flex-1 flex items-center">
               <div className="flex flex-col items-center flex-1">
-                 <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold transition-colors ${i <= statusIdx ? 'bg-primary text-on-primary' : 'bg-surface-container-lowest text-outline'} ${i === statusIdx ? 'ring-4 ring-primary/25' : ''}`}>
+                 <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold transition-colors ${i <= statusIdx ? 'bg-primary text-on-primary' : 'bg-inset text-fg-subtle'} ${i === statusIdx ? 'ring-4 ring-primary/25' : ''}`}>
                    {i < statusIdx ? <span className="material-symbols-outlined text-sm">check</span> : i + 1}
                  </div>
-                <span className={`text-[10px] mt-1 uppercase tracking-wide font-semibold ${i <= statusIdx ? 'text-primary' : 'text-outline'}`}>{s}</span>
+                <span className={`text-[10px] mt-1 uppercase tracking-wide font-semibold ${i <= statusIdx ? 'text-primary' : 'text-fg-subtle'}`}>{s}</span>
               </div>
-              {i < STATUS_FLOW.length - 1 && <div className={`h-0.5 flex-1 mx-1 rounded ${i < statusIdx ? 'bg-primary' : 'bg-surface-container-lowest'}`} />}
+              {i < STATUS_FLOW.length - 1 && <div className={`h-0.5 flex-1 mx-1 rounded ${i < statusIdx ? 'bg-primary' : 'bg-inset'}`} />}
             </div>
           ))}
         </div>
@@ -181,56 +181,56 @@ export default function IncidentDetail() {
         <div className="lg:col-span-2 space-y-6">
           {incident.description && (
             <Card variant="low" className="p-5">
-              <h3 className="font-headline font-semibold text-sm uppercase tracking-wide text-on-surface-variant mb-2">Description</h3>
-              <p className="text-sm text-on-surface leading-relaxed">{incident.description}</p>
+              <h3 className="font-sans font-semibold text-sm uppercase tracking-wide text-fg-muted mb-2">Description</h3>
+              <p className="text-sm text-fg leading-relaxed">{incident.description}</p>
             </Card>
           )}
 
           {incident.impact_description && (
             <Card variant="low" className="p-5">
-              <h3 className="font-headline font-semibold text-sm uppercase tracking-wide text-on-surface-variant mb-2">Impact</h3>
-              <p className="text-sm text-on-surface leading-relaxed">{incident.impact_description}</p>
+              <h3 className="font-sans font-semibold text-sm uppercase tracking-wide text-fg-muted mb-2">Impact</h3>
+              <p className="text-sm text-fg leading-relaxed">{incident.impact_description}</p>
             </Card>
           )}
 
           {incident.resolution && (
             <Card variant="low" className="p-5">
-              <h3 className="font-headline font-semibold text-sm uppercase tracking-wide text-on-surface-variant mb-2">Resolution</h3>
-              <p className="text-sm text-on-surface leading-relaxed">{incident.resolution}</p>
+              <h3 className="font-sans font-semibold text-sm uppercase tracking-wide text-fg-muted mb-2">Resolution</h3>
+              <p className="text-sm text-fg leading-relaxed">{incident.resolution}</p>
             </Card>
           )}
 
           {incident.root_cause && (
             <Card variant="low" className="p-5">
-              <h3 className="font-headline font-semibold text-sm uppercase tracking-wide text-on-surface-variant mb-2">Root Cause</h3>
-              <p className="text-sm text-on-surface leading-relaxed">{incident.root_cause}</p>
+              <h3 className="font-sans font-semibold text-sm uppercase tracking-wide text-fg-muted mb-2">Root Cause</h3>
+              <p className="text-sm text-fg leading-relaxed">{incident.root_cause}</p>
             </Card>
           )}
 
           {/* Timeline */}
           <Card variant="low" className="overflow-hidden">
-            <div className="p-5 border-b border-outline-variant/20">
-              <h3 className="font-headline font-semibold text-sm uppercase tracking-wide text-on-surface-variant">Timeline</h3>
+            <div className="p-5 border-b border-line">
+              <h3 className="font-sans font-semibold text-sm uppercase tracking-wide text-fg-muted">Timeline</h3>
             </div>
             {timeline.length === 0 ? (
-              <div className="p-8 text-sm text-on-surface-variant text-center">No timeline entries yet.</div>
+              <div className="p-8 text-sm text-fg-muted text-center">No timeline entries yet.</div>
             ) : (
               <div className="relative">
-                <div className="absolute left-[29px] top-0 bottom-0 w-px bg-outline-variant/30" />
-                <div className="divide-y divide-outline-variant/10">
+                <div className="absolute left-[29px] top-0 bottom-0 w-px bg-line/30" />
+                <div className="divide-y divide-line">
                   {timeline.map((entry) => (
                     <div key={entry.id} className="flex gap-4 p-5 relative">
-                      <div className="w-[14px] h-[14px] rounded-full bg-surface-container-low border-2 border-outline-variant/50 flex-shrink-0 mt-1 z-10" style={{ marginLeft: '22px' }} />
+                      <div className="w-[14px] h-[14px] rounded-full bg-surface-1 border-2 border-line flex-shrink-0 mt-1 z-10" style={{ marginLeft: '22px' }} />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className={`material-symbols-outlined text-sm ${entry.entryType === 'note' ? 'text-info' : entry.entryType === 'status_change' ? 'text-warning' : 'text-primary'}`}>{timelineIcon(entry.entryType)}</span>
-                          <span className="text-sm font-medium text-on-surface">{entry.message}</span>
+                          <span className="text-sm font-medium text-fg">{entry.message}</span>
                         </div>
                         <div className="flex items-center gap-3 mt-1">
-                          <span className="text-xs text-on-surface-variant">{entry.author}</span>
-                          <span className="text-xs text-on-surface-variant">{timeAgo(entry.createdAt)}</span>
+                          <span className="text-xs text-fg-muted">{entry.author}</span>
+                          <span className="text-xs text-fg-muted">{timeAgo(entry.createdAt)}</span>
                           {entry.oldValue && entry.newValue && (
-                            <span className="text-xs text-on-surface-variant">
+                            <span className="text-xs text-fg-muted">
                               <span className="line-through opacity-50">{entry.oldValue}</span> → <span className="font-medium">{entry.newValue}</span>
                             </span>
                           )}
@@ -242,13 +242,13 @@ export default function IncidentDetail() {
               </div>
             )}
             {/* Add Note */}
-            <div className="p-4 border-t border-outline-variant/20 flex gap-3">
+            <div className="p-4 border-t border-line flex gap-3">
               <input
                 value={noteText}
                 onChange={(e) => setNoteText(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleAddNote(); } }}
                 placeholder="Add a note..."
-                className="flex-1 bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary outline-none"
+                className="flex-1 bg-inset border border-line rounded-lg px-4 py-2.5 text-sm text-fg placeholder:text-fg-subtle focus:ring-1 focus:ring-primary outline-none"
               />
               <Button icon="send" onClick={handleAddNote} disabled={submitting || !noteText.trim()} className="flex-shrink-0">Add</Button>
             </div>
@@ -258,7 +258,7 @@ export default function IncidentDetail() {
         {/* Sidebar */}
         <div className="space-y-6">
           <Card variant="low" className="p-5 space-y-4">
-            <h3 className="font-headline font-semibold text-sm uppercase tracking-wide text-on-surface-variant">Details</h3>
+            <h3 className="font-sans font-semibold text-sm uppercase tracking-wide text-fg-muted">Details</h3>
             {[
               { label: 'Source', value: incident.source || 'manual' },
               { label: 'Duration', value: formatDuration(incident.duration_seconds) },
@@ -270,35 +270,35 @@ export default function IncidentDetail() {
               { label: 'Closed', value: formatTime(incident.closed_at) },
             ].map((row) => (
               <div key={row.label} className="flex justify-between items-center">
-                <span className="text-xs text-on-surface-variant uppercase tracking-wide">{row.label}</span>
-                <span className={`text-sm font-medium ${row.color || 'text-on-surface'}`}>{row.value}</span>
+                <span className="text-xs text-fg-muted uppercase tracking-wide">{row.label}</span>
+                <span className={`text-sm font-medium ${row.color || 'text-fg'}`}>{row.value}</span>
               </div>
             ))}
           </Card>
 
           {devices.length > 0 && (
             <Card variant="low" className="overflow-hidden">
-              <div className="p-5 border-b border-outline-variant/20">
-                <h3 className="font-headline font-semibold text-sm uppercase tracking-wide text-on-surface-variant">Affected Devices</h3>
+              <div className="p-5 border-b border-line">
+                <h3 className="font-sans font-semibold text-sm uppercase tracking-wide text-fg-muted">Affected Devices</h3>
               </div>
               <div className="p-5">
                 <div className="grid grid-cols-4 sm:grid-cols-6 gap-2 mb-4" aria-label="Impacted topology">
                   {devices.map((d, i) => {
                     const color = d.status === 'down' ? 'var(--color-error)' : d.status === 'warning' || d.status === 'degraded' ? 'var(--color-warning)' : 'var(--color-success)';
                     return (
-                      <div key={d.id} className="relative aspect-square rounded-md border border-outline-variant/20 bg-surface-container-lowest flex items-center justify-center" title={`${d.name} · ${d.status}`} style={{ animationDelay: `${i * 40}ms` }}>
+                      <div key={d.id} className="relative aspect-square rounded-md border border-line bg-inset flex items-center justify-center" title={`${d.name} · ${d.status}`} style={{ animationDelay: `${i * 40}ms` }}>
                         <span className="w-2.5 h-2.5 rounded-full" style={{ background: color, boxShadow: `0 0 6px ${color}` }} />
-                        {i < devices.length - 1 && <span className="absolute -right-2 top-1/2 w-2 h-px bg-outline-variant/40" />}
+                        {i < devices.length - 1 && <span className="absolute -right-2 top-1/2 w-2 h-px bg-line/40" />}
                       </div>
                     );
                   })}
                 </div>
-                <div className="divide-y divide-outline-variant/10">
+                <div className="divide-y divide-line">
                   {devices.map((d) => (
-                    <div key={d.id} className="px-0 py-3 flex items-center justify-between hover:bg-surface-container-low/50 transition-colors">
+                    <div key={d.id} className="px-0 py-3 flex items-center justify-between hover:bg-surface-1/50 transition-colors">
                       <div>
                         <div className="text-sm font-medium">{d.name}</div>
-                        <div className="text-xs text-on-surface-variant font-data">{d.ip}</div>
+                        <div className="text-xs text-fg-muted font-mono">{d.ip}</div>
                       </div>
                       <span className={`text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full ${statusBgColor(d.status)}/10 ${statusTextColor(d.status)}`}>{d.status}</span>
                     </div>
@@ -312,20 +312,20 @@ export default function IncidentDetail() {
 
       {showResolve && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pt-20 bg-black/60" onClick={() => setShowResolve(false)}>
-          <div className="bg-surface-container-low border border-outline-variant/30 rounded-lg w-full max-w-md max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
-            <div className="p-6 border-b border-outline-variant/20 shrink-0"><h2 className="font-headline text-lg font-semibold">Resolve Incident</h2></div>
+          <div className="bg-surface-1 border border-line rounded-lg w-full max-w-md max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="p-6 border-b border-line shrink-0"><h2 className="font-sans text-lg font-semibold">Resolve Incident</h2></div>
             <div className="p-6 space-y-4 flex-1 min-h-0 overflow-y-auto">
               <div>
-                <label className="text-[10px] text-on-surface-variant uppercase tracking-wide block mb-1">Resolution</label>
-                <textarea value={resolveForm.resolution} onChange={(e) => setResolveForm({ ...resolveForm, resolution: e.target.value })} rows={3} className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary outline-none resize-none" placeholder="How was it resolved?" />
+                <label className="text-[10px] text-fg-muted uppercase tracking-wide block mb-1">Resolution</label>
+                <textarea value={resolveForm.resolution} onChange={(e) => setResolveForm({ ...resolveForm, resolution: e.target.value })} rows={3} className="w-full bg-inset border border-line rounded-lg px-4 py-2.5 text-sm text-fg placeholder:text-fg-subtle focus:ring-1 focus:ring-primary outline-none resize-none" placeholder="How was it resolved?" />
               </div>
               <div>
-                <label className="text-[10px] text-on-surface-variant uppercase tracking-wide block mb-1">Root Cause</label>
-                <input value={resolveForm.rootCause} onChange={(e) => setResolveForm({ ...resolveForm, rootCause: e.target.value })} className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary outline-none" placeholder="What caused it?" />
+                <label className="text-[10px] text-fg-muted uppercase tracking-wide block mb-1">Root Cause</label>
+                <input value={resolveForm.rootCause} onChange={(e) => setResolveForm({ ...resolveForm, rootCause: e.target.value })} className="w-full bg-inset border border-line rounded-lg px-4 py-2.5 text-sm text-fg placeholder:text-fg-subtle focus:ring-1 focus:ring-primary outline-none" placeholder="What caused it?" />
               </div>
               <div>
-                <label className="text-[10px] text-on-surface-variant uppercase tracking-wide block mb-1">Category</label>
-                <select value={resolveForm.rootCauseCategory} onChange={(e) => setResolveForm({ ...resolveForm, rootCauseCategory: e.target.value })} className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary">
+                <label className="text-[10px] text-fg-muted uppercase tracking-wide block mb-1">Category</label>
+                <select value={resolveForm.rootCauseCategory} onChange={(e) => setResolveForm({ ...resolveForm, rootCauseCategory: e.target.value })} className="w-full bg-inset border border-line rounded-lg px-4 py-2.5 text-sm text-fg outline-none focus:ring-1 focus:ring-primary">
                   <option value="">Select category</option>
                   <option value="hardware">Hardware</option>
                   <option value="software">Software</option>
@@ -337,10 +337,10 @@ export default function IncidentDetail() {
                 </select>
               </div>
             </div>
-            <div className="flex border-t border-outline-variant/20 shrink-0">
-              <button onClick={() => setShowResolve(false)} className="flex-1 py-3 text-xs font-headline font-semibold uppercase tracking-wide text-on-surface-variant hover:bg-surface-container-low transition-colors">Cancel</button>
-              <div className="w-px bg-outline-variant/20" />
-              <button onClick={() => handleAction('resolve', resolveForm)} disabled={submitting || !resolveForm.resolution} className="flex-1 py-3 text-xs font-headline font-semibold uppercase tracking-wide text-primary hover:bg-primary/10 transition-colors disabled:opacity-50">{submitting ? 'Resolving...' : 'Resolve'}</button>
+            <div className="flex border-t border-line shrink-0">
+              <button onClick={() => setShowResolve(false)} className="flex-1 py-3 text-xs font-sans font-semibold uppercase tracking-wide text-fg-muted hover:bg-surface-1 transition-colors">Cancel</button>
+              <div className="w-px bg-line/20" />
+              <button onClick={() => handleAction('resolve', resolveForm)} disabled={submitting || !resolveForm.resolution} className="flex-1 py-3 text-xs font-sans font-semibold uppercase tracking-wide text-primary hover:bg-primary/10 transition-colors disabled:opacity-50">{submitting ? 'Resolving...' : 'Resolve'}</button>
             </div>
           </div>
         </div>

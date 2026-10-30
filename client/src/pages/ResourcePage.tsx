@@ -121,59 +121,59 @@ export default function ResourcePage({ config }: { config: ResourcePageConfig })
           {summaryCards.map(([key, label, icon]) => (
             <Card key={key} variant="low" className="p-4">
               <div className="flex items-center justify-between gap-3">
-                <span className="text-xs uppercase tracking-wide text-on-surface-variant">{label}</span>
+                <span className="text-xs uppercase tracking-wide text-fg-muted">{label}</span>
                 <span className="material-symbols-outlined text-[18px] text-primary">{icon}</span>
               </div>
-              <div className="font-headline text-2xl font-semibold mt-2">{summary[key] ?? 0}</div>
+              <div className="font-sans text-2xl font-semibold mt-2">{summary[key] ?? 0}</div>
             </Card>
           ))}
         </div>
       )}
 
       <Card variant="low" className="overflow-hidden">
-        <div className="p-5 border-b border-outline-variant/20 flex flex-col md:flex-row gap-4 md:items-center md:justify-between">
+        <div className="p-5 border-b border-line flex flex-col md:flex-row gap-4 md:items-center md:justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-md bg-primary/10 text-primary flex items-center justify-center">
               <span className="material-symbols-outlined">{config.icon}</span>
             </div>
             <div>
-              <h2 className="font-headline font-semibold text-lg">{config.title}</h2>
-              <p className="text-xs text-on-surface-variant uppercase tracking-wide">{filtered.length} records</p>
+              <h2 className="font-sans font-semibold text-lg">{config.title}</h2>
+              <p className="text-xs text-fg-muted uppercase tracking-wide">{filtered.length} records</p>
             </div>
           </div>
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search records..."
-            className="bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary outline-none md:w-72"
+            className="bg-inset border border-line rounded-lg px-4 py-2.5 text-sm text-fg placeholder:text-fg-subtle focus:ring-1 focus:ring-primary outline-none md:w-72"
           />
         </div>
 
         {loading ? (
-          <div className="p-8 text-sm text-on-surface-variant">Loading...</div>
+          <div className="p-8 text-sm text-fg-muted">Loading...</div>
         ) : filtered.length === 0 ? (
           <div className="p-10 text-center">
-            <span className="material-symbols-outlined text-4xl text-outline">{config.icon}</span>
-            <h3 className="font-headline font-semibold text-lg mt-3">No records yet</h3>
-            <p className="text-sm text-on-surface-variant mt-1">Create records through the API or use Quick Add where available.</p>
+            <span className="material-symbols-outlined text-4xl text-fg-subtle">{config.icon}</span>
+            <h3 className="font-sans font-semibold text-lg mt-3">No records yet</h3>
+            <p className="text-sm text-fg-muted mt-1">Create records through the API or use Quick Add where available.</p>
           </div>
         ) : (
-          <div className="divide-y divide-outline-variant/20">
+          <div className="divide-y divide-line">
             {filtered.map((row, index) => (
-              <article key={valueText(row.id) + index} className="p-5 hover:bg-surface-container-low/50 transition-colors">
+              <article key={valueText(row.id) + index} className="p-5 hover:bg-surface-1/50 transition-colors">
                 <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
                   <div>
-                    <h3 className="font-headline font-semibold text-lg">
+                    <h3 className="font-sans font-semibold text-lg">
                       {valueText(row.name || row.title || row.ip_address || row.subnet || `Record ${index + 1}`)}
                     </h3>
-                    <p className="text-xs text-on-surface-variant uppercase tracking-wide mt-1">
+                    <p className="text-xs text-fg-muted uppercase tracking-wide mt-1">
                       ID {valueText(row.id)} {row.status ? ` / ${valueText(row.status)}` : ''}
                     </p>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 lg:max-w-3xl">
                     {config.primaryFields.map((field) => (
                       <div key={field} className="min-w-0">
-                        <div className="text-[10px] text-on-surface-variant uppercase tracking-wide">{formatKey(field)}</div>
+                        <div className="text-[10px] text-fg-muted uppercase tracking-wide">{formatKey(field)}</div>
                         <div className="text-sm font-medium truncate">{valueText(row[field])}</div>
                       </div>
                     ))}

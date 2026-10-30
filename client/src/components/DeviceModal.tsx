@@ -234,14 +234,14 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
         aria-modal="true"
         aria-label={`Device details for ${device.name}`}
         tabIndex={-1}
-        className="bg-surface-container-low border border-outline-variant/30 rounded-lg w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col outline-none"
+        className="bg-surface-1 border border-line rounded-lg w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col outline-none"
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="p-6 border-b border-outline-variant/20 flex justify-between items-start shrink-0">
+        <div className="p-6 border-b border-line flex justify-between items-start shrink-0">
           <div>
-            <h2 className="font-headline text-3xl font-semibold text-on-surface uppercase tracking-tight">{device.name}</h2>
-            <p className="text-on-surface-variant text-sm font-data">{device.protocol === 'http' || device.protocol === 'https' ? `${device.protocol}://${device.ipAddress}` : device.ipAddress}{device.port > 0 && !['http','https'].includes(device.protocol) ? `:${device.port}` : ''} ({device.protocol.toUpperCase()})</p>
+            <h2 className="font-sans text-3xl font-semibold text-fg uppercase tracking-tight">{device.name}</h2>
+            <p className="text-fg-muted text-sm font-mono">{device.protocol === 'http' || device.protocol === 'https' ? `${device.protocol}://${device.ipAddress}` : device.ipAddress}{device.port > 0 && !['http','https'].includes(device.protocol) ? `:${device.port}` : ''} ({device.protocol.toUpperCase()})</p>
             <Sparkline data={metrics.map(metric => metric.responseTime ?? 0)} color="var(--color-info)" className="mt-2" />
           </div>
           <div className="flex items-center gap-3">
@@ -249,11 +249,11 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
               {healthScore != null ? (
                 <RingGauge value={healthScore} size={54} strokeWidth={5} decimals={0} valueClassName="text-lg" />
               ) : (
-                <span className="flex h-[54px] w-[54px] items-center justify-center rounded-full border border-outline-variant/40 text-sm text-on-surface-variant" title="No health score has been computed for this device yet">—</span>
+                <span className="flex h-[54px] w-[54px] items-center justify-center rounded-full border border-line text-sm text-fg-muted" title="No health score has been computed for this device yet">—</span>
               )}
-              <span className="block text-[10px] uppercase tracking-wide text-on-surface-variant mt-1">AI Health</span>
+              <span className="block text-[10px] uppercase tracking-wide text-fg-muted mt-1">AI Health</span>
             </div>
-            <button onClick={onClose} className="p-2 hover:bg-surface-container-lowest rounded-full transition-colors" aria-label="Close dialog"><span className="material-symbols-outlined text-outline hover:text-on-surface">close</span></button>
+            <button onClick={onClose} className="p-2 hover:bg-inset rounded-full transition-colors" aria-label="Close dialog"><span className="material-symbols-outlined text-fg-subtle hover:text-fg">close</span></button>
           </div>
         </div>
 
@@ -261,30 +261,30 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
         <div className="p-6 overflow-y-auto flex-1 min-h-0">
            {/* Summary Stats */}
            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-             <div className="bg-surface-container-low p-4 rounded-lg">
-               <p className="text-[10px] text-on-surface-variant uppercase tracking-wide mb-1">Status</p>
+             <div className="bg-surface-1 p-4 rounded-lg">
+               <p className="text-[10px] text-fg-muted uppercase tracking-wide mb-1">Status</p>
                <p className={`font-semibold uppercase ${latestMetric?.status === 'down' ? 'text-error' : (latestMetric?.status === 'warning' || latestMetric?.status === 'degraded' ? 'text-warning' : 'text-primary')}`}>{latestMetric?.status || 'UNKNOWN'}</p>
              </div>
-             <div className="bg-surface-container-low p-4 rounded-lg">
-               <p className="text-[10px] text-on-surface-variant uppercase tracking-wide mb-1">Response</p>
-                <p className="font-semibold text-on-surface">{latestMetric?.responseTime ?? '-'} ms</p>
+             <div className="bg-surface-1 p-4 rounded-lg">
+               <p className="text-[10px] text-fg-muted uppercase tracking-wide mb-1">Response</p>
+                <p className="font-semibold text-fg">{latestMetric?.responseTime ?? '-'} ms</p>
              </div>
-             <div className="bg-surface-container-low p-4 rounded-lg">
-               <p className="text-[10px] text-on-surface-variant uppercase tracking-wide mb-1">Interval</p>
-                <p className="font-semibold text-on-surface">{device.interval}s</p>
+             <div className="bg-surface-1 p-4 rounded-lg">
+               <p className="text-[10px] text-fg-muted uppercase tracking-wide mb-1">Interval</p>
+                <p className="font-semibold text-fg">{device.interval}s</p>
              </div>
-             <div className="bg-surface-container-low p-4 rounded-lg">
-               <p className="text-[10px] text-on-surface-variant uppercase tracking-wide mb-1">Protocol</p>
-                <p className="font-semibold text-on-surface uppercase">{device.protocol}</p>
+             <div className="bg-surface-1 p-4 rounded-lg">
+               <p className="text-[10px] text-fg-muted uppercase tracking-wide mb-1">Protocol</p>
+                <p className="font-semibold text-fg uppercase">{device.protocol}</p>
              </div>
            </div>
 
-           <div className="bg-surface-container-low p-4 rounded-lg mb-6">
-             <label className="block text-[10px] text-on-surface-variant uppercase tracking-wide mb-1.5">Location</label>
+           <div className="bg-surface-1 p-4 rounded-lg mb-6">
+             <label className="block text-[10px] text-fg-muted uppercase tracking-wide mb-1.5">Location</label>
              <select
                value={locationId}
                onChange={(e) => handleLocationChange(e.target.value)}
-               className="bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-3 py-2 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary w-full cursor-pointer"
+               className="bg-inset border border-line rounded-lg px-3 py-2 text-sm text-fg outline-none focus:ring-1 focus:ring-primary w-full cursor-pointer"
              >
                <option value="">Unassigned</option>
                {locations.map((loc) => (
@@ -295,12 +295,12 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
              </select>
            </div>
 
-            <div className="bg-surface-container-low p-4 rounded-lg mb-6">
-              <label className="block text-[10px] text-on-surface-variant uppercase tracking-wide mb-1.5">Parent Device (dependency)</label>
+            <div className="bg-surface-1 p-4 rounded-lg mb-6">
+              <label className="block text-[10px] text-fg-muted uppercase tracking-wide mb-1.5">Parent Device (dependency)</label>
               <select
                 value={parentDeviceId}
                 onChange={(e) => handleParentChange(e.target.value)}
-                className="bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-3 py-2 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary w-full cursor-pointer"
+                className="bg-inset border border-line rounded-lg px-3 py-2 text-sm text-fg outline-none focus:ring-1 focus:ring-primary w-full cursor-pointer"
               >
                 <option value="">None (root)</option>
                 {allDevices
@@ -311,28 +311,28 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
                     </option>
                   ))}
               </select>
-              <label className="block text-[10px] text-on-surface-variant uppercase tracking-wide mb-1.5 mt-3">Dependency port</label>
+              <label className="block text-[10px] text-fg-muted uppercase tracking-wide mb-1.5 mt-3">Dependency port</label>
               <input
                 value={dependencyPort}
                 onChange={(e) => handleDependencyPortChange(e.target.value)}
                 placeholder="e.g. eth0, 1/0/1"
-                className="bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-3 py-2 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary w-full"
+                className="bg-inset border border-line rounded-lg px-3 py-2 text-sm text-fg outline-none focus:ring-1 focus:ring-primary w-full"
               />
             </div>
 
 		   {(device.manufacturer || device.model || device.deviceCategory) && (
-			 <div className="mb-6 border-y border-outline-variant/20 py-4 grid grid-cols-2 md:grid-cols-3 gap-4">
-			   {device.manufacturer && <div><p className="text-[10px] text-on-surface-variant uppercase tracking-wide">Vendor</p><p className="mt-1 font-semibold text-sm">{device.manufacturer}</p></div>}
-			   {device.model && <div><p className="text-[10px] text-on-surface-variant uppercase tracking-wide">Model</p><p className="mt-1 font-semibold text-sm">{device.model}</p></div>}
-			   {device.deviceCategory && <div><p className="text-[10px] text-on-surface-variant uppercase tracking-wide">Profile</p><p className="mt-1 font-semibold text-sm uppercase">{device.deviceCategory}</p></div>}
+			 <div className="mb-6 border-y border-line py-4 grid grid-cols-2 md:grid-cols-3 gap-4">
+			   {device.manufacturer && <div><p className="text-[10px] text-fg-muted uppercase tracking-wide">Vendor</p><p className="mt-1 font-semibold text-sm">{device.manufacturer}</p></div>}
+			   {device.model && <div><p className="text-[10px] text-fg-muted uppercase tracking-wide">Model</p><p className="mt-1 font-semibold text-sm">{device.model}</p></div>}
+			   {device.deviceCategory && <div><p className="text-[10px] text-fg-muted uppercase tracking-wide">Profile</p><p className="mt-1 font-semibold text-sm uppercase">{device.deviceCategory}</p></div>}
 			 </div>
 		   )}
 
-           <div className="bg-surface-container-low rounded-lg p-4 border border-outline-variant/20 mb-6">
+           <div className="bg-surface-1 rounded-lg p-4 border border-line mb-6">
              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
                <div>
-                 <h3 className="text-sm font-headline font-semibold uppercase tracking-wide">Port Inventory</h3>
-                 <p className="text-xs text-on-surface-variant mt-1">{openPorts.length} open of {ports.length || 0} scanned ports</p>
+                 <h3 className="text-sm font-sans font-semibold uppercase tracking-wide">Port Inventory</h3>
+                 <p className="text-xs text-fg-muted mt-1">{openPorts.length} open of {ports.length || 0} scanned ports</p>
                </div>
                <button
                  onClick={handleScanPorts}
@@ -344,7 +344,7 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
                </button>
              </div>
              {ports.length === 0 ? (
-               <div className="py-8 text-center text-xs text-on-surface-variant">No port scan results yet</div>
+               <div className="py-8 text-center text-xs text-fg-muted">No port scan results yet</div>
              ) : (
                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                  {ports.slice(0, 16).map((port) => {
@@ -352,17 +352,17 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
                     const response = port.responseTime;
                    const isOpen = port.state === 'open';
                    return (
-                     <div key={port.port} className={`flex items-center justify-between rounded-lg px-3 py-2 border ${isOpen ? 'border-primary/25 bg-primary/10' : 'border-outline-variant/15 bg-surface-container-low'}`}>
+                     <div key={port.port} className={`flex items-center justify-between rounded-lg px-3 py-2 border ${isOpen ? 'border-primary/25 bg-primary/10' : 'border-line bg-surface-1'}`}>
                        <div className="flex items-center gap-2 min-w-0">
-                         <span className={`material-symbols-outlined text-base ${isOpen ? 'text-primary' : 'text-outline'}`}>{isOpen ? 'lock_open' : 'lock'}</span>
+                         <span className={`material-symbols-outlined text-base ${isOpen ? 'text-primary' : 'text-fg-subtle'}`}>{isOpen ? 'lock_open' : 'lock'}</span>
                          <div className="min-w-0">
-                           <p className="text-sm font-semibold text-on-surface">{port.port}</p>
-                           <p className="text-[10px] text-on-surface-variant truncate">{service}</p>
+                           <p className="text-sm font-semibold text-fg">{port.port}</p>
+                           <p className="text-[10px] text-fg-muted truncate">{service}</p>
                          </div>
                        </div>
                        <div className="text-right">
-                         <p className={`text-[10px] font-semibold uppercase tracking-wide ${isOpen ? 'text-primary' : 'text-outline'}`}>{port.state}</p>
-                         {typeof response === 'number' && <p className="text-[10px] text-on-surface-variant">{response}ms</p>}
+                         <p className={`text-[10px] font-semibold uppercase tracking-wide ${isOpen ? 'text-primary' : 'text-fg-subtle'}`}>{port.state}</p>
+                         {typeof response === 'number' && <p className="text-[10px] text-fg-muted">{response}ms</p>}
                        </div>
                      </div>
                    );
@@ -372,12 +372,12 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
            </div>
 
            {/* Graph */}
-           <div className="bg-surface-container-low rounded-lg p-4 border border-outline-variant/20 mb-6">
-             <h3 className="text-sm font-headline font-semibold mb-4 uppercase tracking-wide">Live Response Time</h3>
+           <div className="bg-surface-1 rounded-lg p-4 border border-line mb-6">
+             <h3 className="text-sm font-sans font-semibold mb-4 uppercase tracking-wide">Live Response Time</h3>
              {loading ? (
-               <div className="h-64 flex items-center justify-center text-on-surface-variant text-sm">Loading data...</div>
+               <div className="h-64 flex items-center justify-center text-fg-muted text-sm">Loading data...</div>
              ) : chartData.length === 0 ? (
-               <div className="h-64 flex items-center justify-center text-on-surface-variant text-sm">No metrics available</div>
+               <div className="h-64 flex items-center justify-center text-fg-muted text-sm">No metrics available</div>
              ) : (
                <ResponsiveContainer width="100%" height={256}>
                  <LineChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
@@ -393,32 +393,32 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
             </div>
 
             {supportsTraffic && (
-              <div className="bg-surface-container-low rounded-lg p-4 border border-outline-variant/20 mb-6">
+              <div className="bg-surface-1 rounded-lg p-4 border border-line mb-6">
                 <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4 mb-4">
                   <div>
-                    <h3 className="text-sm font-headline font-semibold uppercase tracking-wide">Live Traffic</h3>
-                    <p className="text-xs text-on-surface-variant mt-1">{activeInterfaces.length ? `${activeInterfaces.length} SNMP interfaces reporting counters` : 'Waiting for SNMP interface counters'}</p>
+                    <h3 className="text-sm font-sans font-semibold uppercase tracking-wide">Live Traffic</h3>
+                    <p className="text-xs text-fg-muted mt-1">{activeInterfaces.length ? `${activeInterfaces.length} SNMP interfaces reporting counters` : 'Waiting for SNMP interface counters'}</p>
                   </div>
                   <div className="grid grid-cols-3 gap-2 min-w-full lg:min-w-[320px]">
-                    <div className="rounded-lg bg-surface-container-low px-3 py-2">
-                      <p className="text-[10px] text-on-surface-variant uppercase tracking-wide">Inbound</p>
+                    <div className="rounded-lg bg-surface-1 px-3 py-2">
+                      <p className="text-[10px] text-fg-muted uppercase tracking-wide">Inbound</p>
                       <p className="text-sm font-semibold text-primary">{formatMbps(latestTraffic?.inMbps)}</p>
                     </div>
-                    <div className="rounded-lg bg-surface-container-low px-3 py-2">
-                      <p className="text-[10px] text-on-surface-variant uppercase tracking-wide">Outbound</p>
+                    <div className="rounded-lg bg-surface-1 px-3 py-2">
+                      <p className="text-[10px] text-fg-muted uppercase tracking-wide">Outbound</p>
                       <p className="text-sm font-semibold text-info">{formatMbps(latestTraffic?.outMbps)}</p>
                     </div>
-                    <div className="rounded-lg bg-surface-container-low px-3 py-2">
-                      <p className="text-[10px] text-on-surface-variant uppercase tracking-wide">Total</p>
-                      <p className="text-sm font-semibold text-on-surface">{formatMbps(latestTraffic?.totalMbps)}</p>
+                    <div className="rounded-lg bg-surface-1 px-3 py-2">
+                      <p className="text-[10px] text-fg-muted uppercase tracking-wide">Total</p>
+                      <p className="text-sm font-semibold text-fg">{formatMbps(latestTraffic?.totalMbps)}</p>
                     </div>
                   </div>
                 </div>
                 {loading ? (
-                  <div className="h-64 flex items-center justify-center text-on-surface-variant text-sm">Loading traffic...</div>
+                  <div className="h-64 flex items-center justify-center text-fg-muted text-sm">Loading traffic...</div>
                 ) : trafficData.length === 0 ? (
-                  <div className="h-64 flex flex-col items-center justify-center text-center text-on-surface-variant text-sm px-6">
-                    <span className="material-symbols-outlined text-3xl mb-2 text-outline">monitoring</span>
+                  <div className="h-64 flex flex-col items-center justify-center text-center text-fg-muted text-sm px-6">
+                    <span className="material-symbols-outlined text-3xl mb-2 text-fg-subtle">monitoring</span>
                     <p>No traffic samples yet</p>
                     <p className="text-xs mt-1 max-w-md">SNMP routers and switches need at least two successful polls with interface counters before rates can be calculated.</p>
                   </div>
@@ -440,12 +440,12 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
                {activeInterfaces.length > 0 && (
                  <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2">
                    {activeInterfaces.slice(0, 6).map((iface) => (
-                     <div key={iface.index} className="flex items-center justify-between rounded-lg bg-surface-container-low border border-outline-variant/15 px-3 py-2">
+                     <div key={iface.index} className="flex items-center justify-between rounded-lg bg-surface-1 border border-line px-3 py-2">
                        <div className="min-w-0">
-                         <p className="text-xs font-semibold text-on-surface truncate">{iface.name}</p>
-                         <p className="text-[10px] text-on-surface-variant uppercase tracking-wide">ifIndex {iface.index}</p>
+                         <p className="text-xs font-semibold text-fg truncate">{iface.name}</p>
+                         <p className="text-[10px] text-fg-muted uppercase tracking-wide">ifIndex {iface.index}</p>
                        </div>
-                       <span className={`text-[10px] font-semibold uppercase tracking-wide ${iface.operStatus === 1 ? 'text-primary' : 'text-outline'}`}>
+                       <span className={`text-[10px] font-semibold uppercase tracking-wide ${iface.operStatus === 1 ? 'text-primary' : 'text-fg-subtle'}`}>
                          {iface.operStatus === 1 ? 'Up' : 'Seen'}
                        </span>
                      </div>

@@ -47,10 +47,10 @@ const NotFound = lazyWithRetry(() => import('./pages/NotFound'));
 
 function FullScreenStatus({ message, children }: { message: string; children?: React.ReactNode }) {
   return (
-    <div className="flex items-center justify-center min-h-screen bg-background">
+    <div className="flex items-center justify-center min-h-screen bg-canvas">
       <div className="flex flex-col items-center gap-3">
         <span className="material-symbols-outlined text-3xl text-primary animate-pulse">hourglass_top</span>
-        <p className="text-xs text-on-surface-variant uppercase tracking-wide">{message}</p>
+        <p className="text-xs text-fg-muted uppercase tracking-wide">{message}</p>
         {children}
       </div>
     </div>
@@ -66,7 +66,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
       <FullScreenStatus message="Unable to reach the server">
         <button
           onClick={() => void restoreSession()}
-          className="mt-2 text-xs text-on-surface-variant hover:text-primary transition-colors underline"
+          className="mt-2 text-xs text-fg-muted hover:text-primary transition-colors underline"
         >
           Retry
         </button>

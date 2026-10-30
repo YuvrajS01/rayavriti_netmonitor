@@ -69,8 +69,8 @@ describe('statusTextColor', () => {
   it('returns text-warning for degraded', () => {
     expect(statusTextColor('degraded')).toBe('text-warning');
   });
-  it('returns text-outline for unknown', () => {
-    expect(statusTextColor('unknown')).toBe('text-outline');
+  it('returns text-fg-subtle for unknown', () => {
+    expect(statusTextColor('unknown')).toBe('text-fg-subtle');
   });
   it('returns text-success for up', () => {
     expect(statusTextColor('up')).toBe('text-success');
@@ -96,8 +96,8 @@ describe('statusBorderColor', () => {
   it('returns border-warning for degraded', () => {
     expect(statusBorderColor('degraded')).toBe('border-warning');
   });
-  it('returns border-outline-variant for unknown', () => {
-    expect(statusBorderColor('unknown')).toBe('border-outline-variant');
+  it('returns border-line for unknown', () => {
+    expect(statusBorderColor('unknown')).toBe('border-line');
   });
   it('returns border-success for up', () => {
     expect(statusBorderColor('up')).toBe('border-success');

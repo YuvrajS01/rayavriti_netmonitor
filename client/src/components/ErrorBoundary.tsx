@@ -45,21 +45,21 @@ export default class ErrorBoundary extends Component<Props, State> {
 
     const staleBuild = isChunkLoadError(this.state.error);
     const container = this.props.scope === 'route'
-      ? 'min-h-[60vh] flex items-center justify-center font-body p-8'
-      : 'min-h-screen flex items-center justify-center bg-background font-body p-8';
+      ? 'min-h-[60vh] flex items-center justify-center font-sans p-8'
+      : 'min-h-screen flex items-center justify-center bg-canvas font-sans p-8';
 
     return (
       <div className={container} role="alert">
-        <div className="w-full max-w-md text-center border border-outline-variant/30 rounded-lg p-12 bg-surface-container-low/80 ">
+        <div className="w-full max-w-md text-center border border-line rounded-lg p-12 bg-surface-1/80 ">
           <div className="w-16 h-16 rounded-full bg-error/10 border-2 border-error/40 flex items-center justify-center mx-auto mb-6">
             <span className="material-symbols-outlined text-error text-3xl">warning</span>
           </div>
 
-          <h1 className="font-headline text-2xl font-semibold text-on-surface tracking-tight mb-3">
+          <h1 className="font-sans text-2xl font-semibold text-fg tracking-tight mb-3">
             {staleBuild ? 'Update available' : 'Something went wrong'}
           </h1>
 
-          <p className="text-on-surface-variant text-sm leading-relaxed mb-6">
+          <p className="text-fg-muted text-sm leading-relaxed mb-6">
             {staleBuild
               ? 'A newer version of the application was deployed. Reload the page to continue.'
               : 'The application encountered an unexpected error. You can try reloading the page to recover.'}
@@ -75,14 +75,14 @@ export default class ErrorBoundary extends Component<Props, State> {
             {!staleBuild && (
               <button
                 onClick={this.handleRetry}
-                className="bg-primary text-on-primary font-headline font-semibold py-3 px-6 rounded-lg text-xs tracking-wide uppercase hover:bg-primary/90 transition-colors"
+                className="bg-primary text-on-primary font-sans font-semibold py-3 px-6 rounded-lg text-xs tracking-wide uppercase hover:bg-primary/90 transition-colors"
               >
                 Try Again
               </button>
             )}
             <button
               onClick={this.handleReload}
-              className="bg-surface-container-lowest text-on-surface border border-outline-variant/30 font-headline font-semibold py-3 px-6 rounded-lg text-xs tracking-wide uppercase hover:bg-surface-container-lowest/80 transition-[background-color,transform]"
+              className="bg-inset text-fg border border-line font-sans font-semibold py-3 px-6 rounded-lg text-xs tracking-wide uppercase hover:bg-inset/80 transition-[background-color,transform]"
             >
               Reload Page
             </button>

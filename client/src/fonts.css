@@ -1,6 +1,5 @@
 /* ── Font imports via @fontsource-variable ─────────────── */
-/* Instrument Sans – Headlines (weight 400–700) */
-/* Plus Jakarta Sans – Body text (weight 200–800) */
+/* Instrument Sans – all UI text and headings (weight 400–700) */
 /* JetBrains Mono – Data/monospace (weight 100–800) */
 
 /* Note: Actual @import of fontsource packages is done in main.tsx

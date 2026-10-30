@@ -3,11 +3,15 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import './fonts.css'
 import '@fontsource-variable/instrument-sans'
-import '@fontsource-variable/plus-jakarta-sans'
 import '@fontsource-variable/jetbrains-mono'
 import App from './App'
 import { restoreSession } from './api/auth'
 import { reloadOnceForNewBuild } from './utils/lazyWithRetry'
+import { initTheme } from './theme/theme'
+
+// public/theme-init.js already set data-theme before first paint; this keeps
+// it in sync with the OS while "system" is selected.
+initTheme()
 
 // Vite fires this when a modulepreload/CSS dependency of a lazy chunk 404s
 // (usually a deploy replaced the hashed assets): reload once to pick up
