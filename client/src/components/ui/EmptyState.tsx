@@ -5,14 +5,16 @@ interface EmptyStateProps {
   title: string;
   description?: string;
   action?: ReactNode;
+  /** `compact` for empty panels inside a card. */
+  size?: 'default' | 'compact';
 }
 
-export default function EmptyState({ icon = 'info', title, description, action }: EmptyStateProps) {
+export default function EmptyState({ icon = 'info', title, description, action, size = 'default' }: EmptyStateProps) {
   return (
-    <div role="region" aria-label={title} className="flex flex-col items-center justify-center py-12">
-      <span className="material-symbols-outlined text-3xl sm:text-4xl mb-2 text-on-surface-variant">{icon}</span>
-      <p className="text-xs text-on-surface-variant uppercase tracking-wide font-label font-medium">{title}</p>
-      {description && <p className="text-xs text-on-surface-variant mt-1 text-center max-w-xs">{description}</p>}
+    <div role="status" className={`flex flex-col items-center justify-center text-center ${size === 'compact' ? 'py-6' : 'py-12'}`}>
+      <span className="material-symbols-outlined mb-2 text-3xl text-fg-subtle sm:text-4xl" aria-hidden="true">{icon}</span>
+      <p className="text-sm font-medium text-fg">{title}</p>
+      {description && <p className="mt-1 max-w-sm text-sm text-fg-muted">{description}</p>}
       {action && <div className="mt-4">{action}</div>}
     </div>
   );

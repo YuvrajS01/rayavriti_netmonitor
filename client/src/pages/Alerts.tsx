@@ -8,27 +8,30 @@ import SectionHeader from '../components/ui/SectionHeader';
 import StatCard from '../components/ui/StatCard';
 import LoadingState from '../components/ui/LoadingState';
 import ErrorState from '../components/ui/ErrorState';
-import Sparkline from '../components/ui/Sparkline';
+import EmptyState from '../components/ui/EmptyState';
+import Button from '../components/ui/Button';
+import { Tabs, TabPanel } from '../components/ui/Tabs';
+import { StatusPill, StatusShapeIcon } from '../components/ui/Status';
+import { useTabParam, useTabsId } from '../hooks/useTabParam';
+import { STATUS_META, lifecycleMeta, severityMeta, type Status } from '../utils/status';
 
-function severityIcon(severity: string) {
-  if (severity === 'critical') return 'dangerous';
-  if (severity === 'warning') return 'warning';
-  return 'info';
-}
-
-function severityColors(severity: string) {
-  if (severity === 'critical') return { text: 'text-error', bg: 'bg-error/10', border: 'border-error' };
-  if (severity === 'warning') return { text: 'text-warning', bg: 'bg-warning/10', border: 'border-warning' };
-  return { text: 'text-primary', bg: 'bg-primary/10', border: 'border-primary' };
-}
+const TAB_IDS = ['active', 'acknowledged', 'resolved'] as const;
+type AlertTab = (typeof TAB_IDS)[number];
 
 const EMPTY_COUNTS: AlertCounts = { active: 0, acknowledged: 0, resolved: 0 };
 const EMPTY_ALERTS: Alert[] = [];
 const EMPTY_GROUPS: AlertGroup[] = [];
 
+const SEVERITY_SECTIONS: { severity: Alert['severity']; label: string; status: Status }[] = [
+  { severity: 'critical', label: 'Critical', status: 'down' },
+  { severity: 'warning', label: 'Warning', status: 'warning' },
+  { severity: 'info', label: 'Information', status: 'info' },
+];
+
 export default function Alerts() {
   const queryClient = useQueryClient();
-  const [currentTab, setCurrentTab] = useState<'active' | 'acknowledged' | 'resolved'>('active');
+  const [currentTab, setCurrentTab] = useTabParam<AlertTab>(TAB_IDS);
+  const tabsId = useTabsId();
   const [actionError, setActionError] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'grouped' | 'list'>('grouped');
 
@@ -54,6 +57,15 @@ export default function Alerts() {
   const loading = queries.some((q) => q.isPending);
   const error = actionError ?? (queries.some((q) => q.isError) ? 'Failed to load alerts. Please try again.' : null);
 
+  // Active alerts present when the page first loaded. A critical alert that
+  // arrives later (via the live bridge) gets the one-off "new" pulse.
+  const [baselineIds, setBaselineIds] = useState<Set<number> | null>(null);
+  if (baselineIds === null && currentTab === 'active' && alertsQuery.isSuccess) {
+    setBaselineIds(new Set(alerts.map((a) => a.id)));
+  }
+  const isNewCritical = (alert: Alert) =>
+    alert.severity === 'critical' && alert.status === 'active' && baselineIds !== null && !baselineIds.has(alert.id);
+
   const retry = () => {
     setActionError(null);
     void queryClient.invalidateQueries({ queryKey: queryKeys.alerts.all });
@@ -78,15 +90,13 @@ export default function Alerts() {
   const handleAck = (id: number) => ackMutation.mutate(id);
   const handleResolve = (id: number) => resolveMutation.mutate(id);
 
-  const tabs = [
-    { key: 'active' as const, label: 'Active', count: counts.active },
-    { key: 'acknowledged' as const, label: 'Acknowledged', count: counts.acknowledged },
-    { key: 'resolved' as const, label: 'Resolved', count: counts.resolved },
-  ];
+  const bySeverity = useMemo(() => {
+    const map: Record<Alert['severity'], Alert[]> = { critical: [], warning: [], info: [] };
+    for (const alert of alerts) (map[alert.severity] ?? map.info).push(alert);
+    return map;
+  }, [alerts]);
 
-  const critical = useMemo(() => alerts.filter((a) => a.severity === 'critical'), [alerts]);
-  const warnings = useMemo(() => alerts.filter((a) => a.severity === 'warning'), [alerts]);
-  const info = useMemo(() => alerts.filter((a) => a.severity === 'info'), [alerts]);
+  const itemProps = { onAck: handleAck, onResolve: handleResolve, isNew: isNewCritical };
 
   return (
     <div>
@@ -95,162 +105,154 @@ export default function Alerts() {
         subtitle="Monitor and respond to network alerts across all devices."
       />
 
-      {/* Status Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-        <StatCard label="Active" value={counts.active} color="text-error" icon="error" trend="down" sparklineData={[counts.active, critical.length, warnings.length, counts.active]} />
-        <StatCard label="Acknowledged" value={counts.acknowledged} color="text-warning" icon="check_circle" trend="flat" sparklineData={[counts.acknowledged, warnings.length, counts.acknowledged]} />
-        <StatCard label="Resolved" value={counts.resolved} color="text-primary" icon="done_all" trend="up" sparklineData={[counts.resolved, info.length, counts.resolved]} />
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <StatCard label="Active" value={counts.active} color={counts.active > 0 ? 'text-error' : 'text-fg'} icon="notifications_active" />
+        <StatCard label="Acknowledged" value={counts.acknowledged} icon="check_circle" />
+        <StatCard label="Resolved" value={counts.resolved} icon="done_all" />
       </div>
 
-      <div className="bg-surface-container-low rounded-lg border border-outline-variant/20 p-5 mb-6"><div className="flex flex-wrap items-center justify-between gap-4"><div><h2 className="font-headline text-sm font-semibold uppercase tracking-wide">Alert activity pulse</h2><p className="text-xs text-on-surface-variant mt-1">Severity distribution in the current view</p></div><Sparkline data={alerts.slice(0, 24).reverse().map((alert, index) => (alert.severity === 'critical' ? 9 : alert.severity === 'warning' ? 5 : 2) + index % 3)} width={220} height={52} color="var(--color-error)" /></div><div className="flex h-3 rounded-full overflow-hidden mt-5 bg-surface-container-lowest">{[[critical.length, 'bg-error'], [warnings.length, 'bg-warning'], [info.length, 'bg-info']].map(([value, color], index) => <i key={index} className={color as string} style={{ width: `${alerts.length ? Number(value) / alerts.length * 100 : 0}%` }} />)}</div></div>
+      {alerts.length > 0 && (
+        <section aria-labelledby="severity-mix-heading" className="bg-surface-1 rounded-lg border border-line p-5 mb-6">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 id="severity-mix-heading" className="text-sm font-semibold">Severity mix</h2>
+            <p className="text-xs text-fg-muted">{alerts.length} alerts in this view</p>
+          </div>
+          <div className="flex h-3 gap-0.5 rounded-full overflow-hidden mt-4 bg-inset" aria-hidden="true">
+            {SEVERITY_SECTIONS.map(({ severity, status }) =>
+              bySeverity[severity].length > 0 ? (
+                <i key={severity} className={STATUS_META[status].bg} style={{ width: `${(bySeverity[severity].length / alerts.length) * 100}%` }} />
+              ) : null,
+            )}
+          </div>
+          <ul className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-xs">
+            {SEVERITY_SECTIONS.map(({ severity, label, status }) => (
+              <li key={severity} className="inline-flex items-center gap-1.5">
+                <span className={STATUS_META[status].text}><StatusShapeIcon shape={STATUS_META[status].shape} /></span>
+                <span className="text-fg-muted">{label}</span>
+                <span className="font-semibold tabular-nums text-fg">{bySeverity[severity].length}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
-      {/* Tabs + View Toggle */}
-      <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
-        <div className="flex flex-wrap gap-2">
-          {tabs.map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setCurrentTab(tab.key)}
-              className={`px-4 py-2 text-xs rounded-md border font-semibold uppercase tracking-wide transition-[border-color,color,background-color] ${
-                currentTab === tab.key
-                  ? 'border-primary/40 text-primary bg-primary/5'
-                  : 'border-outline-variant/20 text-on-surface-variant hover:text-on-surface'
-              }`}
-            >
-              {tab.label} ({tab.count})
-            </button>
-          ))}
-        </div>
-        <div className="flex items-center gap-3">
-          <span className="text-xs text-on-surface-variant">Live alerts feed</span>
-          {currentTab === 'active' && (
-            <div className="flex gap-1 bg-surface-container-lowest rounded-lg p-0.5">
+      <div className="flex flex-wrap items-end justify-between gap-4 mb-5">
+        <Tabs
+          label="Alert status"
+          idBase={tabsId}
+          value={currentTab}
+          onChange={setCurrentTab}
+          className="flex-1 min-w-0"
+          items={[
+            { id: 'active', label: 'Active', badge: counts.active },
+            { id: 'acknowledged', label: 'Acknowledged', badge: counts.acknowledged },
+            { id: 'resolved', label: 'Resolved', badge: counts.resolved },
+          ]}
+        />
+        {currentTab === 'active' && (
+          <div role="group" aria-label="View" className="flex gap-0.5 rounded-md border border-line bg-inset p-0.5">
+            {(['grouped', 'list'] as const).map((mode) => (
               <button
-                onClick={() => setViewMode('grouped')}
-                className={`px-3 py-1 text-xs rounded-md font-semibold uppercase tracking-wide transition-colors ${
-                  viewMode === 'grouped' ? 'bg-primary/10 text-primary' : 'text-on-surface-variant hover:text-on-surface'
+                key={mode}
+                type="button"
+                aria-pressed={viewMode === mode}
+                onClick={() => setViewMode(mode)}
+                className={`h-8 rounded-[6px] px-3 text-sm font-medium capitalize transition-colors ${
+                  viewMode === mode ? 'bg-surface-3 text-fg shadow-e1' : 'text-fg-muted hover:text-fg'
                 }`}
               >
-                Grouped
+                {mode}
               </button>
-              <button
-                onClick={() => setViewMode('list')}
-                className={`px-3 py-1 text-xs rounded-md font-semibold uppercase tracking-wide transition-colors ${
-                  viewMode === 'list' ? 'bg-primary/10 text-primary' : 'text-on-surface-variant hover:text-on-surface'
-                }`}
-              >
-                List
-              </button>
-            </div>
-          )}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* Loading State */}
-      {loading && <LoadingState message="Loading alerts..." />}
+      <TabPanel idBase={tabsId} id={currentTab} value={currentTab}>
+        {loading && <LoadingState message="Loading alerts…" />}
 
-      {/* Error State */}
-      {error && !loading && <ErrorState message={error} onRetry={retry} />}
+        {error && !loading && <ErrorState message={error} onRetry={retry} />}
 
-      {/* Grouped View */}
-      {!loading && !error && currentTab === 'active' && viewMode === 'grouped' && (
-        <div className="space-y-4">
-          {grouped.length === 0 && (
-            <div className="text-sm text-on-surface-variant text-center py-12">No alerts in this view</div>
-          )}
-          {grouped.map((group) => (
-            <AlertGroupCard key={group.groupId} group={group} onAck={handleAck} onResolve={handleResolve} />
-          ))}
-        </div>
-      )}
+        {!loading && !error && currentTab === 'active' && viewMode === 'grouped' && (
+          <div className="space-y-3">
+            {grouped.length === 0 && <EmptyState icon="notifications_off" title="No active alerts" description="Everything is quiet right now." />}
+            {grouped.map((group) => (
+              <AlertGroupCard key={group.groupId} group={group} {...itemProps} />
+            ))}
+          </div>
+        )}
 
-      {/* List View */}
-      {!loading && !error && (currentTab !== 'active' || viewMode === 'list') && (
-        <div className="space-y-4">
-          {currentTab === 'active' && critical.length > 0 && (
-            <>
-              <div className="flex items-center gap-4 py-4">
-                <span className="h-px flex-1 bg-error/20" />
-                <span className="font-headline text-error font-semibold tracking-wide text-sm">Critical</span>
-                <span className="h-px flex-1 bg-error/20" />
-              </div>
-              {critical.map((alert) => <AlertItem key={alert.id} alert={alert} onAck={handleAck} onResolve={handleResolve} />)}
-            </>
-          )}
+        {!loading && !error && (currentTab !== 'active' || viewMode === 'list') && (
+          <div className="space-y-3">
+            {currentTab === 'active' &&
+              SEVERITY_SECTIONS.map(({ severity, label, status }) =>
+                bySeverity[severity].length > 0 ? (
+                  <section key={severity} aria-label={`${label} alerts`} className="space-y-3">
+                    <h2 className={`flex items-center gap-2 pt-3 text-sm font-semibold ${STATUS_META[status].text}`}>
+                      <StatusShapeIcon shape={STATUS_META[status].shape} />
+                      <span className="text-fg">{label}</span>
+                      <span className="text-fg-muted font-normal tabular-nums">{bySeverity[severity].length}</span>
+                      <span className="h-px flex-1 bg-line" />
+                    </h2>
+                    {bySeverity[severity].map((alert) => <AlertItem key={alert.id} alert={alert} {...itemProps} />)}
+                  </section>
+                ) : null,
+              )}
 
-          {currentTab === 'active' && warnings.length > 0 && (
-            <>
-              <div className="flex items-center gap-4 py-4">
-                <span className="h-px flex-1 bg-warning/20" />
-                <span className="font-headline text-warning font-semibold tracking-wide text-sm">Warning</span>
-                <span className="h-px flex-1 bg-warning/20" />
-              </div>
-              {warnings.map((alert) => <AlertItem key={alert.id} alert={alert} onAck={handleAck} onResolve={handleResolve} />)}
-            </>
-          )}
+            {currentTab !== 'active' && alerts.map((alert) => <AlertItem key={alert.id} alert={alert} {...itemProps} />)}
 
-          {currentTab === 'active' && info.length > 0 && (
-            <>
-              <div className="flex items-center gap-4 py-4">
-                <span className="h-px flex-1 bg-primary/20" />
-                <span className="font-headline text-primary font-semibold tracking-wide text-sm">Information</span>
-                <span className="h-px flex-1 bg-primary/20" />
-              </div>
-              {info.map((alert) => <AlertItem key={alert.id} alert={alert} onAck={handleAck} onResolve={handleResolve} />)}
-            </>
-          )}
-
-          {currentTab !== 'active' && alerts.map((alert) => (
-            <AlertItem key={alert.id} alert={alert} onAck={handleAck} onResolve={handleResolve} />
-          ))}
-
-          {alerts.length === 0 && (
-            <div className="text-sm text-on-surface-variant text-center py-12">No alerts in this view</div>
-          )}
-        </div>
-      )}
+            {alerts.length === 0 && <EmptyState icon="notifications_off" title={`No ${currentTab} alerts`} />}
+          </div>
+        )}
+      </TabPanel>
     </div>
   );
 }
 
-function AlertGroupCard({ group, onAck, onResolve }: { group: AlertGroup; onAck: (id: number) => void; onResolve: (id: number) => void }) {
+interface ItemHandlers {
+  onAck: (id: number) => void;
+  onResolve: (id: number) => void;
+  isNew: (alert: Alert) => boolean;
+}
+
+function AlertGroupCard({ group, onAck, onResolve, isNew }: { group: AlertGroup } & ItemHandlers) {
   const [expanded, setExpanded] = useState(false);
   const firstAlert = group.alerts[0];
   if (!firstAlert) return null;
 
-  const sc = severityColors(firstAlert.severity);
-  const severity = firstAlert.severity;
+  const meta = severityMeta(firstAlert.severity);
+  const panelId = `alert-group-${group.groupId}`;
+  const hasNew = group.alerts.some(isNew);
 
   return (
-    <div className={`bg-surface-container-low rounded-lg border ${sc.border} overflow-hidden transition-colors`}>
+    <div className={`bg-surface-1 rounded-lg border border-line border-l-4 ${meta.borderL} overflow-hidden ${hasNew ? 'alert-new-pulse' : ''}`}>
       <button
+        type="button"
         onClick={() => setExpanded(!expanded)}
-        className="w-full p-5 flex items-center justify-between hover:bg-surface-container-low transition-colors"
+        aria-expanded={expanded}
+        aria-controls={panelId}
+        className="w-full p-4 flex items-center justify-between gap-4 text-left hover:bg-surface-2 transition-colors"
       >
-        <div className="flex items-center gap-4">
-          <div className={`${sc.bg} p-3 rounded-lg`}>
-            <span className={`material-symbols-outlined ${sc.text}`} style={{ fontVariationSettings: "'FILL' 1" }}>
-              {severityIcon(severity)}
-            </span>
+        <div className="flex items-center gap-4 min-w-0">
+          <div className={`${meta.chip} p-2.5 rounded-md`}>
+            <span className={`material-symbols-outlined ${meta.text}`} aria-hidden="true">{meta.icon}</span>
           </div>
-          <div className="text-left">
-            <div className="flex items-center gap-3">
-              <h3 className="font-headline font-semibold text-on-surface tracking-tight">{firstAlert.message.split(':')[0]}</h3>
-              <span className={`text-xs ${sc.bg} ${sc.text} px-2 py-0.5 font-semibold rounded`}>
-                {severity}
-              </span>
+          <div className="min-w-0">
+            <div className="flex items-center gap-3 flex-wrap">
+              <h3 className="font-semibold text-fg truncate">{firstAlert.message.split(':')[0]}</h3>
+              <StatusPill status={meta} />
             </div>
-            <p className="text-sm text-on-surface-variant">{group.count} device{group.count !== 1 ? 's' : ''} affected</p>
+            <p className="text-sm text-fg-muted">{group.count} device{group.count !== 1 ? 's' : ''} affected</p>
           </div>
         </div>
-        <span className="material-symbols-outlined text-on-surface-variant transition-transform" style={{ transform: expanded ? 'rotate(180deg)' : '' }}>
+        <span className={`material-symbols-outlined text-fg-muted transition-transform ${expanded ? 'rotate-180' : ''}`} aria-hidden="true">
           expand_more
         </span>
       </button>
       {expanded && (
-        <div className="border-t border-outline-variant/15 px-5 pb-4 space-y-3">
+        <div id={panelId} className="border-t border-line p-4 space-y-3 bg-inset">
           {group.alerts.map((alert) => (
-            <AlertItem key={alert.id} alert={alert} onAck={onAck} onResolve={onResolve} />
+            <AlertItem key={alert.id} alert={alert} onAck={onAck} onResolve={onResolve} isNew={isNew} />
           ))}
         </div>
       )}
@@ -258,45 +260,43 @@ function AlertGroupCard({ group, onAck, onResolve }: { group: AlertGroup; onAck:
   );
 }
 
-function AlertItem({ alert, onAck, onResolve }: { alert: Alert; onAck: (id: number) => void; onResolve: (id: number) => void }) {
+function AlertItem({ alert, onAck, onResolve, isNew }: { alert: Alert } & ItemHandlers) {
   const deviceName = alert.deviceName || `Device ${alert.deviceId}`;
+  const meta = severityMeta(alert.severity);
 
   return (
-    <div className={`group bg-surface-container-low rounded-lg border ${severityColors(alert.severity).border} p-5 flex flex-col md:flex-row md:items-center justify-between gap-6 transition-[background-color,border-color] hover:bg-surface-container-low`}>
-      <div className="flex items-start gap-4">
-        <div className={`${severityColors(alert.severity).bg} p-3 rounded-lg`}>
-          <span className={`material-symbols-outlined ${severityColors(alert.severity).text}`} style={{ fontVariationSettings: "'FILL' 1" }}>
-            {severityIcon(alert.severity)}
-          </span>
+    <article
+      className={`bg-surface-1 rounded-lg border border-line border-l-4 ${meta.borderL} p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 ${isNew(alert) ? 'alert-new-pulse' : ''}`}
+    >
+      <div className="flex items-start gap-4 min-w-0">
+        <div className={`${meta.chip} p-2.5 rounded-md shrink-0`}>
+          <span className={`material-symbols-outlined ${meta.text}`} aria-hidden="true">{meta.icon}</span>
         </div>
-        <div>
+        <div className="min-w-0">
           <div className="flex items-center gap-3 mb-1 flex-wrap">
-            <h3 className="font-headline font-semibold text-on-surface tracking-tight">{alert.message}</h3>
-            <span className={`text-xs ${severityColors(alert.severity).bg} ${severityColors(alert.severity).text} px-2 py-0.5 font-semibold rounded`}>
-              {alert.severity}
-            </span>
+            <h3 className="font-semibold text-fg">{alert.message}</h3>
+            <StatusPill status={meta} />
+            {isNew(alert) && <span className="text-xs font-medium text-fg-muted">New</span>}
           </div>
-          <p className="text-sm text-on-surface-variant">{deviceName}</p>
-          <span className="text-xs font-data text-on-surface-variant mt-2 block">
-            {new Date(alert.createdAt).toLocaleString()} • {alert.status}
-          </span>
+          <p className="text-sm text-fg-muted">{deviceName}</p>
+          <p className="text-xs font-mono text-fg-subtle mt-1.5 flex flex-wrap items-center gap-2">
+            <time dateTime={alert.createdAt}>{new Date(alert.createdAt).toLocaleString()}</time>
+            <StatusPill status={lifecycleMeta(alert.status)} />
+          </p>
         </div>
       </div>
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3 shrink-0">
         {alert.status === 'active' && (
-          <button onClick={() => onAck(alert.id)} className={`px-5 py-2.5 border ${severityColors(alert.severity).border} ${severityColors(alert.severity).text} font-headline font-semibold text-sm rounded-md hover:bg-surface-container-lowest transition-[background-color,color]`}>
+          <Button variant="secondary" icon="check" onClick={() => onAck(alert.id)} aria-label={`Acknowledge alert: ${alert.message}`}>
             Acknowledge
-          </button>
+          </Button>
         )}
         {alert.status === 'acknowledged' && (
-          <button onClick={() => onResolve(alert.id)} className="px-5 py-2.5 border border-primary text-primary font-headline font-semibold text-sm rounded-md hover:bg-primary hover:text-on-primary transition-[background-color,color]">
+          <Button variant="primary-outline" icon="done_all" onClick={() => onResolve(alert.id)} aria-label={`Resolve alert: ${alert.message}`}>
             Resolve
-          </button>
-        )}
-        {alert.status === 'resolved' && (
-          <span className="text-xs font-semibold tracking-wide text-on-surface-variant">Resolved</span>
+          </Button>
         )}
       </div>
-    </div>
+    </article>
   );
 }

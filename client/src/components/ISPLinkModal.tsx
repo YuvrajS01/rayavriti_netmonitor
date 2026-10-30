@@ -1,16 +1,47 @@
-import { useEffect, useRef } from 'react';
-import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip, Legend } from 'recharts';
+import type { ReactNode } from 'react';
+import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip, Legend, CartesianGrid } from 'recharts';
 import { useQuery } from '@tanstack/react-query';
 import { getISPLinkSLA, getISPLinkTimeseries, type ISPLink } from '../api/isp';
 import { queryKeys } from '../api/queryKeys';
-import { TOOLTIP_STYLE } from '../utils/chartConfig';
+import {
+  AXIS_TICK_STYLE,
+  GRID_COLOR,
+  LEGEND_STYLE,
+  SERIES_COLORS,
+  TOOLTIP_ITEM_STYLE,
+  TOOLTIP_LABEL_STYLE,
+  TOOLTIP_STYLE,
+  legendFormatter,
+} from '../utils/chartConfig';
 import { formatMbps } from '../utils/formatters';
+import { useChartAnimation } from '../hooks/useReducedMotion';
+import Dialog from './ui/Dialog';
+import Button from './ui/Button';
+import { StatusPill } from './ui/Status';
+
+function Metric({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="bg-surface-2 p-4 rounded-md">
+      <dt className="text-xs text-fg-muted mb-1">{label}</dt>
+      <dd className="font-mono font-semibold text-fg">{children}</dd>
+    </div>
+  );
+}
+
+function ChartPanel({ title, action, children }: { title: string; action?: ReactNode; children: ReactNode }) {
+  return (
+    <section aria-label={title} className="rounded-lg border border-line p-4 mb-6">
+      <div className="flex items-center justify-between mb-4 gap-2">
+        <h3 className="text-sm font-semibold">{title}</h3>
+        {action}
+      </div>
+      {children}
+    </section>
+  );
+}
 
 export default function ISPLinkModal({ link, onClose }: { link: ISPLink; onClose: () => void }) {
-  const dialogRef = useRef<HTMLDivElement>(null);
-  const previousFocus = useRef<HTMLElement | null>(null);
-  const onCloseRef = useRef(onClose);
-  useEffect(() => { onCloseRef.current = onClose; });
+  const anim = useChartAnimation();
   const slaQuery = useQuery({
     queryKey: queryKeys.isp.sla(link.id),
     queryFn: ({ signal }) => getISPLinkSLA(link.id, { signal }),
@@ -25,27 +56,6 @@ export default function ISPLinkModal({ link, onClose }: { link: ISPLink; onClose
   const sla = slaQuery.data?.data ?? null;
   const timeSeries = timeseriesQuery.data?.data || [];
 
-  useEffect(() => {
-    previousFocus.current = document.activeElement as HTMLElement;
-    dialogRef.current?.focus();
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') { onCloseRef.current(); return; }
-      if (e.key !== 'Tab' || !dialogRef.current) return;
-      const focusable = dialogRef.current.querySelectorAll<HTMLElement>(
-        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-      );
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      if (!first || !last) return;
-      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
-      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
-    };
-
-    document.addEventListener('keydown', handleKeyDown);
-    return () => { document.removeEventListener('keydown', handleKeyDown); previousFocus.current?.focus(); };
-  }, []);
-
   const chartData = timeSeries.map((p) => ({
     time: new Date(p.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
     latency: p.latencyMs ?? 0,
@@ -55,175 +65,136 @@ export default function ISPLinkModal({ link, onClose }: { link: ISPLink; onClose
     upload: p.uploadMbps ?? 0,
   })).reverse();
 
-  const statusColor = (s: string) => {
-    if (s === 'up') return 'text-success';
-    if (s === 'degraded') return 'text-warning';
-    return 'text-error';
-  };
-
   const slaMet = sla?.slaCompliant;
-  const slaColor = slaMet === true ? 'text-success' : slaMet === false ? 'text-error' : 'text-outline';
+  const slaPill = slaMet === true
+    ? <StatusPill status="up">SLA met</StatusPill>
+    : slaMet === false
+      ? <StatusPill status="down">SLA breached</StatusPill>
+      : <StatusPill status="unknown">No SLA</StatusPill>;
+  const tooltipProps = { contentStyle: TOOLTIP_STYLE, labelStyle: TOOLTIP_LABEL_STYLE, itemStyle: TOOLTIP_ITEM_STYLE };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-16 bg-black/60" onClick={onClose}>
-      <div
-        ref={dialogRef}
-        role="dialog"
-        aria-modal="true"
-        aria-label={`ISP link details for ${link.name}`}
-        tabIndex={-1}
-        className="bg-surface-container-low border border-outline-variant/30 rounded-lg w-full max-w-4xl max-h-[calc(100vh-4rem)] overflow-hidden flex flex-col outline-none"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="p-6 border-b border-outline-variant/20 flex justify-between items-start shrink-0">
-          <div>
-            <h2 className="font-headline text-3xl font-semibold text-on-surface uppercase tracking-tight">{link.name}</h2>
-            <p className="text-on-surface-variant text-sm font-data mt-0.5">{link.provider} · {link.gateway_ip} · #{link.id}</p>
-          </div>
-          <button onClick={onClose} className="p-2 hover:bg-surface-container-lowest rounded-full transition-colors" aria-label="Close dialog">
-            <span className="material-symbols-outlined text-outline hover:text-on-surface">close</span>
-          </button>
+    <Dialog
+      open
+      onClose={onClose}
+      size="xl"
+      title={link.name}
+      description={<span className="font-mono">{link.provider} · {link.gateway_ip} · #{link.id}</span>}
+      headerActions={!loading && !error ? <div className="pt-1">{slaPill}</div> : undefined}
+    >
+      {loading ? (
+        <div className="h-64 flex items-center justify-center text-fg-muted text-sm">Loading ISP data…</div>
+      ) : error ? (
+        <div role="alert" className="h-64 flex flex-col items-center justify-center text-sm gap-3">
+          <StatusPill status="down" size="md">{error}</StatusPill>
+          <Button size="sm" variant="secondary" icon="refresh" onClick={() => { void slaQuery.refetch(); void timeseriesQuery.refetch(); }}>Retry</Button>
         </div>
-
-        <div className="p-6 overflow-y-auto flex-1 min-h-0">
-          {loading ? (
-            <div className="h-64 flex items-center justify-center text-on-surface-variant text-sm">Loading ISP data...</div>
-          ) : error ? (
-            <div className="h-64 flex flex-col items-center justify-center text-error text-sm gap-2">
-              <span className="material-symbols-outlined text-3xl">error</span>
-              <p>{error}</p>
-              <button onClick={() => { void slaQuery.refetch(); void timeseriesQuery.refetch(); }} className="text-xs text-primary hover:underline">Retry</button>
+      ) : (
+        <>
+          <dl className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
+            <div className="bg-surface-2 p-4 rounded-md">
+              <dt className="text-xs text-fg-muted mb-1.5">Status</dt>
+              <dd><StatusPill status={sla?.latestStatus || 'unknown'} size="md" /></dd>
             </div>
-          ) : (
-            <>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                <div className="bg-surface-container-low p-4 rounded-lg">
-                  <p className="text-[10px] text-on-surface-variant uppercase tracking-wide mb-1">Status</p>
-                  <p className={`font-semibold uppercase ${statusColor(sla?.latestStatus || 'unknown')}`}>{sla?.latestStatus || 'UNKNOWN'}</p>
-                </div>
-                <div className="bg-surface-container-low p-4 rounded-lg">
-                  <p className="text-[10px] text-on-surface-variant uppercase tracking-wide mb-1">Uptime</p>
-                  <p className={`font-semibold ${slaColor}`}>{sla?.actualUptime != null ? `${sla.actualUptime.toFixed(2)}%` : '-'}</p>
-                </div>
-                <div className="bg-surface-container-low p-4 rounded-lg">
-                  <p className="text-[10px] text-on-surface-variant uppercase tracking-wide mb-1">Latency</p>
-                  <p className="font-semibold text-on-surface">{sla?.avgLatencyMs != null ? `${sla.avgLatencyMs.toFixed(1)}ms` : '-'}</p>
-                </div>
-                <div className="bg-surface-container-low p-4 rounded-lg">
-                  <p className="text-[10px] text-on-surface-variant uppercase tracking-wide mb-1">Packet Loss</p>
-                  <p className={`font-semibold ${sla && sla.avgPacketLoss > 1 ? 'text-error' : 'text-success'}`}>{sla?.avgPacketLoss != null ? `${sla.avgPacketLoss.toFixed(2)}%` : '-'}</p>
-                </div>
-              </div>
+            <Metric label="Uptime">{sla?.actualUptime != null ? `${sla.actualUptime.toFixed(2)}%` : '—'}</Metric>
+            <Metric label="Latency">{sla?.avgLatencyMs != null ? `${sla.avgLatencyMs.toFixed(1)}ms` : '—'}</Metric>
+            <Metric label="Packet loss">{sla?.avgPacketLoss != null ? `${sla.avgPacketLoss.toFixed(2)}%` : '—'}</Metric>
+          </dl>
+          <dl className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+            <Metric label="Bandwidth">{link.bandwidth_mbps} Mbps</Metric>
+            <Metric label="SLA target">{link.sla_uptime_percent || 99.5}%</Metric>
+            <Metric label="Jitter">{sla?.avgJitterMs != null ? `${sla.avgJitterMs.toFixed(1)}ms` : '—'}</Metric>
+            <Metric label="Total probes">{sla?.totalProbes ?? 0}</Metric>
+          </dl>
 
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                <div className="bg-surface-container-low p-4 rounded-lg">
-                  <p className="text-[10px] text-on-surface-variant uppercase tracking-wide mb-1">Bandwidth</p>
-                  <p className="font-semibold text-on-surface">{link.bandwidth_mbps} Mbps</p>
-                </div>
-                <div className="bg-surface-container-low p-4 rounded-lg">
-                  <p className="text-[10px] text-on-surface-variant uppercase tracking-wide mb-1">SLA Target</p>
-                  <p className="font-semibold text-on-surface">{link.sla_uptime_percent || 99.5}%</p>
-                </div>
-                <div className="bg-surface-container-low p-4 rounded-lg">
-                  <p className="text-[10px] text-on-surface-variant uppercase tracking-wide mb-1">Jitter</p>
-                  <p className="font-semibold text-on-surface">{sla?.avgJitterMs != null ? `${sla.avgJitterMs.toFixed(1)}ms` : '-'}</p>
-                </div>
-                <div className="bg-surface-container-low p-4 rounded-lg">
-                  <p className="text-[10px] text-on-surface-variant uppercase tracking-wide mb-1">Total Probes</p>
-                  <p className="font-semibold text-on-surface">{sla?.totalProbes ?? 0}</p>
-                </div>
-              </div>
+          <ChartPanel title="Latency and jitter">
+            {chartData.length === 0 ? (
+              <div className="h-64 flex items-center justify-center text-fg-muted text-sm">No metrics data yet. Probes run every {link.monitoring_interval_seconds}s.</div>
+            ) : (
+              <ResponsiveContainer width="100%" height={256}>
+                <LineChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                  <CartesianGrid stroke={GRID_COLOR} vertical={false} />
+                  <XAxis dataKey="time" tick={AXIS_TICK_STYLE} tickLine={false} axisLine={false} />
+                  <YAxis tick={AXIS_TICK_STYLE} tickLine={false} axisLine={false} tickFormatter={(v) => `${v}ms`} />
+                  <Tooltip {...tooltipProps} formatter={(value: unknown, name: unknown) => [`${Number(value ?? 0).toFixed(1)}ms`, String(name)]} />
+                  <Legend wrapperStyle={LEGEND_STYLE} formatter={legendFormatter} />
+                  <Line name="Latency" type="monotone" dataKey="latency" stroke={SERIES_COLORS[0]} strokeWidth={2} dot={false} activeDot={{ r: 4 }} connectNulls {...anim} />
+                  <Line name="Jitter" type="monotone" dataKey="jitter" stroke={SERIES_COLORS[1]} strokeWidth={2} dot={false} activeDot={{ r: 3 }} connectNulls {...anim} />
+                </LineChart>
+              </ResponsiveContainer>
+            )}
+          </ChartPanel>
 
-              <div className="bg-surface-container-low rounded-lg p-4 border border-outline-variant/20 mb-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-sm font-headline font-semibold uppercase tracking-wide">Latency & Jitter</h3>
-                  <span className={`text-xs font-semibold uppercase px-2 py-0.5 rounded-full ${slaMet === true ? 'bg-success/10 text-success' : slaMet === false ? 'bg-error/10 text-error' : 'bg-surface-container-lowest text-outline'}`}>
-                    {slaMet === true ? 'SLA Met' : slaMet === false ? 'SLA Breached' : 'No SLA'}
-                  </span>
-                </div>
-                {chartData.length === 0 ? (
-                  <div className="h-64 flex items-center justify-center text-on-surface-variant text-sm">No metrics data yet. Probes run every {link.monitoring_interval_seconds}s.</div>
-                ) : (
-                  <ResponsiveContainer width="100%" height={256}>
-                    <LineChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                      <XAxis dataKey="time" tick={{ fill: '#77766d', fontSize: 10 }} tickLine={false} axisLine={false} />
-                      <YAxis tick={{ fill: '#77766d', fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={(v) => `${v}ms`} />
-                      <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(value: unknown, name: unknown) => [`${Number(value ?? 0).toFixed(1)}ms`, String(name) === 'latency' ? 'Latency' : 'Jitter']} />
-                      <Legend wrapperStyle={{ fontSize: 11, color: '#c9c6b8' }} />
-                      <Line name="Latency" type="monotone" dataKey="latency" stroke="#d9fd3a" strokeWidth={2} dot={false} activeDot={{ r: 4 }} connectNulls />
-                      <Line name="Jitter" type="monotone" dataKey="jitter" stroke="#7dd3fc" strokeWidth={1.5} dot={false} activeDot={{ r: 3 }} connectNulls />
-                    </LineChart>
-                  </ResponsiveContainer>
-                )}
-              </div>
+          <ChartPanel title="Packet loss">
+            {chartData.length === 0 ? (
+              <div className="h-40 flex items-center justify-center text-fg-muted text-sm">No data</div>
+            ) : (
+              <ResponsiveContainer width="100%" height={160}>
+                <LineChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                  <CartesianGrid stroke={GRID_COLOR} vertical={false} />
+                  <XAxis dataKey="time" tick={AXIS_TICK_STYLE} tickLine={false} axisLine={false} />
+                  <YAxis tick={AXIS_TICK_STYLE} tickLine={false} axisLine={false} tickFormatter={(v) => `${v}%`} domain={[0, 'auto']} />
+                  <Tooltip {...tooltipProps} formatter={(value: unknown) => [`${Number(value ?? 0).toFixed(2)}%`, 'Packet loss']} />
+                  <Line name="Packet loss" type="monotone" dataKey="packetLoss" stroke={SERIES_COLORS[2]} strokeWidth={2} dot={false} activeDot={{ r: 4 }} connectNulls {...anim} />
+                </LineChart>
+              </ResponsiveContainer>
+            )}
+          </ChartPanel>
 
-              <div className="bg-surface-container-low rounded-lg p-4 border border-outline-variant/20 mb-6">
-                <h3 className="text-sm font-headline font-semibold mb-4 uppercase tracking-wide">Packet Loss</h3>
-                {chartData.length === 0 ? (
-                  <div className="h-40 flex items-center justify-center text-on-surface-variant text-sm">No data</div>
-                ) : (
-                  <ResponsiveContainer width="100%" height={160}>
-                    <LineChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                      <XAxis dataKey="time" tick={{ fill: '#77766d', fontSize: 10 }} tickLine={false} axisLine={false} />
-                      <YAxis tick={{ fill: '#77766d', fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={(v) => `${v}%`} domain={[0, 'auto']} />
-                      <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(value: unknown) => [`${Number(value ?? 0).toFixed(2)}%`, 'Packet Loss']} />
-                      <Line type="monotone" dataKey="packetLoss" stroke="#f87171" strokeWidth={2} dot={false} activeDot={{ r: 4 }} connectNulls />
-                    </LineChart>
-                  </ResponsiveContainer>
-                )}
-              </div>
-
-              {link.bandwidth_mbps > 0 && (
-                <div className="bg-surface-container-low rounded-lg p-4 border border-outline-variant/20 mb-6">
-                  <h3 className="text-sm font-headline font-semibold mb-4 uppercase tracking-wide">Throughput</h3>
-                  {chartData.length === 0 ? (
-                    <div className="h-40 flex items-center justify-center text-on-surface-variant text-sm">No data</div>
-                  ) : (
-                    <ResponsiveContainer width="100%" height={160}>
-                      <LineChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                        <XAxis dataKey="time" tick={{ fill: '#77766d', fontSize: 10 }} tickLine={false} axisLine={false} />
-                        <YAxis tick={{ fill: '#77766d', fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={(v) => `${v}M`} />
-                        <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(value: unknown, name: unknown) => [formatMbps(Number(value ?? 0)), String(name) === 'download' ? 'Download' : 'Upload']} />
-                        <Legend wrapperStyle={{ fontSize: 11, color: '#c9c6b8' }} />
-                        <Line name="Download" type="monotone" dataKey="download" stroke="#d9fd3a" strokeWidth={2} dot={false} activeDot={{ r: 4 }} connectNulls />
-                        <Line name="Upload" type="monotone" dataKey="upload" stroke="#7dd3fc" strokeWidth={2} dot={false} activeDot={{ r: 4 }} connectNulls />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  )}
-                </div>
+          {link.bandwidth_mbps > 0 && (
+            <ChartPanel title="Throughput">
+              {chartData.length === 0 ? (
+                <div className="h-40 flex items-center justify-center text-fg-muted text-sm">No data</div>
+              ) : (
+                <ResponsiveContainer width="100%" height={160}>
+                  <LineChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                    <CartesianGrid stroke={GRID_COLOR} vertical={false} />
+                    <XAxis dataKey="time" tick={AXIS_TICK_STYLE} tickLine={false} axisLine={false} />
+                    <YAxis tick={AXIS_TICK_STYLE} tickLine={false} axisLine={false} tickFormatter={(v) => `${v}M`} />
+                    <Tooltip {...tooltipProps} formatter={(value: unknown, name: unknown) => [formatMbps(Number(value ?? 0)), String(name)]} />
+                    <Legend wrapperStyle={LEGEND_STYLE} formatter={legendFormatter} />
+                    <Line name="Download" type="monotone" dataKey="download" stroke={SERIES_COLORS[0]} strokeWidth={2} dot={false} activeDot={{ r: 4 }} connectNulls {...anim} />
+                    <Line name="Upload" type="monotone" dataKey="upload" stroke={SERIES_COLORS[1]} strokeWidth={2} dot={false} activeDot={{ r: 4 }} connectNulls {...anim} />
+                  </LineChart>
+                </ResponsiveContainer>
               )}
-
-              {sla && sla.slaTarget != null && (
-                <div className="bg-surface-container-low rounded-lg p-4 border border-outline-variant/20">
-                  <h3 className="text-sm font-headline font-semibold mb-3 uppercase tracking-wide">SLA Compliance</h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-[10px] text-on-surface-variant uppercase tracking-wide">Target Uptime</p>
-                      <p className="text-lg font-semibold text-on-surface">{sla.slaTarget}%</p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] text-on-surface-variant uppercase tracking-wide">Actual Uptime</p>
-                      <p className={`text-lg font-semibold ${slaColor}`}>{sla.actualUptime.toFixed(2)}%</p>
-                    </div>
-                    {sla.slaGap != null && (
-                      <>
-                        <div>
-                          <p className="text-[10px] text-on-surface-variant uppercase tracking-wide">Gap</p>
-                          <p className={`text-lg font-semibold ${sla.slaGap >= 0 ? 'text-success' : 'text-error'}`}>{sla.slaGap >= 0 ? '+' : ''}{sla.slaGap.toFixed(2)}%</p>
-                        </div>
-                        <div>
-                          <p className="text-[10px] text-on-surface-variant uppercase tracking-wide">Monthly Cost</p>
-                          <p className="text-lg font-semibold text-on-surface">{link.cost_monthly > 0 ? `₹${link.cost_monthly.toLocaleString()}` : '-'}</p>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                </div>
-              )}
-            </>
+            </ChartPanel>
           )}
-        </div>
-      </div>
-    </div>
+
+          {sla && sla.slaTarget != null && (
+            <section aria-label="SLA compliance" className="rounded-lg border border-line p-4">
+              <div className="flex items-center justify-between mb-3 gap-2">
+                <h3 className="text-sm font-semibold">SLA compliance</h3>
+                {slaPill}
+              </div>
+              <dl className="grid grid-cols-2 gap-4">
+                <div>
+                  <dt className="text-xs text-fg-muted">Target uptime</dt>
+                  <dd className="font-mono text-lg font-semibold text-fg">{sla.slaTarget}%</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-fg-muted">Actual uptime</dt>
+                  <dd className="font-mono text-lg font-semibold text-fg">{sla.actualUptime.toFixed(2)}%</dd>
+                </div>
+                {sla.slaGap != null && (
+                  <>
+                    <div>
+                      <dt className="text-xs text-fg-muted">Gap</dt>
+                      <dd className="mt-1">
+                        <StatusPill status={sla.slaGap >= 0 ? 'up' : 'down'}>{sla.slaGap >= 0 ? '+' : ''}{sla.slaGap.toFixed(2)}%</StatusPill>
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs text-fg-muted">Monthly cost</dt>
+                      <dd className="font-mono text-lg font-semibold text-fg">{link.cost_monthly > 0 ? `₹${link.cost_monthly.toLocaleString()}` : '—'}</dd>
+                    </div>
+                  </>
+                )}
+              </dl>
+            </section>
+          )}
+        </>
+      )}
+    </Dialog>
   );
 }

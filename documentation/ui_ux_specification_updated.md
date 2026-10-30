@@ -1,371 +1,293 @@
-# UI/UX Specification Document
-## Simplified Network Monitoring System (Rayavriti Theme)
+# UI/UX Specification — Rayavriti NetMonitor v5 design system
 
-**Version:** 2.0  
-**Date:** February 28, 2026
+This document describes the design system that ships in `client/`. It replaces the
+earlier lime / League Spartan / neon-glow specification, which no longer matches the
+product. When the code and this document disagree, the code is right and this
+document needs fixing.
 
----
+**Audience.** Campus NOC operators. They work at a desk and on wall displays seen
+from across a room, often on cheap projectors. They need to spot what is broken
+quickly. Every rule below follows from that.
 
-## Design System
+**Sources of truth**
 
-### Color Palette
-
-#### Brand Colors (Primary)
-```css
---primary: #d9fd3a;         /* Main brand color (Neon Yellowish-Green) */
---primary-hover: #C3E800;   /* Hover state */
---primary-active: #B2D700;  /* Active state */
-```
-
-#### Background Colors
-```css
---bg-default: #11110B;      /* Main application background */
---bg-surface: #161612;      /* Cards and secondary sections */
---bg-elevated: #1C1C16;     /* Modals, dropdowns, popovers */
-```
-
-#### Text Colors
-```css
---text-primary: #d9fd3a;    /* High-contrast headings and active elements */
---text-secondary: #B8C94D;  /* Secondary emphasis */
---text-muted: #7A7A66;      /* Disabled or less important text */
---text-body: #C5C5B0;       /* Standard body text format */
---text-inverse: #11110B;    /* Text on primary-colored background elements */
-```
-
-#### Border Colors
-```css
---border-default: #2A2A22;  /* Standard dividers */
---border-active: #d9fd3a;   /* Focused elements */
---border-subtle: #1F1F18;   /* Light dividers between nested items */
-```
-
-#### Status Colors
-```css
---success: #d9fd3a;         /* Operational/OK (Using brand primary) */
---warning: #F59E0B;         /* Warning state */
---error: #EF4444;           /* Error/Critical */
---info: #B8C94D;            /* Informational */
-```
-
-### Typography
-
-**Font Families:**
-- **Heading**: 'League Spartan', system-ui, sans-serif
-- **Body**: 'Space Grotesk', system-ui, sans-serif
-
-**Font Sizes:**
-```css
---text-xs: 0.75rem;     /* 12px */
---text-sm: 0.875rem;    /* 14px */
---text-base: 1rem;      /* 16px */
---text-lg: 1.125rem;    /* 18px */
---text-xl: 1.25rem;     /* 20px */
---text-2xl: 1.5rem;     /* 24px */
---text-3xl: 1.75rem;    /* 28px */
---text-4xl: 2rem;       /* 32px (h4) */
---text-5xl: 2.25rem;    /* 36px (h3) */
---text-6xl: 3rem;       /* 48px (h2) */
---text-7xl: 4rem;       /* 64px (h1) */
-```
-
-### Spacing System
-```css
---space-xs: 4px;
---space-sm: 8px;
---space-md: 16px;
---space-lg: 24px;
---space-xl: 32px;
---space-2xl: 48px;
---space-3xl: 64px;
-```
-
-### Layout
-```css
---max-width: 1280px;
---gutter: 32px;
-```
-
-### Border Radius
-```css
---radius-sm: 6px;
---radius-md: 10px;
---radius-lg: 16px;
---radius-xl: 24px;
---radius-full: 9999px;
-```
-
-### Shadows & Glows
-
-Rayavriti emphasizes a dark, futuristic aesthetic. Soft layering with high-contrast neon glows creates a distinct technological feel.
-```css
---shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
---shadow-soft: 0 4px 16px rgba(0, 0, 0, 0.25), 0 8px 32px rgba(0, 0, 0, 0.15);
---shadow-hard: 0 8px 24px rgba(0, 0, 0, 0.35), 0 16px 48px rgba(0, 0, 0, 0.25);
---shadow-glow: 0 0 20px rgba(217, 253, 58, 0.25), 0 0 40px rgba(217, 253, 58, 0.1);
-```
-
-### Motion & Animation
-```css
---duration-fast: 120ms;
---duration-normal: 220ms;
---duration-slow: 400ms;
---easing-standard: cubic-bezier(0.4, 0, 0.2, 1);
---easing-emphasized: cubic-bezier(0.2, 0, 0, 1);
-```
+| Concern | File |
+|---|---|
+| Tokens (colour, type, radius, elevation, z-index, motion, density) | `client/src/index.css` |
+| Theme preference and density at runtime | `client/src/theme/theme.ts`, `client/public/theme-init.js` |
+| Status, severity, lifecycle, health bands | `client/src/utils/status.ts` |
+| Chart theme | `client/src/utils/chartConfig.tsx`, `client/src/utils/tokens.ts` |
+| Primitives | `client/src/components/ui/*` |
+| Contrast guarantees | `client/src/__tests__/contrast.test.ts` |
 
 ---
 
-## Key Screens
+## 1. Principles
 
-### 1. Login Screen
-
-**Layout:**
-- Centered, minimal interface on a dark `--bg-default` background
-- Glow effect (`--shadow-glow`) surrounding the main login card (`--bg-surface`)
-- Monochromatic text and neon-accented borders
-- Primary action button filled with `--primary` and text colored `--text-inverse`
-
-**Visual Elements:**
-- Futuristic branding with 'League Spartan' uppercase typography
-- Floating particles or subtle animated background graphics utilizing `--primary` low-opacity accents
-- Smooth transitions on input focus
+1. **Status first.** Status colours are the only saturated colours on screen. Everything else is neutral, so red always means trouble.
+2. **Never colour alone.** Every status has a shape, an icon and a label. The UI must still work for colour-blind users, in greyscale print, and on a washed-out projector.
+3. **No data means no widget.** We never draw placeholder, invented or "illustrative" numbers.
+4. **Motion explains a change, then stops.** There are no infinite loops.
+5. **Readable from three metres.** Text is never smaller than 12px. Borders are solid. Surface steps are far enough apart to survive a projector.
 
 ---
 
-### 2. Main Dashboard
+## 2. Themes
 
-**Layout:**
-```
-┌─────────────────────────────────────────────────┐
-│ [Logo] Dashboard        [Search] [Alerts] [User]│
-├─────────────────────────────────────────────────┤
-│ Sidebar │ Content Area                          │
-│         │                                       │
-│ • Overview│ ┌─────┐ ┌─────┐ ┌─────┐           │
-│ • Devices │ │Widget│ │Widget│ │Widget│          │
-│ • Sensors │ └─────┘ └─────┘ └─────┘           │
-│ • Alerts  │                                     │
-│ • Reports │ ┌───────────────────────┐          │
-│ • Settings│ │   Chart Widget        │          │
-│           │ └───────────────────────┘          │
-└───────────┴─────────────────────────────────────┘
-```
+There are two complete themes. **Dark** is the default and suits a NOC. **Light** is for daytime offices and for printing. The preference has three values:
 
-**Components:**
-- **Navigation**: Uses `--border-default` for subtle partitioning. Sidebar features `--bg-surface`. Active items receive `--primary` text and a left-aligned `--border-active`.
-- **Widgets**: Housed in `--bg-elevated` panels with `--radius-lg` and slight `--shadow-soft`. Hovering over widgets introduces `--shadow-glow` and slight negative Y translation (`transform: translateY(-4px)`).
-- **Typography Format**: Headers and data-driven values use `League Spartan` while tabular text logic utilizes `Space Grotesk`.
+| Preference | Behaviour |
+|---|---|
+| System | Follows `prefers-color-scheme` and updates live when the OS setting changes |
+| Dark | Always dark |
+| Light | Always light |
+
+- **Where it is stored.** The preference is saved in `localStorage` under `nm-theme`. Density is saved under `nm-density` (`comfortable` or `compact`).
+- **How it is applied.** The resolved theme is written as `data-theme="dark|light"` on `<html>`. Compact density adds `data-density="compact"`.
+- **Before first paint.** `public/theme-init.js` is a classic, render-blocking script in `<head>`. It is not inline because the CSP forbids inline scripts. It applies both attributes so the page never flashes the wrong theme.
+- **After boot.** `theme.ts` takes over. It follows OS changes while System is selected, syncs across tabs, and exposes the `useThemePreference`, `useResolvedTheme` and `useDensity` hooks.
+- **Controls.** *Settings › Appearance* has Theme and Density. The header **account menu** has Theme.
+- **Print** always uses the light tokens.
 
 ---
 
-### 3. Device List View
+## 3. Colour tokens
 
-**Layout:**
-```
-┌─────────────────────────────────────────────────┐
-│ Devices                         [+ Add Device]  │
-├─────────────────────────────────────────────────┤
-│ [Search] [Filter▾] [Group▾] [Sort▾]   [⚙]  [⊞] │
-├─────────────────────────────────────────────────┤
-│ ● Server-01      192.168.1.100    12 sensors ► │
-│ ● Router-01      192.168.1.1       8 sensors ► │
-│ ● Switch-01      192.168.1.2       6 sensors ► │
-│ ◐ Server-02      192.168.1.101     PAUSED    ► │
-│ ○ Server-03      192.168.1.102     DOWN      ► │
-└─────────────────────────────────────────────────┘
-```
+Tokens are Tailwind v4 `@theme` variables. The dark values sit in `@theme`. `:root[data-theme="light"]` overrides the same names. Use them as utilities, for example `bg-surface-1`, `text-fg-muted`, `border-line` or `text-status-down`. In SVG or inline styles, use `var(--color-…)`. Canvas code cannot read `var()`, so it uses `readToken('status-down')` at draw time and re-reads on `THEME_CHANGE_EVENT`.
 
-**Features:**
-- Neon indicators (Green `#d9fd3a` glow = up, Red `#EF4444` = down, Yellow `#F59E0B` = warning)
-- Search inputs have a focal state that pulses softly.
-- Active tables have a subtle `--border-subtle` line beneath rows.
+**Never** write hex or rgb literals, or default Tailwind palette classes (`green-400` and so on), in TSX.
 
----
+### 3.1 Surfaces and borders
 
-### 4. Device Detail View
+| Token | Dark | Light | Use |
+|---|---|---|---|
+| `canvas` | `#0B0F0D` | `#F5F7F6` | Page background, header, sidebar |
+| `surface-1` | `#121815` | `#FFFFFF` | Cards, panels, dialogs |
+| `surface-2` | `#19211D` | `#F1F4F2` | Hover, nested panels, tooltips, selected rows |
+| `surface-3` | `#212A25` | `#E2E8E5` | Pressed or selected controls, chips, gauge tracks |
+| `inset` | `#0B0F0D` | `#F5F7F6` | Inputs and recessed wells inside cards |
+| `line` | `#2E3832` | `#D3DBD7` | Structural borders and dividers. Always solid, never alpha |
+| `line-strong` | `#46524B` | `#A3AEA8` | Hovered borders, input borders on emphasis, axes |
+| `scrim` | black at 62% | `#141A17` at 45% | Modal and drawer backdrop (`dialog::backdrop`, mobile nav scrim) |
 
-**Layout:**
-```
-┌─────────────────────────────────────────────────┐
-│ ← Back to Devices                               │
-├─────────────────────────────────────────────────┤
-│ ● Server-01                          [Edit] [⋮] │
-│ 192.168.1.100 • Ubuntu 22.04 • Datacenter-A    │
-├─────────────────────────────────────────────────┤
-│ [Overview] [Sensors] [Metrics] [Alerts] [Logs] │
-├─────────────────────────────────────────────────┤
-│                                                 │
-│ Quick Metrics                                   │
-│ ┌────────────┬────────────┬────────────┐       │
-│ │ CPU: 45%   │ Memory: 62%│ Disk: 38% │       │
-│ └────────────┴────────────┴────────────┘       │
-│                                                 │
-│ Active Sensors                                  │
-│ ┌─────────────────────────────────────┐        │
-│ │ ✓ Ping         15ms      Last: 1m   │        │
-│ │ ✓ CPU Usage    45%       Last: 30s  │        │
-│ │ ⚠ Memory       85%       Last: 30s  │        │
-│ └─────────────────────────────────────┘        │
-│                                                 │
-│ Performance Chart (24h)                         │
-│ [Line chart showing neon data paths]            │
-│                                                 │
-└─────────────────────────────────────────────────┘
-```
+### 3.2 Text and accent
 
----
+| Token | Dark | Light | Use |
+|---|---|---|---|
+| `fg` | `#E6ECE8` | `#141A17` | Primary text and values |
+| `fg-muted` | `#A3AFA8` | `#4B5751` | Secondary text and labels |
+| `fg-subtle` | `#7F8B85` | `#616D67` | Captions, placeholders, chart axis ticks |
+| `primary` | `#EADDC1` (ivory) | `#5C4A1E` | Accent: primary buttons, selected tab, active nav bar, links |
+| `on-primary` | `#1A1710` | `#FFFFFF` | Text on `primary` |
+| `focus` | same as primary | same as primary | 2px focus outline |
 
-### 5. Alert Management & Status Feedback
+### 3.3 Status
 
-**Features:**
-- Action buttons have an expanding underline effect (`--primary` trace logic) on hover.
-- Badges strictly distinguish priority. Critical alerts utilize harsh, un-rounded boxes to create tension, while operational badges are softly rounded and glow.
-- Empty states showcase wireframe SVGs of networked nodes using `--text-muted`.
+| Status | Dark | Light | Shape | Icon | Label |
+|---|---|---|---|---|---|
+| up | `#2DD4BF` | `#0B6E3D` | ● circle | `check_circle` | Up |
+| warning | `#F5B83D` | `#8A4F00` | ▲ triangle | `warning` | Warning |
+| down | `#F4626A` | `#B42622` | ■ square | `dangerous` | Down |
+| unknown | `#9AA4B2` | `#5B6472` | ? (ring) | `help` | Unknown |
+| maintenance | `#A78BFA` | `#6046C8` | ‖ pause | `pause_circle` | Maintenance |
+| info | `#60A5FA` | `#1A58B4` | – dash | `info` | Info |
 
----
+- **Text on a solid status fill.** `on-status` is `#0B0F0D` in dark and `#FFFFFF` in light.
+- **Feedback aliases.** `success` maps to up, `error` to down, `warning` and `info` to themselves. These are for form errors, toasts and destructive buttons.
+- **Destructive hover.** `error-hover` is the hover colour for destructive buttons.
 
-## Components Library
+### 3.4 Categorical chart palette
 
-### 1. Interactive Buttons
+There are eight hues, and they deliberately avoid the status hues. **A data series is never drawn in alarm red, amber or teal.** Use them in fixed order and never cycle past eight. A ninth series goes into "Other".
 
-**Primary Button:**
-- Background: `--primary`
-- Text: `--text-inverse` (`League Spartan`, Uppercase)
-- Hover State: Pulsating `--shadow-glow`, transform to floating `translateY(-2px)`. Inner ripple effect or radiating geometric paths.
-- Animation profile:
-```css
-.btn-primary:hover {
-  transform: translateY(-2px);
-  animation: glowPulse 2s ease-in-out infinite;
-}
-```
+| Slot | Dark | Light |
+|---|---|---|
+| chart-1 (blue) | `#4E86E8` | `#2F6BD0` |
+| chart-2 (orange) | `#D9692A` | `#C2561A` |
+| chart-3 (orchid) | `#C55BC0` | `#A43FA0` |
+| chart-4 (green) | `#5FA83A` | `#3F8A26` |
+| chart-5 (cerulean) | `#2E9DC2` | `#1C7FA6` |
+| chart-6 (rose) | `#D45E8A` | `#C04274` |
+| chart-7 (olive) | `#A38F2A` | `#8A7414` |
+| chart-8 (periwinkle) | `#7F8CE0` | `#5C66C9` |
 
-**Secondary Button:**
-- Background: Transparent
-- Text: `--text-primary`
-- Hover State: `::after` underline expands from `scaleX(0)` to `scaleX(1)`.
+This order passes a colour-vision-deficiency (CVD) validator for adjacent pairs in both modes:
+- worst adjacent CVD ΔE is about 9.6;
+- the normal-vision ΔE floor is at least 18.8;
+- every slot is at least 3:1 against `surface-1`.
 
-### 2. Status Badge
-```
-◉ Online (Neon #d9fd3a)
-⬤ Warning (Bright #F59E0B)
-● Offline (Dim #7A7A66)
-```
+A series coloured by status (for example up and down counts) uses `statusColorVar(status)`, not a chart slot.
 
-### 3. Metric Card
-```
-┌─────────────────┐
-│ CPU Usage       │
-│ 45.2%           │
-│ ▁▂▃▄▅▆▇█        │
-│ Last check: 30s │
-└─────────────────┘
-```
-Cards elevate visually using `box-shadow` overrides and `--border-active` on hover.
+### 3.5 Contrast guarantees
+
+`src/__tests__/contrast.test.ts` parses `index.css` and runs as part of `npm test`. It fails if any of these pairs drops below its minimum in **either** theme:
+
+| Pair | Minimum |
+|---|---|
+| `fg`, `fg-muted`, `fg-subtle` on `canvas`, `surface-1` and `surface-2` | 4.5:1 |
+| Every status colour as text on those surfaces | 4.5:1 |
+| `primary` on surfaces | 4.5:1 |
+| `on-primary` on `primary`, and `on-status` on every status fill (solid danger button, solid pills) | 4.5:1 |
+| Status text on its own 12% chip wash over `surface-1` and `surface-2` | 4.5:1 |
+| `focus` ring and chart slots on `surface-1` | 3:1 |
+
+Current values:
+
+| Pair | Dark | Light |
+|---|---|---|
+| `fg` on `surface-1` | 15.02 | 17.65 |
+| `fg-muted` on `surface-1` | 7.93 | 7.55 |
+| `fg-subtle` on `surface-1` | 5.08 | 5.40 |
+| `fg-subtle` on `surface-2` | 4.65 | 4.87 |
+| `primary` on `surface-1` | 13.37 | 8.56 |
+| `on-status` on `status-down` (danger button) | 6.25 | 6.48 |
+| `status-down` on `surface-1` | 5.83 | 6.48 |
+| `status-up` on its 12% chip | 7.67 | 5.32 |
+| `status-down` on its 12% chip | 5.04 | 5.32 |
+| chart slots on `surface-1` (minimum) | 4.82 | 4.31 |
+
+For comparison, v4 had axis and caption text at 2.73:1, error chips at about 3.5:1 and the danger button at 3.48:1.
+
+If you change a token and the test fails, tune the value. Do not loosen the test.
 
 ---
 
-## Responsive Design
+## 4. Typography
 
-### Breakpoints
-```css
---mobile: 320px - 768px
---tablet: 769px - 1024px
---desktop: 1025px+
-```
-
-### Mobile Adaptations
-- Sidebars transition into off-canvas or bottom-sheet navigation elements.
-- Interactions convert hover-states to press-and-hold tactile responses.
-- Modals take up full screen height/width.
+- **Families.** Instrument Sans (`font-sans`) is used for all UI text and headings. JetBrains Mono (`font-mono`) is for data: IPs, MACs, ports, timestamps, IDs and log lines. There is no third family.
+- **Scale.** 12 / 13 / 14 / 16 / 20 / 24 / 32 / 48, which maps to `text-xs`, `text-ui`, `text-sm`, `text-base`, `text-xl`, `text-2xl`, `text-3xl` and `text-5xl`. **12px is the floor.** Do not use `text-[10px]`, `[9px]` or `[8px]`. The same floor applies in SVG, recharts and canvas.
+- **Case.** Use sentence case for headings, captions, labels, buttons and tabs ("Total devices", not "TOTAL DEVICES" or "Total Devices"). Use `uppercase` only when the content *is* a code, such as protocols (TCP, HTTP) or log levels. Never transform hostnames or device names.
+- **Numbers.** `body` sets `tabular-nums`, so columns, tiles and counters do not jitter.
 
 ---
 
-## Accessibility
+## 5. Scales
 
-### WCAG 2.1 AA Compliance
-- **Contrast Ratio**: High-contrast brand (`#d9fd3a` on `#11110B`) guarantees minimum 4.5:1 visibility.
-- **Reduced Motion**: Respects `prefers-reduced-motion: reduce` by zeroing out translation limits, transition delays (`0.01ms`), and removing `.btn-primary` pulse.
-
----
-
-## Animations & Transitions
-
-### Micro-interactions
-```css
-.card {
-  transition: all var(--duration-slow) var(--easing-emphasized);
-  transform-style: preserve-3d;
-  perspective: 1000px;
-}
-
-.card:hover {
-  transform: translateY(-8px);
-  border-color: var(--border-active);
-  box-shadow: var(--shadow-hard), 0 0 30px rgba(217, 253, 58, 0.15);
-}
-
-.icon {
-  transition: all var(--duration-normal) var(--easing-standard);
-}
-
-.card:hover .icon {
-  transform: scale(1.1) rotate(5deg);
-  filter: drop-shadow(0 0 8px rgba(217, 253, 58, 0.5));
-}
-```
-
-### Input Field Flow
-```css
-.form-input {
-  transition: all var(--duration-normal) var(--easing-standard);
-  background: var(--bg-surface);
-  border: 1px solid var(--border-default);
-  color: var(--text-body);
-}
-
-.form-input:focus {
-  transform: translateY(-2px);
-  border-color: var(--border-active);
-  box-shadow: 0 0 0 3px rgba(217, 253, 58, 0.2), 0 4px 12px rgba(0, 0, 0, 0.2);
-}
-
-.form-group:focus-within .form-label {
-  color: var(--primary);
-}
-```
+| Scale | Values |
+|---|---|
+| Spacing | 4px base (Tailwind default). Card padding `p-card` is 20px, or 12px in compact density |
+| Radius | `rounded-sm` 4px (chips), `rounded-md` 8px (controls and insets), `rounded-lg` 12px (cards and dialogs), `rounded-full` (pills) |
+| Elevation | `shadow-e1` (selected control), `shadow-e2` (menus, tooltips, toasts), `shadow-e3` (dialogs, drawers). Cards are flat, with a border and no shadow |
+| z-index | `z-sticky` 10 (mobile bottom nav, sticky headers), `z-header` 30, `z-drawer` 40 (sidebar, account menu, scrim), `z-modal` 50, `z-toast` 60, `z-tooltip` 70. Modal `<dialog>`s and toasts use the browser top layer, so they never fight the header |
+| Motion | `--duration-fast` 120ms (hover, state), `--duration-normal` 200ms (entrances, accordions) |
+| Density | `[data-density="compact"]` sets a 15px root size and reduces `--space-card` (`p-card`) and `--control-h` (`h-control`, `min-h-control`) |
 
 ---
 
-## Theme Structure
+## 6. Status system (`utils/status.ts`)
 
-### Dark Mode Native
-The application natively adheres to the dark, futuristic design language outlined by the Rayavriti guidelines. There is no traditional "light mode," but themes can be toggled by density (e.g. standard vs high-density data visualizations). Background properties are permanently tethered to the `#11110B` base model to maintain aesthetic fidelity.
+This file is the single source for anything that conveys state.
+
+| Function | Use |
+|---|---|
+| `normalizeStatus(raw)` | Maps backend strings (`ok`, `degraded`, `offline`, `paused`…) onto the six statuses |
+| `statusMeta(raw)` | Returns the `{ token, label, icon, shape, text, bg, border, chip }` classes. They are literal strings, so Tailwind can see them |
+| `severityMeta(sev)` | critical → down treatment labelled "Critical"; warning; info |
+| `lifecycleMeta(state)` | Alert and incident states: active/open → down, acknowledged/investigating → warning, monitoring → info, resolved/closed → up |
+| `healthBand(score)` / `healthMeta(score)` / `healthBandStatusMeta(band)` | **The one health banding**, mirroring the backend's `scoreToLabel()`. See the band table below. Each band has its own colour and shape, so Critical and Risk no longer collide |
+| `statusColorVar(raw)` | `var(--color-status-…)` for SVG and recharts |
+
+Health bands:
+
+| Score | Band | Presented as |
+|---|---|---|
+| < 40 | Critical | down |
+| < 60 | Risk | warning |
+| < 80 | Watch | info |
+| otherwise | Healthy | up |
+
+Components (`components/ui/Status.tsx`):
+
+- `<StatusPill status>` is a tinted chip with shape and label. Pass a raw string, or a meta from the helpers above. Children override the text, as in `<StatusPill status="down">SLA breach</StatusPill>`.
+- `<StatusDot status>` is the shape alone in the status colour. It announces its label unless `label=""` is passed, which you should do when a visible label sits next to it.
+- `<StatusShapeIcon shape>` is the raw SVG shape, for legends.
+
+The network topology canvas draws the same shapes as a badge on every node, in token colours that it reads at draw time.
 
 ---
 
-## Error & Loading States
+## 7. Primitives (`components/ui`)
 
-### Loading Profiles
-- Futuristic wireframe placeholders.
-- Neon glow sweeps over skeletons.
+| Component | Contract |
+|---|---|
+| `Button` | Variants: `primary`, `secondary`, `ghost`, `danger` (solid, ≥4.5:1), `danger-outline`, `primary-outline`. Sizes `sm` and `md` (`md` follows density). Leading icon via `icon` |
+| `IconButton` | Icon-only. **`label` is required** and is rendered as `aria-label` and the tooltip. Variants `ghost`, `secondary`, `danger`. Supports `pressed` for toggles |
+| `Dialog` | Built on native `<dialog>.showModal()`. Gets the top layer, an inert background and focus containment from the platform. Labelled by its title and described by `description`. Esc, the close button and a backdrop click close it. Initial focus goes to the first field or to `initialFocusRef`. Focus returns to the opener. Has a `footer` slot for actions and `placement="drawer"` for side panels. **All modals use it.** Do not hand-roll overlays, focus traps or Esc handlers |
+| `ConfirmDialog` | An `alertdialog` on `Dialog`. **Focus starts on Cancel**, and the confirm button is solid (danger or primary) |
+| `Tabs` / `TabPanel` | WAI-ARIA tabs: `tablist`/`tab`/`tabpanel`, `aria-selected`/`aria-controls`, roving tabindex, ←/→/Home/End with automatic activation. Pair with `useTabParam(ids)` so the tab lives in `?tab=`. Back/Forward, reload and links work; changes replace the history entry |
+| `Card` | `bg-surface-1 border-line rounded-lg`. Use `hover` **only** when the whole card is clickable |
+| `StatCard` | A static KPI tile: sentence-case label and a tabular value. It has no hover lift because it is not interactive; wrap it in a link if it should navigate |
+| `StatusPill`, `StatusDot` | See §6 |
+| `EmptyState` | Icon, title and description, plus an optional action. Uses `role="status"` |
+| `RingGauge` | A 0–100 ring. `tone="health"` uses `healthBand` and shows the band. `tone="neutral"` is for other percentages |
+| `ThemeSwitcher` / `DensitySwitcher` | Native radio groups styled as segmented controls |
+| Toasts (`useToast`) | Rendered in a manual popover, so they stay above an open modal. They use the status shapes |
 
-### Empty Data Profile
-```
-    ┌───────────────┐
-    │   [Icon]      │
-    │ No Data Stream│
-    │ [Sync Stream] │
-    └───────────────┘
-```
-Text assumes `--text-muted`, and icons animate with a slow, low-intensity pulse.
+### Charts
+
+Charts use `chartConfig.tsx`:
+- `AXIS_TICK_STYLE`: 12px ticks in `fg-subtle`.
+- `GRID_COLOR`.
+- `TOOLTIP_STYLE`, `TOOLTIP_LABEL_STYLE` and `TOOLTIP_ITEM_STYLE`.
+- `LEGEND_STYLE` with `legendFormatter`.
+- `SERIES_COLORS`, `DEVICE_COLORS` and `PROTOCOL_COLORS`, all drawn from the chart slots.
+
+All of these are `var()` references, so recharts follows the theme without re-rendering. Spread `useChartAnimation()` onto every series so animation is off under reduced motion.
 
 ---
 
-## Best Practices
+## 8. Layout and navigation
 
-1. **Futuristic Consistency**: Adhere strictly to the `League Spartan` + `Space Grotesk` font mix. Headers must command attention.
-2. **Neon Hierarchy**: Use `#d9fd3a` sparingly to guarantee that interactive and focal elements strike accurately.
-3. **Immersive Depth**: Utilize `--shadow-soft` and `--shadow-glow` combinations, as flat interfaces break the Rayavriti architectural immersion.
-4. **Motion**: Ensure all hover events feel responsive and layered, taking advantage of the custom cubic-bezier easings.
+- **Header.** The fixed header (`z-header`) holds:
+  - the navigation toggle, an `IconButton` with `aria-expanded` and `aria-controls`;
+  - the page title;
+  - search, a `role="search"` form with a labelled input;
+  - a live/paused indicator using `StatusDot`;
+  - the alerts link, whose accessible name includes the active count;
+  - the account menu, which holds the theme switch, Settings and Sign out. It closes on Esc (returning focus to its button) and on an outside press.
+- **Sidebar.** Its group toggles expose `aria-expanded` and `aria-controls`. Collapsed groups are `inert`. The active link has `aria-current="page"`, set by `NavLink`, plus an accent bar.
+- **Mobile.** On narrow screens the sidebar becomes a drawer with a scrim. Esc or a tap on the scrim closes it. The bottom nav sits on `z-sticky`, below drawers and dialogs.
+- **Main content.** `<main id="main-content" tabIndex={-1}>` receives focus on every route change after the first, so screen readers announce the new page. A skip link targets it.
+
+---
+
+## 9. Motion
+
+| Allowed | Not allowed |
+|---|---|
+| Entrance `rise-in` (120–200ms) | Infinite `glow-pulse`, live-dot pulses, rotating particle rings |
+| Bars growing from the left (200ms) | Drifting background particles |
+| Gauge fill on first paint (600ms) | Hover lifts on tiles that aren't interactive |
+| Skeleton shimmer, only while loading | Decorative motion that repeats |
+| `.alert-new-pulse`: three 1s pulses for a critical alert that **arrived after page load** | Pulsing every critical row forever |
+
+`@media (prefers-reduced-motion: reduce)` collapses CSS animation and transitions. JavaScript-driven motion checks `useReducedMotion()`:
+- `AnimatedCounter` jumps straight to the value.
+- Recharts series receive `isAnimationActive={false}` via `useChartAnimation()`.
+- Topology particles stop.
+
+---
+
+## 10. Accessibility checklist (per PR)
+
+- [ ] No hex or rgb literals and no default palette classes in TSX. Colours come from tokens.
+- [ ] Status is shown with `StatusPill` or `StatusDot` (shape plus colour, with text where it fits).
+- [ ] Text is 12px or larger, captions are sentence case, and data uses `font-mono` or tabular numbers.
+- [ ] Every icon-only control is an `IconButton` with a specific `label` (for example "Delete sw-a", not "Delete"). Decorative icons carry `aria-hidden`.
+- [ ] Every input has a visible label or an `aria-label`. Errors use `aria-invalid` and text, not colour alone.
+- [ ] Modals use `Dialog` and confirmations use `ConfirmDialog`.
+- [ ] Tabs use `Tabs` with `useTabParam`.
+- [ ] Charts use the `chartConfig` tokens and `useChartAnimation()`, and offer a `ChartDataTable` for screen readers or print where it helps.
+- [ ] You checked the page in **both** themes.
+
+---
+
+## 11. Phase 2 (not in this release)
+
+These items come from the design review and are deliberately deferred:
+- the navigation restructure to about 12 items in 4 groups;
+- NOC/wall mode with a 1.5× root size;
+- a ⌘K command palette;
+- a shared DataTable with sort, filter, virtualisation and bulk actions;
+- `/devices/:id` detail routes;
+- customisable dashboards.

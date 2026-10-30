@@ -18,6 +18,7 @@ import { ActiveAlertsList } from '../components/dashboard/ActiveAlertsList';
 import { StatusHeatmap } from '../components/dashboard/StatusHeatmap';
 import NetworkTopologyMini from '../components/dashboard/NetworkTopologyMini';
 import { lazyWithRetry } from '../utils/lazyWithRetry';
+import { normalizeStatus } from '../utils/status';
 
 const ExpandedChartsModal = lazyWithRetry(() => import('../components/ExpandedChartsModal'));
 const ResourceLoadModal = lazyWithRetry(() => import('../components/ResourceLoadModal'));
@@ -118,8 +119,8 @@ export default function Dashboard() {
     : 'Waiting for updates...';
 
   const stats = useMemo<DashboardStats>(() => {
-    const online = metrics.filter((x) => x.status === 'up' || x.status === 'ok').length;
-    const warning = metrics.filter((x) => x.status === 'warning' || x.status === 'degraded').length;
+    const online = metrics.filter((x) => normalizeStatus(x.status) === 'up').length;
+    const warning = metrics.filter((x) => normalizeStatus(x.status) === 'warning').length;
     const uptimePercent = metrics.length > 0 ? Math.round((online / metrics.length) * 100) : 100;
     return statsQuery.data
       ? { ...EMPTY_STATS, ...statsQuery.data.data, warningDevices: warning, uptimePercent }
@@ -134,7 +135,7 @@ export default function Dashboard() {
   // Server load comes from the NetMonitor host itself (gopsutil); the
   // "devices down" share is computed from the latest poll of each device.
   const systemInfo = useMemo(() => {
-    const down = metrics.filter((x) => x.status === 'down').length;
+    const down = metrics.filter((x) => normalizeStatus(x.status) === 'down').length;
     return {
       cpu: Math.round(hostInfo?.cpu.usage ?? 0),
       memory: Math.round(hostInfo?.memory.percent ?? 0),
@@ -150,24 +151,23 @@ export default function Dashboard() {
       ) : (
       <>
       <SectionHeader
-        title="Network Overview"
+        title="Network overview"
         subtitle="Real-time monitoring dashboard for all connected devices."
         action={
-          <span className="text-on-surface-variant font-data text-xs">{lastUpdated}</span>
+          <span className="text-fg-muted font-mono text-xs">{lastUpdated}</span>
         }
       />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6" aria-live="polite" aria-label="Device statistics">
-        <StatCard label="Total Devices" value={stats.totalDevices} />
+        <StatCard label="Total devices" value={stats.totalDevices} />
         <StatCard label="Online" value={stats.onlineDevices} delta={`${stats.onlineDevices}/${stats.totalDevices || 0}`} />
-        <StatCard label="Devices Up" value={stats.uptimePercent ?? 100} format="percent" />
-        <StatCard label="Active Alerts" value={stats.activeAlerts} color={stats.activeAlerts ? 'text-error' : 'text-on-surface'} delta={stats.activeAlerts ? 'needs attention' : 'clear'} />
+        <StatCard label="Devices up" value={stats.uptimePercent ?? 100} format="percent" />
+        <StatCard label="Active alerts" value={stats.activeAlerts} color={stats.activeAlerts ? 'text-status-down' : 'text-fg'} delta={stats.activeAlerts ? 'Needs attention' : 'Clear'} />
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-6 content-visibility-auto">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-6">
         <AiHealthScore networkHealth={networkHealth} insights={insights} />
         <SmartInsights insights={insights} />
-        <StatusHeatmap metrics={historyMetrics} />
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-6 content-visibility-auto">
@@ -175,8 +175,11 @@ export default function Dashboard() {
         <StatusDistribution metrics={metrics} />
       </div>
 
-      <div className="grid grid-cols-1 gap-6 mb-6 content-visibility-auto">
-        <NetworkTopologyMini />
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-6 content-visibility-auto">
+        <StatusHeatmap metrics={historyMetrics} />
+        <div className="xl:col-span-2 flex flex-col [&>section]:flex-1">
+          <NetworkTopologyMini />
+        </div>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-6 content-visibility-auto">

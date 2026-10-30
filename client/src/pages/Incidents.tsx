@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createIncident, getIncidentStats, getIncidents, runIncidentAction, type Incident, type IncidentAction, type IncidentStats } from '../api/incidents';
 import { queryKeys } from '../api/queryKeys';
@@ -9,7 +9,9 @@ import Button from '../components/ui/Button';
 import StatCard from '../components/ui/StatCard';
 import EmptyState from '../components/ui/EmptyState';
 import { useToast } from '../components/ui/useToast';
-import { severityIcon, severityTextColor, severityBgColor, statusTextColor } from '../utils/colors';
+import { lifecycleMeta, severityMeta, statusColorVar } from '../utils/status';
+import Dialog from '../components/ui/Dialog';
+import { StatusPill } from '../components/ui/Status';
 import GanttTimeline from '../components/charts/GanttTimeline';
 
 const EMPTY_INCIDENTS: Incident[] = [];
@@ -97,143 +99,155 @@ export default function Incidents() {
   const handleClose = (id: number) => actionMutation.mutate({ id, action: 'close', done: 'Incident closed' });
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <SectionHeader
-        title="Incident Manager"
+        title="Incidents"
         subtitle="Track, assign, and resolve network incidents with SLA tracking."
-        action={<Button icon="add" onClick={() => setShowCreate(true)}>New Incident</Button>}
+        action={<Button icon="add" onClick={() => setShowCreate(true)}>New incident</Button>}
       />
 
       {stats && (
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-          <StatCard label="Open" value={stats.open} icon="radio_button_checked" color="text-error" />
-          <StatCard label="Acknowledged" value={stats.acknowledged} icon="visibility" color="text-warning" />
-          <StatCard label="Resolved" value={stats.resolved} icon="check_circle" color="text-success" />
-          <StatCard label="SLA Breached" value={stats.sla_breached} icon="gpp_bad" color="text-error" />
-          <StatCard label="Avg Duration" value={formatDuration(stats.avg_duration_seconds)} icon="schedule" />
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+          <StatCard label="Open" value={stats.open} icon="radio_button_checked" color={stats.open > 0 ? 'text-error' : undefined} />
+          <StatCard label="Acknowledged" value={stats.acknowledged} icon="visibility" />
+          <StatCard label="Resolved" value={stats.resolved} icon="check_circle" />
+          <StatCard label="SLA breached" value={stats.sla_breached} icon="gpp_bad" color={stats.sla_breached > 0 ? 'text-error' : undefined} />
+          <StatCard label="Avg duration" value={formatDuration(stats.avg_duration_seconds)} icon="schedule" />
         </div>
       )}
 
-      <GanttTimeline title="Recent incident windows" items={incidents.map((incident) => ({ id: incident.id, label: incident.title, start: incident.started_at, end: incident.resolved_at || incident.closed_at, color: incident.severity === 'critical' ? 'var(--color-error)' : incident.severity === 'major' ? 'var(--color-warning)' : 'var(--color-info)' }))} />
+      <GanttTimeline title="Recent incident windows" items={incidents.map((incident) => ({ id: incident.id, label: incident.title, start: incident.started_at, end: incident.resolved_at || incident.closed_at, color: statusColorVar(severityMeta(incident.severity).status) }))} />
 
       <Card variant="low" className="overflow-hidden">
-        <div className="p-5 border-b border-outline-variant/20 flex flex-col md:flex-row gap-4 md:items-center md:justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-md bg-primary/10 text-primary flex items-center justify-center">
-              <span className="material-symbols-outlined">crisis_alert</span>
-            </div>
-            <div>
-              <h2 className="font-headline font-semibold text-lg">Incidents</h2>
-              <p className="text-xs text-on-surface-variant uppercase tracking-wide">{filtered.length} incidents</p>
-            </div>
-          </div>
+        <div className="p-4 border-b border-line flex flex-col md:flex-row gap-3 md:items-center md:justify-between">
+          <h2 className="text-base font-semibold">All incidents <span className="text-sm font-normal text-fg-muted tabular-nums">({filtered.length})</span></h2>
           <div className="flex gap-3 flex-wrap">
-            <select value={severityFilter} onChange={(e) => setSeverityFilter(e.target.value)} className="bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-3 py-2.5 text-xs text-on-surface outline-none focus:ring-1 focus:ring-primary">
-              <option value="all">All severities</option>
-              {SEVERITIES.map((s) => <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
-            </select>
-            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-3 py-2.5 text-xs text-on-surface outline-none focus:ring-1 focus:ring-primary">
-              <option value="all">All statuses</option>
-              {STATUSES.map((s) => <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
-            </select>
-            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search incidents..." className="bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary outline-none md:w-56" />
+            <label>
+              <span className="sr-only">Filter by severity</span>
+              <select value={severityFilter} onChange={(e) => setSeverityFilter(e.target.value)} className={INPUT_CLASS}>
+                <option value="all">All severities</option>
+                {SEVERITIES.map((s) => <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
+              </select>
+            </label>
+            <label>
+              <span className="sr-only">Filter by status</span>
+              <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className={INPUT_CLASS}>
+                <option value="all">All statuses</option>
+                {STATUSES.map((s) => <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
+              </select>
+            </label>
+            <label className="relative md:w-56">
+              <span className="sr-only">Search incidents</span>
+              <span className="material-symbols-outlined pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-fg-subtle" aria-hidden="true">search</span>
+              <input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search incidents" className={`${INPUT_CLASS} pl-10`} />
+            </label>
           </div>
         </div>
 
         {loading ? (
-          <div className="p-8 text-sm text-on-surface-variant">Loading...</div>
+          <div className="p-8 text-sm text-fg-muted">Loading…</div>
         ) : filtered.length === 0 ? (
           <EmptyState icon="crisis_alert" title="No incidents" description="All clear — no active incidents on the network." />
         ) : (
-          <div className="divide-y divide-outline-variant/20">
-            {filtered.map((inc) => (
-              <article key={inc.id} className="p-5 hover:bg-surface-container-low/50 transition-colors cursor-pointer" onClick={() => navigate(`/incidents/${inc.id}`)}>
-                <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
-                  <div className="flex items-start gap-4 min-w-0">
-                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${severityBgColor(inc.severity)}`}>
-                      <span className={`material-symbols-outlined text-xl ${severityTextColor(inc.severity)}`}>{severityIcon(inc.severity)}</span>
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <h3 className="font-headline font-semibold text-lg truncate">{inc.title}</h3>
-                        {inc.sla_breached && (
-                          <span className="text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-error/10 text-error">SLA Breach</span>
-                        )}
+          <ul className="divide-y divide-line">
+            {filtered.map((inc) => {
+              const sev = severityMeta(inc.severity);
+              return (
+                <li key={inc.id} className="p-4 hover:bg-surface-2 transition-colors cursor-pointer" onClick={() => navigate(`/incidents/${inc.id}`)}>
+                  <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+                    <div className="flex items-start gap-4 min-w-0">
+                      <div className={`w-10 h-10 rounded-md flex items-center justify-center flex-shrink-0 ${sev.chip}`}>
+                        <span className={`material-symbols-outlined text-xl ${sev.text}`} aria-hidden="true">{sev.icon}</span>
                       </div>
-                      <p className="text-xs text-on-surface-variant mt-0.5">
-                        {inc.source || 'manual'} · #{inc.id} · Started {timeAgo(inc.started_at)}
-                      </p>
-                      {inc.description && <p className="text-sm text-on-surface-variant mt-2 line-clamp-2">{inc.description}</p>}
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className="font-semibold truncate">
+                            <Link to={`/incidents/${inc.id}`} onClick={(e) => e.stopPropagation()} className="hover:underline">{inc.title}</Link>
+                          </h3>
+                          {inc.sla_breached && <StatusPill status="down">SLA breach</StatusPill>}
+                        </div>
+                        <p className="text-xs text-fg-muted mt-0.5">
+                          {inc.source || 'manual'} · #{inc.id} · Started {timeAgo(inc.started_at)}
+                        </p>
+                        {inc.description && <p className="text-sm text-fg-muted mt-2 line-clamp-2">{inc.description}</p>}
+                      </div>
                     </div>
+                    <dl className="grid grid-cols-2 sm:grid-cols-4 gap-4 lg:max-w-xl flex-shrink-0">
+                      <div>
+                        <dt className="text-xs text-fg-muted">Severity</dt>
+                        <dd><StatusPill status={sev} className="mt-0.5" /></dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs text-fg-muted">Status</dt>
+                        <dd><StatusPill status={lifecycleMeta(inc.status)} className="mt-0.5" /></dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs text-fg-muted">Devices</dt>
+                        <dd className="text-sm font-medium tabular-nums">{inc.affected_device_count}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs text-fg-muted">Duration</dt>
+                        <dd className="text-sm font-medium tabular-nums">{formatDuration(inc.duration_seconds)}</dd>
+                      </div>
+                    </dl>
                   </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 lg:max-w-xl flex-shrink-0">
-                    <div>
-                      <div className="text-[10px] text-on-surface-variant uppercase tracking-wide">Severity</div>
-                      <div className={`text-sm font-semibold capitalize ${severityTextColor(inc.severity)}`}>{inc.severity}</div>
+                  {inc.status !== 'closed' && (
+                    <div className="flex gap-2 mt-3 pt-3 border-t border-line">
+                      {inc.status === 'open' && (
+                        <Button size="sm" variant="secondary" icon="visibility" onClick={(e) => { e.stopPropagation(); handleAcknowledge(inc.id); }}>Acknowledge</Button>
+                      )}
+                      {(inc.status === 'open' || inc.status === 'acknowledged') && (
+                        <Button size="sm" variant="secondary" icon="check_circle" onClick={(e) => { e.stopPropagation(); handleResolve(inc.id); }}>Resolve</Button>
+                      )}
+                      {inc.status === 'resolved' && (
+                        <Button size="sm" variant="secondary" icon="archive" onClick={(e) => { e.stopPropagation(); handleClose(inc.id); }}>Close</Button>
+                      )}
                     </div>
-                    <div>
-                      <div className="text-[10px] text-on-surface-variant uppercase tracking-wide">Status</div>
-                      <div className={`text-sm font-semibold capitalize ${statusTextColor(inc.status)}`}>{inc.status}</div>
-                    </div>
-                    <div>
-                      <div className="text-[10px] text-on-surface-variant uppercase tracking-wide">Devices</div>
-                      <div className="text-sm font-medium">{inc.affected_device_count}</div>
-                    </div>
-                    <div>
-                      <div className="text-[10px] text-on-surface-variant uppercase tracking-wide">Duration</div>
-                      <div className="text-sm font-medium">{formatDuration(inc.duration_seconds)}</div>
-                    </div>
-                  </div>
-                </div>
-                <div className="flex gap-2 mt-3 pt-3 border-t border-outline-variant/10">
-                  {inc.status === 'open' && (
-                    <button onClick={(e) => { e.stopPropagation(); handleAcknowledge(inc.id); }} className="text-xs font-semibold text-warning hover:bg-warning/10 px-3 py-1 rounded transition-colors">Acknowledge</button>
                   )}
-                  {(inc.status === 'open' || inc.status === 'acknowledged') && (
-                    <button onClick={(e) => { e.stopPropagation(); handleResolve(inc.id); }} className="text-xs font-semibold text-success hover:bg-success/10 px-3 py-1 rounded transition-colors">Resolve</button>
-                  )}
-                  {inc.status === 'resolved' && (
-                    <button onClick={(e) => { e.stopPropagation(); handleClose(inc.id); }} className="text-xs font-semibold text-primary hover:bg-primary/10 px-3 py-1 rounded transition-colors">Close</button>
-                  )}
-                </div>
-              </article>
-            ))}
-          </div>
+                </li>
+              );
+            })}
+          </ul>
         )}
       </Card>
 
-      {showCreate && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pt-20 bg-black/60" onClick={() => setShowCreate(false)}>
-          <div className="bg-surface-container-low border border-outline-variant/30 rounded-lg w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
-            <div className="p-6 border-b border-outline-variant/20 shrink-0"><h2 className="font-headline text-lg font-semibold">New Incident</h2></div>
-            <div className="p-6 space-y-4 flex-1 min-h-0 overflow-y-auto">
-              <div>
-                <label className="text-[10px] text-on-surface-variant uppercase tracking-wide block mb-1">Title</label>
-                <input value={createForm.title} onChange={(e) => setCreateForm({ ...createForm, title: e.target.value })} className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary outline-none" placeholder="What happened?" />
-              </div>
-              <div>
-                <label className="text-[10px] text-on-surface-variant uppercase tracking-wide block mb-1">Severity</label>
-                <select value={createForm.severity} onChange={(e) => setCreateForm({ ...createForm, severity: e.target.value })} className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary">
-                  {SEVERITIES.map((s) => <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="text-[10px] text-on-surface-variant uppercase tracking-wide block mb-1">Description</label>
-                <textarea value={createForm.description} onChange={(e) => setCreateForm({ ...createForm, description: e.target.value })} rows={3} className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary outline-none resize-none" />
-              </div>
-              <div>
-                <label className="text-[10px] text-on-surface-variant uppercase tracking-wide block mb-1">Impact</label>
-                <textarea value={createForm.impact_description} onChange={(e) => setCreateForm({ ...createForm, impact_description: e.target.value })} rows={2} className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary outline-none resize-none" placeholder="Who/what is affected?" />
-              </div>
-            </div>
-            <div className="flex border-t border-outline-variant/20 shrink-0">
-              <button onClick={() => setShowCreate(false)} className="flex-1 py-3 text-xs font-headline font-semibold uppercase tracking-wide text-on-surface-variant hover:bg-surface-container-low transition-colors">Cancel</button>
-              <div className="w-px bg-outline-variant/20" />
-              <button onClick={handleCreate} disabled={submitting || !createForm.title} className="flex-1 py-3 text-xs font-headline font-semibold uppercase tracking-wide text-primary hover:bg-primary/10 transition-colors disabled:opacity-50">{submitting ? 'Creating...' : 'Create'}</button>
-            </div>
+      <Dialog
+        open={showCreate}
+        onClose={() => setShowCreate(false)}
+        closeOnBackdrop={false}
+        title="New incident"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setShowCreate(false)}>Cancel</Button>
+            <Button type="submit" form="incident-form" disabled={submitting || !createForm.title}>{submitting ? 'Creating…' : 'Create incident'}</Button>
+          </>
+        }
+      >
+        <form id="incident-form" className="space-y-4" onSubmit={(e) => { e.preventDefault(); handleCreate(); }}>
+          <div>
+            <label htmlFor="inc_title" className={LABEL_CLASS}>Title</label>
+            <input id="inc_title" required value={createForm.title} onChange={(e) => setCreateForm({ ...createForm, title: e.target.value })} className={INPUT_CLASS} placeholder="What happened?" />
           </div>
-        </div>
-      )}
+          <div>
+            <label htmlFor="inc_severity" className={LABEL_CLASS}>Severity</label>
+            <select id="inc_severity" value={createForm.severity} onChange={(e) => setCreateForm({ ...createForm, severity: e.target.value })} className={INPUT_CLASS}>
+              {SEVERITIES.map((s) => <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
+            </select>
+          </div>
+          <div>
+            <label htmlFor="inc_description" className={LABEL_CLASS}>Description</label>
+            <textarea id="inc_description" value={createForm.description} onChange={(e) => setCreateForm({ ...createForm, description: e.target.value })} rows={3} className={TEXTAREA_CLASS} />
+          </div>
+          <div>
+            <label htmlFor="inc_impact" className={LABEL_CLASS}>Impact</label>
+            <textarea id="inc_impact" value={createForm.impact_description} onChange={(e) => setCreateForm({ ...createForm, impact_description: e.target.value })} rows={2} className={TEXTAREA_CLASS} placeholder="Who or what is affected?" />
+          </div>
+        </form>
+      </Dialog>
     </div>
   );
 }
+
+const INPUT_CLASS = 'w-full h-control bg-inset border border-line rounded-md px-3 text-sm text-fg placeholder:text-fg-subtle outline-none focus:border-primary';
+const TEXTAREA_CLASS = 'w-full bg-inset border border-line rounded-md px-3 py-2 text-sm text-fg placeholder:text-fg-subtle outline-none focus:border-primary resize-none';
+const LABEL_CLASS = 'text-xs font-medium text-fg-muted block mb-1.5';

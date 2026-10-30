@@ -13,7 +13,7 @@ function DevicesSkeletonInner() {
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
         {Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className="bg-surface-container-low rounded-lg p-5 border border-outline-variant/20">
+          <div key={i} className="bg-surface-1 rounded-lg p-5 border border-line">
             <Skeleton className="h-3 w-24 mb-3" />
             <Skeleton className="h-8 w-12" />
           </div>
@@ -29,7 +29,7 @@ function DevicesSkeletonInner() {
       {/* Device cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {Array.from({ length: 6 }).map((_, i) => (
-          <div key={i} className="bg-surface-container-low rounded-lg border border-outline-variant/20 overflow-hidden">
+          <div key={i} className="bg-surface-1 rounded-lg border border-line overflow-hidden">
             <div className="p-6">
               <div className="flex justify-between items-start mb-6">
                 <Skeleton className="w-12 h-12 rounded-lg" />
@@ -43,7 +43,7 @@ function DevicesSkeletonInner() {
                 <Skeleton className="h-3 w-2/3" />
               </div>
             </div>
-            <div className="bg-surface-container p-4 flex justify-between items-center">
+            <div className="bg-surface-2 p-4 flex justify-between items-center">
               <Skeleton className="h-3 w-20" />
               <Skeleton className="h-6 w-14" />
             </div>

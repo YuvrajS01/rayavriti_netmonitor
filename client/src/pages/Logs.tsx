@@ -8,6 +8,10 @@ import Card from '../components/ui/Card';
 import EmptyState from '../components/ui/EmptyState';
 import { createVerboseSession, getLogs, getLogStats, getVerboseSessions, logsExportUrl, stopVerboseSession, type LogEvent, type LogFilters, type LogStats, type VerboseSession } from '../api/logs';
 import { useToast } from '../components/ui/useToast';
+import Dialog from '../components/ui/Dialog';
+import IconButton from '../components/ui/IconButton';
+import { StatusPill } from '../components/ui/Status';
+import { STATUS_META, type Status } from '../utils/status';
 
 const LEVELS = ['', 'trace', 'debug', 'info', 'warn', 'error'];
 const COMPONENTS = ['', 'http', 'db', 'audit', 'collector', 'collector.snmp', 'websocket', 'scheduler'];
@@ -28,13 +32,6 @@ function toIsoLocal(value: string) {
 
 function fmtTime(ts: string) {
   return new Date(ts).toLocaleString([], { month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' });
-}
-
-function levelClass(level: string) {
-  if (level === 'error' || level === 'fatal') return 'bg-error/15 text-error';
-  if (level === 'warn') return 'bg-tertiary/15 text-tertiary';
-  if (level === 'debug' || level === 'trace') return 'bg-primary/12 text-primary';
-  return 'bg-surface-container-lowest text-on-surface-variant';
 }
 
 export default function Logs() {
@@ -136,11 +133,11 @@ export default function Logs() {
         subtitle="Search operational events and enable scoped verbose diagnostics."
         action={
           <div className="flex items-center gap-3">
-            <Button variant={autoRefresh ? 'primary' : 'secondary'} icon="sync" onClick={() => setAutoRefresh((v) => !v)}>
+            <Button variant={autoRefresh ? 'primary' : 'secondary'} icon="sync" aria-pressed={autoRefresh} onClick={() => setAutoRefresh((v) => !v)}>
               {autoRefresh ? 'Live' : 'Manual'}
             </Button>
-            <a href={logsExportUrl(query)} className="font-headline font-semibold text-sm uppercase tracking-wide rounded-md px-5 py-2.5 min-h-11 inline-flex items-center gap-2 bg-surface-container-lowest text-on-surface border border-outline-variant/30 hover:bg-surface-container-low">
-              <span className="material-symbols-outlined text-lg">download</span>
+            <a href={logsExportUrl(query)} className="inline-flex min-h-control items-center gap-2 rounded-md border border-line bg-surface-2 px-4 text-sm font-medium text-fg transition-colors hover:border-line-strong hover:bg-surface-3">
+              <span className="material-symbols-outlined text-[18px]" aria-hidden="true">download</span>
               Export
             </a>
           </div>
@@ -148,68 +145,100 @@ export default function Logs() {
       />
 
       <Card variant="low" className="p-5 overflow-hidden">
-        <div className="flex items-center justify-between gap-4 mb-4"><div><h2 className="font-headline text-sm font-semibold uppercase tracking-wide">Log volume pulse</h2><p className="text-xs text-on-surface-variant mt-1">Severity mix for the selected time window</p></div><span className="font-headline text-2xl font-semibold">{stats.total.toLocaleString()}</span></div>
-        <div className="flex items-end gap-2 h-20">{Object.entries(stats.byLevel).length ? Object.entries(stats.byLevel).map(([level, value]) => { const max = Math.max(...Object.values(stats.byLevel), 1); const color = level === 'error' || level === 'fatal' ? 'bg-error' : level === 'warn' ? 'bg-warning' : level === 'info' ? 'bg-info' : 'bg-primary'; return <div key={level} className="flex-1 h-full flex flex-col justify-end min-w-10"><i className={`${color} rounded-t-sm transition-[height] duration-500`} style={{ height: `${Math.max(7, Number(value) / max * 100)}%` }} /><span className="text-[9px] uppercase text-on-surface-variant mt-1 text-center">{level}</span></div>; }) : <p className="m-auto text-xs text-on-surface-variant">No log activity in this range.</p>}</div>
+        <div className="flex items-center justify-between gap-4 mb-4">
+          <div>
+            <h2 className="text-sm font-semibold">Log volume by level</h2>
+            <p className="text-xs text-fg-muted mt-1">Events in the selected time window</p>
+          </div>
+          <span className="text-2xl font-semibold tabular-nums">{stats.total.toLocaleString()}</span>
+        </div>
+        {Object.entries(stats.byLevel).length ? (
+          <ul className="flex items-end gap-2 h-24">
+            {Object.entries(stats.byLevel).map(([level, value]) => {
+              const max = Math.max(...Object.values(stats.byLevel), 1);
+              return (
+                <li key={level} className="flex-1 h-full flex flex-col justify-end min-w-10">
+                  <span className="text-xs text-fg-muted text-center tabular-nums mb-1">{Number(value).toLocaleString()}</span>
+                  <i className={`${levelMeta(level).bar} rounded-t-sm transition-[height] duration-[var(--duration-normal)]`} style={{ height: `${Math.max(7, (Number(value) / max) * 100)}%` }} aria-hidden="true" />
+                  <span className="text-xs font-mono uppercase text-fg-muted mt-1 text-center">{level}</span>
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <p className="py-6 text-center text-sm text-fg-muted">No log activity in this range.</p>
+        )}
       </Card>
 
       <Card variant="low" className="p-4">
-        <div className="grid grid-cols-1 md:grid-cols-7 gap-3">
-          <input type="datetime-local" value={filters.from} onChange={(e) => setFilters((f) => ({ ...f, from: e.target.value }))} className="bg-surface-container rounded-lg px-3 py-2.5 text-sm text-on-surface border border-outline-variant/20 outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 [color-scheme:dark]" />
-          <input type="datetime-local" value={filters.to} onChange={(e) => setFilters((f) => ({ ...f, to: e.target.value }))} className="bg-surface-container rounded-lg px-3 py-2.5 text-sm text-on-surface border border-outline-variant/20 outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 [color-scheme:dark]" />
-          <select value={filters.level} onChange={(e) => setFilters((f) => ({ ...f, level: e.target.value }))} className="bg-surface-container rounded-lg px-3 py-2.5 text-sm text-on-surface border border-outline-variant/20 outline-none focus:border-primary focus:ring-1 focus:ring-primary/30">
-            {LEVELS.map((l) => <option key={l} value={l}>{l || 'All levels'}</option>)}
-          </select>
-          <select value={filters.component} onChange={(e) => setFilters((f) => ({ ...f, component: e.target.value }))} className="bg-surface-container rounded-lg px-3 py-2.5 text-sm text-on-surface border border-outline-variant/20 outline-none focus:border-primary focus:ring-1 focus:ring-primary/30">
-            {COMPONENTS.map((c) => <option key={c} value={c}>{c || 'All components'}</option>)}
-          </select>
-          <input placeholder="Request ID" value={filters.request_id} onChange={(e) => setFilters((f) => ({ ...f, request_id: e.target.value }))} className="bg-surface-container rounded-lg px-3 py-2.5 text-sm text-on-surface border border-outline-variant/20 outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 placeholder:text-outline" />
-          <input placeholder="Device ID" value={filters.device_id} onChange={(e) => setFilters((f) => ({ ...f, device_id: e.target.value }))} className="bg-surface-container rounded-lg px-3 py-2.5 text-sm text-on-surface border border-outline-variant/20 outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 placeholder:text-outline" />
-          <input placeholder="Search" value={filters.q} onChange={(e) => setFilters((f) => ({ ...f, q: e.target.value }))} className="bg-surface-container rounded-lg px-3 py-2.5 text-sm text-on-surface border border-outline-variant/20 outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 placeholder:text-outline" />
-        </div>
+        <fieldset>
+          <legend className="sr-only">Log filters</legend>
+          <div className="grid grid-cols-1 md:grid-cols-7 gap-3">
+            <label className={LABEL_CLASS}>From<input type="datetime-local" value={filters.from} onChange={(e) => setFilters((f) => ({ ...f, from: e.target.value }))} className={INPUT_CLASS} /></label>
+            <label className={LABEL_CLASS}>To<input type="datetime-local" value={filters.to} onChange={(e) => setFilters((f) => ({ ...f, to: e.target.value }))} className={INPUT_CLASS} /></label>
+            <label className={LABEL_CLASS}>Level
+              <select value={filters.level} onChange={(e) => setFilters((f) => ({ ...f, level: e.target.value }))} className={INPUT_CLASS}>
+                {LEVELS.map((l) => <option key={l} value={l}>{l || 'All levels'}</option>)}
+              </select>
+            </label>
+            <label className={LABEL_CLASS}>Component
+              <select value={filters.component} onChange={(e) => setFilters((f) => ({ ...f, component: e.target.value }))} className={INPUT_CLASS}>
+                {COMPONENTS.map((c) => <option key={c} value={c}>{c || 'All components'}</option>)}
+              </select>
+            </label>
+            <label className={LABEL_CLASS}>Request ID<input value={filters.request_id} onChange={(e) => setFilters((f) => ({ ...f, request_id: e.target.value }))} className={`${INPUT_CLASS} font-mono`} /></label>
+            <label className={LABEL_CLASS}>Device ID<input inputMode="numeric" value={filters.device_id} onChange={(e) => setFilters((f) => ({ ...f, device_id: e.target.value }))} className={INPUT_CLASS} /></label>
+            <label className={LABEL_CLASS}>Search<input type="search" value={filters.q} onChange={(e) => setFilters((f) => ({ ...f, q: e.target.value }))} className={INPUT_CLASS} /></label>
+          </div>
+        </fieldset>
       </Card>
 
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
-        <section className="xl:col-span-9 space-y-4">
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <section className="xl:col-span-9 space-y-4" aria-label="Log events">
+          <dl className="grid grid-cols-2 md:grid-cols-5 gap-3">
             {[
               ['Events', stats.total],
               ['Errors', stats.errors],
               ['Slow API', stats.slowRequests],
               ['Slow DB', stats.slowQueries],
-              ['Active Verbose', sessions.length],
+              ['Active verbose', sessions.length],
             ].map(([label, value]) => (
-              <Card key={label} variant="high" className="p-4">
-                <p className="text-xs text-on-surface-variant uppercase tracking-wide">{label}</p>
-                <p className="font-headline text-2xl font-semibold mt-1">{value}</p>
-              </Card>
+              <div key={label} className="rounded-lg border border-line bg-surface-1 p-4">
+                <dt className="text-xs text-fg-muted">{label}</dt>
+                <dd className={`text-2xl font-semibold mt-1 tabular-nums ${label === 'Errors' && Number(value) > 0 ? 'text-error' : ''}`}>{Number(value).toLocaleString()}</dd>
+              </div>
             ))}
-          </div>
+          </dl>
 
           <Card variant="low" className="overflow-hidden">
             {loading ? (
-              <div className="p-10 text-center text-on-surface-variant">Loading logs...</div>
+              <div className="p-10 text-center text-fg-muted">Loading logs…</div>
             ) : events.length === 0 ? (
               <EmptyState icon="receipt_long" title="No logs found" description="Adjust the filters or enable a verbose session." />
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead className="bg-surface-container-low text-xs uppercase tracking-wide text-on-surface-variant">
+                  <thead className="bg-surface-2 text-xs text-fg-muted">
                     <tr>
-                      <th className="text-left p-3">Time</th>
-                      <th className="text-left p-3">Level</th>
-                      <th className="text-left p-3">Component</th>
-                      <th className="text-left p-3">Message</th>
-                      <th className="text-left p-3">Context</th>
+                      <th scope="col" className="text-left font-medium p-3">Time</th>
+                      <th scope="col" className="text-left font-medium p-3">Level</th>
+                      <th scope="col" className="text-left font-medium p-3">Component</th>
+                      <th scope="col" className="text-left font-medium p-3">Message</th>
+                      <th scope="col" className="text-left font-medium p-3">Context</th>
                     </tr>
                   </thead>
                   <tbody>
                     {events.map((e) => (
-                      <tr key={`${e.id}-${e.timestamp}`} onClick={() => setSelected(e)} className="border-t border-outline-variant/15 hover:bg-surface-container-low cursor-pointer">
-                        <td className="p-3 whitespace-nowrap text-on-surface-variant">{fmtTime(e.timestamp)}</td>
-                        <td className="p-3"><span className={`px-2 py-1 rounded text-xs font-semibold uppercase ${levelClass(e.level)}`}>{e.level}</span></td>
+                      <tr key={`${e.id}-${e.timestamp}`} onClick={() => setSelected(e)} className="border-t border-line hover:bg-surface-2 cursor-pointer">
+                        <td className="p-3 whitespace-nowrap font-mono text-xs text-fg-muted">{fmtTime(e.timestamp)}</td>
+                        <td className="p-3"><LevelBadge level={e.level} /></td>
                         <td className="p-3 font-medium">{e.component}</td>
-                        <td className="p-3 max-w-[420px] truncate">{e.message}</td>
-                        <td className="p-3 text-xs text-on-surface-variant">{e.path || e.requestId || (e.deviceId ? `device ${e.deviceId}` : e.eventType)}</td>
+                        <td className="p-3 max-w-[420px]">
+                          <button type="button" onClick={(ev) => { ev.stopPropagation(); setSelected(e); }} className="block max-w-full truncate text-left hover:underline">
+                            {e.message}
+                          </button>
+                        </td>
+                        <td className="p-3 text-xs text-fg-muted font-mono">{e.path || e.requestId || (e.deviceId ? `device ${e.deviceId}` : e.eventType)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -220,71 +249,99 @@ export default function Logs() {
         </section>
 
         <aside className="xl:col-span-3 space-y-4">
-          <Card variant="low" className="p-5 space-y-3">
-            <h2 className="font-headline font-semibold flex items-center gap-2"><span className="material-symbols-outlined text-primary">tune</span>Verbose</h2>
-            <div className="grid grid-cols-2 gap-2">
-              <select value={verbose.level} onChange={(e) => setVerbose((v) => ({ ...v, level: e.target.value as 'debug' | 'trace' }))} className="bg-surface-container-lowest rounded-md px-3 py-2 text-sm">
-                <option value="debug">Debug</option>
-                <option value="trace">Trace</option>
-              </select>
-              <input type="number" min={1} max={240} value={verbose.durationMinutes} onChange={(e) => setVerbose((v) => ({ ...v, durationMinutes: Number(e.target.value) }))} className="bg-surface-container-lowest rounded-md px-3 py-2 text-sm" />
-            </div>
-            <select value={verbose.component} onChange={(e) => setVerbose((v) => ({ ...v, component: e.target.value }))} className="w-full bg-surface-container-lowest rounded-md px-3 py-2 text-sm">
-              {COMPONENTS.filter(Boolean).map((c) => <option key={c} value={c}>{c}</option>)}
-            </select>
-            <input placeholder="Device IDs, comma separated" value={verbose.deviceIds} onChange={(e) => setVerbose((v) => ({ ...v, deviceIds: e.target.value }))} className="w-full bg-surface-container-lowest rounded-md px-3 py-2 text-sm" />
-            <input placeholder="User IDs, comma separated" value={verbose.userIds} onChange={(e) => setVerbose((v) => ({ ...v, userIds: e.target.value }))} className="w-full bg-surface-container-lowest rounded-md px-3 py-2 text-sm" />
-            <textarea placeholder="Reason" value={verbose.reason} onChange={(e) => setVerbose((v) => ({ ...v, reason: e.target.value }))} className="w-full bg-surface-container-lowest rounded-md px-3 py-2 text-sm min-h-20" />
-            <Button className="w-full" icon="play_arrow" onClick={createSession}>Enable</Button>
+          <Card variant="low" className="p-5">
+            <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); createSession(); }}>
+              <h2 className="font-semibold flex items-center gap-2"><span className="material-symbols-outlined text-fg-muted" aria-hidden="true">tune</span>Verbose session</h2>
+              <div className="grid grid-cols-2 gap-2">
+                <label className={LABEL_CLASS}>Level
+                  <select value={verbose.level} onChange={(e) => setVerbose((v) => ({ ...v, level: e.target.value as 'debug' | 'trace' }))} className={INPUT_CLASS}>
+                    <option value="debug">Debug</option>
+                    <option value="trace">Trace</option>
+                  </select>
+                </label>
+                <label className={LABEL_CLASS}>Minutes
+                  <input type="number" min={1} max={240} value={verbose.durationMinutes} onChange={(e) => setVerbose((v) => ({ ...v, durationMinutes: Number(e.target.value) }))} className={INPUT_CLASS} />
+                </label>
+              </div>
+              <label className={LABEL_CLASS}>Component
+                <select value={verbose.component} onChange={(e) => setVerbose((v) => ({ ...v, component: e.target.value }))} className={INPUT_CLASS}>
+                  {COMPONENTS.filter(Boolean).map((c) => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </label>
+              <label className={LABEL_CLASS}>Device IDs<input placeholder="Comma separated" value={verbose.deviceIds} onChange={(e) => setVerbose((v) => ({ ...v, deviceIds: e.target.value }))} className={INPUT_CLASS} /></label>
+              <label className={LABEL_CLASS}>User IDs<input placeholder="Comma separated" value={verbose.userIds} onChange={(e) => setVerbose((v) => ({ ...v, userIds: e.target.value }))} className={INPUT_CLASS} /></label>
+              <label className={LABEL_CLASS}>Reason<textarea value={verbose.reason} onChange={(e) => setVerbose((v) => ({ ...v, reason: e.target.value }))} className="mt-1 w-full min-h-20 rounded-md border border-line bg-inset px-3 py-2 text-sm text-fg outline-none focus:border-primary" /></label>
+              <Button type="submit" className="w-full" icon="play_arrow">Enable</Button>
+            </form>
           </Card>
 
           <Card variant="low" className="p-5 space-y-3">
-            <h2 className="font-headline font-semibold">Active Sessions</h2>
-            {sessions.length === 0 ? <p className="text-sm text-on-surface-variant">None active.</p> : sessions.map((s) => (
-              <div key={s.id} className="border border-outline-variant/20 rounded-md p-3 space-y-2">
+            <h2 className="font-semibold">Active sessions</h2>
+            {sessions.length === 0 ? <p className="text-sm text-fg-muted">None active.</p> : sessions.map((s) => (
+              <div key={s.id} className="border border-line rounded-md p-3 space-y-2">
                 <div className="flex items-center justify-between gap-2">
-                  <span className={`px-2 py-1 rounded text-xs font-semibold uppercase ${levelClass(s.level)}`}>{s.level}</span>
-                  <button onClick={() => stopSession(s.id)} className="material-symbols-outlined text-error text-lg" aria-label="Stop verbose session">stop_circle</button>
+                  <LevelBadge level={s.level} />
+                  <IconButton icon="stop_circle" size="sm" variant="danger" label={`Stop ${s.level} session for ${s.components.join(', ') || 'all components'}`} onClick={() => stopSession(s.id)} />
                 </div>
-                <p className="text-xs text-on-surface-variant">{s.components.join(', ') || 'all components'}</p>
-                <p className="text-xs">Until {fmtTime(s.expiresAt)}</p>
+                <p className="text-xs text-fg-muted">{s.components.join(', ') || 'all components'}</p>
+                <p className="text-xs">Until <span className="tabular-nums">{fmtTime(s.expiresAt)}</span></p>
               </div>
             ))}
           </Card>
         </aside>
       </div>
 
-      {selected && (
-        <Card variant="highest" className="fixed right-6 top-24 bottom-6 w-[min(520px,calc(100vw-48px))] z-50 p-5 overflow-auto shadow-xl">
-          <div className="flex items-start justify-between gap-4 mb-4">
-            <div>
-              <p className={`inline-block px-2 py-1 rounded text-xs font-semibold uppercase ${levelClass(selected.level)}`}>{selected.level}</p>
-              <h2 className="font-headline text-lg font-semibold mt-3">{selected.component}</h2>
-              <p className="text-xs text-on-surface-variant">{fmtTime(selected.timestamp)}</p>
-            </div>
-            <button onClick={() => setSelected(null)} className="material-symbols-outlined text-on-surface-variant hover:text-on-surface" aria-label="Close details">close</button>
-          </div>
-          <p className="mb-4">{selected.message}</p>
-          <dl className="grid grid-cols-2 gap-3 text-sm mb-4">
-            {Object.entries({
-              Event: selected.eventType,
-              Request: selected.requestId,
-              User: selected.userId,
-              Device: selected.deviceId,
-              Path: selected.path,
-              Status: selected.statusCode,
-              Duration: selected.durationMs ? `${selected.durationMs.toFixed(1)} ms` : undefined,
-            }).filter(([, v]) => v !== undefined && v !== '').map(([k, v]) => (
-              <div key={k}>
-                <dt className="text-xs text-primary uppercase tracking-wide">{k}</dt>
-                <dd className="break-words">{String(v)}</dd>
-              </div>
-            ))}
-          </dl>
-          {selected.error && <pre className="bg-error/10 text-error p-3 rounded-md text-xs whitespace-pre-wrap mb-4">{selected.error}</pre>}
-          <pre className="bg-surface text-xs p-3 rounded-md overflow-auto whitespace-pre-wrap">{JSON.stringify(selected.attrs || {}, null, 2)}</pre>
-        </Card>
-      )}
+      <Dialog
+        open={!!selected}
+        onClose={() => setSelected(null)}
+        placement="drawer"
+        title={selected?.component ?? ''}
+        description={selected ? fmtTime(selected.timestamp) : undefined}
+        headerActions={selected ? <LevelBadge level={selected.level} /> : undefined}
+      >
+        {selected && (
+          <>
+            <p className="mb-4">{selected.message}</p>
+            <dl className="grid grid-cols-2 gap-3 text-sm mb-4">
+              {Object.entries({
+                Event: selected.eventType,
+                Request: selected.requestId,
+                User: selected.userId,
+                Device: selected.deviceId,
+                Path: selected.path,
+                Status: selected.statusCode,
+                Duration: selected.durationMs ? `${selected.durationMs.toFixed(1)} ms` : undefined,
+              }).filter(([, v]) => v !== undefined && v !== '').map(([k, v]) => (
+                <div key={k}>
+                  <dt className="text-xs text-fg-muted">{k}</dt>
+                  <dd className="break-words font-mono text-xs">{String(v)}</dd>
+                </div>
+              ))}
+            </dl>
+            {selected.error && <pre className="mb-4 whitespace-pre-wrap rounded-md border border-line border-l-4 border-l-error bg-inset p-3 font-mono text-xs text-fg">{selected.error}</pre>}
+            <pre className="overflow-auto whitespace-pre-wrap rounded-md border border-line bg-inset p-3 font-mono text-xs text-fg-muted">{JSON.stringify(selected.attrs || {}, null, 2)}</pre>
+          </>
+        )}
+      </Dialog>
     </div>
   );
+}
+
+const INPUT_CLASS = 'mt-1 w-full h-control rounded-md border border-line bg-inset px-3 text-sm text-fg placeholder:text-fg-subtle outline-none focus:border-primary';
+const LABEL_CLASS = 'block text-xs font-medium text-fg-muted';
+
+/** Log level → colour treatment; levels stay uppercase because they read as codes. */
+function levelMeta(level: string): { status: Status | null; bar: string } {
+  if (level === 'error' || level === 'fatal') return { status: 'down', bar: STATUS_META.down.bg };
+  if (level === 'warn') return { status: 'warning', bar: STATUS_META.warning.bg };
+  if (level === 'info') return { status: 'info', bar: STATUS_META.info.bg };
+  return { status: null, bar: 'bg-line-strong' };
+}
+
+function LevelBadge({ level }: { level: string }) {
+  const { status } = levelMeta(level);
+  if (!status) {
+    return <span className="inline-flex rounded px-2 py-0.5 font-mono text-xs font-semibold uppercase bg-surface-3 text-fg-muted">{level}</span>;
+  }
+  return <StatusPill status={status} className="font-mono uppercase">{level}</StatusPill>;
 }

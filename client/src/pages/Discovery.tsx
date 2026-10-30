@@ -8,12 +8,15 @@ import Button from '../components/ui/Button';
 import StatCard from '../components/ui/StatCard';
 import EmptyState from '../components/ui/EmptyState';
 import { useToast } from '../components/ui/useToast';
+import Dialog from '../components/ui/Dialog';
+import { StatusPill } from '../components/ui/Status';
+import { STATUS_META, type StatusMeta } from '../utils/status';
 
 const EMPTY_JOBS: DiscoveryJob[] = [];
 const EMPTY_RESULTS: DiscoveryResult[] = [];
 
 function formatDate(ts: string | null): string {
-  if (!ts) return 'Running...';
+  if (!ts) return 'In progress';
   return new Date(ts).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
 }
 
@@ -76,156 +79,159 @@ export default function Discovery() {
   const handleApprove = (resultId: number) => approveMutation.mutate(resultId);
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <SectionHeader
-        title="Discovery Dashboard"
+        title="Discovery"
         subtitle="Launch subnet scans, review findings, and approve discovered devices."
-        action={<Button icon="radar" onClick={() => setShowScanForm(true)}>New Scan</Button>}
+        action={<Button icon="radar" onClick={() => setShowScanForm(true)}>New scan</Button>}
       />
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <StatCard label="Total Scans" value={stats.total} icon="radar" sparklineData={jobs.map(job => job.totalIpsScanned)} />
-        <StatCard label="Completed" value={stats.completed} icon="check_circle" trend="up" sparklineData={jobs.map(job => job.status === 'completed' ? 1 : 0)} />
-        <StatCard label="Running" value={stats.running} icon="progress_activity" color={stats.running > 0 ? 'text-warning' : undefined} trend={stats.running ? 'up' : 'flat'} sparklineData={jobs.map(job => job.status === 'running' ? 1 : 0)} />
-        <StatCard label="Devices Found" value={stats.totalFound} icon="devices" sparklineData={jobs.map(job => job.devicesFound)} />
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard label="Total scans" value={stats.total} icon="radar" />
+        <StatCard label="Completed" value={stats.completed} icon="check_circle" />
+        <StatCard label="Running" value={stats.running} icon="progress_activity" />
+        <StatCard label="Devices found" value={stats.totalFound} icon="devices" />
       </div>
 
-      <Card variant="low" className="p-6 overflow-hidden"><div className="flex items-center justify-between"><div><h2 className="font-headline text-sm font-semibold uppercase tracking-wide">Discovery sweep</h2><p className="text-xs text-on-surface-variant mt-1">Live scan coverage and discovered nodes</p></div><span className={`material-symbols-outlined text-4xl text-primary ${stats.running ? 'animate-spin' : ''}`}>radar</span></div><div className="mt-6 grid grid-cols-12 gap-1.5">{Array.from({ length: 48 }, (_, index) => <i key={index} className={`h-6 rounded-sm ${index < Math.min(48, stats.totalFound) ? 'bg-success/80' : index < Math.min(48, stats.totalFound + stats.running * 8) ? 'bg-warning/60' : 'bg-surface-container-lowest'}`} />)}</div></Card>
-
       <Card variant="low" className="overflow-hidden">
-        <div className="p-5 border-b border-outline-variant/20 flex flex-col md:flex-row gap-4 md:items-center md:justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-md bg-primary/10 text-primary flex items-center justify-center">
-              <span className="material-symbols-outlined">radar</span>
-            </div>
-            <div>
-              <h2 className="font-headline font-semibold text-lg">Scan Jobs</h2>
-              <p className="text-xs text-on-surface-variant uppercase tracking-wide">{filtered.length} jobs</p>
-            </div>
-          </div>
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search scans..." className="bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary outline-none md:w-64" />
+        <div className="p-4 border-b border-line flex flex-col md:flex-row gap-3 md:items-center md:justify-between">
+          <h2 className="text-base font-semibold">Scan jobs <span className="text-sm font-normal text-fg-muted tabular-nums">({filtered.length})</span></h2>
+          <label className="relative md:w-64">
+            <span className="sr-only">Search scans</span>
+            <span className="material-symbols-outlined pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-fg-subtle" aria-hidden="true">search</span>
+            <input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search scans" className={`${INPUT_CLASS} pl-10`} />
+          </label>
         </div>
 
         {loading ? (
-          <div className="p-8 text-sm text-on-surface-variant">Loading...</div>
+          <div className="p-8 text-sm text-fg-muted">Loading…</div>
         ) : filtered.length === 0 ? (
-          <EmptyState icon="radar" title="No scans yet" description="Launch a subnet scan to discover devices on the network." action={<Button icon="radar" onClick={() => setShowScanForm(true)}>Start Scan</Button>} />
+          <EmptyState icon="radar" title="No scans yet" description="Launch a subnet scan to discover devices on the network." action={<Button icon="radar" onClick={() => setShowScanForm(true)}>Start scan</Button>} />
         ) : (
-          <div className="divide-y divide-outline-variant/20">
-            {filtered.map((job) => (
-              <article key={job.id} className="p-5 hover:bg-surface-container-low/50 transition-colors cursor-pointer" onClick={() => openJob(job)}>
-                <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-                  <div className="flex items-start gap-4 min-w-0">
-                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${job.status === 'completed' ? 'bg-success/10' : job.status === 'running' ? 'bg-warning/10' : job.status === 'failed' ? 'bg-error/10' : 'bg-surface-container-lowest'}`}>
-                      <span className={`material-symbols-outlined text-xl ${job.status === 'completed' ? 'text-success' : job.status === 'running' ? 'text-warning' : job.status === 'failed' ? 'text-error' : 'text-on-surface-variant'}`}>{job.status === 'completed' ? 'check_circle' : job.status === 'running' ? 'progress_activity' : 'radar'}</span>
+          <ul className="divide-y divide-line">
+            {filtered.map((job) => {
+              const meta = jobMeta(job.status);
+              return (
+                <li key={job.id}>
+                  <button
+                    type="button"
+                    onClick={() => openJob(job)}
+                    className="w-full p-4 text-left hover:bg-surface-2 transition-colors"
+                    aria-label={`Open results for ${job.subnet}`}
+                  >
+                    <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h3 className="font-semibold font-mono">{job.subnet}</h3>
+                          <StatusPill status={meta} />
+                        </div>
+                        <p className="text-xs text-fg-muted mt-1">
+                          <span className="capitalize">{job.scanType.replace(/_/g, ' ')}</span> · {formatDate(job.completedAt)}
+                        </p>
+                        {job.errorMessage && <p className="text-sm text-error mt-1">{job.errorMessage}</p>}
+                      </div>
+                      <dl className="grid grid-cols-4 gap-4 lg:w-96 flex-shrink-0">
+                        {[
+                          ['Scanned', job.totalIpsScanned],
+                          ['Found', job.devicesFound],
+                          ['New', job.devicesNew],
+                          ['Known', job.devicesKnown],
+                        ].map(([label, value]) => (
+                          <div key={label}>
+                            <dt className="text-xs text-fg-muted">{label}</dt>
+                            <dd className="text-sm font-semibold tabular-nums">{value}</dd>
+                          </div>
+                        ))}
+                      </dl>
                     </div>
-                    <div className="min-w-0">
-                      <h3 className="font-headline font-semibold text-lg font-data">{job.subnet}</h3>
-                      <p className="text-xs text-on-surface-variant mt-0.5 capitalize">{job.scanType.replace(/_/g, ' ')} · {job.status} · {formatDate(job.completedAt)}</p>
-                      {job.errorMessage && <p className="text-sm text-error mt-1">{job.errorMessage}</p>}
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 lg:max-w-xl flex-shrink-0">
-                    <div>
-                      <div className="text-[10px] text-on-surface-variant uppercase tracking-wide">Scanned</div>
-                      <div className="text-sm font-medium">{job.totalIpsScanned}</div>
-                    </div>
-                    <div>
-                      <div className="text-[10px] text-on-surface-variant uppercase tracking-wide">Found</div>
-                      <div className="text-sm font-semibold text-primary">{job.devicesFound}</div>
-                    </div>
-                    <div>
-                      <div className="text-[10px] text-on-surface-variant uppercase tracking-wide">New</div>
-                      <div className="text-sm font-medium text-success">{job.devicesNew}</div>
-                    </div>
-                    <div>
-                      <div className="text-[10px] text-on-surface-variant uppercase tracking-wide">Known</div>
-                      <div className="text-sm font-medium">{job.devicesKnown}</div>
-                    </div>
-                  </div>
-                </div>
-              </article>
-            ))}
-          </div>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
         )}
       </Card>
 
-      {selectedJob && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pt-20 bg-black/60" onClick={() => setSelectedJob(null)}>
-          <div className="bg-surface-container-low border border-outline-variant/30 rounded-lg w-full max-w-3xl overflow-hidden max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
-            <div className="p-6 border-b border-outline-variant/20 flex items-center justify-between shrink-0">
-              <div>
-                <h2 className="font-headline text-lg font-semibold font-data">{selectedJob.subnet}</h2>
-                <p className="text-xs text-on-surface-variant mt-0.5 capitalize">{selectedJob.status} · {results.length} results</p>
-              </div>
-              <button onClick={() => setSelectedJob(null)} className="text-on-surface-variant hover:text-on-surface p-1"><span className="material-symbols-outlined">close</span></button>
-            </div>
-            <div className="p-6 overflow-y-auto flex-1">
-              {results.length === 0 ? (
-                <p className="text-sm text-on-surface-variant text-center py-8">No results found.</p>
-              ) : (
-                <div className="space-y-3">
-                  {results.map((r) => (
-                    <div key={r.id} className="bg-surface-container-lowest rounded-lg p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="font-data text-sm font-semibold">{r.ipAddress}</span>
-                          {r.approvedDeviceId && <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-success/10 text-success">Approved</span>}
-                          {!r.approvedDeviceId && r.status === 'pending' && <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-warning/10 text-warning">Pending</span>}
-                          {r.guessedCategory && <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-primary/10 text-primary">{r.guessedCategory.replace(/_/g, ' ')}</span>}
-                          {r.guessedOs && <span className="text-[10px] px-2 py-0.5 rounded bg-surface-container text-on-surface-variant">{r.guessedOs}</span>}
-                        </div>
-                        <div className="text-xs text-on-surface-variant mt-1 space-y-0.5">
-                          {r.manufacturer && <div>Vendor: {r.manufacturer}</div>}
-                          {r.hostname && <div>Host: {r.hostname}</div>}
-                          {r.httpTitle && <div>HTTP: {r.httpTitle}</div>}
-                          {r.sshBanner && <div>SSH: {r.sshBanner}</div>}
-                          {r.tlsCertCn && <div>Cert: {r.tlsCertCn}</div>}
-                          {r.snmpName && <div>SNMP: {r.snmpName}</div>}
-                          {r.snmpDescription && <div>SNMP Desc: {r.snmpDescription.length > 80 ? r.snmpDescription.slice(0, 80) + '...' : r.snmpDescription}</div>}
-                          {!r.manufacturer && !r.hostname && !r.httpTitle && !r.sshBanner && !r.tlsCertCn && !r.snmpName && (
-                            <span>{r.macAddress || 'Unknown device'}</span>
-                          )}
-                        </div>
-                      </div>
-                      {!r.approvedDeviceId && r.status !== 'rejected' && (
-                        <button onClick={(e) => { e.stopPropagation(); handleApprove(r.id); }} className="text-xs font-semibold text-primary hover:bg-primary/10 px-3 py-1.5 rounded transition-colors whitespace-nowrap">Approve</button>
-                      )}
-                    </div>
-                  ))}
+      <Dialog
+        open={!!selectedJob}
+        onClose={() => setSelectedJob(null)}
+        size="xl"
+        title={<span className="font-mono">{selectedJob?.subnet}</span>}
+        description={selectedJob ? `${jobMeta(selectedJob.status).label} · ${results.length} results` : undefined}
+      >
+        {results.length === 0 ? (
+          <p className="text-sm text-fg-muted text-center py-8">No results found.</p>
+        ) : (
+          <ul className="space-y-3">
+            {results.map((r) => (
+              <li key={r.id} className="bg-inset border border-line rounded-md p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-mono text-sm font-semibold">{r.ipAddress}</span>
+                    {r.approvedDeviceId && <StatusPill status="up">Approved</StatusPill>}
+                    {!r.approvedDeviceId && r.status === 'pending' && <StatusPill status="unknown">Pending</StatusPill>}
+                    {r.guessedCategory && <span className="text-xs font-medium px-2 py-0.5 rounded bg-surface-3 text-fg-muted capitalize">{r.guessedCategory.replace(/_/g, ' ')}</span>}
+                    {r.guessedOs && <span className="text-xs px-2 py-0.5 rounded bg-surface-3 text-fg-muted">{r.guessedOs}</span>}
+                  </div>
+                  <div className="text-xs text-fg-muted mt-1 space-y-0.5">
+                    {r.manufacturer && <div>Vendor: {r.manufacturer}</div>}
+                    {r.hostname && <div>Host: {r.hostname}</div>}
+                    {r.httpTitle && <div>HTTP: {r.httpTitle}</div>}
+                    {r.sshBanner && <div>SSH: {r.sshBanner}</div>}
+                    {r.tlsCertCn && <div>Cert: {r.tlsCertCn}</div>}
+                    {r.snmpName && <div>SNMP: {r.snmpName}</div>}
+                    {r.snmpDescription && <div>SNMP description: {r.snmpDescription.length > 80 ? r.snmpDescription.slice(0, 80) + '…' : r.snmpDescription}</div>}
+                    {!r.manufacturer && !r.hostname && !r.httpTitle && !r.sshBanner && !r.tlsCertCn && !r.snmpName && (
+                      <span className="font-mono">{r.macAddress || 'Unknown device'}</span>
+                    )}
+                  </div>
                 </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+                {!r.approvedDeviceId && r.status !== 'rejected' && (
+                  <Button variant="primary-outline" size="sm" icon="add_task" onClick={() => handleApprove(r.id)} aria-label={`Approve ${r.ipAddress}`}>Approve</Button>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </Dialog>
 
-      {showScanForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pt-20 bg-black/60" onClick={() => setShowScanForm(false)}>
-          <div className="bg-surface-container-low border border-outline-variant/30 rounded-lg w-full max-w-md max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
-            <div className="p-6 border-b border-outline-variant/20 shrink-0"><h2 className="font-headline text-lg font-semibold">New Subnet Scan</h2></div>
-            <div className="p-6 space-y-4 flex-1 min-h-0 overflow-y-auto">
-              <div>
-                <label className="text-[10px] text-on-surface-variant uppercase tracking-wide block mb-1">Subnet (CIDR)</label>
-                <input value={scanForm.subnet} onChange={(e) => setScanForm({ ...scanForm, subnet: e.target.value })} className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface font-data placeholder:text-outline focus:ring-1 focus:ring-primary outline-none" placeholder="10.0.0.0/24" />
-              </div>
-              <div>
-                <label className="text-[10px] text-on-surface-variant uppercase tracking-wide block mb-1">Scan Type</label>
-                <select value={scanForm.scan_type} onChange={(e) => setScanForm({ ...scanForm, scan_type: e.target.value })} className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary">
-                  <option value="ping_only">Ping Only</option>
-                  <option value="ping_snmp">Ping + SNMP</option>
-                  <option value="full">Full Scan</option>
-                </select>
-              </div>
-            </div>
-            <div className="flex border-t border-outline-variant/20 shrink-0">
-              <button onClick={() => setShowScanForm(false)} className="flex-1 py-3 text-xs font-headline font-semibold uppercase tracking-wide text-on-surface-variant hover:bg-surface-container-low transition-colors">Cancel</button>
-              <div className="w-px bg-outline-variant/20" />
-              <button onClick={handleScan} disabled={submitting || !scanForm.subnet} className="flex-1 py-3 text-xs font-headline font-semibold uppercase tracking-wide text-primary hover:bg-primary/10 transition-colors disabled:opacity-50">{submitting ? 'Starting...' : 'Start Scan'}</button>
-            </div>
+      <Dialog
+        open={showScanForm}
+        onClose={() => setShowScanForm(false)}
+        size="sm"
+        title="New subnet scan"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setShowScanForm(false)}>Cancel</Button>
+            <Button type="submit" form="scan-form" icon="radar" disabled={submitting || !scanForm.subnet}>{submitting ? 'Starting…' : 'Start scan'}</Button>
+          </>
+        }
+      >
+        <form id="scan-form" className="space-y-4" onSubmit={(e) => { e.preventDefault(); handleScan(); }}>
+          <div>
+            <label htmlFor="scan-subnet" className="text-xs font-medium text-fg-muted block mb-1.5">Subnet (CIDR)</label>
+            <input id="scan-subnet" required value={scanForm.subnet} onChange={(e) => setScanForm({ ...scanForm, subnet: e.target.value })} className={`${INPUT_CLASS} font-mono`} placeholder="10.0.0.0/24" />
           </div>
-        </div>
-      )}
+          <div>
+            <label htmlFor="scan-type" className="text-xs font-medium text-fg-muted block mb-1.5">Scan type</label>
+            <select id="scan-type" value={scanForm.scan_type} onChange={(e) => setScanForm({ ...scanForm, scan_type: e.target.value })} className={INPUT_CLASS}>
+              <option value="ping_only">Ping only</option>
+              <option value="ping_snmp">Ping + SNMP</option>
+              <option value="full">Full scan</option>
+            </select>
+          </div>
+        </form>
+      </Dialog>
     </div>
   );
+}
+
+const INPUT_CLASS = 'w-full h-control bg-inset border border-line rounded-md px-3 text-sm text-fg placeholder:text-fg-subtle outline-none focus:border-primary';
+
+/** Scan job state through the status system (running = in progress, not a fault). */
+function jobMeta(status: string): StatusMeta {
+  if (status === 'completed') return { ...STATUS_META.up, label: 'Completed' };
+  if (status === 'running') return { ...STATUS_META.info, label: 'Running' };
+  if (status === 'failed') return { ...STATUS_META.down, label: 'Failed' };
+  return { ...STATUS_META.unknown, label: status ? status.charAt(0).toUpperCase() + status.slice(1) : 'Unknown' };
 }

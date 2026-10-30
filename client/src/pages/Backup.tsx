@@ -8,6 +8,9 @@ import Button from '../components/ui/Button';
 import EmptyState from '../components/ui/EmptyState';
 import ConfirmDialog from '../components/ConfirmDialog';
 import { useToast } from '../components/ui/useToast';
+import IconButton from '../components/ui/IconButton';
+import { StatusPill } from '../components/ui/Status';
+import { STATUS_META, type StatusMeta } from '../utils/status';
 
 const EMPTY_BACKUPS: Backup[] = [];
 
@@ -31,23 +34,14 @@ function formatDate(iso: string): string {
   });
 }
 
-function statusColor(status: Backup['status']): string {
+/** Backup job state through the status system. */
+function backupMeta(status: Backup['status']): StatusMeta {
   switch (status) {
-    case 'completed': return 'text-green-400';
-    case 'running': return 'text-amber-400';
-    case 'pending': return 'text-blue-400';
-    case 'failed': return 'text-error';
-    default: return 'text-on-surface-variant';
-  }
-}
-
-function statusIcon(status: Backup['status']): string {
-  switch (status) {
-    case 'completed': return 'check_circle';
-    case 'running': return 'sync';
-    case 'pending': return 'schedule';
-    case 'failed': return 'error';
-    default: return 'help';
+    case 'completed': return { ...STATUS_META.up, label: 'Completed' };
+    case 'running': return { ...STATUS_META.info, label: 'Running' };
+    case 'pending': return { ...STATUS_META.unknown, label: 'Pending' };
+    case 'failed': return { ...STATUS_META.down, label: 'Failed' };
+    default: return STATUS_META.unknown;
   }
 }
 
@@ -151,26 +145,26 @@ export default function BackupPage() {
   return (
     <div>
       <SectionHeader
-        title="Backup & Restore"
+        title="Backup & restore"
         subtitle="Create database backups, restore from previous backups, or upload a backup file."
       />
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-        <StatCard label="Total Backups" value={totalBackups} icon="storage" />
-        <StatCard label="Completed" value={completedBackups} color="text-green-400" icon="check_circle" />
-        <StatCard label="Total Size" value={formatBytes(totalSize)} icon="scale" />
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <StatCard label="Total backups" value={totalBackups} icon="storage" />
+        <StatCard label="Completed" value={completedBackups} icon="check_circle" />
+        <StatCard label="Total size" value={formatBytes(totalSize)} icon="scale" />
         <StatCard label="Retention" value={config ? `${config.retentionDays} days` : '—'} icon="schedule" />
       </div>
 
       {/* Actions */}
-      <div className="flex flex-wrap gap-3 mb-8">
+      <div className="flex flex-wrap gap-3 mb-6">
         <Button
           variant="primary"
           icon="backup"
           onClick={handleCreateBackup}
           disabled={creating || backups.some(b => b.status === 'running' || b.status === 'pending')}
         >
-          {creating ? 'Creating...' : 'Create Backup'}
+          {creating ? 'Creating…' : 'Create backup'}
         </Button>
         <Button
           variant="secondary"
@@ -178,21 +172,23 @@ export default function BackupPage() {
           onClick={() => fileInputRef.current?.click()}
           disabled={uploading}
         >
-          {uploading ? 'Uploading...' : 'Upload & Restore'}
+          {uploading ? 'Uploading…' : 'Upload & restore'}
         </Button>
         <input
           ref={fileInputRef}
           type="file"
           accept=".sql,.gz,.backup"
           className="hidden"
+          aria-label="Backup file to upload and restore"
           onChange={handleUpload}
         />
       </div>
 
       {/* Backup List */}
       {loading ? (
-        <div className="flex items-center justify-center py-20">
-          <span className="material-symbols-outlined text-3xl text-primary animate-pulse">hourglass_top</span>
+        <div role="status" className="flex items-center justify-center gap-2 py-20 text-sm text-fg-muted">
+          <span className="material-symbols-outlined animate-spin text-2xl" aria-hidden="true">progress_activity</span>
+          Loading backups…
         </div>
       ) : backups.length === 0 ? (
         <EmptyState
@@ -201,100 +197,75 @@ export default function BackupPage() {
           description="Create your first backup to protect your configuration and data."
         />
       ) : (
-        <div className="bg-surface-container-low rounded-lg border border-outline-variant/20 overflow-hidden">
+        <div className="bg-surface-1 rounded-lg border border-line overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-outline-variant/20">
-                  <th className="text-left py-3 px-4 font-label text-xs text-on-surface-variant uppercase tracking-wide">File</th>
-                  <th className="text-left py-3 px-4 font-label text-xs text-on-surface-variant uppercase tracking-wide">Type</th>
-                  <th className="text-left py-3 px-4 font-label text-xs text-on-surface-variant uppercase tracking-wide">Size</th>
-                  <th className="text-left py-3 px-4 font-label text-xs text-on-surface-variant uppercase tracking-wide">Status</th>
-                  <th className="text-left py-3 px-4 font-label text-xs text-on-surface-variant uppercase tracking-wide">Created</th>
-                  <th className="text-left py-3 px-4 font-label text-xs text-on-surface-variant uppercase tracking-wide">Restored</th>
-                  <th className="text-right py-3 px-4 font-label text-xs text-on-surface-variant uppercase tracking-wide">Actions</th>
+                <tr className="border-b border-line bg-surface-2">
+                  <th scope="col" className="text-left py-3 px-4 text-xs font-medium text-fg-muted">File</th>
+                  <th scope="col" className="text-left py-3 px-4 text-xs font-medium text-fg-muted">Type</th>
+                  <th scope="col" className="text-left py-3 px-4 text-xs font-medium text-fg-muted">Size</th>
+                  <th scope="col" className="text-left py-3 px-4 text-xs font-medium text-fg-muted">Status</th>
+                  <th scope="col" className="text-left py-3 px-4 text-xs font-medium text-fg-muted">Created</th>
+                  <th scope="col" className="text-left py-3 px-4 text-xs font-medium text-fg-muted">Restored</th>
+                  <th scope="col" className="text-right py-3 px-4 text-xs font-medium text-fg-muted"><span className="sr-only">Actions</span></th>
                 </tr>
               </thead>
               <tbody>
                 {backups.map(backup => (
-                  <tr key={backup.id} className="border-b border-outline-variant/10 hover:bg-surface-container-lowest transition-colors">
+                  <tr key={backup.id} className="border-b border-line last:border-b-0 hover:bg-surface-2 transition-colors">
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-2">
-                        <span className="material-symbols-outlined text-lg text-on-surface-variant">description</span>
-                        <span className="font-mono text-xs text-on-surface">{backup.filename}</span>
+                        <span className="material-symbols-outlined text-lg text-fg-subtle" aria-hidden="true">description</span>
+                        <span className="font-mono text-xs text-fg">{backup.filename}</span>
                       </div>
                       {backup.checksum && (
-                        <p className="text-[10px] text-on-surface-variant mt-0.5 font-mono truncate max-w-[300px]">
+                        <p className="text-xs text-fg-muted mt-0.5 font-mono truncate max-w-[300px]">
                           SHA256: {backup.checksum}
                         </p>
                       )}
                       {backup.error && (
-                        <p className="text-[10px] text-error mt-0.5 truncate max-w-[300px]">{backup.error}</p>
+                        <p className="text-xs text-error mt-0.5 truncate max-w-[300px]">{backup.error}</p>
                       )}
                     </td>
                     <td className="py-3 px-4">
-                      <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${
-                        backup.type === 'manual'
-                          ? 'bg-primary/10 text-primary'
-                          : 'bg-purple-500/10 text-purple-400'
-                      }`}>
-                        <span className="material-symbols-outlined text-xs">
+                      <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-surface-3 text-fg-muted capitalize">
+                        <span className="material-symbols-outlined text-sm" aria-hidden="true">
                           {backup.type === 'manual' ? 'touch_app' : 'schedule'}
                         </span>
                         {backup.type}
                       </span>
                     </td>
-                    <td className="py-3 px-4 text-on-surface-variant text-xs">
+                    <td className="py-3 px-4 text-fg-muted text-xs tabular-nums">
                       {formatBytes(backup.size)}
                     </td>
                     <td className="py-3 px-4">
-                      <span className={`inline-flex items-center gap-1 text-xs font-medium ${statusColor(backup.status)}`}>
-                        <span className="material-symbols-outlined text-sm">{statusIcon(backup.status)}</span>
-                        {backup.status}
-                      </span>
+                      <StatusPill status={backupMeta(backup.status)} />
                     </td>
-                    <td className="py-3 px-4 text-on-surface-variant text-xs">
+                    <td className="py-3 px-4 text-fg-muted text-xs">
                       {formatDate(backup.createdAt)}
                     </td>
-                    <td className="py-3 px-4 text-on-surface-variant text-xs">
+                    <td className="py-3 px-4 text-fg-muted text-xs">
                       {backup.restoredAt ? (
                         <div>
                           <span>{formatDate(backup.restoredAt)}</span>
                           {backup.restoredBy && (
-                            <span className="text-on-surface-variant/60 block">by {backup.restoredBy}</span>
+                            <span className="text-fg-subtle block">by {backup.restoredBy}</span>
                           )}
                         </div>
                       ) : (
-                        <span className="text-on-surface-variant/40">—</span>
+                        <span className="text-fg-subtle">—</span>
                       )}
                     </td>
                     <td className="py-3 px-4">
                       <div className="flex items-center justify-end gap-1">
                         {backup.status === 'completed' && (
                           <>
-                            <button
-                              onClick={() => handleDownload(backup)}
-                              className="p-1.5 rounded-md text-on-surface-variant hover:text-primary hover:bg-surface-container transition-colors"
-                              title="Download"
-                            >
-                              <span className="material-symbols-outlined text-lg">download</span>
-                            </button>
-                            <button
-                              onClick={() => setConfirmRestore(backup)}
-                              className="p-1.5 rounded-md text-on-surface-variant hover:text-amber-400 hover:bg-amber-500/10 transition-colors"
-                              title="Restore from this backup"
-                            >
-                              <span className="material-symbols-outlined text-lg">restore</span>
-                            </button>
+                            <IconButton icon="download" size="sm" label={`Download ${backup.filename}`} onClick={() => handleDownload(backup)} />
+                            <IconButton icon="restore" size="sm" label={`Restore from ${backup.filename}`} onClick={() => setConfirmRestore(backup)} />
                           </>
                         )}
-                        <button
-                          onClick={() => setConfirmDelete(backup)}
-                          className="p-1.5 rounded-md text-on-surface-variant hover:text-error hover:bg-error/10 transition-colors"
-                          title="Delete"
-                        >
-                          <span className="material-symbols-outlined text-lg">delete</span>
-                        </button>
+                        <IconButton icon="delete" size="sm" variant="danger" label={`Delete ${backup.filename}`} onClick={() => setConfirmDelete(backup)} />
                       </div>
                     </td>
                   </tr>
@@ -307,23 +278,23 @@ export default function BackupPage() {
 
       {/* Backup Config Info */}
       {config && (
-        <div className="mt-8 bg-surface-container-low rounded-lg p-6 border border-outline-variant/20">
-          <h3 className="font-headline text-sm font-semibold text-on-surface-variant uppercase tracking-wide mb-4 flex items-center gap-2">
-            <span className="material-symbols-outlined text-lg">settings</span>
-            Backup Configuration
+        <div className="mt-6 bg-surface-1 rounded-lg p-6 border border-line">
+          <h3 className="text-sm font-semibold text-fg-muted mb-4 flex items-center gap-2">
+            <span className="material-symbols-outlined text-lg" aria-hidden="true">settings</span>
+            Backup configuration
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
             <div>
-              <p className="text-xs text-on-surface-variant/60 uppercase tracking-wide mb-1">Backup Directory</p>
-              <p className="font-mono text-on-surface">{config.backupDir}</p>
+              <p className="text-xs text-fg-muted mb-1">Backup directory</p>
+              <p className="font-mono text-fg">{config.backupDir}</p>
             </div>
             <div>
-              <p className="text-xs text-on-surface-variant/60 uppercase tracking-wide mb-1">Max Backups</p>
-              <p className="text-on-surface">{config.maxBackups}</p>
+              <p className="text-xs text-fg-muted mb-1">Max backups</p>
+              <p className="text-fg">{config.maxBackups}</p>
             </div>
             <div>
-              <p className="text-xs text-on-surface-variant/60 uppercase tracking-wide mb-1">Retention</p>
-              <p className="text-on-surface">{config.retentionDays} days</p>
+              <p className="text-xs text-fg-muted mb-1">Retention</p>
+              <p className="text-fg">{config.retentionDays} days</p>
             </div>
           </div>
         </div>
@@ -332,9 +303,9 @@ export default function BackupPage() {
       {/* Restore Confirmation */}
       <ConfirmDialog
         open={!!confirmRestore}
-        title="Restore Database"
+        title="Restore database?"
         message={`This will overwrite the current database with the backup "${confirmRestore?.filename}". This action cannot be undone. All current data will be replaced.`}
-        confirmLabel="Restore Now"
+        confirmLabel="Restore now"
         danger
         onConfirm={handleRestore}
         onCancel={() => setConfirmRestore(null)}
@@ -343,9 +314,9 @@ export default function BackupPage() {
       {/* Delete Confirmation */}
       <ConfirmDialog
         open={!!confirmDelete}
-        title="Delete Backup"
+        title="Delete backup?"
         message={`Permanently delete backup "${confirmDelete?.filename}"? This cannot be undone.`}
-        confirmLabel="Delete"
+        confirmLabel="Delete backup"
         danger
         onConfirm={handleDelete}
         onCancel={() => setConfirmDelete(null)}
