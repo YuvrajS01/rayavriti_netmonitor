@@ -183,10 +183,18 @@ func Recovery(next http.Handler) http.Handler {
 }
 
 // RequestSize limits the maximum request body size.
-func RequestSize(max int64) func(http.Handler) http.Handler {
+// Paths in exempt are skipped because nested MaxBytesReaders can only lower
+// a limit: those handlers must apply their own cap.
+func RequestSize(max int64, exempt ...string) func(http.Handler) http.Handler {
+	skip := make(map[string]bool, len(exempt))
+	for _, p := range exempt {
+		skip[p] = true
+	}
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			r.Body = http.MaxBytesReader(w, r.Body, max)
+			if !skip[r.URL.Path] {
+				r.Body = http.MaxBytesReader(w, r.Body, max)
+			}
 			next.ServeHTTP(w, r)
 		})
 	}

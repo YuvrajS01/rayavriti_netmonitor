@@ -5,16 +5,30 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"sync"
 	"time"
 
+	"github.com/rayavriti/netmonitor-backend/internal/netutil"
 	"github.com/rayavriti/netmonitor-backend/internal/websocket"
 )
 
-var pooledTransport = &http.Transport{
-	MaxIdleConnsPerHost: 5,
-	IdleConnTimeout:     90 * time.Second,
+// maxRemoteResponseBytes caps how much of a remote instance's response is read.
+const maxRemoteResponseBytes = 8 << 20
+
+// Remote instances are reached through transports that re-check every
+// connected address against the strict policy and never follow redirects, so
+// the stored API key can't be steered to loopback, metadata or another host.
+var (
+	pooledTransport   = netutil.SafeTransport(netutil.StrictHostPolicy())
+	insecureTransport = newInsecureTransport()
+)
+
+func newInsecureTransport() *http.Transport {
+	t := netutil.SafeTransport(netutil.StrictHostPolicy())
+	t.TLSClientConfig = &tls.Config{InsecureSkipVerify: true} //nolint:gosec // opt-in per instance via tls_skip_verify
+	return t
 }
 
 type Collector struct {
@@ -88,12 +102,10 @@ func (c *Collector) poll(ctx context.Context) {
 	}
 }
 func (c *Collector) client(skip bool) *http.Client {
-	transport := pooledTransport
 	if skip {
-		transport = pooledTransport.Clone()
-		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+		return netutil.SafeHTTPClient(insecureTransport, c.timeout)
 	}
-	return &http.Client{Timeout: c.timeout, Transport: transport}
+	return netutil.SafeHTTPClient(pooledTransport, c.timeout)
 }
 func (c *Collector) fetch(ctx context.Context, instance Instance, path string) (json.RawMessage, float64, error) {
 	key, err := c.store.credential(ctx, instance.ID)
@@ -116,7 +128,7 @@ func (c *Collector) fetch(ctx context.Context, instance Instance, path string) (
 		return nil, latency, fmt.Errorf("remote returned %s", resp.Status)
 	}
 	var raw json.RawMessage
-	if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, maxRemoteResponseBytes)).Decode(&raw); err != nil {
 		return nil, latency, err
 	}
 	return raw, latency, nil

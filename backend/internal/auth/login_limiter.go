@@ -14,7 +14,10 @@ import (
 //
 // Limits:
 //   - Per-IP: maxFailed attempts per IPWindow (e.g. 10 per minute)
-//   - Per-username: maxFailed attempts per UsernameWindow (e.g. 5 per minute)
+//   - Per-username-from-IP: 5 attempts per minute, so one source can't
+//     lock a user out for everyone else
+//   - Per-username overall: a higher cap (30 per minute) that still catches
+//     distributed guessing against one account
 //
 // Both counters are sliding windows. A request is blocked if EITHER counter
 // has been exceeded. Only failed attempts increment the counter; successful
@@ -27,11 +30,12 @@ type LoginLimiter struct {
 	ipCounts map[string]*slidingCounter
 	unCounts map[string]*slidingCounter
 
-	ipLimit    int
-	ipWindow   time.Duration
-	userLimit  int
-	userWindow time.Duration
-	cleanupCtx context.Context
+	ipLimit         int
+	ipWindow        time.Duration
+	userLimit       int
+	userWindow      time.Duration
+	userGlobalLimit int
+	cleanupCtx      context.Context
 }
 
 type slidingCounter struct {
@@ -43,14 +47,15 @@ type slidingCounter struct {
 // the in-memory path.
 func NewLoginLimiter(ctx context.Context, rdb *cache.Redis) *LoginLimiter {
 	ll := &LoginLimiter{
-		rdb:        rdb,
-		ipCounts:   make(map[string]*slidingCounter),
-		unCounts:   make(map[string]*slidingCounter),
-		ipLimit:    10,
-		ipWindow:   time.Minute,
-		userLimit:  5,
-		userWindow: time.Minute,
-		cleanupCtx: ctx,
+		rdb:             rdb,
+		ipCounts:        make(map[string]*slidingCounter),
+		unCounts:        make(map[string]*slidingCounter),
+		ipLimit:         10,
+		ipWindow:        time.Minute,
+		userLimit:       5,
+		userWindow:      time.Minute,
+		userGlobalLimit: 30,
+		cleanupCtx:      ctx,
 	}
 	if rdb == nil {
 		go ll.cleanupLoop()
@@ -79,12 +84,17 @@ func (ll *LoginLimiter) allowRedis(ip, username string) (bool, string) {
 		ipRemaining = ll.ipLimit
 	}
 
-	unKey := fmt.Sprintf("nm:login:user:%s", username)
+	unKey := fmt.Sprintf("nm:login:user:%s|%s", username, ip)
 	unOK, unRemaining, _, unErr := ll.rdb.RateLimit(ctx, unKey, ll.userLimit, ll.userWindow)
 	if unErr != nil {
 		unOK = true
 		unRemaining = ll.userLimit
 	}
+	globalOK, _, _, globalErr := ll.rdb.RateLimit(ctx, fmt.Sprintf("nm:login:user:%s", username), ll.userGlobalLimit, ll.userWindow)
+	if globalErr != nil {
+		globalOK = true
+	}
+	unOK = unOK && globalOK
 
 	if !ipOK {
 		return false, fmt.Sprintf("too many login attempts from this IP (retry in %s, remaining: %d)", ll.ipWindow, ipRemaining)
@@ -104,13 +114,15 @@ func (ll *LoginLimiter) allowInMemory(ip, username string) (bool, string) {
 	if ipCount >= ll.ipLimit {
 		return false, fmt.Sprintf("too many login attempts from this IP (limit %d per %s)", ll.ipLimit, ll.ipWindow)
 	}
-	unCount := ll.prune(ll.unCounts[username], now, ll.userWindow)
-	if unCount >= ll.userLimit {
+	userIPKey := username + "|" + ip
+	if ll.prune(ll.unCounts[userIPKey], now, ll.userWindow) >= ll.userLimit ||
+		ll.prune(ll.unCounts[username], now, ll.userWindow) >= ll.userGlobalLimit {
 		return false, fmt.Sprintf("too many login attempts for this user (limit %d per %s)", ll.userLimit, ll.userWindow)
 	}
-	// Record this attempt for both counters.
+	// Record this attempt for every counter.
 	ll.record(ll.ipCounts, ip, now, ll.ipWindow)
 	if username != "" {
+		ll.record(ll.unCounts, userIPKey, now, ll.userWindow)
 		ll.record(ll.unCounts, username, now, ll.userWindow)
 	}
 	return true, ""
@@ -143,16 +155,16 @@ func (ll *LoginLimiter) record(m map[string]*slidingCounter, key string, now tim
 
 // ResetSuccess clears the per-username counter on a successful login so that
 // a user who had a few typos isn't penalized after authenticating correctly.
-func (ll *LoginLimiter) ResetSuccess(username string) {
+func (ll *LoginLimiter) ResetSuccess(ip, username string) {
 	if ll.rdb != nil {
 		ctx, cancel := context.WithTimeout(ll.cleanupCtx, 2*time.Second)
 		defer cancel()
-		_ = ll.rdb.Del(ctx, fmt.Sprintf("nm:login:user:%s", username))
+		_ = ll.rdb.Del(ctx, fmt.Sprintf("nm:login:user:%s|%s", username, ip))
 		return
 	}
 	ll.mu.Lock()
 	defer ll.mu.Unlock()
-	delete(ll.unCounts, username)
+	delete(ll.unCounts, username+"|"+ip)
 }
 
 func (ll *LoginLimiter) cleanupLoop() {

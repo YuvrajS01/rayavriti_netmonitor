@@ -1,48 +1,26 @@
 package logging
 
 import (
+	"net/url"
+	"strings"
 	"testing"
 )
 
-func TestRedactPasswords(t *testing.T) {
+func TestRedactQuery(t *testing.T) {
 	t.Parallel()
-	tests := []struct {
-		name     string
-		input    string
-		expected string
-	}{
-		{
-			name:     "password field",
-			input:    `{"password":"hunter2"}`,
-			expected: `{"password":"***"}`,
-		},
-		{
-			name:     "no password field",
-			input:    `{"username":"admin"}`,
-			expected: `{"username":"admin"}`,
-		},
-		{
-			name:     "multiple fields with password",
-			input:    `{"username":"admin","password":"secret123","extra":"data"}`,
-			expected: `{"username":"admin","password":"***","extra":"data"}`,
-		},
+	q := url.Values{
+		"search":    {"core-switch"},
+		"token":     {"abc"},
+		"api_key":   {"k"},
+		"community": {"public"},
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			result := redactPasswords(tt.input)
-			if result != tt.expected {
-				t.Errorf("redactPasswords(%q) = %q, want %q", tt.input, result, tt.expected)
-			}
-		})
+	got := redactQuery(q)
+	for _, secret := range []string{"abc", "=k", "public"} {
+		if strings.Contains(got, secret) {
+			t.Fatalf("redactQuery leaked %q: %s", secret, got)
+		}
 	}
-}
-
-func TestDBLogger_LogQuery(t *testing.T) {
-	t.Parallel()
-	logger := testLogger()
-	dbLogger := NewDBLogger(logger, 100)
-	if dbLogger == nil {
-		t.Fatal("NewDBLogger returned nil")
+	if !strings.Contains(got, "search=core-switch") {
+		t.Fatalf("redactQuery dropped a non-sensitive param: %s", got)
 	}
 }

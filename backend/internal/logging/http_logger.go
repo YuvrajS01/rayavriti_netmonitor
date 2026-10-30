@@ -2,12 +2,11 @@ package logging
 
 import (
 	"bufio"
-	"bytes"
 	"fmt"
-	"io"
 	"log/slog"
 	"net"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 )
@@ -68,19 +67,9 @@ func RequestLogger(logger *Logger, slowRequestMs int) func(http.Handler) http.Ha
 			ctx := WithRequestID(r.Context(), reqID)
 			w.Header().Set("X-Request-ID", reqID)
 
-			// Capture request body preview (first 1KB) for non-GET requests
-			var bodyPreview string
-			if r.Body != nil && r.ContentLength > 0 && r.Method != "GET" {
-				buf := make([]byte, 1024)
-				n, _ := io.ReadFull(r.Body, buf)
-				bodyPreview = string(buf[:n])
-				// Redact password fields for auth endpoints
-				if strings.Contains(r.URL.Path, "/auth/login") {
-					bodyPreview = redactPasswords(bodyPreview)
-				}
-				// Restore the body for downstream handlers
-				r.Body = io.NopCloser(io.MultiReader(bytes.NewReader(buf[:n]), r.Body))
-			}
+			// Request bodies are deliberately never logged: they carry
+			// passwords, tokens, channel secrets and SNMP communities, and
+			// these logs are persisted and readable by non-admin roles.
 
 			// Determine auth type from headers
 			authType := ""
@@ -95,7 +84,7 @@ func RequestLogger(logger *Logger, slowRequestMs int) func(http.Handler) http.Ha
 				"event", "request_start",
 				"method", r.Method,
 				"path", r.URL.Path,
-				"full_url", r.URL.String(),
+				"full_url", r.URL.Path,
 				"remote_addr", r.RemoteAddr,
 				"user_agent", r.Header.Get("User-Agent"),
 				"content_type", r.Header.Get("Content-Type"),
@@ -107,16 +96,13 @@ func RequestLogger(logger *Logger, slowRequestMs int) func(http.Handler) http.Ha
 				startArgs = append(startArgs, "auth_type", authType)
 			}
 			if r.URL.RawQuery != "" {
-				startArgs = append(startArgs, "query_params", r.URL.RawQuery)
+				startArgs = append(startArgs, "query_params", redactQuery(r.URL.Query()))
 			}
 			if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
 				startArgs = append(startArgs, "x_forwarded_for", xff)
 			}
-			if bodyPreview != "" {
-				startArgs = append(startArgs, "request_body_preview", bodyPreview)
-			}
 
-			l.InfoCtx(ctx, fmt.Sprintf("→ %s %s", r.Method, r.URL.Path), startArgs...)
+			l.DebugCtx(ctx, fmt.Sprintf("→ %s %s", r.Method, r.URL.Path), startArgs...)
 
 			rw := &responseWriter{ResponseWriter: w, status: 200}
 			start := time.Now()
@@ -158,25 +144,23 @@ func RequestLogger(logger *Logger, slowRequestMs int) func(http.Handler) http.Ha
 	}
 }
 
-// redactPasswords replaces password values in JSON-like strings.
-func redactPasswords(s string) string {
-	// Simple redaction for common password field patterns
-	for _, field := range []string{"password", "Password", "passwd", "secret"} {
-		if idx := strings.Index(s, `"`+field+`"`); idx >= 0 {
-			// Find the value start (after :")
-			valStart := strings.Index(s[idx:], ":") + idx
-			if valStart > idx {
-				// Find opening quote of value
-				qStart := strings.Index(s[valStart:], `"`) + valStart
-				if qStart > valStart {
-					// Find closing quote of value
-					qEnd := strings.Index(s[qStart+1:], `"`) + qStart + 1
-					if qEnd > qStart {
-						s = s[:qStart+1] + "***" + s[qEnd:]
-					}
-				}
-			}
+// sensitiveQueryKey reports whether a query parameter name looks like a credential.
+func sensitiveQueryKey(key string) bool {
+	k := strings.ToLower(key)
+	for _, marker := range []string{"token", "key", "secret", "password", "passwd", "auth", "community"} {
+		if strings.Contains(k, marker) {
+			return true
 		}
 	}
-	return s
+	return false
+}
+
+// redactQuery encodes query parameters with credential-like values masked.
+func redactQuery(q url.Values) string {
+	for k := range q {
+		if sensitiveQueryKey(k) {
+			q[k] = []string{"***"}
+		}
+	}
+	return q.Encode()
 }

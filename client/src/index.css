@@ -2,10 +2,11 @@
 
 @theme {
   /* ── Typography ──────────────────────────────────────── */
-  --font-headline: "Instrument Sans", system-ui, sans-serif;
-  --font-body: "Plus Jakarta Sans", system-ui, sans-serif;
-  --font-label: "Plus Jakarta Sans", system-ui, sans-serif;
-  --font-data: "JetBrains Mono", ui-monospace, "Cascadia Code", monospace;
+  /* @fontsource-variable registers each family with a " Variable" suffix. */
+  --font-headline: "Instrument Sans Variable", "Instrument Sans", system-ui, sans-serif;
+  --font-body: "Plus Jakarta Sans Variable", "Plus Jakarta Sans", system-ui, sans-serif;
+  --font-label: "Plus Jakarta Sans Variable", "Plus Jakarta Sans", system-ui, sans-serif;
+  --font-data: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, "Cascadia Code", monospace;
 
   /* ── Surfaces (Sage Charcoal — never pure black) ──── */
   --color-surface: oklch(10% 0.01 150);

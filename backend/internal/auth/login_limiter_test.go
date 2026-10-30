@@ -49,17 +49,36 @@ func TestLoginLimiter_InMemory_UsernameThrottle(t *testing.T) {
 	ll := NewLoginLimiter(ctx, nil)
 	ll.userLimit = 3 // lower for testing
 
-	// Exhaust the username limit from different IPs.
+	// Exhaust the username limit from one IP.
 	for i := 0; i < 3; i++ {
-		_, _ = ll.Allow("10.0.0."+string(rune('0'+i)), "targetuser")
+		_, _ = ll.Allow("10.0.0.1", "targetuser")
 	}
-	// 4th attempt for the same username from a new IP should be blocked.
-	allowed, reason := ll.Allow("192.168.1.99", "targetuser")
+	allowed, reason := ll.Allow("10.0.0.1", "targetuser")
 	if allowed {
-		t.Fatal("expected username throttle to block 4th attempt")
+		t.Fatal("expected username throttle to block 4th attempt from the same IP")
 	}
 	if reason == "" {
 		t.Fatal("expected non-empty reason string")
+	}
+	// The same user can still log in from a different IP.
+	if allowed, _ := ll.Allow("10.0.0.2", "targetuser"); !allowed {
+		t.Fatal("one IP must not lock the user out for every other IP")
+	}
+}
+
+func TestLoginLimiter_InMemory_UsernameGlobalCap(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	ll := NewLoginLimiter(ctx, nil)
+	ll.userGlobalLimit = 4
+
+	// Distributed guessing: one attempt each from many IPs.
+	for i := 0; i < 4; i++ {
+		_, _ = ll.Allow("10.0.1."+string(rune('0'+i)), "targetuser")
+	}
+	if allowed, _ := ll.Allow("10.0.1.9", "targetuser"); allowed {
+		t.Fatal("expected the global per-username cap to block distributed guessing")
 	}
 }
 
@@ -72,14 +91,14 @@ func TestLoginLimiter_InMemory_ResetSuccess(t *testing.T) {
 
 	// Use up some of the username limit.
 	_, _ = ll.Allow("10.0.0.1", "resetuser")
-	_, _ = ll.Allow("10.0.0.2", "resetuser")
+	_, _ = ll.Allow("10.0.0.1", "resetuser")
 
 	// Reset on success.
-	ll.ResetSuccess("resetuser")
+	ll.ResetSuccess("10.0.0.1", "resetuser")
 
 	// Should be able to make 3 more attempts.
 	for i := 0; i < 3; i++ {
-		allowed, _ := ll.Allow("10.0.0."+string(rune('3'+i)), "resetuser")
+		allowed, _ := ll.Allow("10.0.0.1", "resetuser")
 		if !allowed {
 			t.Fatalf("expected attempt %d to be allowed after reset", i+1)
 		}

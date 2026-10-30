@@ -53,6 +53,12 @@ func SendCreated(w http.ResponseWriter, data any) {
 	respond(w, http.StatusCreated, Response{Success: true, Data: data})
 }
 
+// SendStatus writes a data envelope with an explicit status code, e.g. a
+// readiness report that must be 503 while still carrying details.
+func SendStatus(w http.ResponseWriter, status int, data any) {
+	respond(w, status, Response{Success: status < 400, Data: data})
+}
+
 func SendError(w http.ResponseWriter, status int, message string) {
 	code := httpStatusToCode(status)
 	respond(w, status, Response{Success: false, Error: &APIError{Code: code, Message: message}})

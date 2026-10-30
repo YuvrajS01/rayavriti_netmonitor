@@ -22,28 +22,39 @@ RUN cd backend && go mod download
 
 COPY backend/ ./backend/
 
-RUN cd backend && CGO_ENABLED=1 go build -tags pcap -ldflags="-s -w" -o /netmonitor ./cmd/server
+ARG VERSION=dev
+RUN cd backend && CGO_ENABLED=1 go build -tags pcap \
+    -ldflags="-s -w -X github.com/rayavriti/netmonitor-backend/internal/config.BuildVersion=${VERSION}" \
+    -o /netmonitor ./cmd/server
 
 # ── Stage 3: Production image (default target) ──────────────────
 FROM alpine:3.21 AS production
 
-RUN apk add --no-cache ca-certificates libpcap tcpdump tzdata wget
+# postgresql16-client provides pg_dump/psql for backup & restore; it must
+# match the TimescaleDB server's major version (pg16).
+RUN apk add --no-cache ca-certificates libpcap tcpdump tzdata wget postgresql16-client libcap-utils
 
 COPY --from=go-builder /netmonitor /usr/local/bin/netmonitor
 COPY --from=client-builder /app/client/dist /app/public
 
 WORKDIR /app
 
-RUN mkdir -p /app/data/logs && \
+# The service runs as a non-root user, and Docker never grants added
+# capabilities to non-root processes. Raw ICMP and packet capture therefore
+# need file capabilities on exactly the binaries that use them.
+RUN mkdir -p /app/data/logs /app/data/backups /app/data/reports && \
     addgroup -S netmonitor && \
     adduser -S -G netmonitor netmonitor && \
-    chown -R netmonitor:netmonitor /app
+    chown -R netmonitor:netmonitor /app && \
+    setcap cap_net_raw,cap_net_admin+ep /usr/local/bin/netmonitor && \
+    setcap cap_net_raw,cap_net_admin+ep /usr/bin/tcpdump && \
+    apk del libcap-utils
 
 EXPOSE 3000
 EXPOSE 2055/udp
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD wget -qO- http://localhost:3000/health || exit 1
+  CMD wget -qO- http://localhost:3000/readyz || exit 1
 
 ENV APP_ENV=production
 ENV PORT=3000

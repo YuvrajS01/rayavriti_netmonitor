@@ -665,6 +665,14 @@ func (p *Postgres) DeleteRefreshToken(ctx context.Context, tokenHash string) err
 	return err
 }
 
+func (p *Postgres) ClaimRefreshToken(ctx context.Context, tokenHash string) (bool, error) {
+	tag, err := p.pool.Exec(ctx, `DELETE FROM refresh_tokens WHERE token_hash=$1 AND expires_at > NOW()`, tokenHash)
+	if err != nil {
+		return false, err
+	}
+	return tag.RowsAffected() == 1, nil
+}
+
 func (p *Postgres) DeleteRefreshTokensByUser(ctx context.Context, userID int64) error {
 	_, err := p.pool.Exec(ctx, `DELETE FROM refresh_tokens WHERE user_id=$1`, userID)
 	return err

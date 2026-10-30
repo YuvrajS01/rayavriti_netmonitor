@@ -161,6 +161,9 @@ type Database interface {
 	CreateRefreshToken(ctx context.Context, tokenHash string, userID int64, expiresAt time.Time) error
 	GetRefreshToken(ctx context.Context, tokenHash string) (*RefreshToken, error)
 	DeleteRefreshToken(ctx context.Context, tokenHash string) error
+	// ClaimRefreshToken atomically deletes the token and reports whether this
+	// call removed it, so concurrent refreshes can't both rotate one token.
+	ClaimRefreshToken(ctx context.Context, tokenHash string) (bool, error)
 	DeleteRefreshTokensByUser(ctx context.Context, userID int64) error
 	CleanupExpiredRefreshTokens(ctx context.Context) (int64, error)
 

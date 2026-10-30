@@ -133,15 +133,43 @@ func splitHostPort(host string) string {
 	return host
 }
 
+// Cloud metadata endpoints that are not covered by the link-local check.
+var metadataAddrs = []netip.Addr{
+	netip.MustParseAddr("100.100.100.200"), // Alibaba Cloud
+	netip.MustParseAddr("fd00:ec2::254"),   // AWS IMDS over IPv6
+}
+
+var (
+	thisNetwork = netip.MustParsePrefix("0.0.0.0/8")
+	cgnat       = netip.MustParsePrefix("100.64.0.0/10")
+	nat64       = netip.MustParsePrefix("64:ff9b::/96")
+	sixToFour   = netip.MustParsePrefix("2002::/16")
+)
+
 func checkAddr(ip netip.Addr, policy HostPolicy) error {
+	ip = ip.Unmap()
+	// Addresses that embed an IPv4 destination are judged by that destination.
+	if ip.Is6() && nat64.Contains(ip) {
+		b := ip.As16()
+		return checkAddr(netip.AddrFrom4([4]byte{b[12], b[13], b[14], b[15]}), policy)
+	}
+	if ip.Is6() && sixToFour.Contains(ip) {
+		b := ip.As16()
+		return checkAddr(netip.AddrFrom4([4]byte{b[2], b[3], b[4], b[5]}), policy)
+	}
+	for _, m := range metadataAddrs {
+		if ip == m && (policy.RejectLinkLocal || policy.RejectPrivate) {
+			return fmt.Errorf("%w: cloud metadata address %s", ErrBlockedHost, ip)
+		}
+	}
+	if policy.RejectUnspecified && (ip.IsUnspecified() || thisNetwork.Contains(ip)) {
+		return fmt.Errorf("%w: unspecified address %s", ErrBlockedHost, ip)
+	}
 	if policy.RejectLoopback && ip.IsLoopback() {
 		return fmt.Errorf("%w: loopback address %s", ErrBlockedHost, ip)
 	}
 	if policy.RejectLinkLocal && (ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast()) {
 		return fmt.Errorf("%w: link-local address %s", ErrBlockedHost, ip)
-	}
-	if policy.RejectUnspecified && ip.IsUnspecified() {
-		return fmt.Errorf("%w: unspecified address %s", ErrBlockedHost, ip)
 	}
 	if policy.RejectPrivate && isPrivate(ip) {
 		return fmt.Errorf("%w: private address %s", ErrBlockedHost, ip)
@@ -156,5 +184,5 @@ func isPrivate(ip netip.Addr) bool {
 	if ip.IsLoopback() {
 		return false
 	}
-	return ip.IsPrivate()
+	return ip.IsPrivate() || cgnat.Contains(ip)
 }

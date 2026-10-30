@@ -50,6 +50,12 @@ export interface Device {
   assetTag?: string;
 }
 
+/** Payload of the `device:status` WebSocket event (backend scheduler/result_pipeline.go). */
+export interface DeviceStatusEvent {
+  deviceId: number;
+  status: Device['status'];
+}
+
 export interface Metric {
   id: number;
   deviceId: number;

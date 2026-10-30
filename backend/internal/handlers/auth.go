@@ -1,10 +1,14 @@
 package handlers
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -42,8 +46,8 @@ func (h *AuthHandler) authenticate(w http.ResponseWriter, r *http.Request, inclu
 	}
 
 	// Brute-force throttle: per-IP + per-username sliding window.
+	ip := clientIP(r)
 	if h.loginLimiter != nil {
-		ip := clientIP(r)
 		allowed, reason := h.loginLimiter.Allow(ip, body.Username)
 		if !allowed {
 			httputil.SendError(w, http.StatusTooManyRequests, reason)
@@ -52,7 +56,14 @@ func (h *AuthHandler) authenticate(w http.ResponseWriter, r *http.Request, inclu
 	}
 
 	user, err := h.db.GetUserByUsername(r.Context(), body.Username)
-	if err != nil || !auth.CheckPassword(body.Password, user.PasswordHash) {
+	if err != nil || user == nil {
+		// Spend the same scrypt work as a real check so response timing
+		// doesn't reveal which usernames exist.
+		auth.CheckPassword(body.Password, dummyPasswordHash())
+		httputil.SendError(w, http.StatusUnauthorized, "invalid credentials")
+		return
+	}
+	if !auth.CheckPassword(body.Password, user.PasswordHash) {
 		httputil.SendError(w, http.StatusUnauthorized, "invalid credentials")
 		return
 	}
@@ -63,7 +74,7 @@ func (h *AuthHandler) authenticate(w http.ResponseWriter, r *http.Request, inclu
 
 	// Successful authentication: clear the per-username throttle counter.
 	if h.loginLimiter != nil {
-		h.loginLimiter.ResetSuccess(body.Username)
+		h.loginLimiter.ResetSuccess(ip, body.Username)
 	}
 
 	// Load permissions from the roles table
@@ -158,7 +169,7 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	claims, err := auth.ValidateToken(rt, h.cfg.Auth.JWTSecret)
+	claims, err := auth.ValidateRefreshToken(rt, h.cfg.Auth.JWTSecret)
 	if err != nil {
 		httputil.SendError(w, http.StatusUnauthorized, "invalid refresh token")
 		return
@@ -202,8 +213,19 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 		permissions = permissionsForRole(user.Role)
 	}
 
-	// Delete old token (rotation)
-	_ = h.db.DeleteRefreshToken(r.Context(), tokenHash)
+	// Rotation: atomically claim the old token. If another request already
+	// claimed it, this is a replay (or a concurrent refresh) — treat it like
+	// reuse and revoke the family rather than forking it.
+	claimed, err := h.db.ClaimRefreshToken(r.Context(), tokenHash)
+	if err != nil {
+		httputil.SendInternalError(w, err)
+		return
+	}
+	if !claimed {
+		_ = h.db.DeleteRefreshTokensByUser(r.Context(), user.ID)
+		httputil.SendError(w, http.StatusUnauthorized, "refresh token revoked")
+		return
+	}
 	// Issue new pair from current user state (not stale claims)
 	at, rt, err := auth.GenerateTokenPairWithPerms(user.ID, user.Username, user.Role, permissions,
 		h.cfg.Auth.JWTSecret, h.cfg.Auth.AccessTokenExpiry, h.cfg.Auth.RefreshTokenExpiry)
@@ -367,6 +389,12 @@ func (h *AuthHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 			errs = append(errs, "role must be one of: viewer, dept_admin, network_admin, admin, super_admin")
 		}
 	}
+	if body.Role != "" {
+		if err := canGrantRole(auth.GetClaims(r.Context()), body.Role); err != nil {
+			httputil.SendError(w, http.StatusForbidden, err.Error())
+			return
+		}
+	}
 	if body.Email != "" && !httputil.IsValidEmail(body.Email) {
 		errs = append(errs, "invalid email format")
 	}
@@ -432,11 +460,95 @@ func (h *AuthHandler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 		httputil.SendError(w, http.StatusForbidden, "cannot delete super admin")
 		return
 	}
+	if !outranksOrEqual(claims, user.Role) {
+		httputil.SendError(w, http.StatusForbidden, "cannot delete a user with a higher role")
+		return
+	}
 	if err := h.db.DeleteUser(r.Context(), id); err != nil {
 		httputil.SendInternalError(w, err)
 		return
 	}
 	httputil.SendOK(w, map[string]string{"message": "deleted"})
+}
+
+// canGrantRole reports whether the caller may assign role to a user: callers
+// can only grant roles at or below their own, and only a super_admin can
+// create another super_admin.
+func canGrantRole(claims *auth.Claims, role string) error {
+	if claims == nil {
+		return fmt.Errorf("not authenticated")
+	}
+	if auth.RoleWeight(role) == 0 {
+		return fmt.Errorf("unknown role %q", role)
+	}
+	if auth.RoleWeight(role) > auth.RoleWeight(claims.Role) {
+		return fmt.Errorf("cannot grant a role higher than your own")
+	}
+	return nil
+}
+
+func outranksOrEqual(claims *auth.Claims, role string) bool {
+	return claims != nil && auth.RoleWeight(claims.Role) >= auth.RoleWeight(role)
+}
+
+// GuardUserUpdate protects the generic users update route against privilege
+// escalation before delegating to next. It enforces the role hierarchy on the
+// target user and on any new role, restricts custom role_id assignment to
+// admins, and stops users from changing their own role or enabled flag.
+func (h *AuthHandler) GuardUserUpdate(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id, err := parseID(chi.URLParam(r, "id"))
+		if err != nil {
+			httputil.SendError(w, http.StatusBadRequest, "invalid id")
+			return
+		}
+		raw, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
+		if err != nil {
+			httputil.SendError(w, http.StatusBadRequest, "invalid body")
+			return
+		}
+		var patch map[string]any
+		if err := json.Unmarshal(raw, &patch); err != nil {
+			httputil.SendError(w, http.StatusBadRequest, "invalid body")
+			return
+		}
+		fields := map[string]any{}
+		for k, v := range patch {
+			fields[strings.ReplaceAll(strings.ToLower(k), "_", "")] = v
+		}
+
+		claims := auth.GetClaims(r.Context())
+		target, err := h.db.GetUserByID(r.Context(), id)
+		if err != nil {
+			httputil.SendError(w, http.StatusNotFound, "user not found")
+			return
+		}
+		if !outranksOrEqual(claims, target.Role) {
+			httputil.SendError(w, http.StatusForbidden, "cannot modify a user with a higher role")
+			return
+		}
+		_, changesRole := fields["role"]
+		_, changesRoleID := fields["roleid"]
+		_, changesEnabled := fields["enabled"]
+		if claims.UserID == id && (changesRole || changesRoleID || changesEnabled) {
+			httputil.SendError(w, http.StatusForbidden, "cannot change your own role or enabled status")
+			return
+		}
+		if changesRole {
+			role, _ := fields["role"].(string)
+			if err := canGrantRole(claims, role); err != nil {
+				httputil.SendError(w, http.StatusForbidden, err.Error())
+				return
+			}
+		}
+		if changesRoleID && auth.RoleWeight(claims.Role) < auth.RoleWeight("admin") {
+			httputil.SendError(w, http.StatusForbidden, "only admins can assign custom roles")
+			return
+		}
+
+		r.Body = io.NopCloser(bytes.NewReader(raw))
+		next(w, r)
+	}
 }
 
 // permissionsForRole returns a default permission set for the legacy role string.
@@ -477,18 +589,38 @@ func permissionsForRole(role string) []string {
 
 // clientIP extracts the client IP from a request, accounting for
 // X-Forwarded-For when the request is behind a reverse proxy.
+// clientIP returns the address used for login throttling. X-Forwarded-For is
+// client-controlled, so it is only honoured when the direct peer is a
+// reverse proxy on the same host, and then the rightmost entry (the one that
+// proxy appended) is used.
 func clientIP(r *http.Request) string {
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		for i := 0; i < len(xff); i++ {
-			if xff[i] == ',' {
-				return strings.TrimSpace(xff[:i])
-			}
-		}
-		return strings.TrimSpace(xff)
-	}
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
-		return r.RemoteAddr
+		host = r.RemoteAddr
+	}
+	peer := net.ParseIP(host)
+	if peer == nil || !peer.IsLoopback() {
+		return host
+	}
+	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+		parts := strings.Split(xff, ",")
+		if last := strings.TrimSpace(parts[len(parts)-1]); net.ParseIP(last) != nil {
+			return last
+		}
 	}
 	return host
+}
+
+var (
+	dummyHashOnce sync.Once
+	dummyHash     string
+)
+
+// dummyPasswordHash returns a fixed scrypt hash used to equalise login timing
+// for unknown usernames.
+func dummyPasswordHash() string {
+	dummyHashOnce.Do(func() {
+		dummyHash, _ = auth.HashPassword("netmonitor-timing-equaliser")
+	})
+	return dummyHash
 }

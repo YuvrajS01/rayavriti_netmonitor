@@ -7,7 +7,12 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/robfig/cron/v3"
 )
+
+// cronParser accepts standard 5-field expressions and descriptors such as
+// @daily or @weekly.
+var cronParser = cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor)
 
 type ScheduledRunner struct {
 	pool      *pgxpool.Pool
@@ -64,88 +69,107 @@ func (r *ScheduledRunner) run(ctx context.Context) {
 	}
 }
 
+type dueReport struct {
+	id                       int64
+	name, reportType, format string
+	scopeType, scopeValue    string
+	lookback                 string
+	recipients               []byte
+	customFrom, customTo     *time.Time
+}
+
 func (r *ScheduledRunner) checkAndRun(ctx context.Context) {
-	rows, err := r.pool.Query(ctx,
-		`SELECT id, name, report_type, format, schedule_cron, timezone, scope_type, scope_value,
-		 recipients, include_charts, lookback_period, custom_from, custom_to, last_run_at
-		 FROM scheduled_reports WHERE enabled=true`)
+	due, err := r.dueReports(ctx, time.Now())
 	if err != nil {
 		slog.Error("Failed to query scheduled reports", "error", err)
 		return
 	}
-	defer rows.Close()
 
-	for rows.Next() {
-		var id int64
-		var name, reportType, format, cron, tz, scopeType, scopeValue, lookback string
-		var recipients []byte
-		var includeCharts bool
-		var customFrom, customTo, lastRun *time.Time
-		if err := rows.Scan(&id, &name, &reportType, &format, &cron, &tz, &scopeType, &scopeValue,
-			&recipients, &includeCharts, &lookback, &customFrom, &customTo, &lastRun); err != nil {
-			slog.Error("Failed to scan scheduled report", "error", err)
-			continue
-		}
+	for _, d := range due {
+		periodFrom, periodTo := r.computePeriod(d.customFrom, d.customTo, d.lookback)
 
-		if !r.isDue(lastRun, cron) {
-			continue
-		}
+		slog.Info("Running scheduled report", "id", d.id, "name", d.name, "type", d.reportType)
 
-		periodFrom, periodTo := r.computePeriod(customFrom, customTo, lookback)
-
-		slog.Info("Running scheduled report", "id", id, "name", name, "type", reportType)
-
+		id := d.id
 		result, err := r.generator.Generate(ctx, GenerateRequest{
-			ReportType:        reportType,
-			Title:             name,
-			Format:            format,
+			ReportType:        d.reportType,
+			Title:             d.name,
+			Format:            d.format,
 			PeriodFrom:        periodFrom,
 			PeriodTo:          periodTo,
-			ScopeDesc:         scopeType + ":" + scopeValue,
-			Recipients:        string(recipients),
+			ScopeDesc:         d.scopeType + ":" + d.scopeValue,
+			Recipients:        string(d.recipients),
 			GeneratedBy:       "scheduler",
 			ScheduledReportID: &id,
 		})
 		if err != nil {
-			slog.Error("Failed to generate scheduled report", "id", id, "error", err)
+			slog.Error("Failed to generate scheduled report", "id", d.id, "error", err)
 			_, _ = r.pool.Exec(ctx,
-				`UPDATE scheduled_reports SET last_run_at=NOW(), last_run_status='failed' WHERE id=$1`, id)
+				`UPDATE scheduled_reports SET last_run_at=NOW(), last_run_status='failed' WHERE id=$1`, d.id)
 			continue
 		}
 
 		_, _ = r.pool.Exec(ctx,
-			`UPDATE scheduled_reports SET last_run_at=NOW(), last_run_status='success' WHERE id=$1`, id)
+			`UPDATE scheduled_reports SET last_run_at=NOW(), last_run_status='success' WHERE id=$1`, d.id)
 
-		slog.Info("Scheduled report completed", "id", id, "result_id", result.ID, "file", result.FilePath)
+		slog.Info("Scheduled report completed", "id", d.id, "result_id", result.ID, "file", result.FilePath)
 	}
 }
 
-func (r *ScheduledRunner) isDue(lastRun *time.Time, cronExpr string) bool {
+// dueReports reads every enabled schedule and returns the ones due at now.
+// The cursor is closed before any report is generated, so a slow report
+// doesn't pin a pool connection.
+func (r *ScheduledRunner) dueReports(ctx context.Context, now time.Time) ([]dueReport, error) {
+	rows, err := r.pool.Query(ctx,
+		`SELECT id, name, report_type, format, schedule_cron, timezone, scope_type, scope_value,
+		 recipients, lookback_period, custom_from, custom_to, last_run_at
+		 FROM scheduled_reports WHERE enabled=true`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var due []dueReport
+	for rows.Next() {
+		var d dueReport
+		var cronExpr, tz string
+		var lastRun *time.Time
+		if err := rows.Scan(&d.id, &d.name, &d.reportType, &d.format, &cronExpr, &tz, &d.scopeType, &d.scopeValue,
+			&d.recipients, &d.lookback, &d.customFrom, &d.customTo, &lastRun); err != nil {
+			slog.Error("Failed to scan scheduled report", "error", err)
+			continue
+		}
+		ok, err := isDue(lastRun, cronExpr, tz, now)
+		if err != nil {
+			slog.Warn("Invalid report schedule", "id", d.id, "cron", cronExpr, "error", err)
+			continue
+		}
+		if ok {
+			due = append(due, d)
+		}
+	}
+	return due, rows.Err()
+}
+
+// isDue reports whether a schedule has a fire time in (lastRun, now],
+// evaluated in the report's timezone. A schedule that has never run is due
+// immediately.
+func isDue(lastRun *time.Time, cronExpr, tz string, now time.Time) (bool, error) {
+	schedule, err := cronParser.Parse(cronExpr)
+	if err != nil {
+		return false, err
+	}
 	if lastRun == nil {
-		return true
+		return true, nil
 	}
-
-	now := time.Now()
-	elapsed := now.Sub(*lastRun)
-
-	switch {
-	case containsAny(cronExpr, "*/1 *"):
-		return elapsed >= time.Minute
-	case containsAny(cronExpr, "*/5 *"):
-		return elapsed >= 5*time.Minute
-	case containsAny(cronExpr, "*/15 *"):
-		return elapsed >= 15*time.Minute
-	case containsAny(cronExpr, "*/30 *"):
-		return elapsed >= 30*time.Minute
-	case containsAny(cronExpr, "0 *"):
-		return elapsed >= time.Hour
-	case containsAny(cronExpr, "0 0 *"):
-		return elapsed >= 24*time.Hour
-	case containsAny(cronExpr, "0 0 * * 1"):
-		return elapsed >= 7*24*time.Hour
-	default:
-		return elapsed >= time.Hour
+	loc := time.Local
+	if tz != "" {
+		if l, err := time.LoadLocation(tz); err == nil {
+			loc = l
+		}
 	}
+	next := schedule.Next(lastRun.In(loc))
+	return !next.After(now), nil
 }
 
 func (r *ScheduledRunner) computePeriod(customFrom, customTo *time.Time, lookback string) (time.Time, time.Time) {
@@ -170,17 +194,4 @@ func (r *ScheduledRunner) computePeriod(customFrom, customTo *time.Time, lookbac
 	}
 
 	return from, to
-}
-
-func containsAny(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(s) > 0 && containsSubstring(s, substr))
-}
-
-func containsSubstring(s, sub string) bool {
-	for i := 0; i <= len(s)-len(sub); i++ {
-		if s[i:i+len(sub)] == sub {
-			return true
-		}
-	}
-	return false
 }

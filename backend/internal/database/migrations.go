@@ -1130,4 +1130,9 @@ var migrations = []Migration{
 	{Version: 45, SQL: `ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ;
 	 ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS revoked_at TIMESTAMPTZ;
 	 ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();`},
+	// S3: request bodies (passwords, tokens, channel secrets) and raw query
+	// strings used to be persisted in log attrs. Scrub what is already stored.
+	{Version: 46, SQL: `UPDATE system_log_events
+	 SET attrs = attrs - 'request_body_preview' - 'query_params'
+	 WHERE attrs ?| ARRAY['request_body_preview', 'query_params'];`},
 }

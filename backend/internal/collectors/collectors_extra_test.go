@@ -99,7 +99,7 @@ func TestSNMPCollector_Collect_ConnectionRefused(t *testing.T) {
 	require.NotNil(t, result)
 	// SNMP uses UDP - ConnectIPv4 may succeed even if nothing listens.
 	// The goroutines will timeout and return zero values.
-	assert.Contains(t, []string{"up", "down"}, result.Status)
+	assert.Equal(t, "down", result.Status)
 }
 
 func TestSNMPCollector_Collect_ConnectionRefused_v2c(t *testing.T) {
@@ -114,7 +114,7 @@ func TestSNMPCollector_Collect_ConnectionRefused_v2c(t *testing.T) {
 	result, err := c.Collect(context.Background(), device)
 	require.NoError(t, err)
 	require.NotNil(t, result)
-	assert.Contains(t, []string{"up", "down"}, result.Status)
+	assert.Equal(t, "down", result.Status)
 }
 
 func TestSNMPCollector_Collect_ConnectionRefused_v1(t *testing.T) {
@@ -129,7 +129,7 @@ func TestSNMPCollector_Collect_ConnectionRefused_v1(t *testing.T) {
 	result, err := c.Collect(context.Background(), device)
 	require.NoError(t, err)
 	require.NotNil(t, result)
-	assert.Contains(t, []string{"up", "down"}, result.Status)
+	assert.Equal(t, "down", result.Status)
 }
 
 func TestSNMPCollector_Collect_DefaultCommunity(t *testing.T) {
@@ -143,7 +143,7 @@ func TestSNMPCollector_Collect_DefaultCommunity(t *testing.T) {
 	result, err := c.Collect(context.Background(), device)
 	require.NoError(t, err)
 	require.NotNil(t, result)
-	assert.Contains(t, []string{"up", "down"}, result.Status)
+	assert.Equal(t, "down", result.Status)
 }
 
 func TestCollectInterfaces_ManyEntries(t *testing.T) {

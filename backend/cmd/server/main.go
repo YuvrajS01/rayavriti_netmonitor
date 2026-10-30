@@ -14,6 +14,7 @@ import (
 
 	"github.com/rayavriti/netmonitor-backend/internal/auth"
 	"github.com/rayavriti/netmonitor-backend/internal/cache"
+	"github.com/rayavriti/netmonitor-backend/internal/campus"
 	"github.com/rayavriti/netmonitor-backend/internal/collectors"
 	"github.com/rayavriti/netmonitor-backend/internal/config"
 	"github.com/rayavriti/netmonitor-backend/internal/database"
@@ -166,6 +167,16 @@ func run() error {
 	if rdb != nil {
 		alertOpts = append(alertOpts, engine.WithAlertStateCache(cache.NewAlertStateCache(rdb, db)))
 	}
+	// Maintenance windows and parent-down (topology) suppression. These
+	// checks only run when a rule is about to fire, so they add no per-poll
+	// queries.
+	if pp, ok := any(db).(database.PoolProvider); ok && pp.Pool() != nil {
+		alertOpts = append(alertOpts,
+			engine.WithSuppressionChecker(campus.NewTopologyService(pp.Pool())),
+			engine.WithMaintenanceChecker(campus.NewMaintenanceService(pp.Pool())),
+		)
+	}
+	alertOpts = append(alertOpts, engine.WithSuppressedAlertRecorder(appDB))
 	alertEng := engine.NewAlertEngine(appDB, hub, notifier, alertOpts...)
 	alertEng.Start(context.Background())
 	logger.Info("Alert engine started")

@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"net/http"
 	"os"
-	"path/filepath"
+	"path"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -99,7 +101,8 @@ func (s *Server) Start() error {
 	r.Use(Recovery)
 	r.Use(SecurityHeaders)
 	r.Use(logging.RequestLogger(s.logger, s.cfg.Logging.SlowRequestMs))
-	r.Use(RequestSize(1 << 20)) // 1MB
+	// 1MB default; routes listed here enforce their own larger limit.
+	r.Use(RequestSize(1<<20, "/api/v1/backups/upload"))
 	if s.serviceMode != nil {
 		r.Use(ServiceModeMiddleware(func() string {
 			mode, _ := s.serviceMode.Load().(string)
@@ -135,7 +138,7 @@ func (s *Server) Start() error {
 	})
 
 	// Handlers
-	health := handlers.NewHealthHandler(s.db)
+	health := handlers.NewHealthHandler(s.db, s.cfg.App.Version)
 	authH := handlers.NewAuthHandler(s.db, s.cfg).WithLoginLimiter(auth.NewLoginLimiter(ctx, s.rdb))
 	device := handlers.NewDeviceHandler(s.db).WithAlertEngine(s.alertEng)
 	metric := handlers.NewMetricHandler(s.db)
@@ -184,7 +187,9 @@ func (s *Server) Start() error {
 		logStore := monitoring.NewStore(pp.Pool())
 		logSink := monitoring.NewAsyncLogSink(logStore, s.cfg.Logging.DBQueueSize)
 		logSink.Start(ctx)
-		s.logger.RuntimeControls().SetPersistFunc(logSink.Persist)
+		if s.cfg.Logging.DBEnabled {
+			s.logger.RuntimeControls().SetPersistFunc(logSink.Persist)
+		}
 		if sessions, err := logStore.LoadActiveVerboseSessions(ctx); err == nil {
 			for _, session := range sessions {
 				s.logger.RuntimeControls().UpsertVerboseSession(logging.VerboseSession{
@@ -225,7 +230,7 @@ func (s *Server) Start() error {
 
 	// WebSocket scope filter: only deliver events to users with matching scopes
 	if pp, ok := s.db.(database.PoolProvider); ok && pp.Pool() != nil {
-		pool := pp.Pool()
+		locations := newDeviceLocationCache(pp.Pool(), time.Minute)
 		s.hub.SetScopeFilter(func(info websocket.ClientInfo, msg websocket.Message) bool {
 			if info.Role == "super_admin" || info.Role == "admin" {
 				return true
@@ -233,37 +238,25 @@ func (s *Server) Start() error {
 			if len(info.Scopes) == 0 {
 				return false
 			}
-			switch msg.Type {
-			case websocket.EventMetricUpdate, websocket.EventAlertTriggered,
-				websocket.EventAlertUpdated, websocket.EventAlertResolved,
-				websocket.EventDeviceStatus:
-				data, ok := msg.Data.(map[string]any)
-				if !ok {
-					return false
-				}
-				deviceID, _ := data["device_id"].(float64)
-				if deviceID == 0 {
-					return false
-				}
-				var locationID int64
-				_ = pool.QueryRow(context.Background(),
-					"SELECT COALESCE(location_id, 0) FROM devices WHERE id = $1", int64(deviceID)).
-					Scan(&locationID)
-				if locationID == 0 {
-					return false
-				}
-				for _, scope := range info.Scopes {
-					if scope.ScopeType == "location" && scope.ScopeValue == fmt.Sprintf("%d", locationID) {
-						return true
-					}
-				}
-				return false
-			default:
-				// Default: deny non-device events to scoped users (M34 —
-				// previously defaulted to true, leaking all non-device
-				// events to location-scoped users).
+			// Default: deny non-device events to scoped users (M34).
+			if !isDeviceEvent(msg.Type) {
 				return false
 			}
+			deviceID := messageDeviceID(msg.Data)
+			if deviceID == 0 {
+				return false
+			}
+			locationID := locations.locationOf(deviceID)
+			if locationID == 0 {
+				return false
+			}
+			want := fmt.Sprintf("%d", locationID)
+			for _, scope := range info.Scopes {
+				if scope.ScopeType == "location" && scope.ScopeValue == want {
+					return true
+				}
+			}
+			return false
 		})
 	}
 
@@ -271,6 +264,8 @@ func (s *Server) Start() error {
 
 	// Public routes
 	r.Get("/health", health.Health)
+	r.Get("/readyz", health.Health)
+	r.Get("/livez", health.Live)
 	r.Get("/ws", s.hub.ServeWS)
 	r.Get("/api/v1/ws", s.hub.ServeWS)
 	r.Get("/status", resourceH.PublicStatusHTML)
@@ -366,8 +361,8 @@ func (s *Server) Start() error {
 		r.With(rbac.RequirePermission(models.PermAlertsRead)).Get("/api/v1/alerts/{id}", alert.Get)
 		r.With(rbac.RequirePermission(models.PermAlertsRead)).Get("/api/v1/alerts/{id}/history", alert.History)
 		r.With(rbac.RequirePermission(models.PermAlertsCreate)).Post("/api/v1/alerts", alert.Create)
-		r.With(rbac.RequirePermission(models.PermAlertsRead)).Put("/api/v1/alerts/{id}", alert.Update)
-		r.With(rbac.RequirePermission(models.PermAlertsRead)).Delete("/api/v1/alerts/{id}", alert.Delete)
+		r.With(rbac.RequirePermission(models.PermAlertsResolve)).Put("/api/v1/alerts/{id}", alert.Update)
+		r.With(rbac.RequirePermission(models.PermAlertsResolve)).Delete("/api/v1/alerts/{id}", alert.Delete)
 		r.With(rbac.RequirePermission(models.PermAlertsAcknowledge)).Post("/api/v1/alerts/{id}/acknowledge", alert.Acknowledge)
 		r.With(rbac.RequirePermission(models.PermAlertsResolve)).Post("/api/v1/alerts/{id}/resolve", alert.Resolve)
 		r.With(rbac.RequirePermission(models.PermAlertsRead)).Get("/api/v1/alert-stats", alert.AlertStats)
@@ -559,9 +554,9 @@ func (s *Server) Start() error {
 		r.With(rbac.RequirePermission(models.PermUsersManage)).Get("/api/v1/users", resourceH.List("users"))
 		r.With(rbac.RequirePermission(models.PermUsersManage)).Get("/api/v1/users/{id}", resourceH.Get("users"))
 		r.With(rbac.RequirePermission(models.PermUsersManage)).Post("/api/v1/users", authH.CreateUser)
-		r.With(rbac.RequirePermission(models.PermUsersManage)).Put("/api/v1/users/{id}", resourceH.Update("users"))
+		r.With(rbac.RequirePermission(models.PermUsersManage)).Put("/api/v1/users/{id}", authH.GuardUserUpdate(resourceH.Update("users")))
 		r.With(rbac.RequirePermission(models.PermUsersManage)).Delete("/api/v1/users/{id}", authH.DeleteUser)
-		r.With(rbac.RequirePermission(models.PermUsersManage)).Put("/api/v1/users/{id}/role", resourceH.Update("users"))
+		r.With(rbac.RequirePermission(models.PermUsersManage)).Put("/api/v1/users/{id}/role", authH.GuardUserUpdate(resourceH.Update("users")))
 		r.With(rbac.RequirePermission(models.PermUsersManage)).Get("/api/v1/user-scopes", userScopeH.List)
 		r.With(rbac.RequirePermission(models.PermUsersManage)).Post("/api/v1/users/{id}/scopes", userScopeH.Create)
 		r.With(rbac.RequirePermission(models.PermUsersManage)).Delete("/api/v1/users/{id}/scopes/{sid}", userScopeH.Delete)
@@ -665,14 +660,17 @@ type spaHandler struct {
 }
 
 func (h spaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	path := filepath.Join(h.staticDir, filepath.Clean(r.URL.Path))
+	// os.DirFS rejects names containing "..", so a request can never escape
+	// staticDir regardless of how the URL path is encoded.
+	fsys := os.DirFS(h.staticDir)
+	name := strings.TrimPrefix(path.Clean("/"+r.URL.Path), "/")
 
 	// If file exists, serve it
-	if info, err := os.Stat(path); err == nil && !info.IsDir() {
-		http.ServeFile(w, r, path)
+	if info, err := fs.Stat(fsys, name); err == nil && !info.IsDir() {
+		http.ServeFileFS(w, r, fsys, name) //nolint:gosec // G703 false positive: os.DirFS rejects ".." names (see spa_test.go)
 		return
 	}
 
 	// Otherwise serve index.html (SPA fallback)
-	http.ServeFile(w, r, filepath.Join(h.staticDir, "index.html"))
+	http.ServeFileFS(w, r, fsys, "index.html")
 }
