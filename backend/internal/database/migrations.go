@@ -1231,4 +1231,16 @@ var migrations = []Migration{
 	// v5.2: SNMPv3 USM credentials (security name, level, auth/priv
 	// protocols and passphrases), used when snmp_version is '3'.
 	{Version: 50, SQL: `ALTER TABLE devices ADD COLUMN IF NOT EXISTS snmp_v3 JSONB;`},
+	// v5.2 flow ingest (B13): exporter metadata for NetFlow/IPFIX/sFlow
+	// records. flows is a compressed hypertable, so columns are added one
+	// per statement, nullable and without defaults (no rewrite of
+	// compressed chunks). device_id has no FK: deletes cascading into
+	// compressed chunks are expensive and flows age out via retention.
+	{Version: 51, SQL: `ALTER TABLE flows ADD COLUMN IF NOT EXISTS exporter INET;
+	ALTER TABLE flows ADD COLUMN IF NOT EXISTS device_id BIGINT;
+	ALTER TABLE flows ADD COLUMN IF NOT EXISTS in_if INT;
+	ALTER TABLE flows ADD COLUMN IF NOT EXISTS out_if INT;
+	ALTER TABLE flows ADD COLUMN IF NOT EXISTS tcp_flags SMALLINT;
+	ALTER TABLE flows ADD COLUMN IF NOT EXISTS tos SMALLINT;
+	ALTER TABLE flows ADD COLUMN IF NOT EXISTS sampling_rate INT;`},
 }

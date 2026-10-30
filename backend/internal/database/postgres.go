@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"math"
+	"net/netip"
 	"strings"
 	"time"
 
@@ -846,19 +847,62 @@ func (p *Postgres) RevokeAPIKey(ctx context.Context, id int64) error {
 
 // ── Flows ─────────────────────────────────────────────────────────────────────
 
+// flowColumns is the column list RecordFlows copies into flows.
+var flowColumns = []string{"src_ip", "dst_ip", "src_port", "dst_port", "protocol", "bytes", "packets", "duration", "created_at",
+	"exporter", "device_id", "in_if", "out_if", "tcp_flags", "tos", "sampling_rate"}
+
+// RecordFlows bulk-inserts flows with COPY. Empty IP strings are stored as
+// NULL; a malformed IP fails the whole batch.
 func (p *Postgres) RecordFlows(ctx context.Context, flows []models.Flow) error {
 	if len(flows) == 0 {
 		return nil
 	}
-	batch := &pgx.Batch{}
-	for _, f := range flows {
-		batch.Queue(`
-			INSERT INTO flows(src_ip,dst_ip,src_port,dst_port,protocol,bytes,packets,duration,created_at)
-			VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-			f.SrcIP, f.DstIP, f.SrcPort, f.DstPort, f.Protocol, f.Bytes, f.Packets, f.Duration, f.Timestamp)
+	now := time.Now()
+	_, err := p.pool.CopyFrom(ctx, pgx.Identifier{"flows"}, flowColumns,
+		pgx.CopyFromSlice(len(flows), func(i int) ([]any, error) {
+			f := flows[i]
+			src, err := flowAddr(f.SrcIP)
+			if err != nil {
+				return nil, err
+			}
+			dst, err := flowAddr(f.DstIP)
+			if err != nil {
+				return nil, err
+			}
+			var exporter any
+			if f.Exporter != nil {
+				if exporter, err = flowAddr(*f.Exporter); err != nil {
+					return nil, err
+				}
+			}
+			ts := f.Timestamp
+			if ts.IsZero() {
+				ts = now
+			}
+			return []any{src, dst, f.SrcPort, f.DstPort, f.Protocol, f.Bytes, f.Packets, f.Duration, ts,
+				exporter, f.DeviceID, f.InIf, f.OutIf, smallint(f.TCPFlags), smallint(f.ToS), f.SamplingRate}, nil
+		}))
+	return err
+}
+
+// flowAddr parses an IP for an INET column; "" becomes NULL.
+func flowAddr(s string) (any, error) {
+	if s == "" {
+		return nil, nil
 	}
-	br := p.pool.SendBatch(ctx, batch)
-	return br.Close()
+	a, err := netip.ParseAddr(s)
+	if err != nil {
+		return nil, fmt.Errorf("flow: invalid IP %q: %w", s, err)
+	}
+	return a, nil
+}
+
+func smallint(v *int) *int16 {
+	if v == nil {
+		return nil
+	}
+	n := int16(*v) //nolint:gosec // TCP flags and ToS are single bytes
+	return &n
 }
 
 func (p *Postgres) GetFlows(ctx context.Context, from, to time.Time, limit, offset int) ([]models.Flow, int, error) {
@@ -877,7 +921,8 @@ func (p *Postgres) GetFlows(ctx context.Context, from, to time.Time, limit, offs
 		return nil, 0, err
 	}
 	rows, err := p.pool.Query(ctx, `
-		SELECT id,src_ip,dst_ip,src_port,dst_port,protocol,bytes,packets,duration,created_at
+		SELECT id,COALESCE(host(src_ip),''),COALESCE(host(dst_ip),''),src_port,dst_port,protocol,bytes,packets,duration,created_at,
+		       host(exporter),device_id,in_if,out_if,tcp_flags,tos,sampling_rate
 		FROM flows WHERE created_at BETWEEN $1 AND $2
 		ORDER BY created_at DESC, id DESC LIMIT $3 OFFSET $4`, from, to, limit, offset)
 	if err != nil {
@@ -887,13 +932,24 @@ func (p *Postgres) GetFlows(ctx context.Context, from, to time.Time, limit, offs
 	var out []models.Flow
 	for rows.Next() {
 		var f models.Flow
+		var tcpFlags, tos *int16
 		if err := rows.Scan(&f.ID, &f.SrcIP, &f.DstIP, &f.SrcPort, &f.DstPort,
-			&f.Protocol, &f.Bytes, &f.Packets, &f.Duration, &f.Timestamp); err != nil {
+			&f.Protocol, &f.Bytes, &f.Packets, &f.Duration, &f.Timestamp,
+			&f.Exporter, &f.DeviceID, &f.InIf, &f.OutIf, &tcpFlags, &tos, &f.SamplingRate); err != nil {
 			return nil, 0, err
 		}
+		f.TCPFlags, f.ToS = widen(tcpFlags), widen(tos)
 		out = append(out, f)
 	}
 	return out, total, rows.Err()
+}
+
+func widen(v *int16) *int {
+	if v == nil {
+		return nil
+	}
+	n := int(*v)
+	return &n
 }
 
 func (p *Postgres) GetTopTalkers(ctx context.Context, from, to time.Time, n int) ([]models.IPCount, error) {
@@ -901,8 +957,8 @@ func (p *Postgres) GetTopTalkers(ctx context.Context, from, to time.Time, n int)
 		n = 10
 	}
 	rows, err := p.pool.Query(ctx, `
-		SELECT src_ip::text, SUM(bytes) AS total
-		FROM flows WHERE created_at BETWEEN $1 AND $2
+		SELECT host(src_ip), SUM(bytes) AS total
+		FROM flows WHERE created_at BETWEEN $1 AND $2 AND src_ip IS NOT NULL
 		GROUP BY src_ip ORDER BY total DESC LIMIT $3`, from, to, n)
 	if err != nil {
 		return nil, err

@@ -174,6 +174,16 @@ type Flow struct {
 	Bytes     int64     `json:"bytes"`
 	Packets   int64     `json:"packets"`
 	Duration  float64   `json:"duration"`
+
+	// Set by flow ingest (NetFlow/IPFIX/sFlow); nil for simulator flows.
+	// Bytes and Packets are already scaled by SamplingRate.
+	Exporter     *string `json:"exporter,omitempty"`
+	DeviceID     *int64  `json:"deviceId,omitempty"`
+	InIf         *int    `json:"inIf,omitempty"`
+	OutIf        *int    `json:"outIf,omitempty"`
+	TCPFlags     *int    `json:"tcpFlags,omitempty"`
+	ToS          *int    `json:"tos,omitempty"`
+	SamplingRate *int    `json:"samplingRate,omitempty"`
 }
 
 type FlowTimeseriesPoint struct {
