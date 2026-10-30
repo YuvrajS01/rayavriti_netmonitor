@@ -42,7 +42,7 @@ func TestLoad_RequiresJWTSecret(t *testing.T) {
 
 func TestLoad_DefaultValues(t *testing.T) {
 	clearEnv()
-	os.Setenv("JWT_SECRET", "test-secret")
+	os.Setenv("JWT_SECRET", "test-secret-that-is-at-least-32-characters")
 	defer os.Unsetenv("JWT_SECRET")
 
 	cfg, err := Load()
@@ -70,7 +70,7 @@ func TestLoad_DefaultValues(t *testing.T) {
 
 func TestLoad_OverrideValues(t *testing.T) {
 	clearEnv()
-	os.Setenv("JWT_SECRET", "test-secret")
+	os.Setenv("JWT_SECRET", "test-secret-that-is-at-least-32-characters")
 	os.Setenv("PORT", "8080")
 	os.Setenv("NODE_ENV", "production")
 	os.Setenv("LOG_LEVEL", "debug")
@@ -92,7 +92,7 @@ func TestLoad_OverrideValues(t *testing.T) {
 
 func TestLoad_ProductionDefaultsCORSOrigins(t *testing.T) {
 	clearEnv()
-	os.Setenv("JWT_SECRET", "test-secret")
+	os.Setenv("JWT_SECRET", "test-secret-that-is-at-least-32-characters")
 	os.Setenv("APP_ENV", "production")
 	defer func() {
 		os.Unsetenv("JWT_SECRET")
@@ -106,7 +106,7 @@ func TestLoad_ProductionDefaultsCORSOrigins(t *testing.T) {
 
 func TestLoad_CORSOriginsOverride(t *testing.T) {
 	clearEnv()
-	os.Setenv("JWT_SECRET", "test-secret")
+	os.Setenv("JWT_SECRET", "test-secret-that-is-at-least-32-characters")
 	os.Setenv("APP_ENV", "production")
 	os.Setenv("CORS_ORIGINS", "https://netmonitor.example.edu, https://status.example.edu")
 	defer func() {
@@ -122,7 +122,7 @@ func TestLoad_CORSOriginsOverride(t *testing.T) {
 
 func TestLoad_ModuleLevels(t *testing.T) {
 	clearEnv()
-	os.Setenv("JWT_SECRET", "test-secret")
+	os.Setenv("JWT_SECRET", "test-secret-that-is-at-least-32-characters")
 	os.Setenv("LOG_MODULE_LEVELS", "http=debug,db=warn")
 	defer func() {
 		os.Unsetenv("JWT_SECRET")
@@ -137,7 +137,7 @@ func TestLoad_ModuleLevels(t *testing.T) {
 
 func TestLoad_InvalidInt(t *testing.T) {
 	clearEnv()
-	os.Setenv("JWT_SECRET", "test-secret")
+	os.Setenv("JWT_SECRET", "test-secret-that-is-at-least-32-characters")
 	os.Setenv("PORT", "abc")
 	defer func() {
 		os.Unsetenv("JWT_SECRET")
@@ -151,7 +151,7 @@ func TestLoad_InvalidInt(t *testing.T) {
 
 func TestLoad_InvalidBool(t *testing.T) {
 	clearEnv()
-	os.Setenv("JWT_SECRET", "test-secret")
+	os.Setenv("JWT_SECRET", "test-secret-that-is-at-least-32-characters")
 	os.Setenv("LOG_FILE_ENABLED", "maybe")
 	defer func() {
 		os.Unsetenv("JWT_SECRET")
@@ -165,7 +165,7 @@ func TestLoad_InvalidBool(t *testing.T) {
 
 func TestLoad_InvalidDuration(t *testing.T) {
 	clearEnv()
-	os.Setenv("JWT_SECRET", "test-secret")
+	os.Setenv("JWT_SECRET", "test-secret-that-is-at-least-32-characters")
 	os.Setenv("ACCESS_TOKEN_EXPIRY", "xyz")
 	defer func() {
 		os.Unsetenv("JWT_SECRET")
@@ -179,7 +179,7 @@ func TestLoad_InvalidDuration(t *testing.T) {
 
 func TestLoad_InvalidFloat(t *testing.T) {
 	clearEnv()
-	os.Setenv("JWT_SECRET", "test-secret")
+	os.Setenv("JWT_SECRET", "test-secret-that-is-at-least-32-characters")
 	os.Setenv("LOG_DB_SAMPLE_RATE", "abc")
 	defer func() {
 		os.Unsetenv("JWT_SECRET")
@@ -218,7 +218,7 @@ func TestEnvFloat64_EmptyReturnsDefault(t *testing.T) {
 
 func TestLoad_CORSOrigins(t *testing.T) {
 	clearEnv()
-	os.Setenv("JWT_SECRET", "test-secret")
+	os.Setenv("JWT_SECRET", "test-secret-that-is-at-least-32-characters")
 	os.Setenv("CORS_ORIGINS", "http://localhost:3000, http://example.com")
 	defer func() {
 		os.Unsetenv("JWT_SECRET")

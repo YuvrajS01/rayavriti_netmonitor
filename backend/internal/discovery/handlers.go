@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/rayavriti/netmonitor-backend/internal/netutil"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -60,7 +61,7 @@ func (h *DiscoveryHandler) StartScan(w http.ResponseWriter, r *http.Request) {
 		req.Subnet, req.ScanType, req.LocationID, req.InitiatedBy,
 	).Scan(&jobID)
 	if err != nil {
-		httputil.SendError(w, http.StatusInternalServerError, "failed to create scan job: "+err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	go func() { //nolint:gosec // Background scan after HTTP response; request context not available
@@ -84,7 +85,7 @@ func (h *DiscoveryHandler) ListJobs(w http.ResponseWriter, r *http.Request) {
 		        started_at, completed_at, error_message
 		 FROM discovery_jobs ORDER BY started_at DESC LIMIT 200`)
 	if err != nil {
-		httputil.SendError(w, http.StatusInternalServerError, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	defer rows.Close()
@@ -96,13 +97,13 @@ func (h *DiscoveryHandler) ListJobs(w http.ResponseWriter, r *http.Request) {
 			&j.TotalIPsScanned, &j.DevicesFound, &j.DevicesNew, &j.DevicesKnown,
 			&j.StartedAt, &j.CompletedAt, &j.ErrorMessage,
 		); err != nil {
-			httputil.SendError(w, http.StatusInternalServerError, err.Error())
+			httputil.SendInternalError(w, err)
 			return
 		}
 		jobs = append(jobs, j)
 	}
 	if err := rows.Err(); err != nil {
-		httputil.SendError(w, http.StatusInternalServerError, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	httputil.SendOK(w, jobs)
@@ -134,7 +135,7 @@ func (h *DiscoveryHandler) GetJob(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		httputil.SendError(w, http.StatusInternalServerError, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	httputil.SendOK(w, j)
@@ -160,7 +161,7 @@ func (h *DiscoveryHandler) GetJobResults(w http.ResponseWriter, r *http.Request)
 		 FROM discovery_results WHERE job_id = $1
 		 ORDER BY ip_address`, id)
 	if err != nil {
-		httputil.SendError(w, http.StatusInternalServerError, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	defer rows.Close()
@@ -179,7 +180,7 @@ func (h *DiscoveryHandler) GetJobResults(w http.ResponseWriter, r *http.Request)
 			&httpTitle, &sshBanner, &tlsCertCN,
 			&snmpName, &snmpDesc, &snmpObjID,
 		); err != nil {
-			httputil.SendError(w, http.StatusInternalServerError, err.Error())
+			httputil.SendInternalError(w, err)
 			return
 		}
 		dr.MACAddress = mac
@@ -203,7 +204,7 @@ func (h *DiscoveryHandler) GetJobResults(w http.ResponseWriter, r *http.Request)
 		results = append(results, dr)
 	}
 	if err := rows.Err(); err != nil {
-		httputil.SendError(w, http.StatusInternalServerError, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	httputil.SendOK(w, results)
@@ -246,7 +247,7 @@ func (h *DiscoveryHandler) ApproveResult(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	if err != nil {
-		httputil.SendError(w, http.StatusInternalServerError, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	if dr.Status == "approved" {
@@ -299,6 +300,10 @@ func (h *DiscoveryHandler) ApproveResult(w http.ResponseWriter, r *http.Request)
 		protocol = "icmp"
 		port = 0
 	}
+	if err := netutil.ValidateHost(dr.IPAddress, netutil.DefaultHostPolicy()); err != nil {
+		httputil.SendError(w, http.StatusBadRequest, "discovered address is not allowed as a device: "+dr.IPAddress)
+		return
+	}
 	var deviceID int64
 	err = h.pool.QueryRow(r.Context(), `
 		INSERT INTO devices (name, ip_address, protocol, port, enabled, status, tags,
@@ -312,14 +317,14 @@ func (h *DiscoveryHandler) ApproveResult(w http.ResponseWriter, r *http.Request)
 		dr.MACAddress, dr.Manufacturer, dr.GuessedCategory, locationID,
 	).Scan(&deviceID)
 	if err != nil {
-		httputil.SendError(w, http.StatusInternalServerError, "failed to create device: "+err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	_, err = h.pool.Exec(r.Context(),
 		`UPDATE discovery_results SET status = 'approved', approved_device_id = $1 WHERE id = $2`,
 		deviceID, id)
 	if err != nil {
-		httputil.SendError(w, http.StatusInternalServerError, "failed to update result: "+err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	httputil.SendCreated(w, map[string]any{"deviceId": deviceID, "resultId": id})
@@ -338,7 +343,7 @@ func (h *DiscoveryHandler) RejectResult(w http.ResponseWriter, r *http.Request) 
 	tag, err := h.pool.Exec(r.Context(),
 		`UPDATE discovery_results SET status = 'rejected' WHERE id = $1 AND status = 'pending'`, id)
 	if err != nil {
-		httputil.SendError(w, http.StatusInternalServerError, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	if tag.RowsAffected() == 0 {
@@ -378,7 +383,7 @@ func (h *DiscoveryHandler) BulkApprove(w http.ResponseWriter, r *http.Request) {
 	          FROM discovery_results WHERE id IN (` + placeholders + `) AND status = 'pending'`
 	rows, err := h.pool.Query(r.Context(), query, args...)
 	if err != nil {
-		httputil.SendError(w, http.StatusInternalServerError, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	defer rows.Close()
@@ -392,7 +397,7 @@ func (h *DiscoveryHandler) BulkApprove(w http.ResponseWriter, r *http.Request) {
 			&openPortsJSON, &dr.SNMPReachable, &dr.ResponseTimeMs, &dr.Status,
 			&dr.LocationID,
 		); err != nil {
-			httputil.SendError(w, http.StatusInternalServerError, err.Error())
+			httputil.SendInternalError(w, err)
 			return
 		}
 		if openPortsJSON != nil {
@@ -401,7 +406,7 @@ func (h *DiscoveryHandler) BulkApprove(w http.ResponseWriter, r *http.Request) {
 		toApprove = append(toApprove, dr)
 	}
 	if err := rows.Err(); err != nil {
-		httputil.SendError(w, http.StatusInternalServerError, err.Error())
+		httputil.SendInternalError(w, err)
 		return
 	}
 	type approvedItem struct {
@@ -451,6 +456,10 @@ func (h *DiscoveryHandler) BulkApprove(w http.ResponseWriter, r *http.Request) {
 		if protocol == "" {
 			protocol = "icmp"
 		}
+		if err := netutil.ValidateHost(dr.IPAddress, netutil.DefaultHostPolicy()); err != nil {
+			failed = append(failed, map[string]any{"resultId": dr.ID, "error": "address is not allowed as a device"})
+			continue
+		}
 		var deviceID int64
 		err := h.pool.QueryRow(r.Context(), `
 			INSERT INTO devices (name, ip_address, protocol, port, enabled, status,
@@ -464,7 +473,7 @@ func (h *DiscoveryHandler) BulkApprove(w http.ResponseWriter, r *http.Request) {
 			dr.MACAddress, dr.Manufacturer, dr.GuessedCategory, locationID,
 		).Scan(&deviceID)
 		if err != nil {
-			failed = append(failed, map[string]any{"resultId": dr.ID, "error": err.Error()})
+			failed = append(failed, map[string]any{"resultId": dr.ID, "error": "failed to create device"})
 			slog.Error("bulk approve: failed to create device", "resultId", dr.ID, "error", err)
 			continue
 		}

@@ -80,6 +80,10 @@ func (h *InsightHandler) Current(w http.ResponseWriter, r *http.Request) {
 		httputil.SendInternalError(w, err)
 		return
 	}
+	if scores, err = filterScoresByScope(r, h.db, scores); err != nil {
+		httputil.SendInternalError(w, err)
+		return
+	}
 
 	if len(scores) == 0 {
 		httputil.SendOK(w, InsightsResponse{

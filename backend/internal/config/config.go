@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"strconv"
 	"strings"
@@ -55,7 +56,10 @@ type DatabaseConfig struct {
 }
 
 type AuthConfig struct {
-	JWTSecret          string
+	JWTSecret string
+	// EncryptionKey protects stored credentials (remote fleet API keys).
+	// Optional: when empty, the legacy key derived from JWTSecret is used.
+	EncryptionKey      string
 	AdminUsername      string
 	AdminPassword      string
 	AccessTokenExpiry  time.Duration
@@ -203,6 +207,7 @@ func Load() (*Config, error) {
 		},
 		Auth: AuthConfig{
 			JWTSecret:          jwtSecret,
+			EncryptionKey:      os.Getenv("ENCRYPTION_KEY"),
 			AdminUsername:      envStr("ADMIN_USERNAME", "admin"),
 			AdminPassword:      envStr("ADMIN_PASSWORD", ""),
 			AccessTokenExpiry:  envDuration("ACCESS_TOKEN_EXPIRY", 15*time.Minute),
@@ -301,7 +306,31 @@ func Load() (*Config, error) {
 		cfg.App.CORSOrigins = []string{"http://localhost:3000"}
 	}
 
+	if err := validateSecrets(cfg); err != nil {
+		return nil, err
+	}
 	return cfg, nil
+}
+
+// minSecretLen is the shortest JWT/encryption secret accepted in production.
+// The JWT secret is an HMAC key: a short one can be brute-forced offline from
+// any issued token, yielding forged admin tokens.
+const minSecretLen = 32
+
+func validateSecrets(cfg *Config) error {
+	short := func(name string) error {
+		return fmt.Errorf("%s must be at least %d characters (generate one with: openssl rand -base64 32)", name, minSecretLen)
+	}
+	if len(cfg.Auth.JWTSecret) < minSecretLen {
+		if cfg.App.AppEnv == "production" {
+			return short("JWT_SECRET")
+		}
+		slog.Warn("JWT_SECRET is shorter than recommended; production startup will refuse it", "min_length", minSecretLen)
+	}
+	if cfg.Auth.EncryptionKey != "" && len(cfg.Auth.EncryptionKey) < minSecretLen {
+		return short("ENCRYPTION_KEY")
+	}
+	return nil
 }
 
 func envStr(key, def string) string {
