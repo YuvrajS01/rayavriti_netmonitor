@@ -184,7 +184,9 @@ func (s *Server) Start() error {
 		logStore := monitoring.NewStore(pp.Pool())
 		logSink := monitoring.NewAsyncLogSink(logStore, s.cfg.Logging.DBQueueSize)
 		logSink.Start(ctx)
-		s.logger.RuntimeControls().SetPersistFunc(logSink.Persist)
+		if s.cfg.Logging.DBEnabled {
+			s.logger.RuntimeControls().SetPersistFunc(logSink.Persist)
+		}
 		if sessions, err := logStore.LoadActiveVerboseSessions(ctx); err == nil {
 			for _, session := range sessions {
 				s.logger.RuntimeControls().UpsertVerboseSession(logging.VerboseSession{
