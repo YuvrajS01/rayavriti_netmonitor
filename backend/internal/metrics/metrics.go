@@ -85,6 +85,33 @@ var (
 		Help: "Notification delivery attempts by channel type and result (sent, failed, dropped).",
 	}, []string{"channel", "result"})
 
+	// Flow ingest (NetFlow v5/v9, IPFIX, sFlow).
+	FlowDatagramsTotal = factory.NewCounterVec(prometheus.CounterOpts{
+		Namespace: namespace, Subsystem: "flow_ingest", Name: "datagrams_total",
+		Help: "UDP datagrams received by protocol (netflow_v5, netflow_v9, ipfix, sflow, unknown).",
+	}, []string{"protocol"})
+	FlowRecordsDecoded = factory.NewCounterVec(prometheus.CounterOpts{
+		Namespace: namespace, Subsystem: "flow_ingest", Name: "flows_decoded_total",
+		Help: "Flow records decoded by protocol.",
+	}, []string{"protocol"})
+	FlowDecodeErrors = factory.NewCounterVec(prometheus.CounterOpts{
+		Namespace: namespace, Subsystem: "flow_ingest", Name: "decode_errors_total",
+		Help: "Datagrams that failed to decode, by protocol and reason (malformed, template_missing, exporter_limit).",
+	}, []string{"protocol", "reason"})
+	FlowRecordsDropped = factory.NewCounterVec(prometheus.CounterOpts{
+		Namespace: namespace, Subsystem: "flow_ingest", Name: "flows_dropped_total",
+		Help: "Flow records dropped: queue_full (writer queue full) or write_error (batch insert failed).",
+	}, []string{"reason"})
+	FlowBatchWriteDuration = factory.NewHistogram(prometheus.HistogramOpts{
+		Namespace: namespace, Subsystem: "flow_ingest", Name: "batch_write_duration_seconds",
+		Help:    "Time to write one batch of flow records.",
+		Buckets: prometheus.DefBuckets,
+	})
+	FlowBatchWriteErrors = factory.NewCounter(prometheus.CounterOpts{
+		Namespace: namespace, Subsystem: "flow_ingest", Name: "batch_write_errors_total",
+		Help: "Flow batch writes that failed.",
+	})
+
 	// HTTP API.
 	HTTPRequestDuration = factory.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: namespace, Subsystem: "http", Name: "request_duration_seconds",

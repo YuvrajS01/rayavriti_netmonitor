@@ -24,7 +24,7 @@ Designed for colleges, schools, offices, hostels, labs, and small campuses as a 
 
 - **Real-Time Dashboard** — Live metrics, alerts, device status, and AI health scores via WebSockets
 - **Multi-Protocol Monitoring** — Ping (ICMP), HTTP/HTTPS, TCP port, SNMP (v1/v2c/v3), and system metrics (CPU/memory/disk)
-- **NetFlow/sFlow Analysis** — NetFlow v5/v9 and sFlow collection with top-talker, protocol breakdowns, Sankey diagrams, and treemaps
+- **NetFlow/sFlow Analysis** — NetFlow v5/v9, IPFIX and sFlow v5 collection (sampling-rate corrected, exporter mapped to devices) with top-talker, protocol breakdowns, Sankey diagrams, and treemaps
 - **Packet Capture** — Real-time packet sniffing with protocol analysis (requires `libpcap` + `CAP_NET_RAW`)
 - **AI Health Scoring** — Anomaly detection engine with z-score analysis, health scoring (availability/latency/alerts/stability/ports), and baseline cache
 - **Alert Engine** — Rule evaluation with severity-based alerts, acknowledge/resolve workflow, suppression rules, escalation policies, and multi-channel notifications
@@ -195,11 +195,17 @@ All configuration via environment variables. See [`.env.example`](.env.example) 
 | `PORT` | `3000` | HTTP server port |
 | `DATABASE_URL` | — | PostgreSQL connection string |
 | `REDIS_URL` | — | Redis connection string (optional) |
-| `NETFLOW_PORT` | `2055` | UDP port for NetFlow/sFlow collector |
+| `FLOW_INGEST_ENABLED` | `false` | Start the NetFlow/IPFIX/sFlow UDP listeners |
+| `NETFLOW_ADDR` | `:2055` | UDP listen address for NetFlow v5/v9 and IPFIX (empty disables; legacy `NETFLOW_PORT` is used when unset) |
+| `SFLOW_ADDR` | `:6343` | UDP listen address for sFlow v5 (empty disables) |
+| `FLOW_INGEST_QUEUE_SIZE` | `65536` | Flow records buffered for the writer; more are dropped and counted |
+| `FLOW_INGEST_BATCH_SIZE` | `2000` | Flow records per database write |
+| `FLOW_INGEST_FLUSH_INTERVAL` | `2s` | Maximum time a flow waits before being written |
+| `FLOW_INGEST_DEVICE_REFRESH` | `1m` | How often exporter IPs are re-matched to devices |
 | `POLLER_WORKER_COUNT` | `10` | Worker pool size for device polling |
 | `POLLER_RESULT_BATCH_SIZE` | `50` | Batch flush size for metric writes |
 | `METRICS_RETENTION_DAYS` | `30` | Auto-delete metrics older than N days |
-| `FLOW_RETENTION_DAYS` | `7` | Auto-delete flow records older than N days |
+| `FLOWS_RETENTION_DAYS` | `7` | Auto-delete flow records older than N days (`FLOW_RETENTION_DAYS` also accepted) |
 | `ALERTS_RETENTION_DAYS` | `90` | Auto-delete resolved alerts older than N days |
 | `CAPTURE_ENABLED` | `true` | Enable packet capture feature |
 | `ENCRYPTION_KEY` | — | Key for stored credentials (min 32 chars). Without it the JWT-derived key is used; once it's set, existing credentials are re-encrypted on first use |
@@ -210,7 +216,7 @@ All configuration via environment variables. See [`.env.example`](.env.example) 
 
 - `GET /livez`: liveness (the process is serving HTTP).
 - `GET /readyz` (alias `/health`): readiness. Returns 503 when the database is unreachable.
-- `GET http://ADMIN_ADDR/metrics`: Prometheus metrics. These cover poll counts and latency by protocol, queue depths, dropped and in-flight-skipped polls, pipeline batch timing, DB pool stats, WebSocket clients and drops, notification outcomes, HTTP latency by route, and build info. The admin listener is separate from the API and is not authenticated, so keep it on loopback or a management network.
+- `GET http://ADMIN_ADDR/metrics`: Prometheus metrics. These cover poll counts and latency by protocol, queue depths, dropped and in-flight-skipped polls, pipeline batch timing, DB pool stats, WebSocket clients and drops, notification outcomes, HTTP latency by route, flow ingest (datagrams by protocol, flows decoded, decode errors, drops, batch write latency and errors, queue length), and build info. The admin listener is separate from the API and is not authenticated, so keep it on loopback or a management network.
 
 ---
 

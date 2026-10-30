@@ -19,6 +19,7 @@ import (
 	"github.com/rayavriti/netmonitor-backend/internal/config"
 	"github.com/rayavriti/netmonitor-backend/internal/database"
 	"github.com/rayavriti/netmonitor-backend/internal/engine"
+	"github.com/rayavriti/netmonitor-backend/internal/flowingest"
 	"github.com/rayavriti/netmonitor-backend/internal/logging"
 	"github.com/rayavriti/netmonitor-backend/internal/metrics"
 	"github.com/rayavriti/netmonitor-backend/internal/models"
@@ -254,6 +255,30 @@ func run() error {
 	retSched.Start(context.Background())
 	logger.Info("Retention scheduler started")
 
+	// 11.2 Flow ingest (NetFlow v5/v9, IPFIX, sFlow). Writes go to the raw
+	// Postgres store; the cache layer has nothing to invalidate for flows.
+	var flowSrv *flowingest.Server
+	if fi := cfg.FlowIngest; fi.Enabled && (fi.NetFlowAddr != "" || fi.SFlowAddr != "") {
+		flowSrv, err = flowingest.New(flowingest.Config{
+			NetFlowAddr:   fi.NetFlowAddr,
+			SFlowAddr:     fi.SFlowAddr,
+			QueueSize:     fi.QueueSize,
+			BatchSize:     fi.BatchSize,
+			FlushInterval: fi.FlushInterval,
+			DeviceRefresh: fi.DeviceRefresh,
+			MaxAge:        time.Duration(cfg.Collector.FlowRetentionDays) * 24 * time.Hour,
+		}, db)
+		if err != nil {
+			return fmt.Errorf("flow ingest: %w", err)
+		}
+		if err := flowSrv.Start(context.Background()); err != nil {
+			return fmt.Errorf("flow ingest: %w", err)
+		}
+		metrics.RegisterGaugeFunc("flow_ingest", "queue_length", "Flow records waiting for the batch writer.",
+			func() float64 { return float64(flowSrv.QueueLen()) })
+		logger.Info("Flow ingest started", "netflow_addr", fi.NetFlowAddr, "sflow_addr", fi.SFlowAddr)
+	}
+
 	// 11.5 Initialize ISP collector and scheduled report runner
 	ispCollector := reports.NewISPCollector(db.Pool(), cfg.Integrations.ISPMonitorInterval)
 	ispCollector.Start(context.Background())
@@ -317,6 +342,9 @@ func run() error {
 		logger.Error("Server shutdown error", "error", err)
 	}
 	sched.Stop()
+	if flowSrv != nil {
+		flowSrv.Stop()
+	}
 	ispCollector.Stop()
 	reportScheduler.Stop()
 	anomalyEng.Stop()

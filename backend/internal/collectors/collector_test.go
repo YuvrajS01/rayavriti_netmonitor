@@ -74,20 +74,6 @@ func TestPingCollector_Name(t *testing.T) {
 	assert.Equal(t, "ping", c.Name())
 }
 
-func TestNetFlowCollector_Name(t *testing.T) {
-	t.Parallel()
-	c := &NetFlowCollector{Port: 2055}
-	assert.Equal(t, "netflow", c.Name())
-}
-
-func TestNetFlowCollector_Collect_NoOp(t *testing.T) {
-	t.Parallel()
-	c := &NetFlowCollector{Port: 2055}
-	result, err := c.Collect(context.Background(), &models.Device{})
-	require.NoError(t, err)
-	assert.Equal(t, "up", result.Status)
-}
-
 func TestPortCollector_Collect_ClosedPort(t *testing.T) {
 	t.Parallel()
 	c := PortCollector{}

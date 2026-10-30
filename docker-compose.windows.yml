@@ -28,6 +28,7 @@ services:
     ports:
       - "3000:3000"
       - "2055:2055/udp"
+      - "6343:6343/udp"
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER:-netmonitor}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@timescaledb:5432/${POSTGRES_DB:-netmonitor}?sslmode=disable
       REDIS_URL: redis://:${REDIS_PASSWORD:?REDIS_PASSWORD is required}@redis:6379/0
