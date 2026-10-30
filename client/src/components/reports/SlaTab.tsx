@@ -21,7 +21,7 @@ function SlaGauge({ value }: { value: number }) {
       </svg>
       <div className="absolute flex flex-col items-center" style={{ marginTop: 48 }}>
         <span className="font-sans text-3xl font-semibold" style={{ color }}>{pct.toFixed(2)}%</span>
-        <span className="text-[10px] text-fg-muted uppercase tracking-wide mt-1">Availability</span>
+        <span className="text-xs text-fg-muted mt-1">Availability</span>
       </div>
     </div>
   );
@@ -42,9 +42,9 @@ export default function SlaTab({ summary, series }: { summary: ReportSummary | n
     <div className="space-y-6 report-section">
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="bg-surface-1 rounded-lg p-6 border border-line flex flex-col items-center justify-center relative">
-          <p className="text-[10px] text-fg-muted uppercase tracking-wide mb-4">SLA Target: {SLA_TARGET}%</p>
+          <p className="text-xs text-fg-muted mb-4">SLA Target: {SLA_TARGET}%</p>
           <SlaGauge value={avail} />
-          <div className={`mt-6 inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold uppercase tracking-wide ${met ? 'bg-primary/10 text-primary border border-primary/30' : 'bg-error/10 text-error border border-error/30'}`}>
+          <div className={`mt-6 inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold ${met ? 'bg-primary/10 text-primary border border-primary/30': 'bg-error/10 text-error border border-error/30'}`}>
             <span className="material-symbols-outlined text-sm">{met ? 'check_circle' : 'cancel'}</span>
             {met ? 'SLA Met' : 'SLA Breached'}
           </div>
@@ -52,12 +52,12 @@ export default function SlaTab({ summary, series }: { summary: ReportSummary | n
 
         <div className="lg:col-span-2 bg-surface-1 rounded-lg p-6 border border-line">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-            <div><p className="text-[10px] text-fg-muted uppercase tracking-wide">Target</p><p className="font-sans text-xl font-semibold text-fg">{SLA_TARGET}%</p></div>
-            <div><p className="text-[10px] text-fg-muted uppercase tracking-wide">Actual</p><p className={`font-sans text-xl font-semibold ${avail >= SLA_TARGET ? 'text-primary' : 'text-error'}`}>{avail}%</p></div>
-            <div><p className="text-[10px] text-fg-muted uppercase tracking-wide">Buckets Met</p><p className="font-sans text-xl font-semibold text-fg">{bucketsMet}/{totalBuckets}</p></div>
-            <div><p className="text-[10px] text-fg-muted uppercase tracking-wide">Down Events</p><p className="font-sans text-xl font-semibold text-error">{summary?.downSamples ?? 0}</p></div>
+            <div><p className="text-xs text-fg-muted">Target</p><p className="font-sans text-xl font-semibold text-fg">{SLA_TARGET}%</p></div>
+            <div><p className="text-xs text-fg-muted">Actual</p><p className={`font-sans text-xl font-semibold ${avail >= SLA_TARGET ? 'text-primary' : 'text-error'}`}>{avail}%</p></div>
+            <div><p className="text-xs text-fg-muted">Buckets met</p><p className="font-sans text-xl font-semibold text-fg">{bucketsMet}/{totalBuckets}</p></div>
+            <div><p className="text-xs text-fg-muted">Down events</p><p className="font-sans text-xl font-semibold text-error">{summary?.downSamples ?? 0}</p></div>
           </div>
-          <h4 className="text-xs font-semibold uppercase tracking-wide text-fg-muted mb-2">Availability vs SLA Target</h4>
+          <h4 className="text-xs font-semibold text-fg-muted mb-2">Availability vs SLA target</h4>
           {chartData.length === 0 ? <p className="text-xs text-fg-muted text-center py-12">No data</p> : (
             <ResponsiveContainer width="100%" height={220}>
               <AreaChart data={chartData} margin={{ top: 4, right: 8, left: -10, bottom: 0 }}>

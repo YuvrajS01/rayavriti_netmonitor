@@ -144,8 +144,8 @@ export default function NetworkTopologyMini() {
     <section className="bg-surface-1 rounded-lg p-5 border border-line flex flex-col">
       <div className="flex items-center justify-between mb-3">
         <div>
-          <h3 className="text-sm font-sans font-semibold uppercase tracking-wide">Topology preview</h3>
-          <p className="text-[10px] uppercase tracking-wide text-fg-muted">Top {count} nodes · click to expand</p>
+          <h3 className="text-sm font-sans font-semibold">Topology preview</h3>
+          <p className="text-xs text-fg-muted">Top {count} nodes · click to expand</p>
         </div>
         <button onClick={() => navigate('/devices/topology')} className="text-xs text-primary font-semibold hover:underline">Open full ↗</button>
       </div>

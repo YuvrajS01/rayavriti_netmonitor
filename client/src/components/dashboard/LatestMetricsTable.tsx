@@ -17,7 +17,7 @@ function LatestMetricsTableInner({ metrics }: Props) {
       <div className="overflow-x-auto">
         <table className="w-full text-left border-collapse">
           <thead>
-            <tr className="text-xs uppercase tracking-wide text-fg-muted border-b border-line">
+            <tr className="text-xs text-fg-muted border-b border-line">
               <th className="pb-3 font-medium">Device</th>
               <th className="pb-3 font-medium">Protocol</th>
               <th className="pb-3 font-medium">Status</th>
@@ -37,7 +37,7 @@ function LatestMetricsTableInner({ metrics }: Props) {
               return (
                 <tr key={m.id || i} className="border-b border-line hover:bg-surface-2/50 transition-colors group card-stagger" style={{ '--i': i } as React.CSSProperties}>
                   <td className="py-3 font-sans font-medium text-fg">{m.deviceName}</td>
-                  <td className="py-3 text-fg-muted text-xs uppercase tracking-wider">
+                  <td className="py-3 text-fg-muted text-xsr">
                     <div className="flex items-center gap-1.5">
                       <span className="material-symbols-outlined text-[14px] opacity-70">
                         {iconForProtocol(m.protocol)}
@@ -46,7 +46,7 @@ function LatestMetricsTableInner({ metrics }: Props) {
                     </div>
                   </td>
                   <td className="py-3">
-                    <div className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border ${sc} text-xs font-medium uppercase tracking-wide`}>
+                    <div className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border ${sc} text-xs font-medium`}>
                       <span className="material-symbols-outlined text-[14px]">{statusIcon}</span>
                       <span className={`w-1.5 h-1.5 rounded-full ${isDown ? 'glow-error' : ''}`} style={{ background: dotColor, boxShadow: isDown ? undefined : `0 0 6px ${dotColor}` }} />
                       {m.status}
@@ -69,7 +69,7 @@ function LatestMetricsTableInner({ metrics }: Props) {
         {metrics.length === 0 && (
           <div className="flex flex-col items-center justify-center py-12">
             <span className="material-symbols-outlined text-4xl mb-2">monitoring</span>
-            <p className="text-xs text-fg-muted uppercase tracking-wide">No metrics data yet</p>
+            <p className="text-xs text-fg-muted">No metrics data yet</p>
           </div>
         )}
       </div>

@@ -102,7 +102,7 @@ export default function Alerts() {
         <StatCard label="Resolved" value={counts.resolved} color="text-primary" icon="done_all" trend="up" sparklineData={[counts.resolved, info.length, counts.resolved]} />
       </div>
 
-      <div className="bg-surface-1 rounded-lg border border-line p-5 mb-6"><div className="flex flex-wrap items-center justify-between gap-4"><div><h2 className="font-sans text-sm font-semibold uppercase tracking-wide">Alert activity pulse</h2><p className="text-xs text-fg-muted mt-1">Severity distribution in the current view</p></div><Sparkline data={alerts.slice(0, 24).reverse().map((alert, index) => (alert.severity === 'critical' ? 9 : alert.severity === 'warning' ? 5 : 2) + index % 3)} width={220} height={52} color="var(--color-error)" /></div><div className="flex h-3 rounded-full overflow-hidden mt-5 bg-inset">{[[critical.length, 'bg-error'], [warnings.length, 'bg-warning'], [info.length, 'bg-info']].map(([value, color], index) => <i key={index} className={color as string} style={{ width: `${alerts.length ? Number(value) / alerts.length * 100 : 0}%` }} />)}</div></div>
+      <div className="bg-surface-1 rounded-lg border border-line p-5 mb-6"><div className="flex flex-wrap items-center justify-between gap-4"><div><h2 className="font-sans text-sm font-semibold">Alert activity pulse</h2><p className="text-xs text-fg-muted mt-1">Severity distribution in the current view</p></div><Sparkline data={alerts.slice(0, 24).reverse().map((alert, index) => (alert.severity === 'critical' ? 9 : alert.severity === 'warning' ? 5 : 2) + index % 3)} width={220} height={52} color="var(--color-error)" /></div><div className="flex h-3 rounded-full overflow-hidden mt-5 bg-inset">{[[critical.length, 'bg-error'], [warnings.length, 'bg-warning'], [info.length, 'bg-info']].map(([value, color], index) => <i key={index} className={color as string} style={{ width: `${alerts.length ? Number(value) / alerts.length * 100 : 0}%` }} />)}</div></div>
 
       {/* Tabs + View Toggle */}
       <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
@@ -111,7 +111,7 @@ export default function Alerts() {
             <button
               key={tab.key}
               onClick={() => setCurrentTab(tab.key)}
-              className={`px-4 py-2 text-xs rounded-md border font-semibold uppercase tracking-wide transition-[border-color,color,background-color] ${
+              className={`px-4 py-2 text-xs rounded-md border font-semibold transition-[border-color,color,background-color] ${
                 currentTab === tab.key
                   ? 'border-primary/40 text-primary bg-primary/5'
                   : 'border-line text-fg-muted hover:text-fg'
@@ -127,16 +127,16 @@ export default function Alerts() {
             <div className="flex gap-1 bg-inset rounded-lg p-0.5">
               <button
                 onClick={() => setViewMode('grouped')}
-                className={`px-3 py-1 text-xs rounded-md font-semibold uppercase tracking-wide transition-colors ${
-                  viewMode === 'grouped' ? 'bg-primary/10 text-primary' : 'text-fg-muted hover:text-fg'
+                className={`px-3 py-1 text-xs rounded-md font-semibold transition-colors ${
+                  viewMode === 'grouped'? 'bg-primary/10 text-primary': 'text-fg-muted hover:text-fg'
                 }`}
               >
                 Grouped
               </button>
               <button
                 onClick={() => setViewMode('list')}
-                className={`px-3 py-1 text-xs rounded-md font-semibold uppercase tracking-wide transition-colors ${
-                  viewMode === 'list' ? 'bg-primary/10 text-primary' : 'text-fg-muted hover:text-fg'
+                className={`px-3 py-1 text-xs rounded-md font-semibold transition-colors ${
+                  viewMode === 'list'? 'bg-primary/10 text-primary': 'text-fg-muted hover:text-fg'
                 }`}
               >
                 List

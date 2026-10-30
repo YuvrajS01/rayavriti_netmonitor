@@ -258,14 +258,14 @@ export default function UserManagement() {
         <StatCard label="Users" value={stats.totalUsers} icon="people" sparklineData={roles.map(role => users.filter(user => user.role === role.name).length)} />
         <StatCard label="Active" value={stats.enabledUsers} icon="check_circle" trend="up" sparklineData={users.map(user => user.enabled ? 1 : 0)} />
         <StatCard label="Roles" value={stats.totalRoles} icon="shield" sparklineData={roles.map(role => role.permissions.length)} />
-        <StatCard label="Custom Roles" value={stats.customRoles} icon="tune" sparklineData={roles.map(role => role.is_system ? 0 : 1)} />
+        <StatCard label="Custom roles" value={stats.customRoles} icon="tune" sparklineData={roles.map(role => role.is_system ? 0 : 1)} />
       </div>
 
-      <Card variant="low" className="p-5"><div className="flex items-center justify-between mb-4"><div><h2 className="font-sans text-sm font-semibold uppercase tracking-wide">Role distribution</h2><p className="text-xs text-fg-muted mt-1">Active users by assigned role</p></div><span className="material-symbols-outlined text-primary">admin_panel_settings</span></div><div className="flex h-4 rounded-full overflow-hidden bg-inset">{roles.map((role, index) => { const count = users.filter(user => user.role === role.name).length; const color = `var(--color-chart-${index % 8 + 1})`; return <i key={role.id} title={`${role.display_name || role.name}: ${count}`} style={{ width: `${users.length ? count / users.length * 100 : 0}%`, background: color }} />; })}</div><div className="flex flex-wrap gap-x-4 gap-y-2 mt-3">{roles.map((role, index) => <span key={role.id} className="text-xs text-fg-muted"><i className="inline-block w-2 h-2 rounded-full mr-1.5" style={{ background: `var(--color-chart-${index % 8 + 1})` }} />{role.display_name || role.name} · {users.filter(user => user.role === role.name).length}</span>)}</div></Card>
+      <Card variant="low" className="p-5"><div className="flex items-center justify-between mb-4"><div><h2 className="font-sans text-sm font-semibold">Role distribution</h2><p className="text-xs text-fg-muted mt-1">Active users by assigned role</p></div><span className="material-symbols-outlined text-primary">admin_panel_settings</span></div><div className="flex h-4 rounded-full overflow-hidden bg-inset">{roles.map((role, index) => { const count = users.filter(user => user.role === role.name).length; const color = `var(--color-chart-${index % 8 + 1})`; return <i key={role.id} title={`${role.display_name || role.name}: ${count}`} style={{ width: `${users.length ? count / users.length * 100 : 0}%`, background: color }} />; })}</div><div className="flex flex-wrap gap-x-4 gap-y-2 mt-3">{roles.map((role, index) => <span key={role.id} className="text-xs text-fg-muted"><i className="inline-block w-2 h-2 rounded-full mr-1.5" style={{ background: `var(--color-chart-${index % 8 + 1})` }} />{role.display_name || role.name} · {users.filter(user => user.role === role.name).length}</span>)}</div></Card>
 
       <div className="flex gap-1 bg-surface-1 rounded-lg p-1 w-fit">
         {(['users', 'roles'] as const).map((t) => (
-          <button key={t} onClick={() => { setTab(t); setSearch(''); }} className={`px-4 py-2 text-xs font-sans font-semibold uppercase tracking-wide rounded-md transition-colors ${tab === t ? 'bg-primary text-on-primary' : 'text-fg-muted hover:text-fg'}`}>
+          <button key={t} onClick={() => { setTab(t); setSearch(''); }} className={`capitalize px-4 py-2 text-xs font-sans font-semibold rounded-md transition-colors ${tab === t ? 'bg-primary text-on-primary': 'text-fg-muted hover:text-fg'}`}>
             {t === 'users' ? 'Users' : 'Roles & Permissions'}
           </button>
         ))}
@@ -279,7 +279,7 @@ export default function UserManagement() {
             </div>
             <div>
               <h2 className="font-sans font-semibold text-lg">{tab === 'users' ? 'Users' : 'Roles & Permissions'}</h2>
-              <p className="text-xs text-fg-muted uppercase tracking-wide">{tab === 'users' ? filteredUsers.length : filteredRoles.length} items</p>
+              <p className="text-xs text-fg-muted">{tab === 'users' ? filteredUsers.length : filteredRoles.length} items</p>
             </div>
           </div>
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search..." className="bg-inset border border-line rounded-lg px-4 py-2.5 text-sm text-fg placeholder:text-fg-subtle focus:ring-1 focus:ring-primary outline-none md:w-64" />
@@ -302,18 +302,18 @@ export default function UserManagement() {
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">
                           <h3 className="font-sans font-semibold text-lg truncate">{u.display_name || u.username}</h3>
-                          {!u.enabled && <span className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full bg-line-strong/10 text-fg-subtle">Disabled</span>}
+                          {!u.enabled && <span className="text-xs font-semibold uppercase px-2 py-0.5 rounded-full bg-line-strong/10 text-fg-subtle">Disabled</span>}
                         </div>
                         <p className="text-xs text-fg-muted mt-0.5">@{u.username} · {u.email || 'No email'}</p>
                       </div>
                     </div>
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 lg:max-w-lg flex-shrink-0">
                       <div>
-                        <div className="text-[10px] text-fg-muted uppercase tracking-wide">Role</div>
+                        <div className="text-xs text-fg-muted">Role</div>
                         <div className="text-sm font-semibold capitalize text-primary">{u.role?.replace(/_/g, ' ')}</div>
                       </div>
                       <div>
-                        <div className="text-[10px] text-fg-muted uppercase tracking-wide">Last Login</div>
+                        <div className="text-xs text-fg-muted">Last login</div>
                         <div className="text-sm font-medium">{timeAgo(u.last_login_at)}</div>
                       </div>
                       <div className="flex items-end gap-2">
@@ -345,7 +345,7 @@ export default function UserManagement() {
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">
                           <h3 className="font-sans font-semibold text-lg truncate">{r.display_name || r.name}</h3>
-                          {r.is_system && <span className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full bg-primary/10 text-primary">System</span>}
+                          {r.is_system && <span className="text-xs font-semibold uppercase px-2 py-0.5 rounded-full bg-primary/10 text-primary">System</span>}
                         </div>
                         {r.description && <p className="text-sm text-fg-muted mt-1">{r.description}</p>}
                         <div className="flex items-center gap-3 mt-2">
@@ -363,9 +363,9 @@ export default function UserManagement() {
                   {permCount > 0 && (
                     <div className="flex flex-wrap gap-1 mt-3 pt-3 border-t border-line">
                       {(r.permissions || []).slice(0, 12).map((p) => (
-                        <span key={p} className="text-[10px] font-mono px-2 py-0.5 rounded bg-inset text-fg-muted">{p}</span>
+                        <span key={p} className="text-xs font-mono px-2 py-0.5 rounded bg-inset text-fg-muted">{p}</span>
                       ))}
-                      {permCount > 12 && <span className="text-[10px] text-fg-muted px-2 py-0.5">+{permCount - 12} more</span>}
+                      {permCount > 12 && <span className="text-xs text-fg-muted px-2 py-0.5">+{permCount - 12} more</span>}
                     </div>
                   )}
                 </article>
@@ -381,7 +381,7 @@ export default function UserManagement() {
             <div className="p-6 border-b border-line shrink-0"><h2 className="font-sans text-lg font-semibold">Edit User: {editingUser.username}</h2></div>
             <div className="p-6 space-y-4 flex-1 min-h-0 overflow-y-auto">
               <div>
-                <label className="text-[10px] text-fg-muted uppercase tracking-wide block mb-1">Role</label>
+                <label className="text-xs text-fg-muted block mb-1">Role</label>
                 <select value={asText(userForm.role)} onChange={(e) => setUserForm({ ...userForm, role: e.target.value })} className="w-full bg-inset border border-line rounded-lg px-4 py-2.5 text-sm text-fg outline-none focus:ring-1 focus:ring-primary">
                   {roles.length > 0
                     ? roles.map((r) => <option key={r.id} value={r.name}>{r.display_name || r.name}</option>)
@@ -389,11 +389,11 @@ export default function UserManagement() {
                 </select>
               </div>
               <div>
-                <label className="text-[10px] text-fg-muted uppercase tracking-wide block mb-1">Display Name</label>
+                <label className="text-xs text-fg-muted block mb-1">Display name</label>
                 <input value={asText(userForm.display_name)} onChange={(e) => setUserForm({ ...userForm, display_name: e.target.value })} className="w-full bg-inset border border-line rounded-lg px-4 py-2.5 text-sm text-fg placeholder:text-fg-subtle focus:ring-1 focus:ring-primary outline-none" />
               </div>
               <div>
-                <label className="text-[10px] text-fg-muted uppercase tracking-wide block mb-1">Email</label>
+                <label className="text-xs text-fg-muted block mb-1">Email</label>
                 <input value={asText(userForm.email)} onChange={(e) => setUserForm({ ...userForm, email: e.target.value })} className="w-full bg-inset border border-line rounded-lg px-4 py-2.5 text-sm text-fg placeholder:text-fg-subtle focus:ring-1 focus:ring-primary outline-none" />
               </div>
               <div className="flex items-center gap-3">
@@ -402,9 +402,9 @@ export default function UserManagement() {
               </div>
             </div>
             <div className="flex border-t border-line shrink-0">
-              <button onClick={() => setEditingUser(null)} className="flex-1 py-3 text-xs font-sans font-semibold uppercase tracking-wide text-fg-muted hover:bg-surface-1 transition-colors">Cancel</button>
+              <button onClick={() => setEditingUser(null)} className="flex-1 py-3 text-xs font-sans font-semibold text-fg-muted hover:bg-surface-1 transition-colors">Cancel</button>
               <div className="w-px bg-line/20" />
-              <button onClick={handleUserUpdate} disabled={submitting} className="flex-1 py-3 text-xs font-sans font-semibold uppercase tracking-wide text-primary hover:bg-primary/10 transition-colors disabled:opacity-50">{submitting ? 'Saving...' : 'Update'}</button>
+              <button onClick={handleUserUpdate} disabled={submitting} className="flex-1 py-3 text-xs font-sans font-semibold text-primary hover:bg-primary/10 transition-colors disabled:opacity-50">{submitting ? 'Saving...' : 'Update'}</button>
             </div>
           </div>
         </div>
@@ -419,28 +419,28 @@ export default function UserManagement() {
                 <p className="text-xs text-fg-muted mt-1">{roleForm.permissions.length} permissions selected</p>
               </div>
               <div className="flex gap-2">
-                <button onClick={() => setRoleForm((prev) => ({ ...prev, permissions: [...ALL_PERMISSIONS] }))} className="text-[10px] font-semibold uppercase tracking-wide text-primary hover:bg-primary/10 px-3 py-1.5 rounded transition-colors">Select All</button>
-                <button onClick={() => setRoleForm((prev) => ({ ...prev, permissions: [] }))} className="text-[10px] font-semibold uppercase tracking-wide text-fg-muted hover:bg-surface-1 px-3 py-1.5 rounded transition-colors">Clear</button>
+                <button onClick={() => setRoleForm((prev) => ({ ...prev, permissions: [...ALL_PERMISSIONS] }))} className="text-xs font-semibold text-primary hover:bg-primary/10 px-3 py-1.5 rounded transition-colors">Select all</button>
+                <button onClick={() => setRoleForm((prev) => ({ ...prev, permissions: [] }))} className="text-xs font-semibold text-fg-muted hover:bg-surface-1 px-3 py-1.5 rounded transition-colors">Clear</button>
               </div>
             </div>
             <div className="p-6 space-y-4 flex-1 min-h-0 overflow-y-auto">
               {!editingRole && (
                 <div>
-                  <label className="text-[10px] text-fg-muted uppercase tracking-wide block mb-1">Role ID (unique key)</label>
+                  <label className="text-xs text-fg-muted block mb-1">Role ID (unique key)</label>
                   <input value={roleForm.name} onChange={(e) => setRoleForm({ ...roleForm, name: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '_') })} className="w-full bg-inset border border-line rounded-lg px-4 py-2.5 text-sm text-fg font-mono placeholder:text-fg-subtle focus:ring-1 focus:ring-primary outline-none" placeholder="network_operator" />
                 </div>
               )}
               <div>
-                <label className="text-[10px] text-fg-muted uppercase tracking-wide block mb-1">Display Name</label>
+                <label className="text-xs text-fg-muted block mb-1">Display name</label>
                 <input value={roleForm.display_name} onChange={(e) => setRoleForm({ ...roleForm, display_name: e.target.value })} className="w-full bg-inset border border-line rounded-lg px-4 py-2.5 text-sm text-fg placeholder:text-fg-subtle focus:ring-1 focus:ring-primary outline-none" placeholder="Network Operator" />
               </div>
               <div>
-                <label className="text-[10px] text-fg-muted uppercase tracking-wide block mb-1">Description</label>
+                <label className="text-xs text-fg-muted block mb-1">Description</label>
                 <input value={roleForm.description} onChange={(e) => setRoleForm({ ...roleForm, description: e.target.value })} className="w-full bg-inset border border-line rounded-lg px-4 py-2.5 text-sm text-fg placeholder:text-fg-subtle focus:ring-1 focus:ring-primary outline-none" placeholder="Can view and acknowledge alerts" />
               </div>
 
               <div className="pt-2">
-                <label className="text-[10px] text-fg-muted uppercase tracking-wide block mb-3">Permissions</label>
+                <label className="text-xs text-fg-muted block mb-3">Permissions</label>
                 <div className="space-y-4">
                   {PERMISSION_GROUPS.map((group) => {
                     const groupPerms = group.permissions.map((p) => p.key);
@@ -460,7 +460,7 @@ export default function UserManagement() {
                           />
                           <span className="material-symbols-outlined text-sm text-primary">{group.icon}</span>
                           <label htmlFor={`grp_${group.label}`} className="font-sans font-semibold text-sm cursor-pointer">{group.label}</label>
-                          <span className="text-[10px] text-fg-muted ml-auto">{selectedCount}/{groupPerms.length}</span>
+                          <span className="text-xs text-fg-muted ml-auto">{selectedCount}/{groupPerms.length}</span>
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 ml-8">
                           {group.permissions.map((perm) => (
@@ -473,7 +473,7 @@ export default function UserManagement() {
                               />
                               <div>
                                 <span className="text-sm text-fg group-hover:text-fg transition-colors">{perm.label}</span>
-                                <span className="block text-[11px] text-fg-muted">{perm.desc}</span>
+                                <span className="block text-xs text-fg-muted">{perm.desc}</span>
                               </div>
                             </label>
                           ))}
@@ -485,9 +485,9 @@ export default function UserManagement() {
               </div>
             </div>
             <div className="flex border-t border-line shrink-0">
-              <button onClick={() => setShowRoleForm(false)} className="flex-1 py-3 text-xs font-sans font-semibold uppercase tracking-wide text-fg-muted hover:bg-surface-1 transition-colors">Cancel</button>
+              <button onClick={() => setShowRoleForm(false)} className="flex-1 py-3 text-xs font-sans font-semibold text-fg-muted hover:bg-surface-1 transition-colors">Cancel</button>
               <div className="w-px bg-line/20" />
-              <button onClick={handleRoleSubmit} disabled={submitting || (!editingRole && !roleForm.name)} className="flex-1 py-3 text-xs font-sans font-semibold uppercase tracking-wide text-primary hover:bg-primary/10 transition-colors disabled:opacity-50">{submitting ? 'Saving...' : editingRole ? 'Update Role' : 'Create Role'}</button>
+              <button onClick={handleRoleSubmit} disabled={submitting || (!editingRole && !roleForm.name)} className="capitalize flex-1 py-3 text-xs font-sans font-semibold text-primary hover:bg-primary/10 transition-colors disabled:opacity-50">{submitting ? 'Saving...' : editingRole ? 'Update Role' : 'Create Role'}</button>
             </div>
           </div>
         </div>
@@ -499,15 +499,15 @@ export default function UserManagement() {
             <div className="p-6 border-b border-line shrink-0"><h2 className="font-sans text-lg font-semibold">Create User</h2></div>
             <div className="p-6 space-y-4 flex-1 min-h-0 overflow-y-auto">
               <div>
-                <label className="text-[10px] text-fg-muted uppercase tracking-wide block mb-1">Username *</label>
+                <label className="text-xs text-fg-muted block mb-1">Username *</label>
                 <input value={userCreateForm.username} onChange={(e) => setUserCreateForm({ ...userCreateForm, username: e.target.value })} className="w-full bg-inset border border-line rounded-lg px-4 py-2.5 text-sm text-fg placeholder:text-fg-subtle focus:ring-1 focus:ring-primary outline-none" placeholder="john.doe" />
               </div>
               <div>
-                <label className="text-[10px] text-fg-muted uppercase tracking-wide block mb-1">Password *</label>
+                <label className="text-xs text-fg-muted block mb-1">Password *</label>
                 <input type="password" value={userCreateForm.password} onChange={(e) => setUserCreateForm({ ...userCreateForm, password: e.target.value })} className="w-full bg-inset border border-line rounded-lg px-4 py-2.5 text-sm text-fg placeholder:text-fg-subtle focus:ring-1 focus:ring-primary outline-none" placeholder="Minimum 6 characters" />
               </div>
               <div>
-                <label className="text-[10px] text-fg-muted uppercase tracking-wide block mb-1">Role</label>
+                <label className="text-xs text-fg-muted block mb-1">Role</label>
                 <select value={userCreateForm.role} onChange={(e) => setUserCreateForm({ ...userCreateForm, role: e.target.value })} className="w-full bg-inset border border-line rounded-lg px-4 py-2.5 text-sm text-fg outline-none focus:ring-1 focus:ring-primary">
                   {roles.length > 0
                     ? roles.map((r) => <option key={r.id} value={r.name}>{r.display_name || r.name}</option>)
@@ -515,22 +515,22 @@ export default function UserManagement() {
                 </select>
               </div>
               <div>
-                <label className="text-[10px] text-fg-muted uppercase tracking-wide block mb-1">Display Name</label>
+                <label className="text-xs text-fg-muted block mb-1">Display name</label>
                 <input value={userCreateForm.display_name} onChange={(e) => setUserCreateForm({ ...userCreateForm, display_name: e.target.value })} className="w-full bg-inset border border-line rounded-lg px-4 py-2.5 text-sm text-fg placeholder:text-fg-subtle focus:ring-1 focus:ring-primary outline-none" placeholder="John Doe" />
               </div>
               <div>
-                <label className="text-[10px] text-fg-muted uppercase tracking-wide block mb-1">Email</label>
+                <label className="text-xs text-fg-muted block mb-1">Email</label>
                 <input type="email" value={userCreateForm.email} onChange={(e) => setUserCreateForm({ ...userCreateForm, email: e.target.value })} className="w-full bg-inset border border-line rounded-lg px-4 py-2.5 text-sm text-fg placeholder:text-fg-subtle focus:ring-1 focus:ring-primary outline-none" placeholder="john@example.com" />
               </div>
               <div>
-                <label className="text-[10px] text-fg-muted uppercase tracking-wide block mb-1">Phone</label>
+                <label className="text-xs text-fg-muted block mb-1">Phone</label>
                 <input value={userCreateForm.phone} onChange={(e) => setUserCreateForm({ ...userCreateForm, phone: e.target.value })} className="w-full bg-inset border border-line rounded-lg px-4 py-2.5 text-sm text-fg placeholder:text-fg-subtle focus:ring-1 focus:ring-primary outline-none" placeholder="+1 555 123 4567" />
               </div>
             </div>
             <div className="flex border-t border-line shrink-0">
-              <button onClick={() => setShowUserForm(false)} className="flex-1 py-3 text-xs font-sans font-semibold uppercase tracking-wide text-fg-muted hover:bg-surface-1 transition-colors">Cancel</button>
+              <button onClick={() => setShowUserForm(false)} className="flex-1 py-3 text-xs font-sans font-semibold text-fg-muted hover:bg-surface-1 transition-colors">Cancel</button>
               <div className="w-px bg-line/20" />
-              <button onClick={handleCreateUser} disabled={submitting || !userCreateForm.username || !userCreateForm.password} className="flex-1 py-3 text-xs font-sans font-semibold uppercase tracking-wide text-primary hover:bg-primary/10 transition-colors disabled:opacity-50">{submitting ? 'Creating...' : 'Create User'}</button>
+              <button onClick={handleCreateUser} disabled={submitting || !userCreateForm.username || !userCreateForm.password} className="flex-1 py-3 text-xs font-sans font-semibold text-primary hover:bg-primary/10 transition-colors disabled:opacity-50">{submitting ? 'Creating...' : 'Create User'}</button>
             </div>
           </div>
         </div>

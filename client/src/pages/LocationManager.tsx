@@ -141,7 +141,7 @@ export default function LocationManager() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
         {/* Left: Tree */}
         <Card variant="low" className="lg:col-span-4 xl:col-span-3 p-4 max-h-[75vh] overflow-hidden flex flex-col">
-          <h2 className="font-sans font-semibold text-sm uppercase tracking-wide text-fg-muted mb-3">
+          <h2 className="font-sans font-semibold text-sm text-fg-muted mb-3">
             Hierarchy
           </h2>
           {locations.length === 0 ? (
@@ -177,7 +177,7 @@ export default function LocationManager() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 {/* Name */}
                 <div>
-                  <label className="block text-[10px] uppercase tracking-wide text-fg-muted font-semibold mb-1.5">
+                  <label className="block text-xs text-fg-muted font-semibold mb-1.5">
                     Name *
                   </label>
                   <input
@@ -190,7 +190,7 @@ export default function LocationManager() {
 
                 {/* Type */}
                 <div>
-                  <label className="block text-[10px] uppercase tracking-wide text-fg-muted font-semibold mb-1.5">
+                  <label className="block text-xs text-fg-muted font-semibold mb-1.5">
                     Type
                   </label>
                   <select
@@ -208,7 +208,7 @@ export default function LocationManager() {
 
                 {/* Code */}
                 <div>
-                  <label className="block text-[10px] uppercase tracking-wide text-fg-muted font-semibold mb-1.5">
+                  <label className="block text-xs text-fg-muted font-semibold mb-1.5">
                     Code
                   </label>
                   <input
@@ -221,8 +221,8 @@ export default function LocationManager() {
 
                 {/* Parent */}
                 <div>
-                  <label className="block text-[10px] uppercase tracking-wide text-fg-muted font-semibold mb-1.5">
-                    Parent Location
+                  <label className="block text-xs text-fg-muted font-semibold mb-1.5">
+                    Parent location
                   </label>
                   <select
                     value={form.parent_id}
@@ -241,8 +241,8 @@ export default function LocationManager() {
                 {/* Floor Number (only for floor type) */}
                 {form.type === 'floor' && (
                   <div>
-                    <label className="block text-[10px] uppercase tracking-wide text-fg-muted font-semibold mb-1.5">
-                      Floor Number
+                    <label className="block text-xs text-fg-muted font-semibold mb-1.5">
+                      Floor number
                     </label>
                     <input
                       type="number"
@@ -256,7 +256,7 @@ export default function LocationManager() {
 
                 {/* Description — full width */}
                 <div className="md:col-span-2">
-                  <label className="block text-[10px] uppercase tracking-wide text-fg-muted font-semibold mb-1.5">
+                  <label className="block text-xs text-fg-muted font-semibold mb-1.5">
                     Description
                   </label>
                   <textarea
@@ -313,8 +313,8 @@ export default function LocationManager() {
               {/* Assigned Devices */}
               {isEditing && (
                 <div className="mt-6 pt-5 border-t border-line">
-                  <h3 className="font-sans font-semibold text-sm uppercase tracking-wide text-fg-muted mb-3">
-                    Devices at this Location
+                  <h3 className="font-sans font-semibold text-sm text-fg-muted mb-3">
+                    Devices at this location
                   </h3>
                   {devices.length === 0 ? (
                     <p className="text-xs text-fg-muted">No devices assigned to this location.</p>
@@ -326,10 +326,10 @@ export default function LocationManager() {
                             <span className={`w-2 h-2 rounded-full shrink-0 ${dev.status === 'up' ? 'bg-primary' : dev.status === 'down' ? 'bg-error' : 'bg-warning'}`} />
                             <div className="min-w-0">
                               <p className="text-sm font-semibold text-fg truncate">{dev.name}</p>
-                              <p className="text-[10px] text-fg-muted font-mono">{dev.ipAddress}</p>
+                              <p className="text-xs text-fg-muted font-mono">{dev.ipAddress}</p>
                             </div>
                           </div>
-                          <span className="text-[10px] font-semibold uppercase tracking-wide text-fg-muted shrink-0 ml-3">{dev.protocol}</span>
+                          <span className="text-xs font-semibold uppercase text-fg-muted shrink-0 ml-3">{dev.protocol}</span>
                         </div>
                       ))}
                     </div>

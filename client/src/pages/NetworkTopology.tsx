@@ -314,7 +314,7 @@ export default function NetworkTopology() {
         if (l.port) {
           const mx = (l.source.x + l.target.x) / 2;
           const my = (l.source.y + l.target.y) / 2;
-          ctx.font = '8px "JetBrains Mono Variable", "JetBrains Mono", monospace';
+          ctx.font = '12px "JetBrains Mono Variable", "JetBrains Mono", monospace';
           ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
           ctx.fillStyle = 'rgba(180,180,170,0.6)';
           ctx.fillText(l.port, mx, my - 3);
@@ -342,7 +342,7 @@ export default function NetworkTopology() {
 
         // Label
         const label = n.name.length > 16 ? `${n.name.slice(0, 15)}…` : n.name;
-        ctx.font = '9px "Plus Jakarta Sans Variable", "Plus Jakarta Sans", sans-serif';
+        ctx.font = '12px "Instrument Sans Variable", "Instrument Sans", sans-serif';
         ctx.textAlign = 'center'; ctx.textBaseline = 'top';
         ctx.fillStyle = 'rgba(225,225,215,0.9)';
         ctx.fillText(label, n.x, n.y + n.r + 5);
@@ -436,7 +436,7 @@ export default function NetworkTopology() {
       </div>
 
       {/* Legend */}
-      <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-[10px] uppercase tracking-wide text-fg-muted">
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-fg-muted">
         <span className="text-success">● Up</span>
         <span className="text-warning">● Warning</span>
         <span className="text-error">● Down</span>
@@ -448,7 +448,7 @@ export default function NetworkTopology() {
 
       <div className="grid grid-cols-1 xl:grid-cols-[1fr_280px] gap-5">
         <Card variant="low" className="p-4 overflow-hidden min-h-[600px] relative">
-          <div className="text-[10px] uppercase tracking-wide text-fg-muted mb-3 flex items-center gap-3">
+          <div className="text-xs text-fg-muted mb-3 flex items-center gap-3">
             <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-success status-dot-live" /> Live topology</span>
             <span className="font-mono">{visible.list.length} nodes</span>
             <span className="font-mono">{realEdgeCount} dependency edges</span>
@@ -477,7 +477,7 @@ export default function NetworkTopology() {
                 <div className="mt-1.5 flex items-center gap-2">
                   <span className="flex items-center gap-1.5">
                     <span className="w-2 h-2 rounded-full" style={{ background: colorFor(hovered.node.status) }} />
-                    <span className="uppercase tracking-wide" style={{ color: colorFor(hovered.node.status) }}>{hovered.node.status}</span>
+                    <span className="capitalize " style={{ color: colorFor(hovered.node.status) }}>{hovered.node.status}</span>
                   </span>
                   {hovered.node.category && <span className="text-fg-subtle">· {hovered.node.category}</span>}
                 </div>
@@ -489,30 +489,30 @@ export default function NetworkTopology() {
         <Card variant="low" className="p-5">
           {selected ? (
             <>
-              <p className="text-[10px] text-fg-muted uppercase tracking-wide">Selected node</p>
+              <p className="text-xs text-fg-muted">Selected node</p>
               <h2 className="font-sans text-xl font-semibold mt-1">{selected.name}</h2>
               <p className="font-mono text-xs text-fg-muted mt-1">{selected.ipAddress}{selected.port > 0 ? `:${selected.port}` : ''}</p>
               <dl className="mt-6 space-y-4 text-sm">
                 <div>
-                  <dt className="text-[10px] uppercase text-fg-muted">Status</dt>
+                  <dt className="text-xs text-fg-muted">Status</dt>
                   <dd style={{ color: colorFor(metricsMap.get(selected.id)?.status || selected.status) }} className="font-semibold capitalize">{metricsMap.get(selected.id)?.status || selected.status}</dd>
                 </div>
                 <div>
-                  <dt className="text-[10px] uppercase text-fg-muted">Protocol</dt>
+                  <dt className="text-xs text-fg-muted">Protocol</dt>
                   <dd className="font-semibold uppercase">{selected.protocol}</dd>
                 </div>
                 {selected.deviceCategory && (
                   <div>
-                    <dt className="text-[10px] uppercase text-fg-muted">Category</dt>
+                    <dt className="text-xs text-fg-muted">Category</dt>
                     <dd className="capitalize">{selected.deviceCategory}</dd>
                   </div>
                 )}
                 <div>
-                  <dt className="text-[10px] uppercase text-fg-muted">Parent dependency</dt>
+                  <dt className="text-xs text-fg-muted">Parent dependency</dt>
                   <dd>{selected.parentDeviceId ? (nodeById.get(selected.parentDeviceId)?.name || `Device #${selected.parentDeviceId}`) : 'Root / auto-discovered'}</dd>
                 </div>
                 <div>
-                  <dt className="text-[10px] uppercase text-fg-muted">Response</dt>
+                  <dt className="text-xs text-fg-muted">Response</dt>
                   <dd className="font-mono">{metricsMap.get(selected.id)?.responseTime != null ? `${metricsMap.get(selected.id)!.responseTime}ms` : '—'}</dd>
                 </div>
               </dl>

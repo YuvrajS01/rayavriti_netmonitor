@@ -15,7 +15,7 @@ describe('Card', () => {
 
   it('applies low variant class', () => {
     const { container } = render(<Card variant="low">Low</Card>);
-    expect(container.firstChild).toHaveClass('bg-inset');
+    expect(container.firstChild).toHaveClass('bg-surface-1');
   });
 
   it('applies highest variant class', () => {

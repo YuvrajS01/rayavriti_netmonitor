@@ -98,7 +98,7 @@ const SidebarLink = memo(function SidebarLink({ to, label, icon, badge, end, onC
       <span className="material-symbols-outlined text-[18px] text-current">{icon}</span>
       <span className="min-w-0 flex-1 truncate">{label}</span>
       {badge != null && badge > 0 && (
-        <span className="ml-auto rounded-full bg-error/15 px-2 py-0.5 text-[10px] font-semibold text-error min-w-[20px] text-center">
+        <span className="ml-auto rounded-full bg-error/15 px-2 py-0.5 text-xs font-semibold text-error min-w-[20px] text-center">
           {badge > 99 ? '99+' : badge}
         </span>
       )}
@@ -210,7 +210,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             menu
           </button>
           <div className="min-w-0">
-            <div className="text-[11px] font-sans uppercase tracking-wide text-fg-muted">{currentGroup}</div>
+            <div className="text-xs font-sans text-fg-muted">{currentGroup}</div>
             <div className="truncate font-sans text-base font-semibold text-fg">{currentItem?.label || 'Overview'}</div>
           </div>
         </div>
@@ -300,7 +300,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               <img src={IconColor} alt="" className="h-7 w-7" aria-hidden="true" />
               <div>
                 <div className="font-sans text-base font-semibold leading-tight text-fg">rayavriti</div>
-                <div className="text-[10px] font-sans uppercase tracking-wide text-fg-muted">NetMonitor</div>
+                <div className="text-xs font-sans text-fg-muted">NetMonitor</div>
               </div>
             </div>
           </div>
@@ -313,8 +313,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 <div key={group.label} className="mb-2">
                   <button
                     onClick={() => toggleGroup(group.label)}
-                    className={`mb-1 flex h-8 w-full items-center gap-2 px-4 font-sans text-[11px] font-semibold uppercase tracking-wide transition-colors duration-100 ${
-                      active ? 'text-fg' : 'text-fg-muted hover:text-fg'
+                    className={`mb-1 flex h-8 w-full items-center gap-2 px-4 font-sans text-xs font-semibold transition-colors duration-100 ${
+                      active ? 'text-fg': 'text-fg-muted hover:text-fg'
                     }`}
                   >
                     <span className="material-symbols-outlined text-[16px]">
@@ -379,7 +379,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             }
           >
             <span className="material-symbols-outlined text-[20px]">{item.icon}</span>
-            <span className="text-[10px] font-medium">{item.label.split(' ')[0]}</span>
+            <span className="text-xs font-medium">{item.label.split(' ')[0]}</span>
           </NavLink>
         ))}
       </nav>

@@ -121,7 +121,7 @@ export default function ResourcePage({ config }: { config: ResourcePageConfig })
           {summaryCards.map(([key, label, icon]) => (
             <Card key={key} variant="low" className="p-4">
               <div className="flex items-center justify-between gap-3">
-                <span className="text-xs uppercase tracking-wide text-fg-muted">{label}</span>
+                <span className="text-xs text-fg-muted">{label}</span>
                 <span className="material-symbols-outlined text-[18px] text-primary">{icon}</span>
               </div>
               <div className="font-sans text-2xl font-semibold mt-2">{summary[key] ?? 0}</div>
@@ -138,7 +138,7 @@ export default function ResourcePage({ config }: { config: ResourcePageConfig })
             </div>
             <div>
               <h2 className="font-sans font-semibold text-lg">{config.title}</h2>
-              <p className="text-xs text-fg-muted uppercase tracking-wide">{filtered.length} records</p>
+              <p className="text-xs text-fg-muted">{filtered.length} records</p>
             </div>
           </div>
           <input
@@ -166,14 +166,14 @@ export default function ResourcePage({ config }: { config: ResourcePageConfig })
                     <h3 className="font-sans font-semibold text-lg">
                       {valueText(row.name || row.title || row.ip_address || row.subnet || `Record ${index + 1}`)}
                     </h3>
-                    <p className="text-xs text-fg-muted uppercase tracking-wide mt-1">
+                    <p className="text-xs text-fg-muted mt-1">
                       ID {valueText(row.id)} {row.status ? ` / ${valueText(row.status)}` : ''}
                     </p>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 lg:max-w-3xl">
                     {config.primaryFields.map((field) => (
                       <div key={field} className="min-w-0">
-                        <div className="text-[10px] text-fg-muted uppercase tracking-wide">{formatKey(field)}</div>
+                        <div className="text-xs text-fg-muted">{formatKey(field)}</div>
                         <div className="text-sm font-medium truncate">{valueText(row[field])}</div>
                       </div>
                     ))}

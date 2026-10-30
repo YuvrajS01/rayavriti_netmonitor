@@ -35,8 +35,8 @@ export default function DeviceTab({ devices, onSelectDevice }: { devices: Device
       <div className="bg-surface-1 rounded-lg p-6 border border-line">
         <div className="flex items-center gap-2 mb-6">
           <span className="material-symbols-outlined text-primary text-xl">devices</span>
-          <h3 className="text-sm font-sans font-semibold uppercase tracking-wide">Per-Device Performance</h3>
-          <span className="ml-auto text-[10px] text-fg-muted uppercase tracking-wide">{devices.length} devices</span>
+          <h3 className="text-sm font-sans font-semibold">Per-Device performance</h3>
+          <span className="ml-auto text-xs text-fg-muted">{devices.length} devices</span>
         </div>
         {devices.length === 0 ? (
           <p className="text-xs text-fg-muted text-center py-16">No device data for selected range</p>
@@ -44,7 +44,7 @@ export default function DeviceTab({ devices, onSelectDevice }: { devices: Device
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="text-[10px] uppercase tracking-wide text-fg-muted border-b border-line">
+                <tr className="text-xs text-fg-muted border-b border-line">
                   {hdr('Device', 'deviceName')}
                   {hdr('Availability', 'availabilityPercent', 'text-center')}
                   {hdr('Avg Response', 'avgResponse', 'text-right')}
@@ -61,11 +61,11 @@ export default function DeviceTab({ devices, onSelectDevice }: { devices: Device
                           {d.protocol === 'ping' ? 'router' : d.protocol === 'http' || d.protocol === 'https' ? 'public' : d.protocol === 'system' ? 'memory' : d.protocol === 'snmp' ? 'settings_input_antenna' : 'hub'}
                         </span>
                         <span className="font-sans font-semibold group-hover:text-fg transition-colors">{d.deviceName}</span>
-                        <span className="text-[10px] text-fg-muted uppercase">{d.protocol}</span>
+                        <span className="text-xs text-fg-muted uppercase">{d.protocol}</span>
                       </div>
                     </td>
                     <td className="py-3 text-center">
-                      <span className={`inline-flex px-2.5 py-1 rounded-full border text-[11px] font-semibold ${badge(d.availabilityPercent ?? 100 - (d.sampleCount > 0 ? (d.downCount / d.sampleCount) * 100 : 0))}`}>
+                      <span className={`inline-flex px-2.5 py-1 rounded-full border text-xs font-semibold ${badge(d.availabilityPercent ?? 100 - (d.sampleCount > 0 ? (d.downCount / d.sampleCount) * 100 : 0))}`}>
                         {d.availabilityPercent ?? (d.sampleCount > 0 ? (100 - (d.downCount / d.sampleCount) * 100).toFixed(1) : '100')}%
                       </span>
                     </td>

@@ -104,13 +104,13 @@ export default function ISP() {
       />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <StatCard label="Total Links" value={stats.total} icon="router" sparklineData={links.map(link => link.bandwidth_mbps)} />
+        <StatCard label="Total links" value={stats.total} icon="router" sparklineData={links.map(link => link.bandwidth_mbps)} />
         <StatCard label="Enabled" value={stats.enabled} icon="check_circle" trend="up" sparklineData={links.map(link => link.enabled ? 1 : 0)} />
-        <StatCard label="Total Bandwidth" value={`${stats.totalBandwidth} Mbps`} icon="speed" sparklineData={links.map(link => link.bandwidth_mbps)} />
-        <StatCard label="Avg Bandwidth" value={`${stats.avgBandwidth} Mbps`} icon="data_usage" sparklineData={links.map(link => link.bandwidth_mbps)} />
+        <StatCard label="Total bandwidth" value={`${stats.totalBandwidth} Mbps`} icon="speed" sparklineData={links.map(link => link.bandwidth_mbps)} />
+        <StatCard label="Avg bandwidth" value={`${stats.avgBandwidth} Mbps`} icon="data_usage" sparklineData={links.map(link => link.bandwidth_mbps)} />
       </div>
 
-      {comparison?.links?.length ? <Card variant="low" className="p-5"><div className="flex items-center justify-between mb-4"><div><h2 className="font-sans text-sm font-semibold uppercase tracking-wide">Circuit throughput comparison</h2><p className="text-xs text-fg-muted mt-1">Download and upload against provisioned capacity</p></div><span className="material-symbols-outlined text-info">speed</span></div><div className="space-y-4">{comparison.links.map(link => <div key={link.id} className="grid grid-cols-[minmax(90px,160px)_1fr_auto] gap-4 items-center"><div className="min-w-0"><strong className="text-sm block truncate">{link.name}</strong><span className="text-[10px] uppercase tracking-wide text-fg-muted">{link.provider}</span></div><div className="space-y-1.5"><div className="h-2 rounded-full bg-inset overflow-hidden"><i className="block h-full bg-info rounded-full" style={{ width: `${Math.min(100, link.bandwidthMbps ? link.avgDownload / link.bandwidthMbps * 100 : 0)}%` }} /></div><div className="h-1 rounded-full bg-inset overflow-hidden"><i className="block h-full bg-primary rounded-full" style={{ width: `${Math.min(100, link.bandwidthMbps ? link.avgUpload / link.bandwidthMbps * 100 : 0)}%` }} /></div></div><span className="font-mono text-xs text-fg-muted">↓{link.avgDownload.toFixed(1)} ↑{link.avgUpload.toFixed(1)} Mbps</span></div>)}</div></Card> : null}
+      {comparison?.links?.length ? <Card variant="low" className="p-5"><div className="flex items-center justify-between mb-4"><div><h2 className="font-sans text-sm font-semibold">Circuit throughput comparison</h2><p className="text-xs text-fg-muted mt-1">Download and upload against provisioned capacity</p></div><span className="material-symbols-outlined text-info">speed</span></div><div className="space-y-4">{comparison.links.map(link => <div key={link.id} className="grid grid-cols-[minmax(90px,160px)_1fr_auto] gap-4 items-center"><div className="min-w-0"><strong className="text-sm block truncate">{link.name}</strong><span className="text-xs text-fg-muted">{link.provider}</span></div><div className="space-y-1.5"><div className="h-2 rounded-full bg-inset overflow-hidden"><i className="block h-full bg-info rounded-full" style={{ width: `${Math.min(100, link.bandwidthMbps ? link.avgDownload / link.bandwidthMbps * 100 : 0)}%` }} /></div><div className="h-1 rounded-full bg-inset overflow-hidden"><i className="block h-full bg-primary rounded-full" style={{ width: `${Math.min(100, link.bandwidthMbps ? link.avgUpload / link.bandwidthMbps * 100 : 0)}%` }} /></div></div><span className="font-mono text-xs text-fg-muted">↓{link.avgDownload.toFixed(1)} ↑{link.avgUpload.toFixed(1)} Mbps</span></div>)}</div></Card> : null}
 
       <Card variant="low" className="overflow-hidden">
         <div className="p-5 border-b border-line flex flex-col md:flex-row gap-4 md:items-center md:justify-between">
@@ -120,7 +120,7 @@ export default function ISP() {
             </div>
             <div>
               <h2 className="font-sans font-semibold text-lg">ISP Links</h2>
-              <p className="text-xs text-fg-muted uppercase tracking-wide">{filtered.length} links</p>
+              <p className="text-xs text-fg-muted">{filtered.length} links</p>
             </div>
           </div>
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search links..." className="bg-inset border border-line rounded-lg px-4 py-2.5 text-sm text-fg placeholder:text-fg-subtle focus:ring-1 focus:ring-primary outline-none md:w-64" />
@@ -151,19 +151,19 @@ export default function ISP() {
                     </div>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 lg:max-w-2xl flex-shrink-0">
                       <div>
-                        <div className="text-[10px] text-fg-muted uppercase tracking-wide">Bandwidth</div>
+                        <div className="text-xs text-fg-muted">Bandwidth</div>
                         <div className="text-sm font-medium">{link.bandwidth_mbps} Mbps</div>
                       </div>
                       <div>
-                        <div className="text-[10px] text-fg-muted uppercase tracking-wide">Latency</div>
+                        <div className="text-xs text-fg-muted">Latency</div>
                         <div className={`text-sm font-medium ${comp && comp.avgLatencyMs > 50 ? 'text-warning' : ''}`}>{comp ? `${comp.avgLatencyMs.toFixed(1)}ms` : '-'}</div>
                       </div>
                       <div>
-                        <div className="text-[10px] text-fg-muted uppercase tracking-wide">Packet Loss</div>
+                        <div className="text-xs text-fg-muted">Packet loss</div>
                         <div className={`text-sm font-medium ${comp && comp.avgPacketLoss > 1 ? 'text-error' : 'text-success'}`}>{comp ? `${comp.avgPacketLoss.toFixed(2)}%` : '-'}</div>
                       </div>
                       <div>
-                        <div className="text-[10px] text-fg-muted uppercase tracking-wide">SLA</div>
+                        <div className="text-xs text-fg-muted">SLA</div>
                         <div className={`text-sm font-medium ${comp && comp.uptimePercent >= (link.sla_uptime_percent || 99.5) ? 'text-success' : 'text-error'}`}>
                           {comp ? `${comp.uptimePercent.toFixed(1)}%` : '-'} / {link.sla_uptime_percent || 99.5}%
                         </div>
@@ -195,7 +195,7 @@ export default function ISP() {
                 { key: 'monitoring_interval_seconds', label: 'Probe Interval (s)', type: 'number' },
               ] as const).map(({ key, label, type }) => (
                 <div key={key}>
-                  <label className="text-[10px] text-fg-muted uppercase tracking-wide block mb-1">{label}</label>
+                  <label className="text-xs text-fg-muted block mb-1">{label}</label>
                   <input type={type} value={asText(form[key])} onChange={(e) => setForm({ ...form, [key]: type === 'number' ? Number(e.target.value) : e.target.value })} className="w-full bg-inset border border-line rounded-lg px-4 py-2.5 text-sm text-fg placeholder:text-fg-subtle focus:ring-1 focus:ring-primary outline-none" />
                 </div>
               ))}
@@ -205,9 +205,9 @@ export default function ISP() {
               </div>
             </div>
             <div className="flex border-t border-line shrink-0">
-              <button onClick={() => setShowForm(false)} className="flex-1 py-3 text-xs font-sans font-semibold uppercase tracking-wide text-fg-muted hover:bg-surface-1 transition-colors">Cancel</button>
+              <button onClick={() => setShowForm(false)} className="flex-1 py-3 text-xs font-sans font-semibold text-fg-muted hover:bg-surface-1 transition-colors">Cancel</button>
               <div className="w-px bg-line/20" />
-              <button onClick={handleSubmit} disabled={submitting || !form.name} className="flex-1 py-3 text-xs font-sans font-semibold uppercase tracking-wide text-primary hover:bg-primary/10 transition-colors disabled:opacity-50">{submitting ? 'Saving...' : editing ? 'Update' : 'Create'}</button>
+              <button onClick={handleSubmit} disabled={submitting || !form.name} className="flex-1 py-3 text-xs font-sans font-semibold text-primary hover:bg-primary/10 transition-colors disabled:opacity-50">{submitting ? 'Saving...' : editing ? 'Update' : 'Create'}</button>
             </div>
           </div>
         </div>

@@ -35,8 +35,8 @@ export default function IspTab({ links }: { links: ISPReportLink[] }) {
       <div className="bg-surface-1 rounded-lg p-6 border border-line">
         <div className="flex items-center gap-2 mb-6">
           <span className="material-symbols-outlined text-primary text-xl">router</span>
-          <h3 className="text-sm font-sans font-semibold uppercase tracking-wide">ISP Link Performance</h3>
-          <span className="ml-auto text-[10px] text-fg-muted uppercase tracking-wide">{links.length} links</span>
+          <h3 className="text-sm font-sans font-semibold">ISP link performance</h3>
+          <span className="ml-auto text-xs text-fg-muted">{links.length} links</span>
         </div>
         {links.length === 0 ? (
           <p className="text-xs text-fg-muted text-center py-16">No ISP link data for selected range</p>
@@ -44,7 +44,7 @@ export default function IspTab({ links }: { links: ISPReportLink[] }) {
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="text-[10px] uppercase tracking-wide text-fg-muted border-b border-line">
+                <tr className="text-xs text-fg-muted border-b border-line">
                   {hdr('Link', 'name')}
                   {hdr('Provider', 'provider')}
                   {hdr('Uptime', 'uptimePercent', 'text-center')}
@@ -62,7 +62,7 @@ export default function IspTab({ links }: { links: ISPReportLink[] }) {
                     </td>
                     <td className="py-3 text-fg-muted">{l.provider}</td>
                     <td className="py-3 text-center">
-                      <span className={`inline-flex px-2.5 py-1 rounded-full border text-[11px] font-semibold ${badge(l.uptimePercent)}`}>
+                      <span className={`inline-flex px-2.5 py-1 rounded-full border text-xs font-semibold ${badge(l.uptimePercent)}`}>
                         {l.uptimePercent.toFixed(1)}%
                       </span>
                     </td>

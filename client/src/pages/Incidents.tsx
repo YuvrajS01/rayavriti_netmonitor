@@ -109,8 +109,8 @@ export default function Incidents() {
           <StatCard label="Open" value={stats.open} icon="radio_button_checked" color="text-error" />
           <StatCard label="Acknowledged" value={stats.acknowledged} icon="visibility" color="text-warning" />
           <StatCard label="Resolved" value={stats.resolved} icon="check_circle" color="text-success" />
-          <StatCard label="SLA Breached" value={stats.sla_breached} icon="gpp_bad" color="text-error" />
-          <StatCard label="Avg Duration" value={formatDuration(stats.avg_duration_seconds)} icon="schedule" />
+          <StatCard label="SLA breached" value={stats.sla_breached} icon="gpp_bad" color="text-error" />
+          <StatCard label="Avg duration" value={formatDuration(stats.avg_duration_seconds)} icon="schedule" />
         </div>
       )}
 
@@ -124,7 +124,7 @@ export default function Incidents() {
             </div>
             <div>
               <h2 className="font-sans font-semibold text-lg">Incidents</h2>
-              <p className="text-xs text-fg-muted uppercase tracking-wide">{filtered.length} incidents</p>
+              <p className="text-xs text-fg-muted">{filtered.length} incidents</p>
             </div>
           </div>
           <div className="flex gap-3 flex-wrap">
@@ -157,7 +157,7 @@ export default function Incidents() {
                       <div className="flex items-center gap-2 flex-wrap">
                         <h3 className="font-sans font-semibold text-lg truncate">{inc.title}</h3>
                         {inc.sla_breached && (
-                          <span className="text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-error/10 text-error">SLA Breach</span>
+                          <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-error/10 text-error">SLA breach</span>
                         )}
                       </div>
                       <p className="text-xs text-fg-muted mt-0.5">
@@ -168,19 +168,19 @@ export default function Incidents() {
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 lg:max-w-xl flex-shrink-0">
                     <div>
-                      <div className="text-[10px] text-fg-muted uppercase tracking-wide">Severity</div>
+                      <div className="text-xs text-fg-muted">Severity</div>
                       <div className={`text-sm font-semibold capitalize ${severityTextColor(inc.severity)}`}>{inc.severity}</div>
                     </div>
                     <div>
-                      <div className="text-[10px] text-fg-muted uppercase tracking-wide">Status</div>
+                      <div className="text-xs text-fg-muted">Status</div>
                       <div className={`text-sm font-semibold capitalize ${statusTextColor(inc.status)}`}>{inc.status}</div>
                     </div>
                     <div>
-                      <div className="text-[10px] text-fg-muted uppercase tracking-wide">Devices</div>
+                      <div className="text-xs text-fg-muted">Devices</div>
                       <div className="text-sm font-medium">{inc.affected_device_count}</div>
                     </div>
                     <div>
-                      <div className="text-[10px] text-fg-muted uppercase tracking-wide">Duration</div>
+                      <div className="text-xs text-fg-muted">Duration</div>
                       <div className="text-sm font-medium">{formatDuration(inc.duration_seconds)}</div>
                     </div>
                   </div>
@@ -208,28 +208,28 @@ export default function Incidents() {
             <div className="p-6 border-b border-line shrink-0"><h2 className="font-sans text-lg font-semibold">New Incident</h2></div>
             <div className="p-6 space-y-4 flex-1 min-h-0 overflow-y-auto">
               <div>
-                <label className="text-[10px] text-fg-muted uppercase tracking-wide block mb-1">Title</label>
+                <label className="text-xs text-fg-muted block mb-1">Title</label>
                 <input value={createForm.title} onChange={(e) => setCreateForm({ ...createForm, title: e.target.value })} className="w-full bg-inset border border-line rounded-lg px-4 py-2.5 text-sm text-fg placeholder:text-fg-subtle focus:ring-1 focus:ring-primary outline-none" placeholder="What happened?" />
               </div>
               <div>
-                <label className="text-[10px] text-fg-muted uppercase tracking-wide block mb-1">Severity</label>
+                <label className="text-xs text-fg-muted block mb-1">Severity</label>
                 <select value={createForm.severity} onChange={(e) => setCreateForm({ ...createForm, severity: e.target.value })} className="w-full bg-inset border border-line rounded-lg px-4 py-2.5 text-sm text-fg outline-none focus:ring-1 focus:ring-primary">
                   {SEVERITIES.map((s) => <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
                 </select>
               </div>
               <div>
-                <label className="text-[10px] text-fg-muted uppercase tracking-wide block mb-1">Description</label>
+                <label className="text-xs text-fg-muted block mb-1">Description</label>
                 <textarea value={createForm.description} onChange={(e) => setCreateForm({ ...createForm, description: e.target.value })} rows={3} className="w-full bg-inset border border-line rounded-lg px-4 py-2.5 text-sm text-fg placeholder:text-fg-subtle focus:ring-1 focus:ring-primary outline-none resize-none" />
               </div>
               <div>
-                <label className="text-[10px] text-fg-muted uppercase tracking-wide block mb-1">Impact</label>
+                <label className="text-xs text-fg-muted block mb-1">Impact</label>
                 <textarea value={createForm.impact_description} onChange={(e) => setCreateForm({ ...createForm, impact_description: e.target.value })} rows={2} className="w-full bg-inset border border-line rounded-lg px-4 py-2.5 text-sm text-fg placeholder:text-fg-subtle focus:ring-1 focus:ring-primary outline-none resize-none" placeholder="Who/what is affected?" />
               </div>
             </div>
             <div className="flex border-t border-line shrink-0">
-              <button onClick={() => setShowCreate(false)} className="flex-1 py-3 text-xs font-sans font-semibold uppercase tracking-wide text-fg-muted hover:bg-surface-1 transition-colors">Cancel</button>
+              <button onClick={() => setShowCreate(false)} className="flex-1 py-3 text-xs font-sans font-semibold text-fg-muted hover:bg-surface-1 transition-colors">Cancel</button>
               <div className="w-px bg-line/20" />
-              <button onClick={handleCreate} disabled={submitting || !createForm.title} className="flex-1 py-3 text-xs font-sans font-semibold uppercase tracking-wide text-primary hover:bg-primary/10 transition-colors disabled:opacity-50">{submitting ? 'Creating...' : 'Create'}</button>
+              <button onClick={handleCreate} disabled={submitting || !createForm.title} className="flex-1 py-3 text-xs font-sans font-semibold text-primary hover:bg-primary/10 transition-colors disabled:opacity-50">{submitting ? 'Creating...' : 'Create'}</button>
             </div>
           </div>
         </div>

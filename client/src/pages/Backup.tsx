@@ -156,9 +156,9 @@ export default function BackupPage() {
       />
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-        <StatCard label="Total Backups" value={totalBackups} icon="storage" />
+        <StatCard label="Total backups" value={totalBackups} icon="storage" />
         <StatCard label="Completed" value={completedBackups} color="text-green-400" icon="check_circle" />
-        <StatCard label="Total Size" value={formatBytes(totalSize)} icon="scale" />
+        <StatCard label="Total size" value={formatBytes(totalSize)} icon="scale" />
         <StatCard label="Retention" value={config ? `${config.retentionDays} days` : '—'} icon="schedule" />
       </div>
 
@@ -206,13 +206,13 @@ export default function BackupPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-line">
-                  <th className="text-left py-3 px-4 font-sans text-xs text-fg-muted uppercase tracking-wide">File</th>
-                  <th className="text-left py-3 px-4 font-sans text-xs text-fg-muted uppercase tracking-wide">Type</th>
-                  <th className="text-left py-3 px-4 font-sans text-xs text-fg-muted uppercase tracking-wide">Size</th>
-                  <th className="text-left py-3 px-4 font-sans text-xs text-fg-muted uppercase tracking-wide">Status</th>
-                  <th className="text-left py-3 px-4 font-sans text-xs text-fg-muted uppercase tracking-wide">Created</th>
-                  <th className="text-left py-3 px-4 font-sans text-xs text-fg-muted uppercase tracking-wide">Restored</th>
-                  <th className="text-right py-3 px-4 font-sans text-xs text-fg-muted uppercase tracking-wide">Actions</th>
+                  <th className="text-left py-3 px-4 font-sans text-xs text-fg-muted">File</th>
+                  <th className="text-left py-3 px-4 font-sans text-xs text-fg-muted">Type</th>
+                  <th className="text-left py-3 px-4 font-sans text-xs text-fg-muted">Size</th>
+                  <th className="text-left py-3 px-4 font-sans text-xs text-fg-muted">Status</th>
+                  <th className="text-left py-3 px-4 font-sans text-xs text-fg-muted">Created</th>
+                  <th className="text-left py-3 px-4 font-sans text-xs text-fg-muted">Restored</th>
+                  <th className="text-right py-3 px-4 font-sans text-xs text-fg-muted">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -224,12 +224,12 @@ export default function BackupPage() {
                         <span className="font-mono text-xs text-fg">{backup.filename}</span>
                       </div>
                       {backup.checksum && (
-                        <p className="text-[10px] text-fg-muted mt-0.5 font-mono truncate max-w-[300px]">
+                        <p className="text-xs text-fg-muted mt-0.5 font-mono truncate max-w-[300px]">
                           SHA256: {backup.checksum}
                         </p>
                       )}
                       {backup.error && (
-                        <p className="text-[10px] text-error mt-0.5 truncate max-w-[300px]">{backup.error}</p>
+                        <p className="text-xs text-error mt-0.5 truncate max-w-[300px]">{backup.error}</p>
                       )}
                     </td>
                     <td className="py-3 px-4">
@@ -308,21 +308,21 @@ export default function BackupPage() {
       {/* Backup Config Info */}
       {config && (
         <div className="mt-8 bg-surface-1 rounded-lg p-6 border border-line">
-          <h3 className="font-sans text-sm font-semibold text-fg-muted uppercase tracking-wide mb-4 flex items-center gap-2">
+          <h3 className="font-sans text-sm font-semibold text-fg-muted mb-4 flex items-center gap-2">
             <span className="material-symbols-outlined text-lg">settings</span>
             Backup Configuration
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
             <div>
-              <p className="text-xs text-fg-muted/60 uppercase tracking-wide mb-1">Backup Directory</p>
+              <p className="text-xs text-fg-muted/60 mb-1">Backup directory</p>
               <p className="font-mono text-fg">{config.backupDir}</p>
             </div>
             <div>
-              <p className="text-xs text-fg-muted/60 uppercase tracking-wide mb-1">Max Backups</p>
+              <p className="text-xs text-fg-muted/60 mb-1">Max backups</p>
               <p className="text-fg">{config.maxBackups}</p>
             </div>
             <div>
-              <p className="text-xs text-fg-muted/60 uppercase tracking-wide mb-1">Retention</p>
+              <p className="text-xs text-fg-muted/60 mb-1">Retention</p>
               <p className="text-fg">{config.retentionDays} days</p>
             </div>
           </div>

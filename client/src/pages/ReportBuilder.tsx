@@ -135,12 +135,12 @@ export default function ReportBuilder() {
         <StatCard label="Scheduled" value={stats.totalScheduled} icon="schedule" />
         <StatCard label="Active" value={stats.enabledScheduled} icon="check_circle" />
         <StatCard label="Generated" value={stats.totalGenerated} icon="description" />
-        <StatCard label="Last Run" value={stats.lastRun ? (formatDate(stats.lastRun).split(',')[0] ?? '') : 'None'} icon="history" />
+        <StatCard label="Last run" value={stats.lastRun ? (formatDate(stats.lastRun).split(',')[0] ?? '') : 'None'} icon="history" />
       </div>
 
       <div className="flex gap-1 bg-surface-1 rounded-lg p-1 w-fit">
         {(['scheduled', 'generated'] as const).map((t) => (
-          <button key={t} onClick={() => { setTab(t); setSearch(''); }} className={`px-4 py-2 text-xs font-sans font-semibold uppercase tracking-wide rounded-md transition-colors ${tab === t ? 'bg-primary text-on-primary' : 'text-fg-muted hover:text-fg'}`}>
+          <button key={t} onClick={() => { setTab(t); setSearch(''); }} className={`px-4 py-2 text-xs font-sans font-semibold rounded-md transition-colors ${tab === t ? 'bg-primary text-on-primary': 'text-fg-muted hover:text-fg'}`}>
             {t === 'scheduled' ? 'Scheduled' : 'Generated'}
           </button>
         ))}
@@ -154,7 +154,7 @@ export default function ReportBuilder() {
             </div>
             <div>
               <h2 className="font-sans font-semibold text-lg">{tab === 'scheduled' ? 'Scheduled Reports' : 'Generated Reports'}</h2>
-              <p className="text-xs text-fg-muted uppercase tracking-wide">{tab === 'scheduled' ? filteredScheduled.length : filteredGenerated.length} reports</p>
+              <p className="text-xs text-fg-muted">{tab === 'scheduled' ? filteredScheduled.length : filteredGenerated.length} reports</p>
             </div>
           </div>
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search..." className="bg-inset border border-line rounded-lg px-4 py-2.5 text-sm text-fg placeholder:text-fg-subtle focus:ring-1 focus:ring-primary outline-none md:w-64" />
@@ -181,11 +181,11 @@ export default function ReportBuilder() {
                     </div>
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 lg:max-w-lg flex-shrink-0">
                       <div>
-                        <div className="text-[10px] text-fg-muted uppercase tracking-wide">Last Run</div>
+                        <div className="text-xs text-fg-muted">Last run</div>
                         <div className="text-sm font-medium">{formatDate(r.last_run_at)}</div>
                       </div>
                       <div>
-                        <div className="text-[10px] text-fg-muted uppercase tracking-wide">Status</div>
+                        <div className="text-xs text-fg-muted">Status</div>
                         <div className={`text-sm font-medium ${r.last_run_status === 'success' ? 'text-success' : r.last_run_status === 'failed' ? 'text-error' : 'text-fg-subtle'}`}>{r.last_run_status || 'Pending'}</div>
                       </div>
                       <div className="flex items-end gap-2">
@@ -233,18 +233,18 @@ export default function ReportBuilder() {
             <div className="p-6 border-b border-line shrink-0"><h2 className="font-sans text-lg font-semibold">New Report Schedule</h2></div>
             <div className="p-6 space-y-4 flex-1 min-h-0 overflow-y-auto">
               <div>
-                <label className="text-[10px] text-fg-muted uppercase tracking-wide block mb-1">Name</label>
+                <label className="text-xs text-fg-muted block mb-1">Name</label>
                 <input value={asText(form.name)} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full bg-inset border border-line rounded-lg px-4 py-2.5 text-sm text-fg placeholder:text-fg-subtle focus:ring-1 focus:ring-primary outline-none" placeholder="Weekly IT Report" />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-[10px] text-fg-muted uppercase tracking-wide block mb-1">Report Type</label>
+                  <label className="text-xs text-fg-muted block mb-1">Report type</label>
                   <select value={asText(form.report_type, 'availability')} onChange={(e) => setForm({ ...form, report_type: e.target.value })} className="w-full bg-inset border border-line rounded-lg px-4 py-2.5 text-sm text-fg outline-none focus:ring-1 focus:ring-primary">
                     {REPORT_TYPES.map((t) => <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="text-[10px] text-fg-muted uppercase tracking-wide block mb-1">Format</label>
+                  <label className="text-xs text-fg-muted block mb-1">Format</label>
                   <select value={asText(form.format, 'html')} onChange={(e) => setForm({ ...form, format: e.target.value })} className="w-full bg-inset border border-line rounded-lg px-4 py-2.5 text-sm text-fg outline-none focus:ring-1 focus:ring-primary">
                     {FORMATS.map((f) => <option key={f} value={f}>{f.toUpperCase()}</option>)}
                   </select>
@@ -252,11 +252,11 @@ export default function ReportBuilder() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-[10px] text-fg-muted uppercase tracking-wide block mb-1">Cron Schedule</label>
+                  <label className="text-xs text-fg-muted block mb-1">Cron schedule</label>
                   <input value={asText(form.schedule_cron)} onChange={(e) => setForm({ ...form, schedule_cron: e.target.value })} className="w-full bg-inset border border-line rounded-lg px-4 py-2.5 text-sm text-fg placeholder:text-fg-subtle focus:ring-1 focus:ring-primary outline-none" placeholder="0 9 * * *" />
                 </div>
                 <div>
-                  <label className="text-[10px] text-fg-muted uppercase tracking-wide block mb-1">Lookback</label>
+                  <label className="text-xs text-fg-muted block mb-1">Lookback</label>
                   <select value={asText(form.lookback_period, '7d')} onChange={(e) => setForm({ ...form, lookback_period: e.target.value })} className="w-full bg-inset border border-line rounded-lg px-4 py-2.5 text-sm text-fg outline-none focus:ring-1 focus:ring-primary">
                     <option value="1d">Last 24 hours</option>
                     <option value="7d">Last 7 days</option>
@@ -271,9 +271,9 @@ export default function ReportBuilder() {
               </div>
             </div>
             <div className="flex border-t border-line shrink-0">
-              <button onClick={() => setShowForm(false)} className="flex-1 py-3 text-xs font-sans font-semibold uppercase tracking-wide text-fg-muted hover:bg-surface-1 transition-colors">Cancel</button>
+              <button onClick={() => setShowForm(false)} className="flex-1 py-3 text-xs font-sans font-semibold text-fg-muted hover:bg-surface-1 transition-colors">Cancel</button>
               <div className="w-px bg-line/20" />
-              <button onClick={handleSubmit} disabled={submitting || !form.name} className="flex-1 py-3 text-xs font-sans font-semibold uppercase tracking-wide text-primary hover:bg-primary/10 transition-colors disabled:opacity-50">{submitting ? 'Saving...' : 'Create'}</button>
+              <button onClick={handleSubmit} disabled={submitting || !form.name} className="flex-1 py-3 text-xs font-sans font-semibold text-primary hover:bg-primary/10 transition-colors disabled:opacity-50">{submitting ? 'Saving...' : 'Create'}</button>
             </div>
           </div>
         </div>

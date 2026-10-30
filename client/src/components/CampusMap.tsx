@@ -67,7 +67,7 @@ function LocationNodeComponent({ node, selectedId, onSelect }: { node: Hierarchi
              <span className="material-symbols-outlined text-primary text-xl">domain</span>
              <h3 className="font-sans font-bold text-lg text-fg">{String(node.name)}</h3>
           </div>
-          <span className="text-[10px] uppercase tracking-wide text-fg-muted bg-surface-3 px-2 py-1 rounded">
+          <span className="text-xs text-fg-muted bg-surface-3 px-2 py-1 rounded">
             {total} nodes
           </span>
         </div>
@@ -97,7 +97,7 @@ function LocationNodeComponent({ node, selectedId, onSelect }: { node: Hierarchi
              <span className="material-symbols-outlined text-info text-base">layers</span>
              <span className="font-sans font-semibold text-sm text-fg">{String(node.name)}</span>
            </div>
-           <span className="text-[10px] uppercase tracking-wide text-fg-muted">{total} nodes</span>
+           <span className="text-xs text-fg-muted">{total} nodes</span>
          </div>
          {node.children.length > 0 && (
            <div className="flex flex-wrap gap-2">
@@ -120,7 +120,7 @@ function LocationNodeComponent({ node, selectedId, onSelect }: { node: Hierarchi
       <div className={`w-1.5 h-1.5 rounded-full ${dotColor}`} />
       <span className="material-symbols-outlined text-[14px] text-fg-muted">{icon}</span>
       <span className="font-sans text-xs font-medium text-fg">{String(node.name)}</span>
-      <span className="text-[10px] text-fg-muted ml-1">({total})</span>
+      <span className="text-xs text-fg-muted ml-1">({total})</span>
     </div>
   );
 }
@@ -174,7 +174,7 @@ export default function CampusMap({ locations, selectedId, onSelect }: Props) {
             <div className="flex items-center gap-3">
                <span className="material-symbols-outlined text-primary text-3xl">apartment</span>
                <h2 className="font-sans text-2xl font-bold text-fg">{String(campus.name)}</h2>
-               <span className="text-[10px] uppercase tracking-wide text-fg-muted bg-surface-2 px-2.5 py-1 rounded-md ml-1">
+               <span className="text-xs text-fg-muted bg-surface-2 px-2.5 py-1 rounded-md ml-1">
                  {campus.device_count || 0} nodes
                </span>
             </div>

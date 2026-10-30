@@ -75,16 +75,16 @@ export default class ErrorBoundary extends Component<Props, State> {
             {!staleBuild && (
               <button
                 onClick={this.handleRetry}
-                className="bg-primary text-on-primary font-sans font-semibold py-3 px-6 rounded-lg text-xs tracking-wide uppercase hover:bg-primary/90 transition-colors"
+                className="bg-primary text-on-primary font-sans font-semibold py-3 px-6 rounded-lg text-xs hover:bg-primary/90 transition-colors"
               >
-                Try Again
+                Try again
               </button>
             )}
             <button
               onClick={this.handleReload}
-              className="bg-inset text-fg border border-line font-sans font-semibold py-3 px-6 rounded-lg text-xs tracking-wide uppercase hover:bg-inset/80 transition-[background-color,transform]"
+              className="bg-inset text-fg border border-line font-sans font-semibold py-3 px-6 rounded-lg text-xs hover:bg-inset/80 transition-[background-color,transform]"
             >
-              Reload Page
+              Reload page
             </button>
           </div>
         </div>

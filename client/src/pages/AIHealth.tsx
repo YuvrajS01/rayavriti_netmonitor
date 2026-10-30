@@ -102,7 +102,7 @@ function RadialGauge({ score, size = 140, strokeWidth = 10, label }: { score: nu
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
         <span className={`font-sans text-3xl font-semibold ${scoreColor(score)}`}>{score.toFixed(2)}</span>
-        {label && <span className="text-[10px] uppercase tracking-wide text-fg-muted mt-0.5">{label}</span>}
+        {label && <span className="text-xs text-fg-muted mt-0.5">{label}</span>}
       </div>
     </div>
   );
@@ -118,7 +118,7 @@ function FactorBreakdown({ factors }: { factors: HealthFactors }) {
         const factor = factors[key];
         return (
           <div key={key}>
-            <div className="flex justify-between text-[10px] uppercase tracking-wide mb-1">
+            <div className="flex justify-between text-xs mb-1">
               <span className="text-fg-muted">{FACTOR_LABELS[key]}</span>
               <span style={{ color: FACTOR_COLORS[key] }}>{factor.score.toFixed(2)}/100</span>
             </div>
@@ -188,12 +188,12 @@ function DeviceScoreCard({ device, deviceInsights }: { device: DeviceHealth; dev
           <RingGauge value={device.score} size={72} strokeWidth={6} />
           <div className="min-w-0">
             <h3 className="font-sans text-lg font-semibold text-fg truncate">{device.deviceName}</h3>
-            <p className={`text-[10px] uppercase tracking-wide font-semibold ${scoreColor(device.score)}`}>{device.label}</p>
+            <p className={`text-xs font-semibold ${scoreColor(device.score)}`}>{device.label}</p>
             <div className={`flex items-center gap-1 mt-1.5 ${trendColor(device.trend)}`}>
               <span className={`material-symbols-outlined text-sm ${device.trend === 'degrading' ? 'trend-pulse' : ''}`}>
                 {trendIcon(device.trend)}
               </span>
-              <span className="text-[10px] uppercase tracking-wide font-semibold">
+              <span className="text-xs font-semibold">
                 {device.trend}{device.trendDelta !== 0 ? ` (${device.trendDelta > 0 ? '+' : ''}${device.trendDelta.toFixed(2)})` : ''}
               </span>
             </div>
@@ -204,19 +204,19 @@ function DeviceScoreCard({ device, deviceInsights }: { device: DeviceHealth; dev
         <div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
             <div className="bg-surface-1 rounded-lg p-3">
-              <p className="text-[10px] uppercase tracking-wide text-fg-muted">Availability</p>
+              <p className="text-xs text-fg-muted">Availability</p>
               <p className="font-semibold text-fg">{device.availabilityPercent}%</p>
             </div>
             <div className="bg-surface-1 rounded-lg p-3">
-              <p className="text-[10px] uppercase tracking-wide text-fg-muted">Avg Response</p>
+              <p className="text-xs text-fg-muted">Avg response</p>
               <p className="font-semibold text-fg">{device.avgResponseMs}ms</p>
             </div>
             <div className="bg-surface-1 rounded-lg p-3">
-              <p className="text-[10px] uppercase tracking-wide text-fg-muted">Alerts</p>
+              <p className="text-xs text-fg-muted">Alerts</p>
               <p className="font-semibold text-fg">{device.activeAlerts}</p>
             </div>
             <div className="bg-surface-1 rounded-lg p-3">
-              <p className="text-[10px] uppercase tracking-wide text-fg-muted">Open Ports</p>
+              <p className="text-xs text-fg-muted">Open ports</p>
               <p className="font-semibold text-fg">{device.openPorts}</p>
             </div>
           </div>
@@ -228,10 +228,10 @@ function DeviceScoreCard({ device, deviceInsights }: { device: DeviceHealth; dev
 
         {/* Right: Primary Issue + Insights */}
         <div className="bg-surface-1 rounded-lg p-4 border border-line">
-          <p className="text-[10px] uppercase tracking-wide text-fg-muted mb-2">Primary Issue</p>
+          <p className="text-xs text-fg-muted mb-2">Primary issue</p>
           <p className="text-sm font-semibold text-fg leading-snug">{primaryIssue?.message || 'No issue detected'}</p>
           <div className="mt-4 pt-4 border-t border-line">
-            <p className="text-[10px] uppercase tracking-wide text-fg-muted mb-2">Related Insights</p>
+            <p className="text-xs text-fg-muted mb-2">Related insights</p>
             {deviceInsights.length === 0 ? (
               <p className="text-xs text-fg-muted">No extra insights</p>
             ) : (
@@ -252,7 +252,7 @@ function DeviceScoreCard({ device, deviceInsights }: { device: DeviceHealth; dev
             onClick={() => setExpanded(!expanded)}
             className="w-full px-5 py-2.5 flex items-center justify-between text-xs text-fg-muted hover:text-fg transition-colors"
           >
-            <span className="uppercase tracking-wide font-semibold">
+            <span className="font-semibold">
               {expanded ? 'Hide' : 'Show'} all {issues.length} issues
             </span>
             <span className="material-symbols-outlined text-sm transition-transform" style={{ transform: expanded ? 'rotate(180deg)' : '' }}>
@@ -362,7 +362,7 @@ export default function AIHealth() {
         title="AI Health Score"
         subtitle="Weighted device risk scoring from availability, latency, alerts, stability, and port changes with trend analysis."
         action={
-          <button onClick={load} className="bg-primary text-on-primary font-semibold py-2.5 px-5 rounded-lg tracking-wide uppercase hover:bg-primary/90 transition-colors text-sm flex items-center justify-center gap-2">
+          <button onClick={load} className="bg-primary text-on-primary font-semibold py-2.5 px-5 rounded-lg hover:bg-primary/90 transition-colors text-sm flex items-center justify-center gap-2">
             <span className="material-symbols-outlined text-base">refresh</span>
             Refresh
           </button>
@@ -378,24 +378,24 @@ export default function AIHealth() {
             <span className={`material-symbols-outlined text-lg ${networkTrend.trend === 'degrading' ? 'trend-pulse' : ''}`}>
               {trendIcon(networkTrend.trend)}
             </span>
-            <span className="text-xs uppercase tracking-wide font-semibold">
+            <span className="text-xs font-semibold">
               {networkTrend.trend}
               {networkTrend.delta !== 0 && ` (${networkTrend.delta > 0 ? '+' : ''}${Number(networkTrend.delta.toFixed(2))})`}
             </span>
           </div>
-          <p className="text-[10px] text-fg-muted uppercase tracking-wide mt-2">
+          <p className="text-xs text-fg-muted mt-2">
             {devices.length} device{devices.length !== 1 ? 's' : ''} monitored
           </p>
         </div>
 
         {/* Distribution + Top Risks */}
         <div className="bg-surface-1 rounded-lg p-6 border border-line flex flex-col">
-          <h3 className="text-sm font-sans font-semibold uppercase tracking-wide mb-4">Health Distribution</h3>
+          <h3 className="text-sm font-sans font-semibold mb-4">Health distribution</h3>
           <DistributionBar distribution={distribution} />
 
           {topRisks.length > 0 && (
             <div className="mt-6 pt-4 border-t border-line">
-              <h4 className="text-[10px] uppercase tracking-wide text-fg-muted mb-3 font-semibold">Top Risks</h4>
+              <h4 className="text-xs text-fg-muted mb-3 font-semibold">Top risks</h4>
               <div className="space-y-2.5">
                 {topRisks.map((risk) => (
                   <div key={risk.deviceId} className="flex items-center gap-3">
@@ -404,7 +404,7 @@ export default function AIHealth() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-fg truncate">{risk.deviceName}</p>
-                      <p className="text-[10px] text-fg-muted truncate">{risk.primaryIssue}</p>
+                      <p className="text-xs text-fg-muted truncate">{risk.primaryIssue}</p>
                     </div>
                     <span className={`material-symbols-outlined text-sm ${trendColor(risk.trend)}`}>
                       {trendIcon(risk.trend)}
@@ -418,7 +418,7 @@ export default function AIHealth() {
 
         {/* Health Timeline */}
         <div className="bg-surface-1 rounded-lg p-6 border border-line">
-          <h3 className="text-sm font-sans font-semibold uppercase tracking-wide mb-4">12-Hour Timeline</h3>
+          <h3 className="text-sm font-sans font-semibold mb-4">12-Hour timeline</h3>
           {timelineData.length < 2 ? (
             <div className="flex items-center justify-center h-40 text-xs text-fg-muted">
               Not enough history data yet
@@ -465,19 +465,19 @@ export default function AIHealth() {
       {/* Summary Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-5 mb-6">
         <div className="bg-surface-1 rounded-lg p-5 border border-line">
-          <p className="text-[10px] text-fg-muted uppercase tracking-wide mb-1">Average Score</p>
+          <p className="text-xs text-fg-muted mb-1">Average score</p>
           <p className={`font-sans text-3xl font-semibold ${scoreColor(networkScore)}`}>{networkScore.toFixed(2)}</p>
         </div>
         <div className="bg-surface-1 rounded-lg p-5 border border-line">
-          <p className="text-[10px] text-fg-muted uppercase tracking-wide mb-1">Critical Devices</p>
+          <p className="text-xs text-fg-muted mb-1">Critical devices</p>
           <p className="font-sans text-3xl font-semibold text-error">{distribution.critical}</p>
         </div>
         <div className="bg-surface-1 rounded-lg p-5 border border-line">
-          <p className="text-[10px] text-fg-muted uppercase tracking-wide mb-1">Watch List</p>
+          <p className="text-xs text-fg-muted mb-1">Watch list</p>
           <p className="font-sans text-3xl font-semibold text-warning">{distribution.watch + distribution.risk}</p>
         </div>
         <div className="bg-surface-1 rounded-lg p-5 border border-line">
-          <p className="text-[10px] text-fg-muted uppercase tracking-wide mb-1">Open Issues</p>
+          <p className="text-xs text-fg-muted mb-1">Open issues</p>
           <p className="font-sans text-3xl font-semibold text-primary">{totalIssues}</p>
         </div>
       </div>

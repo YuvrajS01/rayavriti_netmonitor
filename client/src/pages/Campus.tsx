@@ -174,7 +174,7 @@ export default function Campus() {
         ].map((s) => (
           <Card key={s.label} variant="low" className="p-4">
             <div className="flex items-center justify-between">
-              <span className="text-[10px] uppercase tracking-wide text-fg-muted font-semibold">
+              <span className="text-xs text-fg-muted font-semibold">
                 {s.label}
               </span>
               <span className={`material-symbols-outlined text-base ${s.color}`}>{s.icon}</span>
@@ -204,7 +204,7 @@ export default function Campus() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
           {/* Left Panel — Tree */}
           <Card variant="low" className="lg:col-span-4 xl:col-span-3 p-4 max-h-[75vh] overflow-hidden flex flex-col">
-            <h2 className="font-sans font-semibold text-sm uppercase tracking-wide text-fg-muted mb-3 flex items-center gap-2">
+            <h2 className="font-sans font-semibold text-sm text-fg-muted mb-3 flex items-center gap-2">
               <span className="material-symbols-outlined text-base text-primary">account_tree</span>
               Location Tree
             </h2>
@@ -226,7 +226,7 @@ export default function Campus() {
                   <div className="flex items-start justify-between gap-4">
                     <div>
                       <h2 className="font-sans font-semibold text-xl">{String(selected.name)}</h2>
-                      <p className="text-xs text-fg-muted uppercase tracking-wide mt-1">
+                      <p className="text-xs text-fg-muted mt-1">
                         {asText(selected.type)} {selected.code ? `· ${asText(selected.code)}` : ''}
                       </p>
                       {selected.description ? (
@@ -267,7 +267,7 @@ export default function Campus() {
 
                 {/* Device table */}
                 <div className="p-5">
-                  <h3 className="font-sans font-semibold text-sm uppercase tracking-wide text-fg-muted mb-3">
+                  <h3 className="font-sans font-semibold text-sm text-fg-muted mb-3">
                     Devices at this location ({selectedDevices.length})
                   </h3>
                   {selectedDevices.length === 0 ? (
@@ -280,11 +280,11 @@ export default function Campus() {
                       <table className="w-full text-sm">
                         <thead>
                           <tr className="border-b border-line text-left">
-                            <th className="pb-2 text-[10px] uppercase tracking-wide text-fg-muted font-semibold">Status</th>
-                            <th className="pb-2 text-[10px] uppercase tracking-wide text-fg-muted font-semibold">Name</th>
-                            <th className="pb-2 text-[10px] uppercase tracking-wide text-fg-muted font-semibold">IP Address</th>
-                            <th className="pb-2 text-[10px] uppercase tracking-wide text-fg-muted font-semibold">Protocol</th>
-                            <th className="pb-2 text-[10px] uppercase tracking-wide text-fg-muted font-semibold">Category</th>
+                            <th className="pb-2 text-xs text-fg-muted font-semibold">Status</th>
+                            <th className="pb-2 text-xs text-fg-muted font-semibold">Name</th>
+                            <th className="pb-2 text-xs text-fg-muted font-semibold">IP address</th>
+                            <th className="pb-2 text-xs text-fg-muted font-semibold">Protocol</th>
+                            <th className="pb-2 text-xs text-fg-muted font-semibold">Category</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -303,7 +303,7 @@ export default function Campus() {
                               <td className="py-2.5 pr-3 text-fg-muted font-mono text-xs">
                                 {d.ipAddress}
                               </td>
-                              <td className="py-2.5 pr-3 text-fg-muted uppercase text-xs">
+                              <td className="py-2.5 pr-3 text-fg-muted text-xs">
                                 {d.protocol}
                               </td>
                               <td className="py-2.5 text-fg-muted text-xs">

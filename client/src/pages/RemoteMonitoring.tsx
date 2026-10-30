@@ -64,7 +64,7 @@ export default function RemoteMonitoring() {
 
   return <div className="mx-auto max-w-7xl space-y-6 p-4 sm:p-6">
     <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-      <div><p className="text-xs font-sans uppercase tracking-widest text-primary">Fleet Operations</p><h1 className="font-sans text-3xl font-semibold">Remote Monitoring</h1><p className="mt-1 text-sm text-fg-muted">Monitor connected NetMonitor sites from one workspace.</p></div>
+      <div><p className="text-xs font-sansst text-primary">Fleet operations</p><h1 className="font-sans text-3xl font-semibold">Remote Monitoring</h1><p className="mt-1 text-sm text-fg-muted">Monitor connected NetMonitor sites from one workspace.</p></div>
       <Button icon="add_link" onClick={() => setShowForm(true)}>Add instance</Button>
     </div>
     {error && <div className="rounded-md border border-error/30 bg-error/15 px-4 py-3 text-sm text-error">{error}</div>}

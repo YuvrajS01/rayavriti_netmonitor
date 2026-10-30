@@ -84,13 +84,13 @@ export default function Discovery() {
       />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <StatCard label="Total Scans" value={stats.total} icon="radar" sparklineData={jobs.map(job => job.totalIpsScanned)} />
+        <StatCard label="Total scans" value={stats.total} icon="radar" sparklineData={jobs.map(job => job.totalIpsScanned)} />
         <StatCard label="Completed" value={stats.completed} icon="check_circle" trend="up" sparklineData={jobs.map(job => job.status === 'completed' ? 1 : 0)} />
         <StatCard label="Running" value={stats.running} icon="progress_activity" color={stats.running > 0 ? 'text-warning' : undefined} trend={stats.running ? 'up' : 'flat'} sparklineData={jobs.map(job => job.status === 'running' ? 1 : 0)} />
-        <StatCard label="Devices Found" value={stats.totalFound} icon="devices" sparklineData={jobs.map(job => job.devicesFound)} />
+        <StatCard label="Devices found" value={stats.totalFound} icon="devices" sparklineData={jobs.map(job => job.devicesFound)} />
       </div>
 
-      <Card variant="low" className="p-6 overflow-hidden"><div className="flex items-center justify-between"><div><h2 className="font-sans text-sm font-semibold uppercase tracking-wide">Discovery sweep</h2><p className="text-xs text-fg-muted mt-1">Live scan coverage and discovered nodes</p></div><span className={`material-symbols-outlined text-4xl text-primary ${stats.running ? 'animate-spin' : ''}`}>radar</span></div><div className="mt-6 grid grid-cols-12 gap-1.5">{Array.from({ length: 48 }, (_, index) => <i key={index} className={`h-6 rounded-sm ${index < Math.min(48, stats.totalFound) ? 'bg-success/80' : index < Math.min(48, stats.totalFound + stats.running * 8) ? 'bg-warning/60' : 'bg-inset'}`} />)}</div></Card>
+      <Card variant="low" className="p-6 overflow-hidden"><div className="flex items-center justify-between"><div><h2 className="font-sans text-sm font-semibold">Discovery sweep</h2><p className="text-xs text-fg-muted mt-1">Live scan coverage and discovered nodes</p></div><span className={`material-symbols-outlined text-4xl text-primary ${stats.running ? 'animate-spin' : ''}`}>radar</span></div><div className="mt-6 grid grid-cols-12 gap-1.5">{Array.from({ length: 48 }, (_, index) => <i key={index} className={`h-6 rounded-sm ${index < Math.min(48, stats.totalFound) ? 'bg-success/80' : index < Math.min(48, stats.totalFound + stats.running * 8) ? 'bg-warning/60' : 'bg-inset'}`} />)}</div></Card>
 
       <Card variant="low" className="overflow-hidden">
         <div className="p-5 border-b border-line flex flex-col md:flex-row gap-4 md:items-center md:justify-between">
@@ -100,7 +100,7 @@ export default function Discovery() {
             </div>
             <div>
               <h2 className="font-sans font-semibold text-lg">Scan Jobs</h2>
-              <p className="text-xs text-fg-muted uppercase tracking-wide">{filtered.length} jobs</p>
+              <p className="text-xs text-fg-muted">{filtered.length} jobs</p>
             </div>
           </div>
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search scans..." className="bg-inset border border-line rounded-lg px-4 py-2.5 text-sm text-fg placeholder:text-fg-subtle focus:ring-1 focus:ring-primary outline-none md:w-64" />
@@ -127,19 +127,19 @@ export default function Discovery() {
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 lg:max-w-xl flex-shrink-0">
                     <div>
-                      <div className="text-[10px] text-fg-muted uppercase tracking-wide">Scanned</div>
+                      <div className="text-xs text-fg-muted">Scanned</div>
                       <div className="text-sm font-medium">{job.totalIpsScanned}</div>
                     </div>
                     <div>
-                      <div className="text-[10px] text-fg-muted uppercase tracking-wide">Found</div>
+                      <div className="text-xs text-fg-muted">Found</div>
                       <div className="text-sm font-semibold text-primary">{job.devicesFound}</div>
                     </div>
                     <div>
-                      <div className="text-[10px] text-fg-muted uppercase tracking-wide">New</div>
+                      <div className="text-xs text-fg-muted">New</div>
                       <div className="text-sm font-medium text-success">{job.devicesNew}</div>
                     </div>
                     <div>
-                      <div className="text-[10px] text-fg-muted uppercase tracking-wide">Known</div>
+                      <div className="text-xs text-fg-muted">Known</div>
                       <div className="text-sm font-medium">{job.devicesKnown}</div>
                     </div>
                   </div>
@@ -170,10 +170,10 @@ export default function Discovery() {
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
                           <span className="font-mono text-sm font-semibold">{r.ipAddress}</span>
-                          {r.approvedDeviceId && <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-success/10 text-success">Approved</span>}
-                          {!r.approvedDeviceId && r.status === 'pending' && <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-warning/10 text-warning">Pending</span>}
-                          {r.guessedCategory && <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-primary/10 text-primary">{r.guessedCategory.replace(/_/g, ' ')}</span>}
-                          {r.guessedOs && <span className="text-[10px] px-2 py-0.5 rounded bg-surface-2 text-fg-muted">{r.guessedOs}</span>}
+                          {r.approvedDeviceId && <span className="text-xs font-semibold px-2 py-0.5 rounded bg-success/10 text-success">Approved</span>}
+                          {!r.approvedDeviceId && r.status === 'pending' && <span className="text-xs font-semibold px-2 py-0.5 rounded bg-warning/10 text-warning">Pending</span>}
+                          {r.guessedCategory && <span className="text-xs font-semibold px-2 py-0.5 rounded bg-primary/10 text-primary">{r.guessedCategory.replace(/_/g, ' ')}</span>}
+                          {r.guessedOs && <span className="text-xs px-2 py-0.5 rounded bg-surface-2 text-fg-muted">{r.guessedOs}</span>}
                         </div>
                         <div className="text-xs text-fg-muted mt-1 space-y-0.5">
                           {r.manufacturer && <div>Vendor: {r.manufacturer}</div>}
@@ -206,11 +206,11 @@ export default function Discovery() {
             <div className="p-6 border-b border-line shrink-0"><h2 className="font-sans text-lg font-semibold">New Subnet Scan</h2></div>
             <div className="p-6 space-y-4 flex-1 min-h-0 overflow-y-auto">
               <div>
-                <label className="text-[10px] text-fg-muted uppercase tracking-wide block mb-1">Subnet (CIDR)</label>
+                <label className="text-xs text-fg-muted block mb-1">Subnet (CIDR)</label>
                 <input value={scanForm.subnet} onChange={(e) => setScanForm({ ...scanForm, subnet: e.target.value })} className="w-full bg-inset border border-line rounded-lg px-4 py-2.5 text-sm text-fg font-mono placeholder:text-fg-subtle focus:ring-1 focus:ring-primary outline-none" placeholder="10.0.0.0/24" />
               </div>
               <div>
-                <label className="text-[10px] text-fg-muted uppercase tracking-wide block mb-1">Scan Type</label>
+                <label className="text-xs text-fg-muted block mb-1">Scan type</label>
                 <select value={scanForm.scan_type} onChange={(e) => setScanForm({ ...scanForm, scan_type: e.target.value })} className="w-full bg-inset border border-line rounded-lg px-4 py-2.5 text-sm text-fg outline-none focus:ring-1 focus:ring-primary">
                   <option value="ping_only">Ping Only</option>
                   <option value="ping_snmp">Ping + SNMP</option>
@@ -219,9 +219,9 @@ export default function Discovery() {
               </div>
             </div>
             <div className="flex border-t border-line shrink-0">
-              <button onClick={() => setShowScanForm(false)} className="flex-1 py-3 text-xs font-sans font-semibold uppercase tracking-wide text-fg-muted hover:bg-surface-1 transition-colors">Cancel</button>
+              <button onClick={() => setShowScanForm(false)} className="flex-1 py-3 text-xs font-sans font-semibold text-fg-muted hover:bg-surface-1 transition-colors">Cancel</button>
               <div className="w-px bg-line/20" />
-              <button onClick={handleScan} disabled={submitting || !scanForm.subnet} className="flex-1 py-3 text-xs font-sans font-semibold uppercase tracking-wide text-primary hover:bg-primary/10 transition-colors disabled:opacity-50">{submitting ? 'Starting...' : 'Start Scan'}</button>
+              <button onClick={handleScan} disabled={submitting || !scanForm.subnet} className="flex-1 py-3 text-xs font-sans font-semibold text-primary hover:bg-primary/10 transition-colors disabled:opacity-50">{submitting ? 'Starting...' : 'Start Scan'}</button>
             </div>
           </div>
         </div>

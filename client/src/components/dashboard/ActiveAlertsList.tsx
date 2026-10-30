@@ -12,14 +12,14 @@ function ActiveAlertsListInner({ alerts }: Props) {
         <span className="material-symbols-outlined text-error text-xl">notifications_active</span>
         <h3 className="text-sm font-sans font-semibold text-fg">Active Alerts</h3>
         {alerts.length > 0 && (
-          <span className="ml-auto bg-error/15 text-error px-2 py-0.5 rounded-full text-[10px] font-semibold" aria-label={`${alerts.length} active alerts`}>{alerts.length}</span>
+          <span className="ml-auto bg-error/15 text-error px-2 py-0.5 rounded-full text-xs font-semibold" aria-label={`${alerts.length} active alerts`}>{alerts.length}</span>
         )}
       </div>
       <div className="space-y-3">
         {alerts.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 h-full">
             <span className="material-symbols-outlined text-4xl mb-2 text-success">check_circle</span>
-            <p className="text-xs text-fg-muted uppercase tracking-wide">All Systems Operational</p>
+            <p className="text-xs text-fg-muted">All systems operational</p>
           </div>
         ) : (
           alerts.slice(0, 8).map((alert) => {
@@ -35,7 +35,7 @@ function ActiveAlertsListInner({ alerts }: Props) {
                 <div className="flex-1">
                   <div className="flex items-center justify-between mb-1">
                     <span className="font-sans font-medium text-sm text-fg">{alert.deviceName || `Device ${alert.deviceId}`}</span>
-                    <span className="text-[10px] font-mono text-fg-muted">{new Date(alert.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                    <span className="text-xs font-mono text-fg-muted">{new Date(alert.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                   </div>
                   <p className="text-xs text-fg-muted font-sans">{alert.message}</p>
                 </div>

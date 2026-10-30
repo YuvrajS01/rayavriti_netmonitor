@@ -21,8 +21,8 @@ export default function StatCard({ label, value, color = 'text-fg', icon, sparkl
     <div className="bg-surface-1 p-5 rounded-lg border border-line stat-card group">
       <div className="flex items-center gap-2 mb-2">
         {icon && <span className="material-symbols-outlined text-sm opacity-60">{icon}</span>}
-        <p className="text-fg-muted text-xs uppercase tracking-wide font-sans font-medium">{label}</p>
-        {(trend || delta) && <span className={`ml-auto inline-flex items-center gap-0.5 text-[10px] font-mono ${trend === 'down' ? 'text-error' : trend === 'up' ? 'text-success' : 'text-fg-muted'}`}>
+        <p className="text-fg-muted text-xs font-sans font-medium">{label}</p>
+        {(trend || delta) && <span className={`ml-auto inline-flex items-center gap-0.5 text-xs font-mono ${trend === 'down' ? 'text-error' : trend === 'up' ? 'text-success' : 'text-fg-muted'}`}>
           {trend && <span className="material-symbols-outlined text-sm">{trend === 'up' ? 'trending_up' : trend === 'down' ? 'trending_down' : 'trending_flat'}</span>}{delta}
         </span>}
       </div>

@@ -72,8 +72,8 @@ function StatusDistributionInner({ metrics }: Props) {
               </Pie>
               <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: unknown, name: unknown) => [Number(v ?? 0), String(name)]} />
               <text x="50%" y="46%" textAnchor="middle" dominantBaseline="middle" fill="currentColor" className="text-fg">
-                <tspan x="50%" dy="-0.3em" fontSize="24" fontWeight="600" fontFamily="'Instrument Sans Variable', sans-serif">{active ? active.value : donutTotal}</tspan>
-                <tspan x="50%" dy="1.3em" fontSize="9" className="text-fg-muted" fontFamily="'Plus Jakarta Sans Variable', sans-serif" letterSpacing="0.12em">{active ? active.name.toUpperCase() : 'DEVICES'}</tspan>
+                <tspan x="50%" dy="-0.3em" fontSize="24" fontWeight="600" fontFamily="var(--font-sans)">{active ? active.value : donutTotal}</tspan>
+                <tspan x="50%" dy="1.3em" fontSize="12" fill="var(--color-fg-muted)" fontFamily="var(--font-sans)">{active ? active.name : 'devices'}</tspan>
               </text>
             </PieChart>
           </ResponsiveContainer>

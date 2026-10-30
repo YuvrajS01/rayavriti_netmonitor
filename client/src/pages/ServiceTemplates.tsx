@@ -60,7 +60,7 @@ export default function ServiceTemplates() {
       ) : (
         categories.map((cat) => (
           <div key={cat} className="mb-6">
-            <h2 className="font-sans text-sm font-semibold uppercase tracking-wide text-fg-muted mb-4">{cat}</h2>
+            <h2 className="font-sans text-sm font-semibold text-fg-muted mb-4">{cat}</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
               {templates.filter((t) => t.category === cat).map((tmpl) => (
                 <Card key={tmpl.name} hover onClick={() => setSelected(tmpl)} className="p-5 cursor-pointer">
@@ -100,7 +100,7 @@ export default function ServiceTemplates() {
 
             <div className="p-6 space-y-4 flex-1 min-h-0 overflow-y-auto">
               <div>
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-fg-muted mb-2">Checks ({selected.checks?.length ?? 0})</h3>
+                <h3 className="text-xs font-semibold text-fg-muted mb-2">Checks ({selected.checks?.length ?? 0})</h3>
                 <div className="space-y-2">
                   {(selected.checks ?? []).map((chk) => (
                     <div key={chk.name} className="flex items-center gap-3 text-sm">
@@ -113,7 +113,7 @@ export default function ServiceTemplates() {
               </div>
 
               <div>
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-fg-muted mb-2">Alert Rules ({selected.alerts?.length ?? 0})</h3>
+                <h3 className="text-xs font-semibold text-fg-muted mb-2">Alert Rules ({selected.alerts?.length ?? 0})</h3>
                 <div className="space-y-2">
                   {(selected.alerts ?? []).map((alert) => (
                     <div key={alert.name} className="flex items-center gap-3 text-sm">
@@ -128,18 +128,18 @@ export default function ServiceTemplates() {
               </div>
 
               <div className="border-t border-line pt-4">
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-fg-muted mb-3">Apply Template</h3>
+                <h3 className="text-xs font-semibold text-fg-muted mb-3">Apply template</h3>
                 <div className="space-y-3">
                   <div>
-                    <label className="text-[10px] text-fg-muted uppercase tracking-wide block mb-1">Host / IP Address *</label>
+                    <label className="text-xs text-fg-muted block mb-1">Host / IP address *</label>
                     <input value={applyForm.host} onChange={(e) => setApplyForm({ ...applyForm, host: e.target.value })} className="w-full bg-inset border border-line rounded-lg px-4 py-2.5 text-sm text-fg placeholder:text-fg-subtle focus:ring-1 focus:ring-primary outline-none" placeholder="e.g. 10.2.1.100" />
                   </div>
                   <div>
-                    <label className="text-[10px] text-fg-muted uppercase tracking-wide block mb-1">Custom Name (optional)</label>
+                    <label className="text-xs text-fg-muted block mb-1">Custom name (optional)</label>
                     <input value={applyForm.name} onChange={(e) => setApplyForm({ ...applyForm, name: e.target.value })} className="w-full bg-inset border border-line rounded-lg px-4 py-2.5 text-sm text-fg placeholder:text-fg-subtle focus:ring-1 focus:ring-primary outline-none" placeholder="e.g. CS Lab ERP Server" />
                   </div>
                   <div>
-                    <label className="text-[10px] text-fg-muted uppercase tracking-wide block mb-1">Location ID (optional)</label>
+                    <label className="text-xs text-fg-muted block mb-1">Location ID (optional)</label>
                     <input value={applyForm.locationId} onChange={(e) => setApplyForm({ ...applyForm, locationId: e.target.value })} className="w-full bg-inset border border-line rounded-lg px-4 py-2.5 text-sm text-fg placeholder:text-fg-subtle focus:ring-1 focus:ring-primary outline-none" placeholder="e.g. 5" />
                   </div>
                 </div>
@@ -147,9 +147,9 @@ export default function ServiceTemplates() {
             </div>
 
             <div className="flex border-t border-line shrink-0">
-              <button onClick={() => setSelected(null)} className="flex-1 py-3 text-xs font-sans font-semibold uppercase tracking-wide text-fg-muted hover:bg-surface-1 transition-colors">Cancel</button>
+              <button onClick={() => setSelected(null)} className="flex-1 py-3 text-xs font-sans font-semibold text-fg-muted hover:bg-surface-1 transition-colors">Cancel</button>
               <div className="w-px bg-line/20" />
-              <button onClick={handleApply} disabled={applying || !applyForm.host} className="flex-1 py-3 text-xs font-sans font-semibold uppercase tracking-wide text-primary hover:bg-primary/10 transition-colors disabled:opacity-50">
+              <button onClick={handleApply} disabled={applying || !applyForm.host} className="flex-1 py-3 text-xs font-sans font-semibold text-primary hover:bg-primary/10 transition-colors disabled:opacity-50">
                 {applying ? 'Applying...' : 'Apply Template'}
               </button>
             </div>

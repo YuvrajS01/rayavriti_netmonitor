@@ -71,8 +71,8 @@ export default function ExpandedChartsModal({ metrics, onClose }: ExpandedCharts
           <div className="flex items-center gap-3">
             <span className="material-symbols-outlined text-primary text-3xl">query_stats</span>
             <div>
-              <h2 className="font-sans text-2xl font-semibold text-fg uppercase tracking-tight">Detailed Response Times</h2>
-              <p className="text-fg-muted text-xs font-mono uppercase tracking-wide">Individual node performance telemetry</p>
+              <h2 className="font-sans text-2xl font-semibold text-fg">Detailed response times</h2>
+              <p className="text-fg-muted text-xs font-mono">Individual node performance telemetry</p>
             </div>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-inset rounded-full transition-colors" aria-label="Close dialog">
@@ -84,7 +84,7 @@ export default function ExpandedChartsModal({ metrics, onClose }: ExpandedCharts
           {devices.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full opacity-50">
               <span className="material-symbols-outlined text-6xl mb-4">monitoring</span>
-              <p className="text-sm font-sans uppercase tracking-wide text-fg-muted">No telemetry data available</p>
+              <p className="text-sm font-sans text-fg-muted">No telemetry data available</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -103,13 +103,13 @@ export default function ExpandedChartsModal({ metrics, onClose }: ExpandedCharts
                     <div className="flex justify-between items-start mb-4">
                       <div>
                         <h3 className="font-sans text-lg font-semibold text-fg truncate pr-2">{dev}</h3>
-                        <p className="text-[10px] text-fg-muted uppercase tracking-wide font-mono mt-1">
+                        <p className="text-xs text-fg-muted font-mono mt-1">
                           Latest: <span style={{ color }}>{latest?.response ?? '-'}ms</span>
                         </p>
                       </div>
-                      <div className={`px-2 py-0.5 rounded-full text-[9px] font-semibold uppercase tracking-wide border
-                        ${latest?.status === 'down' ? 'border-error text-error bg-error/10' :
-                          (latest?.status === 'warning' || latest?.status === 'degraded' ? 'border-warning text-warning bg-warning/10' :
+                      <div className={`capitalize px-2 py-0.5 rounded-full text-xs font-semibold border
+                        ${latest?.status === 'down'? 'border-error text-error bg-error/10':
+                          (latest?.status === 'warning'|| latest?.status === 'degraded'? 'border-warning text-warning bg-warning/10':
                           'border-primary text-primary bg-primary/10')}`}>
                         {latest?.status || 'Unknown'}
                       </div>

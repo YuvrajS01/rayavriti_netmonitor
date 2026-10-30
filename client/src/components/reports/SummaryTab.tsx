@@ -11,10 +11,10 @@ function KpiCard({ icon, label, value, sub, color = 'text-primary' }: { icon: st
     <div className="bg-surface-1 rounded-lg p-5 border border-line flex flex-col gap-2 hover:border-line-strong/30 transition-colors duration-200">
       <div className="flex items-center gap-2">
         <span className="material-symbols-outlined text-lg opacity-60">{icon}</span>
-        <span className="text-[10px] text-fg-muted uppercase tracking-wide font-semibold">{label}</span>
+        <span className="text-xs text-fg-muted font-semibold">{label}</span>
       </div>
       <p className={`font-sans text-3xl font-semibold ${color}`}>{value}</p>
-      {sub && <p className="text-[11px] text-fg-muted">{sub}</p>}
+      {sub && <p className="text-xs text-fg-muted">{sub}</p>}
     </div>
   );
 }
@@ -56,8 +56,8 @@ export default function SummaryTab({ summary, series }: { summary: ReportSummary
 
       {/* Combined Chart */}
       <div className="bg-surface-1 rounded-lg p-5 border border-line">
-        <h3 className="text-sm font-sans font-semibold mb-1 uppercase tracking-wide">Availability & Response Time</h3>
-        <p className="text-[11px] text-fg-muted mb-3">Availability % (left) · Avg response ms (right)</p>
+        <h3 className="text-sm font-sans font-semibold mb-1">Availability & response time</h3>
+        <p className="text-xs text-fg-muted mb-3">Availability % (left) · Avg response ms (right)</p>
         {chartSeries.length === 0 ? <p className="text-xs text-fg-muted text-center py-16">No data for selected range</p> : (
           <ResponsiveContainer width="100%" height={280}>
             <ComposedChart data={chartSeries} margin={{ top: 4, right: 48, left: 0, bottom: 0 }}>
@@ -82,8 +82,8 @@ export default function SummaryTab({ summary, series }: { summary: ReportSummary
 
       {/* Sample Distribution */}
       <div className="bg-surface-1 rounded-lg p-5 border border-line">
-        <h3 className="text-sm font-sans font-semibold mb-1 uppercase tracking-wide">Sample Distribution</h3>
-        <p className="text-[11px] text-fg-muted mb-3">Count of healthy / down checks per time bucket</p>
+        <h3 className="text-sm font-sans font-semibold mb-1">Sample distribution</h3>
+        <p className="text-xs text-fg-muted mb-3">Count of healthy / down checks per time bucket</p>
         {chartSeries.length === 0 ? <p className="text-xs text-fg-muted text-center py-12">No data</p> : (
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={downBarData} margin={{ top: 4, right: 8, left: -20, bottom: 0 }} barSize={16}>

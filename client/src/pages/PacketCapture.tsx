@@ -51,7 +51,7 @@ const HexDump = ({ hex }: { hex?: string }) => {
   if (rows.length === 0) return <p className="text-xs text-fg-muted opacity-50">No payload data</p>;
 
   return (
-    <div className="font-mono text-[11px] leading-relaxed overflow-x-auto">
+    <div className="font-mono text-xs leading-relaxed overflow-x-auto">
       {rows.map((row, ri) => {
         const offset = (ri * 16).toString(16).padStart(4, '0');
         const hexPart = row.join(' ').padEnd(47, ' ');
@@ -199,7 +199,7 @@ export default function PacketCapture() {
       <div className="bg-surface-1 rounded-lg p-5 border border-line mb-6">
         <div className="flex flex-col md:flex-row items-start md:items-center gap-4">
           <div className="flex-shrink-0">
-            <label className="text-[10px] uppercase tracking-wide text-fg-muted block mb-1">Interface</label>
+            <label className="text-xs text-fg-muted block mb-1">Interface</label>
             <select
               value={currentIface}
               onChange={(e) => setSelectedIface(e.target.value)}
@@ -215,7 +215,7 @@ export default function PacketCapture() {
           </div>
 
           <div className="flex-1 min-w-0">
-            <label className="text-[10px] uppercase tracking-wide text-fg-muted block mb-1">BPF Filter</label>
+            <label className="text-xs text-fg-muted block mb-1">BPF filter</label>
             <input
               type="text"
               value={bpfFilter}
@@ -230,7 +230,7 @@ export default function PacketCapture() {
             {activeSession?.status === 'running' ? (
               <button
                 onClick={handleStop}
-                className="flex items-center gap-2 bg-error/20 text-error border border-error/30 px-6 py-2.5 rounded-lg font-sans font-semibold text-xs uppercase tracking-wide hover:bg-error hover:text-on-error transition-[background-color,color]"
+                className="flex items-center gap-2 bg-error/20 text-error border border-error/30 px-6 py-2.5 rounded-lg font-sans font-semibold text-xs hover:bg-error hover:text-on-error transition-[background-color,color]"
               >
                 <span className="material-symbols-outlined text-lg">stop_circle</span>
                 Stop Capture
@@ -239,7 +239,7 @@ export default function PacketCapture() {
               <button
                 onClick={handleStart}
                 disabled={isStarting || !currentIface}
-                className="flex items-center gap-2 bg-primary/20 text-primary border border-primary/30 px-6 py-2.5 rounded-lg font-sans font-semibold text-xs uppercase tracking-wide hover:bg-primary hover:text-on-primary transition-[background-color,color] disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex items-center gap-2 bg-primary/20 text-primary border border-primary/30 px-6 py-2.5 rounded-lg font-sans font-semibold text-xs hover:bg-primary hover:text-on-primary transition-[background-color,color] disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <span className="material-symbols-outlined text-lg">play_circle</span>
                 {isStarting ? 'Starting...' : 'Start Capture'}
@@ -251,10 +251,10 @@ export default function PacketCapture() {
             <div className="flex items-center gap-4 ml-auto">
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full bg-error" />
-                <span className="text-error font-mono text-xs uppercase tracking-wider">Live</span>
+                <span className="text-error font-mono text-xsr">Live</span>
               </div>
               <div className="text-center">
-                <p className="text-[10px] text-fg-muted uppercase tracking-wide">Packets</p>
+                <p className="text-xs text-fg-muted">Packets</p>
                 <p className="font-sans font-semibold text-lg text-fg">{packets.length}</p>
               </div>
             </div>
@@ -270,19 +270,19 @@ export default function PacketCapture() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-6">
-        <div className="bg-surface-1 rounded-lg p-4 border border-line"><p className="text-[10px] uppercase tracking-wide text-fg-muted">Packet rate</p><div className="flex items-end justify-between mt-2"><span className="font-sans text-2xl font-semibold">{packets.length}</span><Sparkline data={rateData.length ? rateData : [0, 0]} color="var(--color-info)" showTrend /></div><p className="text-[10px] text-fg-muted mt-2">Recent capture activity</p></div>
-        <div className="bg-surface-1 rounded-lg p-4 border border-line"><p className="text-[10px] uppercase tracking-wide text-fg-muted">Packet size histogram</p><div className="flex items-end gap-2 h-14 mt-2">{packetSizes.map(bucket => <div key={bucket.label} className="flex-1 flex flex-col justify-end h-full"><i className="bg-secondary rounded-t-sm" style={{ height: `${Math.max(5, packets.length ? bucket.count / packets.length * 100 : 5)}%` }} /><span className="text-[8px] text-fg-muted mt-1 text-center">{bucket.label}</span></div>)}</div></div>
+        <div className="bg-surface-1 rounded-lg p-4 border border-line"><p className="text-xs text-fg-muted">Packet rate</p><div className="flex items-end justify-between mt-2"><span className="font-sans text-2xl font-semibold">{packets.length}</span><Sparkline data={rateData.length ? rateData : [0, 0]} color="var(--color-info)" showTrend /></div><p className="text-xs text-fg-muted mt-2">Recent capture activity</p></div>
+        <div className="bg-surface-1 rounded-lg p-4 border border-line"><p className="text-xs text-fg-muted">Packet size histogram</p><div className="flex items-end gap-2 h-14 mt-2">{packetSizes.map(bucket => <div key={bucket.label} className="flex-1 flex flex-col justify-end h-full"><i className="bg-secondary rounded-t-sm" style={{ height: `${Math.max(5, packets.length ? bucket.count / packets.length * 100 : 5)}%` }} /><span className="text-xs text-fg-muted mt-1 text-center">{bucket.label}</span></div>)}</div></div>
         <div className="bg-surface-1 rounded-lg p-3 border border-line flex items-center gap-4"><RingGauge value={activeSession?.status === 'running' ? 72 : packets.length ? 100 : 0} size={76} strokeWidth={6} label="capture" /><div><p className="text-sm font-sans font-semibold">Session signal</p><p className="text-xs text-fg-muted mt-1">{activeSession?.status === 'running' ? 'Capturing packets in real time.' : 'Start a capture to activate the stream.'}</p></div></div>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-6">
         <div className="xl:col-span-2 bg-surface-1 rounded-lg border border-line flex flex-col" style={{ maxHeight: '600px' }}>
           <div className="flex items-center justify-between p-4 border-b border-line">
-            <h3 className="text-sm font-sans font-semibold uppercase tracking-wide flex items-center gap-2">
+            <h3 className="text-sm font-sans font-semibold flex items-center gap-2">
               <span className="material-symbols-outlined text-primary text-lg">list_alt</span>
               Captured Packets
               {packets.length > 0 && (
-                <span className="text-fg-muted font-mono text-[10px] ml-2">({packets.length})</span>
+                <span className="text-fg-muted font-mono text-xs ml-2">({packets.length})</span>
               )}
             </h3>
             <button
@@ -296,7 +296,7 @@ export default function PacketCapture() {
           <div className="overflow-auto flex-1">
             <table className="w-full text-left border-collapse">
               <thead className="sticky top-0 bg-surface-1 z-10">
-                <tr className="text-[9px] uppercase tracking-wide text-fg-muted border-b border-line">
+                <tr className="text-xs text-fg-muted border-b border-line">
                   <th className="py-2 px-3 font-medium w-12">No.</th>
                   <th className="py-2 px-2 font-medium">Time</th>
                   <th className="py-2 px-2 font-medium">Source</th>
@@ -306,7 +306,7 @@ export default function PacketCapture() {
                   <th className="py-2 px-2 font-medium">Info</th>
                 </tr>
               </thead>
-              <tbody className="text-[11px] font-mono">
+              <tbody className="text-xs font-mono">
                 {packets.length === 0 ? (
                   <tr><td colSpan={7} className="py-16">
                     <EmptyState
@@ -342,7 +342,7 @@ export default function PacketCapture() {
                           {pkt.dstIp}{pkt.dstPort ? `:${pkt.dstPort}` : ''}
                         </td>
                         <td className="py-1.5 px-2">
-                          <span className="inline-block px-1.5 py-0.5 rounded text-[9px] font-semibold"
+                          <span className="inline-block px-1.5 py-0.5 rounded text-xs font-semibold"
                             style={{ color: style.text, background: style.bg, border: `1px solid ${style.border}` }}>
                             {pkt.protocol}
                           </span>
@@ -362,7 +362,7 @@ export default function PacketCapture() {
         <div className="flex flex-col gap-6">
           <div className="bg-surface-1 rounded-lg border border-line flex flex-col" style={{ maxHeight: '380px' }}>
             <div className="p-4 border-b border-line">
-              <h3 className="text-sm font-sans font-semibold uppercase tracking-wide flex items-center gap-2">
+              <h3 className="text-sm font-sans font-semibold flex items-center gap-2">
                 <span className="material-symbols-outlined text-fg-muted text-lg">search</span>
                 Packet Detail
               </h3>
@@ -389,12 +389,12 @@ export default function PacketCapture() {
                     </div>
                     <div className="flex items-center gap-2 text-xs">
                       <span className="text-fg-muted w-14">Info:</span>
-                      <span className="text-fg text-[11px]">{selectedPacket.flags || '-'}</span>
+                      <span className="text-fg text-xs">{selectedPacket.flags || '-'}</span>
                     </div>
                   </div>
 
                   <div>
-                    <p className="text-[10px] uppercase tracking-wide text-fg-muted mb-2">Hex Dump</p>
+                    <p className="text-xs text-fg-muted mb-2">Hex dump</p>
                     <div className="bg-canvas rounded-lg p-3 border border-line overflow-x-auto">
                       <HexDump hex={selectedPacket.payload} />
                     </div>
@@ -403,14 +403,14 @@ export default function PacketCapture() {
               ) : (
                 <div className="flex flex-col items-center justify-center h-full opacity-50 py-8">
                   <span className="material-symbols-outlined text-3xl mb-2 text-fg-muted">touch_app</span>
-                  <p className="text-[10px] text-fg-muted uppercase tracking-wide">Select a packet to inspect</p>
+                  <p className="text-xs text-fg-muted">Select a packet to inspect</p>
                 </div>
               )}
             </div>
           </div>
 
           <div className="bg-surface-1 rounded-lg p-4 border border-line">
-            <h3 className="text-sm font-sans font-semibold uppercase tracking-wide mb-3 flex items-center gap-2">
+            <h3 className="text-sm font-sans font-semibold mb-3 flex items-center gap-2">
               <span className="material-symbols-outlined text-fg-muted text-lg">donut_small</span>
               Protocol Stats
             </h3>
@@ -440,7 +440,7 @@ export default function PacketCapture() {
       </div>
 
       <div className="bg-surface-1 rounded-lg p-5 border border-line">
-        <h3 className="text-sm font-sans font-semibold uppercase tracking-wide mb-4 flex items-center gap-2">
+        <h3 className="text-sm font-sans font-semibold mb-4 flex items-center gap-2">
           <span className="material-symbols-outlined text-fg-muted text-lg">history</span>
           Capture History
         </h3>
@@ -450,7 +450,7 @@ export default function PacketCapture() {
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="text-[10px] uppercase tracking-wide text-fg-muted border-b border-line">
+                <tr className="text-xs text-fg-muted border-b border-line">
                   <th className="pb-2 font-medium">ID</th>
                   <th className="pb-2 font-medium">Interface</th>
                   <th className="pb-2 font-medium">Filter</th>
@@ -471,7 +471,7 @@ export default function PacketCapture() {
                       <td className="py-2.5 font-mono text-fg">{s.interfaceName}</td>
                       <td className="py-2.5 text-fg-muted font-mono">{s.filter || '—'}</td>
                       <td className="py-2.5">
-                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase ${
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold uppercase ${
                           isRunning ? 'text-primary bg-primary/10 border border-primary/20'
                             : isError ? 'text-error bg-error/10 border border-error/20'
                             : 'text-fg-muted bg-inset border border-line'
@@ -489,9 +489,9 @@ export default function PacketCapture() {
                         {!isRunning && s.totalPackets > 0 && (
                           <button
                             onClick={() => { setActiveSession(s); void loadSessionPackets(s.id); }}
-                            className="text-primary hover:text-fg/80 text-[10px] uppercase tracking-wider font-semibold"
+                            className="text-primary hover:text-fg/80 text-xsr font-semibold"
                           >
-                            View Packets
+                            View packets
                           </button>
                         )}
                       </td>

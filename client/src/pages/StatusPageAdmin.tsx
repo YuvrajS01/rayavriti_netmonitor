@@ -94,14 +94,14 @@ export default function StatusPageAdmin() {
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <StatCard label="Services" value={stats.totalServices} icon="dns" />
-        <StatCard label="Active Incidents" value={stats.activeIncidents} icon="crisis_alert" color={stats.activeIncidents > 0 ? 'text-error' : undefined} />
+        <StatCard label="Active incidents" value={stats.activeIncidents} icon="crisis_alert" color={stats.activeIncidents > 0 ? 'text-error' : undefined} />
         <StatCard label="Groups" value={stats.groups} icon="folder" />
         <StatCard label="Enabled" value={stats.enabledServices} icon="check_circle" />
       </div>
 
       <div className="flex gap-1 bg-surface-1 rounded-lg p-1 w-fit">
         {(['services', 'incidents'] as const).map((t) => (
-          <button key={t} onClick={() => { setTab(t); setSearch(''); }} className={`px-4 py-2 text-xs font-sans font-semibold uppercase tracking-wide rounded-md transition-colors ${tab === t ? 'bg-primary text-on-primary' : 'text-fg-muted hover:text-fg'}`}>
+          <button key={t} onClick={() => { setTab(t); setSearch(''); }} className={`px-4 py-2 text-xs font-sans font-semibold rounded-md transition-colors ${tab === t ? 'bg-primary text-on-primary': 'text-fg-muted hover:text-fg'}`}>
             {t === 'services' ? 'Services' : 'Incidents'}
           </button>
         ))}
@@ -115,7 +115,7 @@ export default function StatusPageAdmin() {
             </div>
             <div>
               <h2 className="font-sans font-semibold text-lg">{tab === 'services' ? 'Services' : 'Incidents'}</h2>
-              <p className="text-xs text-fg-muted uppercase tracking-wide">{tab === 'services' ? filteredServices.length : filteredIncidents.length} items</p>
+              <p className="text-xs text-fg-muted">{tab === 'services' ? filteredServices.length : filteredIncidents.length} items</p>
             </div>
           </div>
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search..." className="bg-inset border border-line rounded-lg px-4 py-2.5 text-sm text-fg placeholder:text-fg-subtle focus:ring-1 focus:ring-primary outline-none md:w-64" />
@@ -142,8 +142,8 @@ export default function StatusPageAdmin() {
                       </div>
                     </div>
                     <div className="flex gap-2 items-center">
-                      {s.show_uptime && <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-primary/10 text-primary">Uptime</span>}
-                      {s.show_response_time && <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-info/10 text-info">Response</span>}
+                      {s.show_uptime && <span className="text-xs font-semibold px-2 py-0.5 rounded bg-primary/10 text-primary">Uptime</span>}
+                      {s.show_response_time && <span className="text-xs font-semibold px-2 py-0.5 rounded bg-info/10 text-info">Response</span>}
                       <button onClick={() => openEditService(s)} className="text-xs font-semibold text-primary hover:bg-primary/10 px-3 py-1 rounded transition-colors">Edit</button>
                       <button onClick={() => setDeleteTarget(s)} className="text-xs font-semibold text-error hover:bg-error/10 px-3 py-1 rounded transition-colors">Delete</button>
                     </div>
@@ -165,7 +165,7 @@ export default function StatusPageAdmin() {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <h3 className="font-sans font-semibold text-lg">{i.title}</h3>
-                      <span className={`text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full ${i.resolved_at ? 'bg-success/10 text-success' : 'bg-error/10 text-error'}`}>{i.resolved_at ? 'resolved' : i.status}</span>
+                      <span className={`text-xs font-semibold uppercase px-2 py-0.5 rounded-full ${i.resolved_at ? 'bg-success/10 text-success' : 'bg-error/10 text-error'}`}>{i.resolved_at ? 'resolved' : i.status}</span>
                     </div>
                     <p className="text-xs text-fg-muted mt-0.5 capitalize">{i.severity} · #{i.id}</p>
                     {i.message && <p className="text-sm text-fg-muted mt-2 line-clamp-2">{i.message}</p>}
@@ -188,12 +188,12 @@ export default function StatusPageAdmin() {
                 { key: 'group_name', label: 'Group', type: 'text' },
               ].map(({ key, label }) => (
                 <div key={key}>
-                  <label className="text-[10px] text-fg-muted uppercase tracking-wide block mb-1">{label}</label>
+                  <label className="text-xs text-fg-muted block mb-1">{label}</label>
                   <input value={asText(serviceForm[key])} onChange={(e) => setServiceForm({ ...serviceForm, [key]: e.target.value })} className="w-full bg-inset border border-line rounded-lg px-4 py-2.5 text-sm text-fg placeholder:text-fg-subtle focus:ring-1 focus:ring-primary outline-none" />
                 </div>
               ))}
               <div>
-                <label className="text-[10px] text-fg-muted uppercase tracking-wide block mb-1">Aggregation</label>
+                <label className="text-xs text-fg-muted block mb-1">Aggregation</label>
                 <select value={asText(serviceForm.aggregation, 'any_down')} onChange={(e) => setServiceForm({ ...serviceForm, aggregation: e.target.value })} className="w-full bg-inset border border-line rounded-lg px-4 py-2.5 text-sm text-fg outline-none focus:ring-1 focus:ring-primary">
                   <option value="any_down">Any Down</option>
                   <option value="all_down">All Down</option>
@@ -214,9 +214,9 @@ export default function StatusPageAdmin() {
               </div>
             </div>
             <div className="flex border-t border-line shrink-0">
-              <button onClick={() => setShowServiceForm(false)} className="flex-1 py-3 text-xs font-sans font-semibold uppercase tracking-wide text-fg-muted hover:bg-surface-1 transition-colors">Cancel</button>
+              <button onClick={() => setShowServiceForm(false)} className="flex-1 py-3 text-xs font-sans font-semibold text-fg-muted hover:bg-surface-1 transition-colors">Cancel</button>
               <div className="w-px bg-line/20" />
-              <button onClick={handleServiceSubmit} disabled={submitting || !serviceForm.name} className="flex-1 py-3 text-xs font-sans font-semibold uppercase tracking-wide text-primary hover:bg-primary/10 transition-colors disabled:opacity-50">{submitting ? 'Saving...' : editingService ? 'Update' : 'Create'}</button>
+              <button onClick={handleServiceSubmit} disabled={submitting || !serviceForm.name} className="flex-1 py-3 text-xs font-sans font-semibold text-primary hover:bg-primary/10 transition-colors disabled:opacity-50">{submitting ? 'Saving...' : editingService ? 'Update' : 'Create'}</button>
             </div>
           </div>
         </div>

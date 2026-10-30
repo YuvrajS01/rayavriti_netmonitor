@@ -124,7 +124,7 @@ function RoomVisual({
         <span className="material-symbols-outlined text-primary">meeting_room</span>
         <div>
           <h3 className="font-sans font-semibold text-base">{String(location.name)}</h3>
-          <p className="text-[10px] uppercase tracking-wide text-fg-muted">Room</p>
+          <p className="text-xs text-fg-muted">Room</p>
         </div>
       </div>
       <div className="p-4 flex-1 flex flex-col gap-3">
@@ -156,8 +156,8 @@ function RoomVisual({
                     <span className="font-semibold text-sm truncate">{d.name}</span>
                   </div>
                   <div className="flex items-center justify-between mt-1">
-                    <span className="font-mono text-[11px] text-fg-muted">{d.ipAddress}</span>
-                    <span className="text-[9px] uppercase tracking-wide bg-surface-3 px-1.5 py-0.5 rounded text-fg-muted">
+                    <span className="font-mono text-xs text-fg-muted">{d.ipAddress}</span>
+                    <span className="text-xs uppercase bg-surface-3 px-1.5 py-0.5 rounded text-fg-muted">
                       {d.protocol}
                     </span>
                   </div>
@@ -214,7 +214,7 @@ function RackVisual({
         <span className="material-symbols-outlined text-primary">dns</span>
         <div>
           <h3 className="font-sans font-semibold text-base">{String(location.name)}</h3>
-          <p className="text-[10px] uppercase tracking-wide text-fg-muted">42U Rack</p>
+          <p className="text-xs text-fg-muted">42U rack</p>
         </div>
       </div>
       <div className="flex-1 overflow-y-auto p-4 bg-inset">
@@ -233,7 +233,7 @@ function RackVisual({
                   className={`flex items-center h-8 bg-surface-2 border-l-4 ${borderClass} px-2 hover:bg-surface-2 cursor-pointer transition-colors group`}
                   title={`${device.name} (${device.ipAddress})`}
                 >
-                  <div className="w-5 text-[9px] text-fg-muted font-mono text-right pr-2 select-none">
+                  <div className="w-5 text-xs text-fg-muted font-mono text-right pr-2 select-none">
                     {u}
                   </div>
                   <div className="flex-1 min-w-0 flex items-center gap-2">
@@ -250,7 +250,7 @@ function RackVisual({
             
             return (
               <div key={u} className="flex items-center h-8 bg-inset border border-dashed border-line px-2 opacity-50">
-                <div className="w-5 text-[9px] text-line font-mono text-right pr-2 select-none">
+                <div className="w-5 text-xs text-line font-mono text-right pr-2 select-none">
                   {u}
                 </div>
               </div>

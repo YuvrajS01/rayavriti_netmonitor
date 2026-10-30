@@ -15,6 +15,6 @@ export default function RingGauge({ value, size = 128, strokeWidth = 9, label, c
     </svg>
     {showParticles && score > 90 && <span className="absolute inset-4 rounded-full ring-particles" aria-hidden="true" />}
     <span className={`absolute font-sans font-semibold tabular-nums ${valueClassName ?? 'text-3xl'}`} style={{ color }}><AnimatedCounter value={score} decimals={shownDecimals} /></span>
-    {label && <span className="absolute top-[68%] text-[9px] uppercase tracking-[.14em] text-fg-muted">{label}</span>}
+    {label && <span className="absolute top-[68%] text-xs text-fg-muted">{label}</span>}
   </div>;
 }

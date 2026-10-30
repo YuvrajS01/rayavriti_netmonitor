@@ -12,7 +12,7 @@ function SmartInsightsInner({ insights }: Props) {
     <div className="xl:col-span-2 bg-surface-1 rounded-lg p-5 border border-line">
       <div className="flex items-center justify-between gap-4 mb-4">
         <h3 className="text-sm font-sans font-semibold text-fg">Smart Insights</h3>
-        <span className="text-xs text-fg-muted uppercase tracking-wide">
+        <span className="text-xs text-fg-muted">
           {insights?.generatedAt ? new Date(insights.generatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Pending'}
         </span>
       </div>
@@ -26,7 +26,7 @@ function SmartInsightsInner({ insights }: Props) {
             <div role="listitem" key={`${item.deviceId}-${idx}`} className={`rounded-lg border ${bg} p-3 flex gap-3 min-h-24`}>
               <span className={`material-symbols-outlined ${color} text-lg mt-0.5`}>{isCritical ? 'error' : isWarn ? 'warning' : 'tips_and_updates'}</span>
               <div className="min-w-0">
-                <p className={`text-xs font-semibold uppercase tracking-wide ${color}`}>{item.deviceName}</p>
+                <p className={`text-xs font-semibold ${color}`}>{item.deviceName}</p>
                 <p className="text-xs text-fg-muted mt-1 leading-relaxed">Score: {item.score.toFixed(2)} — {item.label}</p>
               </div>
             </div>

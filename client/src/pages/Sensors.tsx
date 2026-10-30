@@ -81,7 +81,7 @@ export default function Sensors() {
         action={
           <div className="bg-surface-1 px-6 py-3 rounded-lg border border-line flex items-center gap-4">
             <div className="text-right">
-              <p className="text-xs uppercase tracking-wide text-fg-subtle">System Health</p>
+              <p className="text-xs text-fg-subtle">System health</p>
               <p className="text-primary font-semibold">{healthPercent}%</p>
             </div>
             <div className="w-12 h-1 bg-inset rounded-full overflow-hidden">
@@ -98,7 +98,7 @@ export default function Sensors() {
       {!loading && !error && (
         <>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-            <StatCard label="Total Sensors" value={total} icon="sensors" trend="up" sparklineData={metrics.map((m) => m.responseTime ?? 0)} />
+            <StatCard label="Total sensors" value={total} icon="sensors" trend="up" sparklineData={metrics.map((m) => m.responseTime ?? 0)} />
             <StatCard label="Healthy" value={healthy} icon="check_circle" color="text-primary" trend="up" sparklineData={metrics.map((m) => (m.status === 'up' || m.status === 'ok' ? 1 : 0))} />
             <StatCard label="Warning" value={warn} icon="warning" color="text-warning" trend={warn ? 'flat' : 'down'} sparklineData={metrics.map((m) => (m.status === 'warning' || m.status === 'degraded' ? 1 : 0))} />
             <StatCard label="Down" value={down} icon="error" color="text-error" trend={down ? 'up' : 'down'} sparklineData={metrics.map((m) => (m.status === 'down' ? 1 : 0))} />
@@ -106,7 +106,7 @@ export default function Sensors() {
 
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-6">
             <div className="xl:col-span-2 bg-surface-1 rounded-lg p-4 border border-line">
-              <h3 className="text-sm font-sans font-semibold mb-3 uppercase tracking-wide">Protocol Health Breakdown</h3>
+              <h3 className="text-sm font-sans font-semibold mb-3">Protocol health breakdown</h3>
               {protocolBarData.length === 0 ? (
                 <p className="text-xs text-fg-muted text-center py-16">No data yet</p>
               ) : (
@@ -125,7 +125,7 @@ export default function Sensors() {
             </div>
 
             <div className="bg-surface-1 rounded-lg p-4 border border-line">
-              <h3 className="text-sm font-sans font-semibold mb-3 uppercase tracking-wide">Avg Response (ms) by Protocol</h3>
+              <h3 className="text-sm font-sans font-semibold mb-3">Avg response (ms) by protocol</h3>
               {radarData.length === 0 ? (
                 <p className="text-xs text-fg-muted text-center py-16">No data yet</p>
               ) : (
@@ -143,7 +143,7 @@ export default function Sensors() {
 
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
             <div className="xl:col-span-2 space-y-6">
-              <h2 className="font-sans text-xl font-semibold uppercase tracking-tight px-2">Active Sensor Feed</h2>
+              <h2 className="font-sans text-xl font-semibold px-2">Active sensor feed</h2>
               <div className="space-y-3">
                 {visibleMetrics.map((m, i) => (
                    <div key={m.id || i} className={`bg-surface-1 p-5 rounded-lg border ${statusBorderColor(m.status)} group hover:bg-surface-1 transition-colors`}>
@@ -171,7 +171,7 @@ export default function Sensors() {
                         <p className={`text-xl font-sans font-semibold ${statusTextColor(m.status)} tracking-tighter`}>
                           {m.responseTime != null ? `${m.responseTime}ms` : (m.status ?? 'UNKNOWN').toUpperCase()}
                         </p>
-                        <p className="text-xs text-fg-subtle uppercase font-sans max-w-xs truncate">{formatMetricDetails(m.details, m.protocol)}</p>
+                        <p className="text-xs text-fg-subtle font-sans max-w-xs truncate">{formatMetricDetails(m.details, m.protocol)}</p>
                       </div>
                     </div>
                   </div>
@@ -180,7 +180,7 @@ export default function Sensors() {
                 {visibleCount < metrics.length && (
                   <button
                     onClick={() => setVisibleCount((prev) => prev + 20)}
-                    className="w-full py-3 text-xs font-semibold uppercase tracking-wide text-fg-muted hover:text-fg border border-line rounded-lg hover:border-line-strong/40 transition-colors"
+                    className="w-full py-3 text-xs font-semibold text-fg-muted hover:text-fg border border-line rounded-lg hover:border-line-strong/40 transition-colors"
                   >
                     Show more ({metrics.length - visibleCount} remaining)
                   </button>
@@ -190,7 +190,7 @@ export default function Sensors() {
 
             <div className="space-y-8">
               <div className="bg-surface-1 p-6 rounded-lg border border-line">
-                <h3 className="font-sans font-semibold uppercase text-xs tracking-wide text-fg mb-6">Protocol Summary</h3>
+                <h3 className="font-sans font-semibold text-xs text-fg mb-6">Protocol summary</h3>
                 <div className="space-y-4 font-sans">
                   {KNOWN_PROTOCOLS.map((proto) => {
                     const count = metrics.filter((m) => m.protocol === proto).length;
@@ -200,7 +200,7 @@ export default function Sensors() {
                     return (
                       <div key={proto}>
                         <div className="flex justify-between items-center mb-1">
-                          <span className="text-xs uppercase tracking-wide text-fg-muted">{proto}</span>
+                          <span className="text-xs uppercase text-fg-muted">{proto}</span>
                           <span className="text-xs font-semibold text-primary">{h}/{count}</span>
                         </div>
                         <div className="h-1.5 bg-inset rounded-full">

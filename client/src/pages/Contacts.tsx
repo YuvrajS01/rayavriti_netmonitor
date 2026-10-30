@@ -122,7 +122,7 @@ export default function Contacts() {
             </div>
             <div>
               <h2 className="font-sans font-semibold text-lg">Contacts</h2>
-              <p className="text-xs text-fg-muted uppercase tracking-wide">{filtered.length} contacts</p>
+              <p className="text-xs text-fg-muted">{filtered.length} contacts</p>
             </div>
           </div>
           <div className="flex gap-3">
@@ -182,21 +182,21 @@ export default function Contacts() {
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 lg:max-w-xl flex-shrink-0">
                     <div>
-                      <div className="text-[10px] text-fg-muted uppercase tracking-wide">Channel</div>
+                      <div className="text-xs text-fg-muted">Channel</div>
                       <div className="text-sm font-medium capitalize">{c.preferred_channel || '-'}</div>
                     </div>
                     <div>
-                      <div className="text-[10px] text-fg-muted uppercase tracking-wide">Quiet Hours</div>
+                      <div className="text-xs text-fg-muted">Quiet hours</div>
                       <div className="text-sm font-medium">{c.quiet_hours_start && c.quiet_hours_end ? `${c.quiet_hours_start}–${c.quiet_hours_end}` : 'None'}</div>
                     </div>
                     <div>
-                      <div className="text-[10px] text-fg-muted uppercase tracking-wide">Notifications</div>
+                      <div className="text-xs text-fg-muted">Notifications</div>
                       <div className={`text-sm font-medium ${c.notification_enabled ? 'text-success' : 'text-fg-subtle'}`}>
                         {c.notification_enabled ? 'Enabled' : 'Disabled'}
                       </div>
                     </div>
                     <div>
-                      <div className="text-[10px] text-fg-muted uppercase tracking-wide">Status</div>
+                      <div className="text-xs text-fg-muted">Status</div>
                       <div className={`text-sm font-medium ${c.enabled ? 'text-success' : 'text-fg-subtle'}`}>
                         {c.enabled ? 'Active' : 'Inactive'}
                       </div>
@@ -222,7 +222,7 @@ export default function Contacts() {
             <div className="p-6 space-y-4 flex-1 min-h-0 overflow-y-auto">
               {(['name', 'designation', 'department', 'email', 'phone'] as const).map((f) => (
                 <div key={f}>
-                  <label className="text-[10px] text-fg-muted uppercase tracking-wide block mb-1">{f.replace(/_/g, ' ')}</label>
+                  <label className="text-xs text-fg-muted block mb-1">{f.replace(/_/g, ' ')}</label>
                   <input
                     value={asText(form[f])}
                     onChange={(e) => setForm({ ...form, [f]: e.target.value })}
@@ -231,7 +231,7 @@ export default function Contacts() {
                 </div>
               ))}
               <div>
-                <label className="text-[10px] text-fg-muted uppercase tracking-wide block mb-1">Preferred Channel</label>
+                <label className="text-xs text-fg-muted block mb-1">Preferred channel</label>
                 <select
                   value={asText(form.preferred_channel, 'email')}
                   onChange={(e) => setForm({ ...form, preferred_channel: e.target.value })}
@@ -262,9 +262,9 @@ export default function Contacts() {
               </div>
             </div>
             <div className="flex border-t border-line shrink-0">
-              <button onClick={() => setShowForm(false)} className="flex-1 py-3 text-xs font-sans font-semibold uppercase tracking-wide text-fg-muted hover:bg-surface-1 transition-colors">Cancel</button>
+              <button onClick={() => setShowForm(false)} className="flex-1 py-3 text-xs font-sans font-semibold text-fg-muted hover:bg-surface-1 transition-colors">Cancel</button>
               <div className="w-px bg-line/20" />
-              <button onClick={handleSubmit} disabled={submitting} className="flex-1 py-3 text-xs font-sans font-semibold uppercase tracking-wide text-primary hover:bg-primary/10 transition-colors disabled:opacity-50">
+              <button onClick={handleSubmit} disabled={submitting} className="flex-1 py-3 text-xs font-sans font-semibold text-primary hover:bg-primary/10 transition-colors disabled:opacity-50">
                 {submitting ? 'Saving...' : editing ? 'Update' : 'Create'}
               </button>
             </div>

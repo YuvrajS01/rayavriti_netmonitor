@@ -118,10 +118,10 @@ export default function Reports() {
             <p className="text-fg-muted font-sans max-w-xl text-sm">Historical analytics, SLA compliance, and performance reports across all monitored nodes.</p>
           </div>
           <div className="flex items-center gap-2 no-print">
-            <button onClick={() => { void downloadMetricsCsv(toQuery(from, to, selectedDevice)); }} className="px-4 py-2 rounded-lg text-sm border border-primary/40 text-primary font-semibold uppercase hover:bg-primary/5 transition-colors flex items-center gap-1.5">
+            <button onClick={() => { void downloadMetricsCsv(toQuery(from, to, selectedDevice)); }} className="px-4 py-2 rounded-lg text-sm border border-primary/40 text-primary font-semibold hover:bg-primary/5 transition-colors flex items-center gap-1.5">
               <span className="material-symbols-outlined text-sm">download</span> CSV
             </button>
-            <button onClick={handlePrint} className="px-4 py-2 rounded-lg text-sm border border-line text-fg-muted font-semibold uppercase hover:text-fg hover:border-line-strong/40 transition-colors flex items-center gap-1.5">
+            <button onClick={handlePrint} className="px-4 py-2 rounded-lg text-sm border border-line text-fg-muted font-semibold hover:text-fg hover:border-line-strong/40 transition-colors flex items-center gap-1.5">
               <span className="material-symbols-outlined text-sm">print</span> Print
             </button>
           </div>
@@ -147,7 +147,7 @@ export default function Reports() {
           <div className="flex flex-wrap gap-2">
             <input type="datetime-local" value={from} onChange={e => setFrom(e.target.value)} className="bg-inset border border-line rounded-lg px-3 py-2 text-xs text-fg outline-none" />
             <input type="datetime-local" value={to} onChange={e => setTo(e.target.value)} className="bg-inset border border-line rounded-lg px-3 py-2 text-xs text-fg outline-none" />
-            <button onClick={refresh} disabled={loading} className="px-4 py-2 rounded-lg text-sm bg-primary text-on-primary font-semibold uppercase hover:bg-primary/90 transition-colors flex items-center gap-1.5 disabled:opacity-50">
+            <button onClick={refresh} disabled={loading} className="px-4 py-2 rounded-lg text-sm bg-primary text-on-primary font-semibold hover:bg-primary/90 transition-colors flex items-center gap-1.5 disabled:opacity-50">
               {loading ? <span className="material-symbols-outlined text-sm animate-spin">refresh</span> : <span className="material-symbols-outlined text-sm">play_arrow</span>}
               Run
             </button>
@@ -157,7 +157,7 @@ export default function Reports() {
 
       {selectedDevice && (
         <div className="flex items-center gap-2 mb-4 no-print">
-          <span className="text-[10px] text-fg-muted uppercase tracking-wide">Filtered:</span>
+          <span className="text-xs text-fg-muted">Filtered:</span>
           <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary/10 border border-primary/30 text-primary text-xs font-semibold">
             {allDevices.find(d => d.id === selectedDevice)?.name || `Device ${selectedDevice}`}
             <button onClick={() => setSelectedDevice(undefined)} className="hover:text-fg transition-colors">
@@ -170,7 +170,7 @@ export default function Reports() {
       <div className="flex gap-1 mb-6 overflow-x-auto no-print border-b border-line pb-px">
         {TABS.map(tab => (
           <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-2 px-4 py-3 text-xs font-semibold uppercase tracking-wide transition-[color,border-color,background-color] rounded-t-lg whitespace-nowrap ${activeTab === tab.id ? 'text-primary border-b-2 border-primary bg-primary/5' : 'text-fg-muted hover:text-fg hover:bg-inset/50'}`}>
+            className={`flex items-center gap-2 px-4 py-3 text-xs font-semibold transition-[color,border-color,background-color] rounded-t-lg whitespace-nowrap ${activeTab === tab.id ? 'text-primary border-b-2 border-primary bg-primary/5': 'text-fg-muted hover:text-fg hover:bg-inset/50'}`}>
             <span className="material-symbols-outlined text-sm">{tab.icon}</span>
             {tab.label}
           </button>
@@ -180,7 +180,7 @@ export default function Reports() {
       {loading && (
         <div className="flex flex-col items-center justify-center py-16">
           <span className="material-symbols-outlined text-4xl text-primary mb-3">hourglass_top</span>
-          <p className="text-sm text-fg-muted uppercase tracking-wide">Loading report data...</p>
+          <p className="text-sm text-fg-muted">Loading report data...</p>
         </div>
       )}
 
@@ -199,7 +199,7 @@ export default function Reports() {
           <Suspense fallback={
             <div className="flex flex-col items-center justify-center py-16">
               <span className="material-symbols-outlined text-4xl text-primary mb-3">hourglass_top</span>
-              <p className="text-sm text-fg-muted uppercase tracking-wide">Loading tab...</p>
+              <p className="text-sm text-fg-muted">Loading tab...</p>
             </div>
           }>
             {activeTab === 'summary' && <SummaryTab summary={summary} series={series} />}

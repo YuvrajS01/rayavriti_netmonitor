@@ -158,10 +158,10 @@ export default function Dashboard() {
       />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6" aria-live="polite" aria-label="Device statistics">
-        <StatCard label="Total Devices" value={stats.totalDevices} />
+        <StatCard label="Total devices" value={stats.totalDevices} />
         <StatCard label="Online" value={stats.onlineDevices} delta={`${stats.onlineDevices}/${stats.totalDevices || 0}`} />
-        <StatCard label="Devices Up" value={stats.uptimePercent ?? 100} format="percent" />
-        <StatCard label="Active Alerts" value={stats.activeAlerts} color={stats.activeAlerts ? 'text-error' : 'text-fg'} delta={stats.activeAlerts ? 'needs attention' : 'clear'} />
+        <StatCard label="Devices up" value={stats.uptimePercent ?? 100} format="percent" />
+        <StatCard label="Active alerts" value={stats.activeAlerts} color={stats.activeAlerts ? 'text-error' : 'text-fg'} delta={stats.activeAlerts ? 'needs attention' : 'clear'} />
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-6 content-visibility-auto">

@@ -219,7 +219,7 @@ export default function BulkImport() {
               >
                 {isDone ? '✓' : i + 1}
               </span>
-              <span className={isActive ? 'text-primary font-semibold uppercase tracking-wide' : 'text-fg-muted uppercase tracking-wide'}>
+              <span className={isActive ? 'text-primary font-semibold' : 'text-fg-muted'}>
                 {s}
               </span>
             </div>
@@ -275,7 +275,7 @@ export default function BulkImport() {
             ].map((s) => (
               <Card key={s.label} variant="low" className="p-3 text-center">
                 <div className={`font-sans text-2xl font-semibold ${s.color}`}>{s.value}</div>
-                <div className="text-[10px] uppercase tracking-wide text-fg-muted mt-1">{s.label}</div>
+                <div className="text-xs text-fg-muted mt-1">{s.label}</div>
               </Card>
             ))}
           </div>
@@ -286,13 +286,13 @@ export default function BulkImport() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-line bg-surface-2">
-                    <th className="px-4 py-3 text-left text-[10px] uppercase tracking-wide text-fg-muted font-semibold w-12">#</th>
-                    <th className="px-4 py-3 text-left text-[10px] uppercase tracking-wide text-fg-muted font-semibold">Status</th>
-                    <th className="px-4 py-3 text-left text-[10px] uppercase tracking-wide text-fg-muted font-semibold">Name</th>
-                    <th className="px-4 py-3 text-left text-[10px] uppercase tracking-wide text-fg-muted font-semibold">Host</th>
-                    <th className="px-4 py-3 text-left text-[10px] uppercase tracking-wide text-fg-muted font-semibold">Protocol</th>
-                    <th className="px-4 py-3 text-left text-[10px] uppercase tracking-wide text-fg-muted font-semibold">Category</th>
-                    <th className="px-4 py-3 text-left text-[10px] uppercase tracking-wide text-fg-muted font-semibold">Location</th>
+                    <th className="px-4 py-3 text-left text-xs text-fg-muted font-semibold w-12">#</th>
+                    <th className="px-4 py-3 text-left text-xs text-fg-muted font-semibold">Status</th>
+                    <th className="px-4 py-3 text-left text-xs text-fg-muted font-semibold">Name</th>
+                    <th className="px-4 py-3 text-left text-xs text-fg-muted font-semibold">Host</th>
+                    <th className="px-4 py-3 text-left text-xs text-fg-muted font-semibold">Protocol</th>
+                    <th className="px-4 py-3 text-left text-xs text-fg-muted font-semibold">Category</th>
+                    <th className="px-4 py-3 text-left text-xs text-fg-muted font-semibold">Location</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -380,7 +380,7 @@ export default function BulkImport() {
 
           {result.errors.length > 0 && (
             <div className="text-left max-w-xl mx-auto mb-6">
-              <h3 className="text-xs uppercase tracking-wide text-error font-semibold mb-2">Errors</h3>
+              <h3 className="text-xs text-error font-semibold mb-2">Errors</h3>
               <div className="bg-error/5 rounded-lg p-3 space-y-1">
                 {result.errors.slice(0, 10).map((e, i) => (
                   <p key={i} className="text-xs text-error">{e}</p>

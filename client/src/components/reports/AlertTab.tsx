@@ -15,11 +15,11 @@ export default function AlertTab({ alerts }: { alerts: ReportAlert[] }) {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Severity donut */}
         <div className="bg-surface-1 rounded-lg p-6 border border-line flex flex-col items-center">
-          <h4 className="text-xs font-semibold uppercase tracking-wide text-fg-muted mb-4">Severity Breakdown</h4>
+          <h4 className="text-xs font-semibold text-fg-muted mb-4">Severity breakdown</h4>
           {alerts.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 opacity-50">
               <span className="material-symbols-outlined text-4xl mb-2 text-primary">check_circle</span>
-              <p className="text-xs text-fg-muted uppercase tracking-wide">No alerts in range</p>
+              <p className="text-xs text-fg-muted">No alerts in range</p>
             </div>
           ) : (
             <>
@@ -48,8 +48,8 @@ export default function AlertTab({ alerts }: { alerts: ReportAlert[] }) {
         <div className="lg:col-span-2 bg-surface-1 rounded-lg p-6 border border-line">
           <div className="flex items-center gap-2 mb-4">
             <span className="material-symbols-outlined text-error text-lg">notifications_active</span>
-            <h4 className="text-xs font-semibold uppercase tracking-wide text-fg-muted">Alert Timeline</h4>
-            <span className="ml-auto text-[10px] text-fg-muted">{alerts.length} alerts</span>
+            <h4 className="text-xs font-semibold text-fg-muted">Alert timeline</h4>
+            <span className="ml-auto text-xs text-fg-muted">{alerts.length} alerts</span>
           </div>
           {alerts.length === 0 ? (
             <p className="text-xs text-fg-muted text-center py-12">No alerts in selected range</p>
@@ -64,11 +64,11 @@ export default function AlertTab({ alerts }: { alerts: ReportAlert[] }) {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2 mb-0.5">
                         <span className="font-sans font-semibold text-xs text-fg truncate">{a.deviceName || `Device ${a.deviceId}`}</span>
-                        <span className="text-[10px] font-mono text-fg-muted shrink-0">{new Date(a.createdAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                        <span className="text-xs font-mono text-fg-muted shrink-0">{new Date(a.createdAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
                       </div>
                       <p className="text-xs text-fg-muted truncate">{a.message}</p>
                     </div>
-                    <span className={`shrink-0 px-2 py-0.5 rounded-full text-[9px] font-semibold uppercase border`} style={{ color, borderColor: `${color}40` }}>{a.severity}</span>
+                    <span className={`shrink-0 px-2 py-0.5 rounded-full text-xs font-semibold uppercase border`} style={{ color, borderColor: `${color}40` }}>{a.severity}</span>
                   </div>
                 );
               })}

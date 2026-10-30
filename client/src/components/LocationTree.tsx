@@ -67,19 +67,19 @@ function StatusDots({ status }: { status: Record<string, unknown> }) {
   return (
     <span className="flex items-center gap-1 ml-auto shrink-0">
       {down > 0 && (
-        <span className="flex items-center gap-0.5 text-[10px] font-semibold text-error">
+        <span className="flex items-center gap-0.5 text-xs font-semibold text-error">
           <span className="w-2 h-2 rounded-full bg-error inline-block" />
           {down}
         </span>
       )}
       {warning > 0 && (
-        <span className="flex items-center gap-0.5 text-[10px] font-semibold text-warning">
+        <span className="flex items-center gap-0.5 text-xs font-semibold text-warning">
           <span className="w-2 h-2 rounded-full bg-warning inline-block" />
           {warning}
         </span>
       )}
       {up > 0 && (
-        <span className="flex items-center gap-0.5 text-[10px] font-semibold text-success">
+        <span className="flex items-center gap-0.5 text-xs font-semibold text-success">
           <span className="w-2 h-2 rounded-full bg-success inline-block" />
           {up}
         </span>
@@ -173,7 +173,7 @@ function TreeItem({
             {String(node.name)}
           </span>
           {node.code ? (
-            <span className="text-[10px] text-fg-muted uppercase tracking-wide">
+            <span className="text-xs text-fg-muted">
               {asText(node.code)}
             </span>
           ) : null}
@@ -181,7 +181,7 @@ function TreeItem({
 
         {/* Device count badge */}
         {showDeviceCount && devCount > 0 && (
-          <span className="text-[10px] bg-inset text-fg-muted px-1.5 py-0.5 rounded-full font-semibold shrink-0">
+          <span className="text-xs bg-inset text-fg-muted px-1.5 py-0.5 rounded-full font-semibold shrink-0">
             {devCount}
           </span>
         )}
@@ -286,7 +286,7 @@ export default function LocationTree({
       {filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-8 text-fg-muted">
           <span className="material-symbols-outlined text-3xl mb-2">account_tree</span>
-          <p className="text-xs uppercase tracking-wide">
+          <p className="text-xs">
             {needle ? 'No matching locations' : 'No locations yet'}
           </p>
         </div>

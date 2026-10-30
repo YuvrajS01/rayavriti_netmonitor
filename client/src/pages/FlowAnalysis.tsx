@@ -94,21 +94,21 @@ export default function FlowAnalysis() {
       {!loading && !error && (
         <>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-            <StatCard label="Total Flows" value={stats ? formatNumber(stats.totalFlows) : '—'} icon="swap_horiz" />
+            <StatCard label="Total flows" value={stats ? formatNumber(stats.totalFlows) : '—'} icon="swap_horiz" />
             <StatCard label="Bandwidth" value={stats ? formatBytes(stats.totalBytes) : '—'} icon="cloud_download" color="text-info" />
-            <StatCard label="Unique Sources" value={stats ? formatNumber(stats.uniqueSources) : '—'} icon="upload" />
-            <StatCard label="Unique Destinations" value={stats ? formatNumber(stats.uniqueDestinations) : '—'} icon="download" />
+            <StatCard label="Unique sources" value={stats ? formatNumber(stats.uniqueSources) : '—'} icon="upload" />
+            <StatCard label="Unique destinations" value={stats ? formatNumber(stats.uniqueDestinations) : '—'} icon="download" />
           </div>
 
           <div className="bg-surface-1 rounded-lg p-5 border border-line mb-6">
-            <h3 className="text-sm font-sans font-semibold uppercase tracking-wide mb-4 flex items-center gap-2">
+            <h3 className="text-sm font-sans font-semibold mb-4 flex items-center gap-2">
               <span className="material-symbols-outlined text-info text-lg">show_chart</span>
               Traffic Volume Over Time
             </h3>
             {timeseries.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16">
                 <span className="material-symbols-outlined text-4xl mb-2">timeline</span>
-                <p className="text-xs text-fg-muted uppercase tracking-wide">
+                <p className="text-xs text-fg-muted">
                   No flow data yet — configure a router to export NetFlow/sFlow to UDP port 2055
                 </p>
               </div>
@@ -162,7 +162,7 @@ export default function FlowAnalysis() {
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-6">
             <SankeyDiagram flows={flows.map((f) => ({ src: f.srcIp, dst: f.dstIp, bytes: f.bytes, protocol: f.protocol }))} />
             <div className="bg-surface-1 rounded-lg p-5 border border-line">
-              <h3 className="text-sm font-sans font-semibold uppercase tracking-wide mb-4 flex items-center gap-2">
+              <h3 className="text-sm font-sans font-semibold mb-4 flex items-center gap-2">
                 <span className="material-symbols-outlined text-[#d9fd3a] text-lg">upload</span>
                 Top Sources
               </h3>
@@ -181,7 +181,7 @@ export default function FlowAnalysis() {
             </div>
 
             <div className="bg-surface-1 rounded-lg p-5 border border-line">
-              <h3 className="text-sm font-sans font-semibold uppercase tracking-wide mb-4 flex items-center gap-2">
+              <h3 className="text-sm font-sans font-semibold mb-4 flex items-center gap-2">
                 <span className="material-symbols-outlined text-info text-lg">download</span>
                 Top Destinations
               </h3>
@@ -201,7 +201,7 @@ export default function FlowAnalysis() {
 
             <Treemap title="Protocol bandwidth" items={protocols.map((p, i) => ({ label: p.protocolName, value: p.bytes, color: PROTOCOL_COLORS[p.protocolName] || CHART_COLORS[i % CHART_COLORS.length], detail: p.bytesFormatted }))} />
             <div className="bg-surface-1 rounded-lg p-5 border border-line flex flex-col">
-              <h3 className="text-sm font-sans font-semibold uppercase tracking-wide mb-4 flex items-center gap-2">
+              <h3 className="text-sm font-sans font-semibold mb-4 flex items-center gap-2">
                 <span className="material-symbols-outlined text-[#c084fc] text-lg">pie_chart</span>
                 Protocol Distribution
               </h3>
@@ -249,7 +249,7 @@ export default function FlowAnalysis() {
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
             <div className="xl:col-span-2 bg-surface-1 rounded-lg p-5 border border-line">
               <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 mb-4">
-                <h3 className="text-sm font-sans font-semibold uppercase tracking-wide flex items-center gap-2">
+                <h3 className="text-sm font-sans font-semibold flex items-center gap-2">
                   <span className="material-symbols-outlined text-primary text-lg">table_chart</span>
                   Flow Records
                 </h3>
@@ -276,7 +276,7 @@ export default function FlowAnalysis() {
               <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
                 <table className="w-full text-left border-collapse">
                   <thead className="sticky top-0 bg-surface-1 z-10">
-                    <tr className="text-[10px] uppercase tracking-wide text-fg-muted border-b border-line">
+                    <tr className="text-xs text-fg-muted border-b border-line">
                       <th className="pb-2 font-medium">Time</th>
                       <th className="pb-2 font-medium">Source</th>
                       <th className="pb-2 font-medium">Destination</th>
@@ -290,7 +290,7 @@ export default function FlowAnalysis() {
                       <tr><td colSpan={6} className="py-12 text-center text-fg-muted">
                         <div className="flex flex-col items-center gap-2">
                           <span className="material-symbols-outlined text-3xl">swap_horiz</span>
-                          <span className="uppercase tracking-wide text-[10px]">No flow records yet</span>
+                          <span className="text-xs">No flow records yet</span>
                         </div>
                       </td></tr>
                     ) : (
@@ -304,7 +304,7 @@ export default function FlowAnalysis() {
                             <td className="py-2.5 font-mono text-fg">{f.srcIp}{f.srcPort ? `:${f.srcPort}` : ''}</td>
                             <td className="py-2.5 font-mono text-fg">{f.dstIp}{f.dstPort ? `:${f.dstPort}` : ''}</td>
                             <td className="py-2.5">
-                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider border"
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold uppercase border"
                                 style={{ color: protoColor, borderColor: `${protoColor}33`, backgroundColor: `${protoColor}15` }}>
                                 {f.protocol}
                               </span>
@@ -321,7 +321,7 @@ export default function FlowAnalysis() {
             </div>
 
             <div className="bg-surface-1 rounded-lg p-5 border border-line">
-              <h3 className="text-sm font-sans font-semibold uppercase tracking-wide mb-4 flex items-center gap-2">
+              <h3 className="text-sm font-sans font-semibold mb-4 flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full bg-info" />
                 Live Flow Feed
               </h3>
@@ -329,16 +329,16 @@ export default function FlowAnalysis() {
                 {flowFeed.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-12">
                     <span className="material-symbols-outlined text-3xl mb-2">rss_feed</span>
-                    <p className="text-[10px] text-fg-muted uppercase tracking-wide">Waiting for flow data...</p>
+                    <p className="text-xs text-fg-muted">Waiting for flow data...</p>
                   </div>
                 ) : (
                   flowFeed.map((f, i) => (
                     <div key={i} className="flex items-center gap-3 p-2.5 rounded-lg bg-inset/50 border border-line hover:border-info/20 transition-colors duration-200 text-xs">
-                      <span className="text-[10px] text-fg-muted font-mono w-14 flex-shrink-0">{f.time}</span>
+                      <span className="text-xs text-fg-muted font-mono w-14 flex-shrink-0">{f.time}</span>
                       <span className="font-mono text-fg truncate flex-1">{f.src}</span>
-                      <span className="material-symbols-outlined text-[12px] text-fg-muted">arrow_forward</span>
+                      <span className="material-symbols-outlined text-xs text-fg-muted">arrow_forward</span>
                       <span className="font-mono text-fg truncate flex-1">{f.dst}</span>
-                      <span className="inline-flex px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase"
+                      <span className="inline-flex px-1.5 py-0.5 rounded text-xs font-semibold uppercase"
                         style={{ color: PROTOCOL_COLORS[f.proto] || '#77766d', background: `${(PROTOCOL_COLORS[f.proto] || '#77766d')}15` }}>
                         {f.proto}
                       </span>

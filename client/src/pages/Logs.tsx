@@ -139,7 +139,7 @@ export default function Logs() {
             <Button variant={autoRefresh ? 'primary' : 'secondary'} icon="sync" onClick={() => setAutoRefresh((v) => !v)}>
               {autoRefresh ? 'Live' : 'Manual'}
             </Button>
-            <a href={logsExportUrl(query)} className="font-sans font-semibold text-sm uppercase tracking-wide rounded-md px-5 py-2.5 min-h-11 inline-flex items-center gap-2 bg-inset text-fg border border-line hover:bg-surface-1">
+            <a href={logsExportUrl(query)} className="font-sans font-semibold text-sm rounded-md px-5 py-2.5 min-h-11 inline-flex items-center gap-2 bg-inset text-fg border border-line hover:bg-surface-1">
               <span className="material-symbols-outlined text-lg">download</span>
               Export
             </a>
@@ -148,8 +148,8 @@ export default function Logs() {
       />
 
       <Card variant="low" className="p-5 overflow-hidden">
-        <div className="flex items-center justify-between gap-4 mb-4"><div><h2 className="font-sans text-sm font-semibold uppercase tracking-wide">Log volume pulse</h2><p className="text-xs text-fg-muted mt-1">Severity mix for the selected time window</p></div><span className="font-sans text-2xl font-semibold">{stats.total.toLocaleString()}</span></div>
-        <div className="flex items-end gap-2 h-20">{Object.entries(stats.byLevel).length ? Object.entries(stats.byLevel).map(([level, value]) => { const max = Math.max(...Object.values(stats.byLevel), 1); const color = level === 'error' || level === 'fatal' ? 'bg-error' : level === 'warn' ? 'bg-warning' : level === 'info' ? 'bg-info' : 'bg-primary'; return <div key={level} className="flex-1 h-full flex flex-col justify-end min-w-10"><i className={`${color} rounded-t-sm transition-[height] duration-500`} style={{ height: `${Math.max(7, Number(value) / max * 100)}%` }} /><span className="text-[9px] uppercase text-fg-muted mt-1 text-center">{level}</span></div>; }) : <p className="m-auto text-xs text-fg-muted">No log activity in this range.</p>}</div>
+        <div className="flex items-center justify-between gap-4 mb-4"><div><h2 className="font-sans text-sm font-semibold">Log volume pulse</h2><p className="text-xs text-fg-muted mt-1">Severity mix for the selected time window</p></div><span className="font-sans text-2xl font-semibold">{stats.total.toLocaleString()}</span></div>
+        <div className="flex items-end gap-2 h-20">{Object.entries(stats.byLevel).length ? Object.entries(stats.byLevel).map(([level, value]) => { const max = Math.max(...Object.values(stats.byLevel), 1); const color = level === 'error' || level === 'fatal' ? 'bg-error' : level === 'warn' ? 'bg-warning' : level === 'info' ? 'bg-info' : 'bg-primary'; return <div key={level} className="flex-1 h-full flex flex-col justify-end min-w-10"><i className={`${color} rounded-t-sm transition-[height] duration-500`} style={{ height: `${Math.max(7, Number(value) / max * 100)}%` }} /><span className="text-xs uppercase text-fg-muted mt-1 text-center">{level}</span></div>; }) : <p className="m-auto text-xs text-fg-muted">No log activity in this range.</p>}</div>
       </Card>
 
       <Card variant="low" className="p-4">
@@ -179,7 +179,7 @@ export default function Logs() {
               ['Active Verbose', sessions.length],
             ].map(([label, value]) => (
               <Card key={label} variant="high" className="p-4">
-                <p className="text-xs text-fg-muted uppercase tracking-wide">{label}</p>
+                <p className="text-xs text-fg-muted">{label}</p>
                 <p className="font-sans text-2xl font-semibold mt-1">{value}</p>
               </Card>
             ))}
@@ -193,7 +193,7 @@ export default function Logs() {
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead className="bg-surface-1 text-xs uppercase tracking-wide text-fg-muted">
+                  <thead className="bg-surface-1 text-xs text-fg-muted">
                     <tr>
                       <th className="text-left p-3">Time</th>
                       <th className="text-left p-3">Level</th>
@@ -276,7 +276,7 @@ export default function Logs() {
               Duration: selected.durationMs ? `${selected.durationMs.toFixed(1)} ms` : undefined,
             }).filter(([, v]) => v !== undefined && v !== '').map(([k, v]) => (
               <div key={k}>
-                <dt className="text-xs text-primary uppercase tracking-wide">{k}</dt>
+                <dt className="text-xs text-primary">{k}</dt>
                 <dd className="break-words">{String(v)}</dd>
               </div>
             ))}

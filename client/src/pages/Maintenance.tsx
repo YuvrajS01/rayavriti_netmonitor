@@ -110,9 +110,9 @@ export default function Maintenance() {
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <StatCard label="Total" value={stats.total} icon="event_repeat" sparklineData={windows.map(window => window.enabled ? 1 : 0)} />
-        <StatCard label="Currently Active" value={stats.active} icon="pending" color="text-warning" trend={stats.active ? 'up' : 'flat'} sparklineData={windows.map(window => nowInRange(window.start_time, window.end_time) ? 1 : 0)} />
+        <StatCard label="Currently active" value={stats.active} icon="pending" color="text-warning" trend={stats.active ? 'up' : 'flat'} sparklineData={windows.map(window => nowInRange(window.start_time, window.end_time) ? 1 : 0)} />
         <StatCard label="Recurring" value={stats.recurring} icon="repeat" sparklineData={windows.map(window => window.schedule_type === 'recurring' ? 1 : 0)} />
-        <StatCard label="Suppress Alerts" value={stats.suppress} icon="notifications_off" sparklineData={windows.map(window => window.suppress_alerts ? 1 : 0)} />
+        <StatCard label="Suppress alerts" value={stats.suppress} icon="notifications_off" sparklineData={windows.map(window => window.suppress_alerts ? 1 : 0)} />
       </div>
 
       <GanttTimeline title="Maintenance schedule" items={windows.filter(window => window.start_time).map(window => ({ id: window.id, label: window.name, start: window.start_time, end: window.end_time, color: nowInRange(window.start_time, window.end_time) ? 'var(--color-warning)' : 'var(--color-info)' }))} />
@@ -125,7 +125,7 @@ export default function Maintenance() {
             </div>
             <div>
               <h2 className="font-sans font-semibold text-lg">Maintenance Windows</h2>
-              <p className="text-xs text-fg-muted uppercase tracking-wide">{filtered.length} windows</p>
+              <p className="text-xs text-fg-muted">{filtered.length} windows</p>
             </div>
           </div>
           <div className="flex gap-3">
@@ -156,8 +156,8 @@ export default function Maintenance() {
                       <div className="min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <h3 className="font-sans font-semibold text-lg truncate">{w.name}</h3>
-                          {isActive && <span className="text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-warning/10 text-warning">Active Now</span>}
-                          {!w.enabled && <span className="text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-line-strong/10 text-fg-subtle">Disabled</span>}
+                          {isActive && <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-warning/10 text-warning">Active now</span>}
+                          {!w.enabled && <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-line-strong/10 text-fg-subtle">Disabled</span>}
                         </div>
                         <p className="text-xs text-fg-muted mt-0.5 capitalize">{w.schedule_type?.replace('_', ' ')} · {w.scope_type}: {w.scope_value}</p>
                         {w.description && <p className="text-sm text-fg-muted mt-1 line-clamp-1">{w.description}</p>}
@@ -165,18 +165,18 @@ export default function Maintenance() {
                     </div>
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 lg:max-w-lg flex-shrink-0">
                       <div>
-                        <div className="text-[10px] text-fg-muted uppercase tracking-wide">Start</div>
+                        <div className="text-xs text-fg-muted">Start</div>
                         <div className="text-sm font-medium">{formatDate(w.start_time)}</div>
                       </div>
                       <div>
-                        <div className="text-[10px] text-fg-muted uppercase tracking-wide">End</div>
+                        <div className="text-xs text-fg-muted">End</div>
                         <div className="text-sm font-medium">{formatDate(w.end_time)}</div>
                       </div>
                       <div>
-                        <div className="text-[10px] text-fg-muted uppercase tracking-wide">Suppress</div>
+                        <div className="text-xs text-fg-muted">Suppress</div>
                         <div className="flex gap-2 mt-0.5">
-                          {w.suppress_alerts && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-warning/10 text-warning">Alerts</span>}
-                          {w.suppress_notifications && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-info/10 text-info">Notifs</span>}
+                          {w.suppress_alerts && <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-warning/10 text-warning">Alerts</span>}
+                          {w.suppress_notifications && <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-info/10 text-info">Notifs</span>}
                         </div>
                       </div>
                     </div>
@@ -198,19 +198,19 @@ export default function Maintenance() {
             <div className="p-6 border-b border-line shrink-0"><h2 className="font-sans text-lg font-semibold">{editing ? 'Edit Window' : 'New Maintenance Window'}</h2></div>
             <div className="p-6 space-y-4 flex-1 min-h-0 overflow-y-auto">
               <div>
-                <label className="text-[10px] text-fg-muted uppercase tracking-wide block mb-1">Name</label>
+                <label className="text-xs text-fg-muted block mb-1">Name</label>
                 <input value={asText(form.name)} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full bg-inset border border-line rounded-lg px-4 py-2.5 text-sm text-fg placeholder:text-fg-subtle focus:ring-1 focus:ring-primary outline-none" placeholder="e.g. Sunday Lab Shutdown" />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-[10px] text-fg-muted uppercase tracking-wide block mb-1">Schedule Type</label>
+                  <label className="text-xs text-fg-muted block mb-1">Schedule type</label>
                   <select value={asText(form.schedule_type, 'one_time')} onChange={(e) => setForm({ ...form, schedule_type: e.target.value })} className="w-full bg-inset border border-line rounded-lg px-4 py-2.5 text-sm text-fg outline-none focus:ring-1 focus:ring-primary">
                     <option value="one_time">One-time</option>
                     <option value="recurring">Recurring</option>
                   </select>
                 </div>
                 <div>
-                  <label className="text-[10px] text-fg-muted uppercase tracking-wide block mb-1">Scope</label>
+                  <label className="text-xs text-fg-muted block mb-1">Scope</label>
                   <select value={asText(form.scope_type, 'global')} onChange={(e) => setForm({ ...form, scope_type: e.target.value })} className="w-full bg-inset border border-line rounded-lg px-4 py-2.5 text-sm text-fg outline-none focus:ring-1 focus:ring-primary">
                     <option value="global">Global</option>
                     <option value="device">Device</option>
@@ -220,17 +220,17 @@ export default function Maintenance() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-[10px] text-fg-muted uppercase tracking-wide block mb-1">Start</label>
+                  <label className="text-xs text-fg-muted block mb-1">Start</label>
                   <input type="datetime-local" value={asText(form.start_time).slice(0, 16)} onChange={(e) => setForm({ ...form, start_time: e.target.value ? new Date(e.target.value).toISOString() : '' })} className="w-full bg-inset border border-line rounded-lg px-4 py-2.5 text-sm text-fg outline-none focus:ring-1 focus:ring-primary" />
                 </div>
                 <div>
-                  <label className="text-[10px] text-fg-muted uppercase tracking-wide block mb-1">End</label>
+                  <label className="text-xs text-fg-muted block mb-1">End</label>
                   <input type="datetime-local" value={asText(form.end_time).slice(0, 16)} onChange={(e) => setForm({ ...form, end_time: e.target.value ? new Date(e.target.value).toISOString() : '' })} className="w-full bg-inset border border-line rounded-lg px-4 py-2.5 text-sm text-fg outline-none focus:ring-1 focus:ring-primary" />
                 </div>
               </div>
               {form.schedule_type === 'recurring' && (
                 <div>
-                  <label className="text-[10px] text-fg-muted uppercase tracking-wide block mb-1">Recurrence Rule (iCal)</label>
+                  <label className="text-xs text-fg-muted block mb-1">Recurrence rule (iCal)</label>
                   <input value={asText(form.recurrence_rule)} onChange={(e) => setForm({ ...form, recurrence_rule: e.target.value })} className="w-full bg-inset border border-line rounded-lg px-4 py-2.5 text-sm text-fg placeholder:text-fg-subtle focus:ring-1 focus:ring-primary outline-none" placeholder="FREQ=WEEKLY;BYDAY=SA" />
                 </div>
               )}
@@ -250,9 +250,9 @@ export default function Maintenance() {
               </div>
             </div>
             <div className="flex border-t border-line shrink-0">
-              <button onClick={() => setShowForm(false)} className="flex-1 py-3 text-xs font-sans font-semibold uppercase tracking-wide text-fg-muted hover:bg-surface-1 transition-colors">Cancel</button>
+              <button onClick={() => setShowForm(false)} className="flex-1 py-3 text-xs font-sans font-semibold text-fg-muted hover:bg-surface-1 transition-colors">Cancel</button>
               <div className="w-px bg-line/20" />
-              <button onClick={handleSubmit} disabled={submitting || !form.name} className="flex-1 py-3 text-xs font-sans font-semibold uppercase tracking-wide text-primary hover:bg-primary/10 transition-colors disabled:opacity-50">{submitting ? 'Saving...' : editing ? 'Update' : 'Create'}</button>
+              <button onClick={handleSubmit} disabled={submitting || !form.name} className="flex-1 py-3 text-xs font-sans font-semibold text-primary hover:bg-primary/10 transition-colors disabled:opacity-50">{submitting ? 'Saving...' : editing ? 'Update' : 'Create'}</button>
             </div>
           </div>
         </div>

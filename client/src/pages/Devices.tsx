@@ -167,22 +167,22 @@ export default function Devices() {
                   </div>
                   <div className={`flex items-center gap-2 px-3 py-1 rounded-full ${statusBgColor(status)}/10`}>
                     {(status === 'up' || status === 'ok') && <span className={`w-1.5 h-1.5 rounded-full ${statusBgColor(status)}`} />}
-                    <span className={`text-xs font-semibold uppercase tracking-wide ${statusTextColor(status)}`}>{status.toUpperCase()}</span>
+                    <span className={`capitalize text-xs font-semibold ${statusTextColor(status)}`}>{status.toUpperCase()}</span>
                   </div>
                 </div>
                 <h3 className={`font-sans text-xl font-semibold mb-1 ${hoverText} transition-colors`}>{device.name}</h3>
                 <code className="text-fg-muted text-xs mb-4 block">{device.protocol === 'http' || device.protocol === 'https' ? `${device.protocol}://${device.ipAddress}` : device.ipAddress}{device.port > 0 && !['http','https'].includes(device.protocol) ? `:${device.port}` : ''}</code>
                 <div className="space-y-2 text-xs">
-                  <div className="flex justify-between"><span className="text-fg-muted uppercase tracking-wide">Protocol</span><span className="font-semibold">{device.protocol.toUpperCase()}</span></div>
-                  <div className="flex justify-between"><span className="text-fg-muted uppercase tracking-wide">Interval</span><span className="font-semibold">{device.interval}s</span></div>
-                  {metric && <div className="flex justify-between"><span className="text-fg-muted uppercase tracking-wide">Response</span><span className="font-semibold">{metric.responseTime ?? '-'}ms</span></div>}
+                  <div className="flex justify-between"><span className="text-fg-muted">Protocol</span><span className="font-semibold">{device.protocol.toUpperCase()}</span></div>
+                  <div className="flex justify-between"><span className="text-fg-muted">Interval</span><span className="font-semibold">{device.interval}s</span></div>
+                  {metric && <div className="flex justify-between"><span className="text-fg-muted">Response</span><span className="font-semibold">{metric.responseTime ?? '-'}ms</span></div>}
                 </div>
               </div>
               <div className="mt-auto bg-surface-1 p-4 flex justify-between items-center">
-                <span className="text-[10px] text-fg-muted uppercase">{metric ? new Date(metric.timestamp || metric.createdAt).toLocaleTimeString() : 'No data'}</span>
+                <span className="text-xs text-fg-muted tabular-nums">{metric ? new Date(metric.timestamp || metric.createdAt).toLocaleTimeString() : 'No data'}</span>
                 <button 
                   onClick={(e) => { e.stopPropagation(); handleDelete(device); }} 
-                  className="text-error text-[10px] font-semibold uppercase tracking-wide hover:bg-error/10 px-2 py-1 rounded transition-colors"
+                  className="text-error text-xs font-semibold hover:bg-error/10 px-2 py-1 rounded transition-colors"
                 >
                   Delete
                 </button>
