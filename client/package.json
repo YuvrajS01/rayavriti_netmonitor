@@ -4,23 +4,22 @@
   "version": "4.5.1",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
+    "dev": "node scripts/subset-icons.mjs && vite",
+    "build": "node scripts/subset-icons.mjs && tsc -b && vite build",
     "lint": "eslint .",
     "typecheck": "tsc -b --noEmit",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "icons": "node scripts/subset-icons.mjs",
+    "check:icons": "node scripts/subset-icons.mjs --check"
   },
   "dependencies": {
     "@fontsource-variable/instrument-sans": "^5.2.8",
     "@fontsource-variable/jetbrains-mono": "^5.2.8",
-    "@fontsource-variable/material-symbols-outlined": "^5.2.45",
     "@fontsource-variable/plus-jakarta-sans": "^5.2.8",
     "@tanstack/react-query": "^5.105.0",
-    "@visx/visx": "^4.0.0",
     "axios": "^1.15.2",
-    "framer-motion": "^12.23.24",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "react-is": "^19.2.5",
@@ -29,6 +28,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@fontsource-variable/material-symbols-outlined": "^5.2.45",
     "@tailwindcss/vite": "^4.2.4",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
@@ -42,11 +42,13 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.5.0",
+    "harfbuzzjs": "^1.6.4",
     "jsdom": "^29.1.1",
     "tailwindcss": "^4.2.4",
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.58.2",
     "vite": "^8.0.10",
-    "vitest": "^4.1.9"
+    "vitest": "^4.1.9",
+    "wawoff2": "^2.0.1"
   }
 }
