@@ -242,7 +242,11 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
           </div>
           <div className="flex items-center gap-3">
             <div className="text-center">
-              <RingGauge value={healthScore ?? (latestMetric?.status === 'down' ? 20 : latestMetric?.status === 'warning' || latestMetric?.status === 'degraded' ? 60 : 92)} size={54} strokeWidth={5} decimals={0} valueClassName="text-lg" />
+              {healthScore != null ? (
+                <RingGauge value={healthScore} size={54} strokeWidth={5} decimals={0} valueClassName="text-lg" />
+              ) : (
+                <span className="flex h-[54px] w-[54px] items-center justify-center rounded-full border border-outline-variant/40 text-sm text-on-surface-variant" title="No health score has been computed for this device yet">—</span>
+              )}
               <span className="block text-[10px] uppercase tracking-wide text-on-surface-variant mt-1">AI Health</span>
             </div>
             <button onClick={onClose} className="p-2 hover:bg-surface-container-lowest rounded-full transition-colors" aria-label="Close dialog"><span className="material-symbols-outlined text-outline hover:text-on-surface">close</span></button>

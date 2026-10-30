@@ -1,6 +1,6 @@
 {
   "name": "rayavriti-netmonitor",
-  "version": "2.0.0",
+  "version": "4.5.1",
   "private": true,
   "engines": {
     "node": "22.x || 24.x || 26.x"

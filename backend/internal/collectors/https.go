@@ -2,15 +2,20 @@ package collectors
 
 import (
 	"context"
+	"net/http"
 
 	"github.com/rayavriti/netmonitor-backend/internal/models"
 )
 
-type HTTPSCollector struct{}
+// HTTPSCollector polls HTTPS endpoints. Like HTTPCollector, client is only
+// overridden in tests.
+type HTTPSCollector struct {
+	client *http.Client
+}
 
 func (HTTPSCollector) Name() string { return "https" }
 
-func (HTTPSCollector) Collect(ctx context.Context, device *models.Device) (*Result, error) {
+func (c HTTPSCollector) Collect(ctx context.Context, device *models.Device) (*Result, error) {
 	// Delegate to HTTPCollector — it already detects https based on protocol/port
-	return HTTPCollector{}.Collect(ctx, device)
+	return HTTPCollector(c).Collect(ctx, device)
 }

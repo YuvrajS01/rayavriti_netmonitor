@@ -106,7 +106,7 @@ func (g *Generator) Generate(ctx context.Context, req GenerateRequest) (*Generat
 		req.PeriodTo = time.Now()
 	}
 	if req.PeriodFrom.IsZero() {
-		req.PeriodTo = time.Now().AddDate(0, 0, -7)
+		req.PeriodFrom = req.PeriodTo.AddDate(0, 0, -7)
 	}
 	if req.Format == "" {
 		req.Format = "csv"
@@ -383,13 +383,13 @@ func (g *Generator) generateTopOffenders(ctx context.Context, req GenerateReques
 
 func (g *Generator) generatePerformance(ctx context.Context, req GenerateRequest) (*GenerateResult, error) {
 	rows, err := g.pool.Query(ctx,
-		`SELECT date_trunc('hour', timestamp) as interval,
-		 COUNT(DISTINCT device_id),
-		 AVG(response_time_ms), AVG(packet_loss_pct),
-		 AVG(cpu_usage_pct), AVG(memory_usage_pct)
+		`SELECT to_char(date_trunc('hour', timestamp), 'YYYY-MM-DD"T"HH24:00:00TZH:TZM') AS bucket,
+		 COUNT(DISTINCT device_id)::int,
+		 COALESCE(AVG(response_time), 0), COALESCE(AVG(packet_loss), 0),
+		 COALESCE(AVG(cpu_usage), 0), COALESCE(AVG(memory_usage), 0)
 		 FROM metrics
 		 WHERE timestamp BETWEEN $1 AND $2
-		 GROUP BY interval ORDER BY interval`, req.PeriodFrom, req.PeriodTo)
+		 GROUP BY date_trunc('hour', timestamp) ORDER BY date_trunc('hour', timestamp)`, req.PeriodFrom, req.PeriodTo)
 	if err != nil {
 		return nil, fmt.Errorf("query performance: %w", err)
 	}
@@ -399,7 +399,7 @@ func (g *Generator) generatePerformance(ctx context.Context, req GenerateRequest
 	for rows.Next() {
 		var r perfRow
 		if err := rows.Scan(&r.Interval, &r.DeviceCount, &r.AvgResponse, &r.AvgPacketLoss, &r.AvgCPU, &r.AvgMemory); err != nil {
-			continue
+			return nil, fmt.Errorf("scan performance row: %w", err)
 		}
 		perfs = append(perfs, r)
 	}

@@ -26,6 +26,11 @@ type ScheduleEntry struct {
 	NextPollAt time.Time
 	State      DeviceState
 	Failures   int
+	// LastStatus is the most recent polled status. It is stamped onto each
+	// job's Device.Status so the pipeline sees the previous status and can
+	// detect transitions, independent of how stale the DB snapshot in
+	// Device is between reconciles.
+	LastStatus string
 	index      int
 }
 
@@ -201,6 +206,18 @@ func (d *PollDispatcher) RecordSuccess(deviceID int64) {
 	heap.Fix(d.schedule, entry.index)
 }
 
+// RecordStatus remembers the latest polled status for a device.
+func (d *PollDispatcher) RecordStatus(deviceID int64, status string) {
+	if status == "" {
+		return
+	}
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if entry, exists := d.deviceMap[deviceID]; exists {
+		entry.LastStatus = status
+	}
+}
+
 func (d *PollDispatcher) RecordFailure(deviceID int64) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -305,8 +322,12 @@ func (d *PollDispatcher) dispatchDue() {
 			priority = 2
 		}
 
+		device := entry.Device
+		if entry.LastStatus != "" {
+			device.Status = entry.LastStatus
+		}
 		toEnqueue = append(toEnqueue, PollJob{
-			Device:     entry.Device,
+			Device:     device,
 			Priority:   priority,
 			ScheduleAt: entry.NextPollAt,
 		})

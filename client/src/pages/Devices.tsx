@@ -62,10 +62,9 @@ export default function Devices() {
         return next;
       });
     },
-    onDeviceStatus: (status) => {
-      const s = status as { device_id: number; new_status: string };
+    onDeviceStatus: ({ deviceId, status }) => {
       setDevices((prev) => prev.map((d) =>
-        d.id === s.device_id ? { ...d, status: s.new_status as Device['status'] } : d
+        d.id === deviceId ? { ...d, status } : d
       ));
     },
   });

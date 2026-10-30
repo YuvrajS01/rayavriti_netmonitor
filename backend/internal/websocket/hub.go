@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -107,7 +108,7 @@ type Hub struct {
 	jwtSecret   string
 	bootstrap   BootstrapFunc
 	publisher   func(ctx context.Context, msg Message)
-	scopeFilter ScopeFilterFunc
+	scopeFilter atomic.Pointer[ScopeFilterFunc]
 	db          *pgxpool.Pool
 	stopOnce    sync.Once
 	stopped     bool
@@ -168,7 +169,7 @@ func (h *Hub) Run() {
 			if dead {
 				continue
 			}
-			if h.scopeFilter != nil && !h.scopeFilter(info, msg) {
+			if filter := h.scopeFilter.Load(); filter != nil && !(*filter)(info, msg) {
 				continue
 			}
 			select {
@@ -191,8 +192,9 @@ func (h *Hub) Run() {
 }
 
 // SetScopeFilter sets a function that filters which clients receive which messages.
+// It is safe to call while the hub is running.
 func (h *Hub) SetScopeFilter(fn ScopeFilterFunc) {
-	h.scopeFilter = fn
+	h.scopeFilter.Store(&fn)
 }
 
 func (h *Hub) Broadcast(msg Message) {
@@ -299,7 +301,7 @@ func (h *Hub) ServeWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	claims, err := auth.ValidateToken(token, h.jwtSecret)
+	claims, err := auth.ValidateAccessToken(token, h.jwtSecret)
 	if err != nil {
 		http.Error(w, "invalid token", http.StatusUnauthorized)
 		return

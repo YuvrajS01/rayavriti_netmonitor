@@ -22,7 +22,7 @@ export default function StatCard({ label, value, color = 'text-on-surface', icon
       <div className="flex items-center gap-2 mb-2">
         {icon && <span className="material-symbols-outlined text-sm opacity-60">{icon}</span>}
         <p className="text-on-surface-variant text-xs uppercase tracking-wide font-label font-medium">{label}</p>
-        {(trend || delta) && <span className={`ml-auto inline-flex items-center gap-0.5 text-[10px] font-data ${trend === 'down' ? 'text-error' : trend === 'flat' ? 'text-on-surface-variant' : 'text-success'}`}>
+        {(trend || delta) && <span className={`ml-auto inline-flex items-center gap-0.5 text-[10px] font-data ${trend === 'down' ? 'text-error' : trend === 'up' ? 'text-success' : 'text-on-surface-variant'}`}>
           {trend && <span className="material-symbols-outlined text-sm">{trend === 'up' ? 'trending_up' : trend === 'down' ? 'trending_down' : 'trending_flat'}</span>}{delta}
         </span>}
       </div>

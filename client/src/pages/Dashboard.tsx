@@ -23,32 +23,25 @@ interface MultiLinePoint {
   [deviceName: string]: string | number;
 }
 
+// One point per poll, keyed by its real timestamp. Each device only has a
+// value at the times it was actually polled; the chart connects the gaps.
+// (Aligning devices by array index paired up unrelated polls.)
 function buildMultiLineData(metrics: Metric[]): { data: MultiLinePoint[]; devices: string[] } {
-  const byDevice = new Map<string, Metric[]>();
-  for (const m of metrics) {
-    const key = m.deviceName || `Device ${m.deviceId}`;
-    if (!byDevice.has(key)) byDevice.set(key, []);
-    byDevice.get(key)!.push(m);
-  }
+  const nameOf = (m: Metric) => m.deviceName || `Device ${m.deviceId}`;
+  const devices = Array.from(new Set(metrics.map(nameOf))).slice(0, 6);
+  const tracked = new Set(devices);
 
-  const devices = Array.from(byDevice.keys()).slice(0, 6);
+  const points = metrics
+    .filter((m) => tracked.has(nameOf(m)) && m.responseTime != null)
+    .map((m) => ({ m, t: new Date(m.timestamp || m.createdAt).getTime() }))
+    .filter(({ t }) => Number.isFinite(t))
+    .sort((a, b) => a.t - b.t)
+    .slice(-60);
 
-  const primary = byDevice.get(devices[0]) ?? [];
-  const timeSlots = primary
-    .slice(0, 20)
-    .reverse()
-    .map((m) => new Date(m.timestamp || m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
-
-  const data: MultiLinePoint[] = timeSlots.map((time, idx) => {
-    const point: MultiLinePoint = { time };
-    for (const dev of devices) {
-      const devMetrics = byDevice.get(dev) ?? [];
-      const reversed = [...devMetrics].slice(0, 20).reverse();
-      const m = reversed[idx];
-      if (m) point[dev] = m.responseTime ?? 0;
-    }
-    return point;
-  });
+  const data: MultiLinePoint[] = points.map(({ m, t }) => ({
+    time: new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+    [nameOf(m)]: m.responseTime ?? 0,
+  }));
 
   return { data, devices };
 }
@@ -60,7 +53,7 @@ export default function Dashboard() {
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [loading, setLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState('Waiting for updates...');
-  const [systemInfo, setSystemInfo] = useState<{ cpu: number; memory: number; errorRate: number; raw?: SystemInfo }>({ cpu: 0, memory: 0, errorRate: 0 });
+  const [hostInfo, setHostInfo] = useState<SystemInfo | undefined>();
   const [insights, setInsights] = useState<InsightsResponse | null>(null);
   const [showExpandedCharts, setShowExpandedCharts] = useState(false);
   const [showResourceModal, setShowResourceModal] = useState(false);
@@ -68,22 +61,6 @@ export default function Dashboard() {
   const lastStatsFetch = useRef(0);
   const lastAlertFetch = useRef(0);
   const THROTTLE_MS = 30_000;
-
-  const computeSystemInfo = (m: Metric[]) => {
-    const latest = m.slice(0, 40);
-    const total = latest.length || 1;
-    const down = latest.filter((x) => x.status === 'down').length;
-    const warn = latest.filter((x) => x.status === 'warning' || x.status === 'degraded').length;
-    const avgResp = latest.reduce((s, x) => s + (x.responseTime || 0), 0) / total;
-    const cpu = Math.min(95, Math.round(avgResp / 6 + warn * 4));
-    const memory = Math.min(95, Math.round(avgResp / 7 + down * 8 + 28));
-    setSystemInfo((prev) => ({
-      ...prev,
-      cpu,
-      memory,
-      errorRate: Math.min(100, Math.round((down / total) * 100)),
-    }));
-  };
 
   const loadData = useCallback(async () => {
     try {
@@ -105,7 +82,6 @@ export default function Dashboard() {
       setMetrics(metricsData);
       setHistoryMetrics(metricsData);
       setAlerts(alertsRes.status === 'fulfilled' ? (alertsRes.value.data || []) : []);
-      computeSystemInfo(metricsData);
       setLastUpdated(`Loaded ${new Date().toLocaleTimeString()}`);
 
       // Fetch insights from server-side health scores
@@ -118,9 +94,7 @@ export default function Dashboard() {
     // Fire system info in parallel — it has its own error handling and sleeps 1s on the backend,
     // so it should never block the page render.
     getSystemInfo().then((res) => {
-      if (res.data) {
-        setSystemInfo((prev) => ({ ...prev, raw: res.data }));
-      }
+      if (res.data) setHostInfo(res.data);
     }).catch(() => {});
   }, []);
 
@@ -142,7 +116,6 @@ export default function Dashboard() {
               merged[idx] = bm;
             }
           }
-          computeSystemInfo(merged);
           return merged;
         });
         setHistoryMetrics((prev) => {
@@ -160,9 +133,7 @@ export default function Dashboard() {
       if (p.alerts) setAlerts(p.alerts);
       setLastUpdated(`Connected ${new Date().toLocaleTimeString()}`);
       getSystemInfo().then((res) => {
-        if (res.data) {
-          setSystemInfo((prev) => ({ ...prev, raw: res.data }));
-        }
+        if (res.data) setHostInfo(res.data);
       }).catch(() => {});
     },
     onMetricUpdate: (metric) => {
@@ -172,9 +143,7 @@ export default function Dashboard() {
           const existing = prev.find((x) => x.deviceId === m.deviceId);
           if (existing?.protocol) m.protocol = existing.protocol;
         }
-        const updated = [m, ...prev.filter((x) => x.deviceId !== m.deviceId)];
-        computeSystemInfo(updated);
-        return updated;
+        return [m, ...prev.filter((x) => x.deviceId !== m.deviceId)];
       });
       setHistoryMetrics((prev) => {
         const m = metric as unknown as Metric;
@@ -207,10 +176,17 @@ export default function Dashboard() {
   const networkHealth = useMemo(() => healthArray.length
     ? Math.round(healthArray.reduce((sum, item) => sum + item.score, 0) / healthArray.length)
     : stats.uptimePercent ?? 100, [healthArray, stats.uptimePercent]);
-  const metricSeries = useMemo(() => {
-    const values = historyMetrics.slice(0, 32).reverse().map((m) => m.responseTime ?? 0);
-    return values.length ? values : [0, 0];
-  }, [historyMetrics]);
+  // Server load comes from the NetMonitor host itself (gopsutil); the
+  // "devices down" share is computed from the latest poll of each device.
+  const systemInfo = useMemo(() => {
+    const down = metrics.filter((x) => x.status === 'down').length;
+    return {
+      cpu: Math.round(hostInfo?.cpu.usage ?? 0),
+      memory: Math.round(hostInfo?.memory.percent ?? 0),
+      errorRate: metrics.length ? Math.round((down / metrics.length) * 100) : 0,
+      raw: hostInfo,
+    };
+  }, [hostInfo, metrics]);
 
   return (
     <div>
@@ -227,16 +203,16 @@ export default function Dashboard() {
       />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6" aria-live="polite" aria-label="Device statistics">
-        <StatCard label="Total Devices" value={stats.totalDevices} trend="up" delta="live" sparklineData={metricSeries} />
-        <StatCard label="Online" value={stats.onlineDevices} trend="up" delta={`${stats.onlineDevices}/${stats.totalDevices || 0}`} sparklineData={metricSeries.map((v, i) => v + i * 2)} />
-        <StatCard label="Uptime" value={stats.uptimePercent ?? 100} format="percent" trend="flat" sparklineData={metricSeries.map((v) => 100 - Math.min(v / 100, 8))} />
-        <StatCard label="Active Alerts" value={stats.activeAlerts} color="text-error" trend={stats.activeAlerts ? 'down' : 'flat'} delta={stats.activeAlerts ? 'watch' : 'clear'} sparklineData={metricSeries.map((v, i) => Math.max(0, (v / 100) - i % 3))} />
+        <StatCard label="Total Devices" value={stats.totalDevices} />
+        <StatCard label="Online" value={stats.onlineDevices} delta={`${stats.onlineDevices}/${stats.totalDevices || 0}`} />
+        <StatCard label="Devices Up" value={stats.uptimePercent ?? 100} format="percent" />
+        <StatCard label="Active Alerts" value={stats.activeAlerts} color={stats.activeAlerts ? 'text-error' : 'text-on-surface'} delta={stats.activeAlerts ? 'needs attention' : 'clear'} />
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-6 content-visibility-auto">
         <AiHealthScore networkHealth={networkHealth} insights={insights} />
         <SmartInsights insights={insights} />
-        <StatusHeatmap metrics={metrics} />
+        <StatusHeatmap metrics={historyMetrics} />
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-6 content-visibility-auto">

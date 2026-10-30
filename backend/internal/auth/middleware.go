@@ -45,7 +45,7 @@ func RequireAuth(secret string, apiKeyLookup func(ctx context.Context, hash stri
 				sendUnauth(w, "missing or invalid authorization")
 				return
 			}
-			claims, err := ValidateToken(token, secret)
+			claims, err := ValidateAccessToken(token, secret)
 			if err != nil {
 				sendUnauth(w, "invalid token")
 				return
@@ -67,7 +67,12 @@ var roleWeight = map[string]int{
 	"dept_admin":    2,
 	"network_admin": 3,
 	"admin":         4,
-	"super_admin":   4,
+	"super_admin":   5,
+}
+
+// RoleWeight returns the hierarchy weight of a built-in role (0 if unknown).
+func RoleWeight(role string) int {
+	return roleWeight[role]
 }
 
 // RequireRole ensures the authenticated user has at least the given role.

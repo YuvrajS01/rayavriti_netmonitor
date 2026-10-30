@@ -126,28 +126,30 @@ func (s *Store) Create(ctx context.Context, input CreateInstance) (*Instance, er
 }
 
 func (s *Store) Update(ctx context.Context, id int64, input CreateInstance) (*Instance, error) {
-	if input.APIKey == "" {
+	keepKey := strings.TrimSpace(input.APIKey) == "" || input.APIKey == "unchanged"
+	if keepKey {
 		existing, err := s.Get(ctx, id)
 		if err != nil {
 			return nil, err
 		}
-		input.APIKey = "unchanged"
-		input.URL = first(input.URL, existing.URL)
+		newURL := strings.TrimRight(strings.TrimSpace(first(input.URL, existing.URL)), "/")
+		// The stored credential is sent to whatever URL is configured, so it
+		// must never follow a URL change without being re-entered.
+		if newURL != existing.URL {
+			return nil, fmt.Errorf("apiKey is required when changing the url")
+		}
+		input.URL = existing.URL
 		input.Name = first(input.Name, existing.Name)
-	}
-	if input.PollIntervalS == 0 {
-		input.PollIntervalS = 60
-	}
-	if input.Tags == nil {
-		input.Tags = []string{}
-	}
-	if input.APIKey == "unchanged" {
-		return scanInstance(s.pool.QueryRow(ctx, `UPDATE remote_instances SET name=$2,url=$3,location_label=$4,tags=$5,poll_interval_s=$6,tls_skip_verify=$7,updated_at=NOW() WHERE id=$1 RETURNING `+instanceColumns, id, input.Name, strings.TrimRight(input.URL, "/"), input.LocationLabel, input.Tags, input.PollIntervalS, input.TLSSkipVerify))
+		// Validate the remaining fields with a placeholder key.
+		input.APIKey = "unchanged"
 	}
 	if err := Validate(input); err != nil {
 		return nil, err
 	}
 	normalize(&input)
+	if keepKey {
+		return scanInstance(s.pool.QueryRow(ctx, `UPDATE remote_instances SET name=$2,url=$3,location_label=$4,tags=$5,poll_interval_s=$6,tls_skip_verify=$7,updated_at=NOW() WHERE id=$1 RETURNING `+instanceColumns, id, input.Name, input.URL, input.LocationLabel, input.Tags, input.PollIntervalS, input.TLSSkipVerify))
+	}
 	credential, err := s.encrypt(input.APIKey)
 	if err != nil {
 		return nil, err

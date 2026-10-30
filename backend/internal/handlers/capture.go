@@ -305,7 +305,9 @@ func (h *CaptureHandler) runCapture(ctx context.Context, sessionID int64, iface,
 		args = append(args, "-x")
 	}
 	if filter != "" {
-		args = append(args, filter)
+		// "--" ends option parsing so a filter can never be read as a
+		// tcpdump flag (e.g. "-w/path" would write arbitrary files).
+		args = append(args, "--", filter)
 	}
 
 	cmd := exec.CommandContext(ctx, "tcpdump", args...) //nolint:gosec // args built from validated user input
@@ -794,6 +796,11 @@ func isValidInterface(name string) bool {
 // isValidBPFFilter validates that a BPF filter contains only safe characters.
 func isValidBPFFilter(filter string) bool {
 	if len(filter) > 512 {
+		return false
+	}
+	// A leading "-" could be interpreted as a tcpdump option; BPF
+	// expressions never start with one.
+	if strings.HasPrefix(strings.TrimSpace(filter), "-") {
 		return false
 	}
 	return bpfFilterRegex.MatchString(filter)

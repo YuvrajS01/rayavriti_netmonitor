@@ -225,13 +225,18 @@ func New(cfg *config.Config) *Logger {
 	hostname, _ := os.Hostname()
 	pid := os.Getpid()
 
-	return &Logger{
+	root := &Logger{
 		base:     slog.New(handler),
 		hostname: hostname,
 		pid:      pid,
 		version:  cfg.App.Version,
 		runtime:  runtime,
 	}
+	// Route package-level slog calls through the same level, format and
+	// sinks. Without this they bypassed LOG_LEVEL, JSON output, the log file,
+	// DB persistence and verbose sessions entirely.
+	slog.SetDefault(slog.New(newPersistingHandler(handler, root)))
+	return root
 }
 
 func buildWriter(cfg *config.Config) io.Writer {

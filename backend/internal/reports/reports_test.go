@@ -24,34 +24,6 @@ func TestFormatDuration(t *testing.T) {
 	}
 }
 
-func TestContainsSubstring(t *testing.T) {
-	tests := []struct {
-		s, sub string
-		want   bool
-	}{
-		{"0 * * * *", "0 *", true},
-		{"*/5 * * * *", "*/5 *", true},
-		{"0 0 * * 1", "0 0 * * 1", true},
-		{"daily", "*/5 *", false},
-		{"", "", true},
-	}
-	for _, tt := range tests {
-		got := containsSubstring(tt.s, tt.sub)
-		if got != tt.want {
-			t.Errorf("containsSubstring(%q, %q) = %v, want %v", tt.s, tt.sub, got, tt.want)
-		}
-	}
-}
-
-func TestContainsAny(t *testing.T) {
-	if !containsAny("*/5 * * * *", "*/5 *") {
-		t.Error("expected true for */5 * * * *")
-	}
-	if containsAny("0 0 * * 1", "*/5 *") {
-		t.Error("expected false for 0 0 * * 1")
-	}
-}
-
 func TestNewScheduledRunner(t *testing.T) {
 	r := NewScheduledRunner(nil, nil, 0)
 	if r.interval != time.Minute {
@@ -74,10 +46,49 @@ func TestComputePeriod(t *testing.T) {
 	}
 }
 
-func TestIsDueNeverRun(t *testing.T) {
-	r := &ScheduledRunner{}
-	if !r.isDue(nil, "0 * * * *") {
-		t.Error("should be due when never run")
+func TestIsDue(t *testing.T) {
+	kolkata, err := time.LoadLocation("Asia/Kolkata")
+	if err != nil {
+		t.Skip("tzdata unavailable:", err)
+	}
+	at := func(s string) time.Time {
+		v, err := time.ParseInLocation("2006-01-02 15:04", s, kolkata)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return v
+	}
+	ptr := func(v time.Time) *time.Time { return &v }
+
+	tests := []struct {
+		name    string
+		lastRun *time.Time
+		cron    string
+		now     time.Time
+		want    bool
+	}{
+		{"never run is due", nil, "0 * * * *", at("2026-10-30 10:30"), true},
+		{"daily not due an hour later", ptr(at("2026-10-30 00:00")), "0 0 * * *", at("2026-10-30 01:00"), false},
+		{"daily due next midnight", ptr(at("2026-10-30 00:00")), "0 0 * * *", at("2026-10-31 00:00"), true},
+		{"weekly not due next day", ptr(at("2026-10-26 00:00")), "0 0 * * 1", at("2026-10-27 00:00"), false},
+		{"weekly due next monday", ptr(at("2026-10-26 00:00")), "0 0 * * 1", at("2026-11-02 00:01"), true},
+		{"8am honours time of day", ptr(at("2026-10-30 08:00")), "0 8 * * *", at("2026-10-30 20:00"), false},
+		{"descriptor", ptr(at("2026-10-30 00:00")), "@daily", at("2026-10-31 00:00"), true},
+		{"every 5 minutes", ptr(at("2026-10-30 10:00")), "*/5 * * * *", at("2026-10-30 10:05"), true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := isDue(tt.lastRun, tt.cron, "Asia/Kolkata", tt.now)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got != tt.want {
+				t.Fatalf("isDue = %v, want %v", got, tt.want)
+			}
+		})
+	}
+	if _, err := isDue(nil, "not a cron", "", time.Now()); err == nil {
+		t.Fatal("expected an error for an invalid expression")
 	}
 }
 
