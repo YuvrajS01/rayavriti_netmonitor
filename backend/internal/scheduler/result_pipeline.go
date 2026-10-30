@@ -93,14 +93,17 @@ func (rp *ResultPipeline) run(ctx context.Context) {
 	defer rp.wg.Done()
 
 	batch := make([]PollResult, 0, rp.batchSize)
-	timer := time.NewTimer(time.Duration(rp.flushMs) * time.Millisecond)
-	defer timer.Stop()
+	// A ticker, not a timer re-armed only after non-empty flushes: a timer
+	// that fired while the batch was empty was never re-armed, after which
+	// results were persisted only once batchSize had accumulated (minutes
+	// of lag on small deployments).
+	ticker := time.NewTicker(time.Duration(rp.flushMs) * time.Millisecond)
+	defer ticker.Stop()
 
 	flushBatch := func() {
 		if len(batch) > 0 {
 			rp.processBatch(ctx, batch)
 			batch = batch[:0]
-			timer.Reset(time.Duration(rp.flushMs) * time.Millisecond)
 		}
 	}
 
@@ -121,7 +124,7 @@ func (rp *ResultPipeline) run(ctx context.Context) {
 			if len(batch) >= rp.batchSize {
 				flushBatch()
 			}
-		case <-timer.C:
+		case <-ticker.C:
 			flushBatch()
 		}
 	}
