@@ -320,7 +320,7 @@ export default function NetworkTopology() {
         if (l.port) {
           const mx = (l.source.x + l.target.x) / 2;
           const my = (l.source.y + l.target.y) / 2;
-          ctx.font = '8px "JetBrains Mono", monospace';
+          ctx.font = '8px "JetBrains Mono Variable", "JetBrains Mono", monospace';
           ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
           ctx.fillStyle = 'rgba(180,180,170,0.6)';
           ctx.fillText(l.port, mx, my - 3);
@@ -348,7 +348,7 @@ export default function NetworkTopology() {
 
         // Label
         const label = n.name.length > 16 ? `${n.name.slice(0, 15)}…` : n.name;
-        ctx.font = '9px "Plus Jakarta Sans", sans-serif';
+        ctx.font = '9px "Plus Jakarta Sans Variable", "Plus Jakarta Sans", sans-serif';
         ctx.textAlign = 'center'; ctx.textBaseline = 'top';
         ctx.fillStyle = 'rgba(225,225,215,0.9)';
         ctx.fillText(label, n.x, n.y + n.r + 5);
