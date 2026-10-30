@@ -49,7 +49,7 @@ func TestLoad_DefaultValues(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 3000, cfg.App.Port)
 	assert.Equal(t, "development", cfg.App.AppEnv)
-	assert.Equal(t, "1.1.0", cfg.App.Version)
+	assert.Equal(t, BuildVersion, cfg.App.Version)
 	assert.Equal(t, 20, cfg.Database.MaxConns)
 	assert.Equal(t, 2, cfg.Database.MinConns)
 	assert.Equal(t, 1*time.Hour, cfg.Database.MaxConnLifetime)

@@ -57,6 +57,8 @@ services:
     build:
       context: .
       target: production
+      args:
+        VERSION: ${VERSION:-dev}
     container_name: rayavriti-netmonitor
     # M45: Give the server 35s to drain WS connections and flush
     # pending writes before Docker sends SIGKILL. The server's
@@ -83,14 +85,18 @@ services:
       - NET_ADMIN            # Required for interface access
     cap_drop:
       - ALL
-    security_opt:
-      - no-new-privileges:true
+    # no-new-privileges is intentionally not set: it blocks the file
+    # capabilities that let the non-root netmonitor and tcpdump binaries use
+    # NET_RAW/NET_ADMIN (see Dockerfile). Only those two binaries carry them.
     read_only: true
+    volumes:
+      # Backups and generated reports must survive container re-creation.
+      - netmonitor_data:/app/data
     tmpfs:
       - /tmp
       - /app/data/logs
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:3000/health"]
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/readyz"]
       interval: 30s
       timeout: 5s
       start_period: 10s
@@ -121,4 +127,6 @@ volumes:
   postgres_data:
     driver: local
   redis_data:
+    driver: local
+  netmonitor_data:
     driver: local

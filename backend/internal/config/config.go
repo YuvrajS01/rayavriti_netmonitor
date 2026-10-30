@@ -8,6 +8,11 @@ import (
 	"time"
 )
 
+// BuildVersion is stamped at build time with
+// -ldflags "-X github.com/rayavriti/netmonitor-backend/internal/config.BuildVersion=v4.5.1".
+// The VERSION environment variable still overrides it.
+var BuildVersion = "dev"
+
 type Config struct {
 	App          AppConfig
 	Database     DatabaseConfig
@@ -161,7 +166,7 @@ func Load() (*Config, error) {
 		App: AppConfig{
 			Port:        envInt("PORT", 3000),
 			AppEnv:      envStr("APP_ENV", envStr("NODE_ENV", "development")),
-			Version:     envStr("VERSION", "1.1.0"),
+			Version:     envStr("VERSION", BuildVersion),
 			CORSOrigins: envSliceDefault("CORS_ORIGINS", []string{"http://localhost:3000"}),
 			PublicDir:   envStr("PUBLIC_DIR", "/app/public"),
 		},

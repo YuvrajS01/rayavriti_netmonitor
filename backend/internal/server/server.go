@@ -99,7 +99,8 @@ func (s *Server) Start() error {
 	r.Use(Recovery)
 	r.Use(SecurityHeaders)
 	r.Use(logging.RequestLogger(s.logger, s.cfg.Logging.SlowRequestMs))
-	r.Use(RequestSize(1 << 20)) // 1MB
+	// 1MB default; routes listed here enforce their own larger limit.
+	r.Use(RequestSize(1<<20, "/api/v1/backups/upload"))
 	if s.serviceMode != nil {
 		r.Use(ServiceModeMiddleware(func() string {
 			mode, _ := s.serviceMode.Load().(string)
@@ -135,7 +136,7 @@ func (s *Server) Start() error {
 	})
 
 	// Handlers
-	health := handlers.NewHealthHandler(s.db)
+	health := handlers.NewHealthHandler(s.db, s.cfg.App.Version)
 	authH := handlers.NewAuthHandler(s.db, s.cfg).WithLoginLimiter(auth.NewLoginLimiter(ctx, s.rdb))
 	device := handlers.NewDeviceHandler(s.db).WithAlertEngine(s.alertEng)
 	metric := handlers.NewMetricHandler(s.db)
@@ -261,6 +262,8 @@ func (s *Server) Start() error {
 
 	// Public routes
 	r.Get("/health", health.Health)
+	r.Get("/readyz", health.Health)
+	r.Get("/livez", health.Live)
 	r.Get("/ws", s.hub.ServeWS)
 	r.Get("/api/v1/ws", s.hub.ServeWS)
 	r.Get("/status", resourceH.PublicStatusHTML)
