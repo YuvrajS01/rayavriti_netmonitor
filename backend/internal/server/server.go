@@ -392,10 +392,10 @@ func (s *Server) Start() error {
 		r.With(rbac.RequirePermission(models.PermDevicesRead), unscopedOnly).Get("/api/v1/flows/stats", flow.Stats)
 
 		// --- Capture (devices.read / capture.execute) ---
-		r.With(rbac.RequirePermission(models.PermDevicesRead), unscopedOnly).Get("/api/v1/capture/interfaces", capture.Interfaces)
-		r.With(rbac.RequirePermission(models.PermDevicesRead), unscopedOnly).Get("/api/v1/capture/{id}", capture.GetSession)
-		r.With(rbac.RequirePermission(models.PermDevicesRead), unscopedOnly).Get("/api/v1/capture/{id}/packets", capture.GetPackets)
-		r.With(rbac.RequirePermission(models.PermDevicesRead), unscopedOnly).Get("/api/v1/capture/sessions", capture.ListSessions)
+		r.With(rbac.RequirePermission(models.PermCaptureExecute), unscopedOnly).Get("/api/v1/capture/interfaces", capture.Interfaces)
+		r.With(rbac.RequirePermission(models.PermCaptureExecute), unscopedOnly).Get("/api/v1/capture/{id}", capture.GetSession)
+		r.With(rbac.RequirePermission(models.PermCaptureExecute), unscopedOnly).Get("/api/v1/capture/{id}/packets", capture.GetPackets)
+		r.With(rbac.RequirePermission(models.PermCaptureExecute), unscopedOnly).Get("/api/v1/capture/sessions", capture.ListSessions)
 		r.With(rbac.RequirePermission(models.PermCaptureExecute), unscopedOnly).Post("/api/v1/capture/start", capture.Start)
 		r.With(rbac.RequirePermission(models.PermCaptureExecute), unscopedOnly).Post("/api/v1/capture/{id}/stop", capture.Stop)
 

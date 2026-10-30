@@ -297,11 +297,28 @@ func (h *AuthHandler) ListAPIKeys(w http.ResponseWriter, r *http.Request) {
 	httputil.SendOK(w, keys)
 }
 
+const (
+	defaultAPIKeyDays = 90
+	maxAPIKeyDays     = 365
+)
+
 func (h *AuthHandler) CreateAPIKey(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		Description string `json:"description"`
+		Description   string `json:"description"`
+		ExpiresInDays int    `json:"expiresInDays"`
 	}
 	_ = httputil.ParseJSON(r, &body)
+	// Keys always expire (S19): a key minted from a stolen session must not
+	// outlive the session indefinitely.
+	days := body.ExpiresInDays
+	if days <= 0 {
+		days = defaultAPIKeyDays
+	}
+	if days > maxAPIKeyDays {
+		httputil.SendError(w, http.StatusBadRequest, fmt.Sprintf("expiresInDays must be at most %d", maxAPIKeyDays))
+		return
+	}
+	expiresAt := time.Now().AddDate(0, 0, days)
 	claims := auth.GetClaims(r.Context())
 	rawKey, hash, err := auth.GenerateAPIKey()
 	if err != nil {
@@ -312,13 +329,14 @@ func (h *AuthHandler) CreateAPIKey(w http.ResponseWriter, r *http.Request) {
 		UserID:      claims.UserID,
 		KeyHash:     hash,
 		Description: body.Description,
+		ExpiresAt:   &expiresAt,
 	})
 	if err != nil {
 		httputil.SendInternalError(w, err)
 		return
 	}
 	httputil.SendCreated(w, map[string]any{
-		"id": key.ID, "key": rawKey, "description": key.Description, "createdAt": key.CreatedAt,
+		"id": key.ID, "key": rawKey, "description": key.Description, "createdAt": key.CreatedAt, "expiresAt": expiresAt,
 	})
 }
 
