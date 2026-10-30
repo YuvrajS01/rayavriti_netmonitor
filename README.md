@@ -202,6 +202,7 @@ All configuration via environment variables. See [`.env.example`](.env.example) 
 | `FLOW_RETENTION_DAYS` | `7` | Auto-delete flow records older than N days |
 | `ALERTS_RETENTION_DAYS` | `90` | Auto-delete resolved alerts older than N days |
 | `CAPTURE_ENABLED` | `true` | Enable packet capture feature |
+| `ENCRYPTION_KEY` | — | Key for stored credentials (min 32 chars). Without it the JWT-derived key is used; once it's set, existing credentials are re-encrypted on first use |
 | `ADMIN_ADDR` | `127.0.0.1:9464` | Admin listener for Prometheus `/metrics` (empty disables) |
 | `PPROF_ENABLED` | `false` | Also serve `/debug/pprof` on the admin listener |
 

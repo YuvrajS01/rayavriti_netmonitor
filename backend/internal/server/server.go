@@ -221,7 +221,7 @@ func (s *Server) Start() error {
 	}
 	if s.cfg.Remote.Enabled {
 		if pp, ok := s.db.(database.PoolProvider); ok && pp.Pool() != nil {
-			store, err := remote.NewStore(pp.Pool(), s.cfg.Auth.JWTSecret)
+			store, err := remote.NewStore(pp.Pool(), s.cfg.Auth.EncryptionKey, s.cfg.Auth.JWTSecret)
 			if err != nil {
 				s.logger.Error("remote monitoring unavailable", "error", err)
 			} else {
