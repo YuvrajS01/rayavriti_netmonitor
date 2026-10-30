@@ -1228,4 +1228,7 @@ var migrations = []Migration{
 		timescaledb.compress_segmentby = 'device_id, if_index',
 		timescaledb.compress_orderby = 'time DESC');
 	SELECT add_compression_policy('interface_metrics', compress_after => INTERVAL '3 days', if_not_exists => TRUE);`},
+	// v5.2: SNMPv3 USM credentials (security name, level, auth/priv
+	// protocols and passphrases), used when snmp_version is '3'.
+	{Version: 50, SQL: `ALTER TABLE devices ADD COLUMN IF NOT EXISTS snmp_v3 JSONB;`},
 }

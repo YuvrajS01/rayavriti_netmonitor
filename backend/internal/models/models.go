@@ -6,33 +6,35 @@ import (
 )
 
 type Device struct {
-	ID                 int64     `json:"id"`
-	Name               string    `json:"name"`
-	IPAddress          string    `json:"ipAddress"`
-	Protocol           string    `json:"protocol"`
-	Port               int       `json:"port"`
-	Enabled            bool      `json:"enabled"`
-	Status             string    `json:"status"`
-	Priority           int       `json:"priority"`
-	Tags               []string  `json:"tags"`
-	SNMPCommunity      string    `json:"snmpCommunity,omitempty"`
-	SNMPVersion        string    `json:"snmpVersion,omitempty"`
-	SNMPPort           int       `json:"snmpPort,omitempty"`
-	HTTPPath           string    `json:"httpPath,omitempty"`
-	HTTPExpectedStatus int       `json:"httpExpectedStatus,omitempty"`
-	Interval           int       `json:"interval"`
-	CreatedAt          time.Time `json:"createdAt"`
-	UpdatedAt          time.Time `json:"updatedAt"`
-	LocationID         *int64    `json:"locationId,omitempty"`
-	ParentDeviceID     *int64    `json:"parentDeviceId,omitempty"`
-	DependencyPort     string    `json:"dependencyPort,omitempty"`
-	RackPosition       string    `json:"rackPosition,omitempty"`
-	AssetTag           string    `json:"assetTag,omitempty"`
-	MACAddress         string    `json:"macAddress,omitempty"`
-	SerialNumber       string    `json:"serialNumber,omitempty"`
-	Manufacturer       string    `json:"manufacturer,omitempty"`
-	Model              string    `json:"model,omitempty"`
-	DeviceCategory     string    `json:"deviceCategory,omitempty"`
+	ID            int64    `json:"id"`
+	Name          string   `json:"name"`
+	IPAddress     string   `json:"ipAddress"`
+	Protocol      string   `json:"protocol"`
+	Port          int      `json:"port"`
+	Enabled       bool     `json:"enabled"`
+	Status        string   `json:"status"`
+	Priority      int      `json:"priority"`
+	Tags          []string `json:"tags"`
+	SNMPCommunity string   `json:"snmpCommunity,omitempty"`
+	SNMPVersion   string   `json:"snmpVersion,omitempty"`
+	SNMPPort      int      `json:"snmpPort,omitempty"`
+	// SNMPv3 holds USM credentials, used when SNMPVersion is "3".
+	SNMPv3             *SNMPv3Config `json:"snmpV3,omitempty"`
+	HTTPPath           string        `json:"httpPath,omitempty"`
+	HTTPExpectedStatus int           `json:"httpExpectedStatus,omitempty"`
+	Interval           int           `json:"interval"`
+	CreatedAt          time.Time     `json:"createdAt"`
+	UpdatedAt          time.Time     `json:"updatedAt"`
+	LocationID         *int64        `json:"locationId,omitempty"`
+	ParentDeviceID     *int64        `json:"parentDeviceId,omitempty"`
+	DependencyPort     string        `json:"dependencyPort,omitempty"`
+	RackPosition       string        `json:"rackPosition,omitempty"`
+	AssetTag           string        `json:"assetTag,omitempty"`
+	MACAddress         string        `json:"macAddress,omitempty"`
+	SerialNumber       string        `json:"serialNumber,omitempty"`
+	Manufacturer       string        `json:"manufacturer,omitempty"`
+	Model              string        `json:"model,omitempty"`
+	DeviceCategory     string        `json:"deviceCategory,omitempty"`
 	// MonitorConfig holds non-secret profile options for specialized hardware
 	// (for example rtspPort for cameras or attendancePort for biometrics).
 	// Credentials must not be stored here; use the device's own access controls.
