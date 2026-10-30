@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef, memo, Suspense, type FormEvent } from 'react';
+import { lazyWithRetry } from '../utils/lazyWithRetry';
 import { Link, NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useSessionUser } from '../store/session';
 import { logout, getAlertCounts } from '../api/client';
@@ -12,6 +13,8 @@ import { ThemeSwitcher } from './ui/ThemeSwitcher';
 import IconButton from './ui/IconButton';
 import { StatusDot } from './ui/Status';
 import { findActive, isItemActive, itemTarget, visibleGroups, type NavItem } from '../navigation';
+
+const CommandPalette = lazyWithRetry(() => import('./CommandPalette'));
 
 /** Desktop sidebar collapsed to a 64px icon rail; remembered per browser. */
 export const NAV_RAIL_STORAGE_KEY = 'nm-nav-rail';
@@ -91,6 +94,11 @@ export default function Layout({ children }: { children?: React.ReactNode }) {
   const accountRef = useRef<HTMLDivElement>(null);
   const accountButtonRef = useRef<HTMLButtonElement>(null);
   const [command, setCommand] = useState('');
+  const [palette, setPalette] = useState<{ query: string } | null>(null);
+  const openPalette = (query = '') => {
+    setPalette({ query });
+    setCommand('');
+  };
   const [accountOpen, setAccountOpen] = useState(false);
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
 
@@ -119,19 +127,23 @@ export default function Layout({ children }: { children?: React.ReactNode }) {
     }
   };
 
+  // The header search is the palette's entry point: typing or Enter opens
+  // it with the text so far.
   const handleCommandSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const query = command.trim();
-    if (!query) return;
-    const needle = query.toLowerCase();
-    const match = flatItems.find((item) => item.label.toLowerCase().includes(needle));
-    if (match) {
-      void navigate(itemTarget(match, user));
-    } else {
-      void navigate(`/devices?search=${encodeURIComponent(query)}`);
-    }
-    setCommand('');
+    openPalette(command);
   };
+
+  // ⌘K / Ctrl+K toggles the palette from anywhere in the app.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key.toLowerCase() !== 'k' || !(event.metaKey || event.ctrlKey) || event.altKey) return;
+      event.preventDefault();
+      setPalette((open) => (open ? null : { query: '' }));
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, []);
 
   // Invalidated by alert/bootstrap WebSocket events (useLiveQueryBridge).
   const alertCountsQuery = useQuery({
@@ -229,14 +241,18 @@ export default function Layout({ children }: { children?: React.ReactNode }) {
             <input
               type="search"
               value={command}
-              onChange={(e) => setCommand(e.target.value)}
-              className="h-10 w-full rounded-md border border-line bg-surface-1 pl-10 pr-3 text-sm text-fg placeholder:text-fg-subtle outline-none transition-colors focus:border-primary"
+              onChange={(e) => openPalette(e.target.value)}
+              onClick={() => openPalette(command)}
+              aria-keyshortcuts="Control+K Meta+K"
+              className="h-10 w-full rounded-md border border-line bg-surface-1 pl-10 pr-16 text-sm text-fg placeholder:text-fg-subtle outline-none transition-colors focus:border-primary"
               placeholder="Search devices or jump to a page"
             />
+            <kbd className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rounded-sm border border-line-strong px-1.5 font-mono text-xs text-fg-muted" aria-hidden="true">Ctrl K</kbd>
           </label>
         </form>
 
         <div className="flex items-center gap-2">
+          <IconButton icon="search" label="Search or jump to a page" className="md:hidden" onClick={() => openPalette()} />
           <div className="hidden items-center gap-2 rounded-md border border-line bg-surface-1 px-3 py-2 text-xs text-fg-muted sm:flex" role="status">
             <StatusDot status={connected ? 'up' : 'unknown'} size={8} label="" />
             <span>{connected ? 'Live' : 'Realtime paused'}</span>
@@ -408,6 +424,12 @@ export default function Layout({ children }: { children?: React.ReactNode }) {
           </div>
         </main>
       </div>
+
+      {palette && (
+        <Suspense fallback={null}>
+          <CommandPalette open initialQuery={palette.query} onClose={() => setPalette(null)} />
+        </Suspense>
+      )}
 
       {/* Mobile bottom nav sits on the sticky layer, under the drawer and any
           modal (dialogs use the top layer). */}

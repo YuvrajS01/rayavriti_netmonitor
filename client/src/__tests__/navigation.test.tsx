@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
@@ -7,6 +7,7 @@ import { LEGACY_REDIRECTS, NAV_GROUPS, breadcrumbsFor, findActive, itemTarget, v
 import { LegacyRedirect } from '../components/layout/SectionHub';
 import Layout, { NAV_RAIL_STORAGE_KEY } from '../components/Layout';
 import PageHeader from '../components/ui/PageHeader';
+import { ToastProvider } from '../components/ui/Toast';
 import { sessionStore } from '../store/session';
 
 const admin = { id: 1, username: 'admin', role: 'admin' };
@@ -100,9 +101,11 @@ describe('Layout', () => {
   const renderLayout = (url: string) =>
     render(
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false, enabled: false } } })}>
-        <MemoryRouter initialEntries={[url]}>
-          <Layout><PageHeader title="Incidents" /></Layout>
-        </MemoryRouter>
+        <ToastProvider>
+          <MemoryRouter initialEntries={[url]}>
+            <Layout><PageHeader title="Incidents" /></Layout>
+          </MemoryRouter>
+        </ToastProvider>
       </QueryClientProvider>,
     );
 
@@ -129,5 +132,16 @@ describe('Layout', () => {
 
     renderLayout('/');
     expect(screen.getByRole('button', { name: 'Expand navigation' })).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('opens the command palette with Ctrl+K and from the header search', async () => {
+    renderLayout('/');
+    await userEvent.keyboard('{Control>}k{/Control}');
+    expect(await screen.findByRole('combobox', { name: /Search pages/ })).toHaveFocus();
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('combobox', { name: /Search pages/ })).toBeNull());
+
+    await userEvent.type(screen.getByRole('searchbox', { name: /Search devices or jump/ }), 'l');
+    expect(await screen.findByRole('combobox', { name: /Search pages/ })).toHaveValue('l');
   });
 });
