@@ -37,6 +37,8 @@ export interface Device {
   locationId?: number;
   snmpCommunity?: string | null;
   snmpVersion?: string | null;
+  /** SNMPv3 USM credentials. Passphrases come back as "********". */
+  snmpV3?: SNMPv3Config | null;
   deviceCategory?: string;
   monitorConfig?: Record<string, string | number | boolean>;
   manufacturer?: string;
@@ -362,4 +364,16 @@ export interface HealthHistoryResponse {
   generatedAt: string;
   hours: number;
   points: HealthHistoryPoint[];
+}
+
+export type SNMPv3SecurityLevel = 'noAuthNoPriv' | 'authNoPriv' | 'authPriv';
+
+export interface SNMPv3Config {
+  securityName: string;
+  securityLevel: SNMPv3SecurityLevel;
+  authProtocol?: string;
+  authPassphrase?: string;
+  privProtocol?: string;
+  privPassphrase?: string;
+  contextName?: string;
 }
