@@ -109,9 +109,10 @@ describe('dedupeInsights', () => {
     const out = dedupeInsights([item(1, 70), item(2, 50), item(1, 40), item(3, 90)]);
     expect(out.map((i) => [i.deviceId, i.score])).toEqual([[1, 40], [2, 50], [3, 90]]);
   });
-  it('merges duplicate device records that share a name', () => {
+  it('keeps distinct devices that share a name', () => {
     const named = (deviceId: number, deviceName: string, score: number) => ({ deviceId, deviceName, score }) as DeviceHealth;
-    const out = dedupeInsights([named(6, 'sw-a', 50), named(8, 'SW-A', 50), named(9, 'sw-b', 55)]);
-    expect(out.map((i) => i.deviceName)).toEqual(['sw-a', 'sw-b']);
+    const out = dedupeInsights([named(6, 'sw-a', 50), named(8, 'sw-a', 52), named(9, 'sw-b', 55)]);
+    // Different devices that share a name are both shown.
+    expect(out.map((i) => i.deviceId)).toEqual([6, 8, 9]);
   });
 });
