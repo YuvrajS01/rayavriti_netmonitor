@@ -1,38 +1,43 @@
-import { memo } from 'react';
+import { memo, useMemo } from 'react';
 import type { InsightsResponse } from '../../api/types';
 import RingGauge from '../ui/RingGauge';
-import Sparkline from '../ui/Sparkline';
+import { StatusPill } from '../ui/Status';
+import { healthMeta } from '../../utils/status';
 
 interface Props {
   networkHealth: number;
   insights: InsightsResponse | null;
 }
 
+const TREND_ICON = { improving: 'trending_up', degrading: 'trending_down', stable: 'trending_flat' } as const;
+
 function AiHealthScoreInner({ networkHealth, insights }: Props) {
-  const healthArray = insights?.health || [];
-  const weakestDevice = healthArray.length
-    ? [...healthArray].sort((a, b) => a.score - b.score)[0]
-    : undefined;
+  const weakestDevice = useMemo(() => {
+    const items = insights?.health ?? [];
+    return items.length ? items.reduce((worst, item) => (item.score < worst.score ? item : worst)) : undefined;
+  }, [insights?.health]);
+  const trend = weakestDevice?.trend ?? 'stable';
 
   return (
-    <div className="bg-surface-1 rounded-lg p-5 border border-line flex flex-col items-center justify-center">
-      <p className="text-xs text-fg-muted font-medium mb-3">AI health score</p>
-      <RingGauge value={networkHealth} label="network" showParticles />
-      {weakestDevice && (
-        <div className="flex items-center gap-1 mt-2">
-          <span className={`material-symbols-outlined text-sm ${weakestDevice.trend === 'improving' ? 'text-success' : weakestDevice.trend === 'degrading' ? 'text-error trend-pulse' : 'text-fg-muted'}`}>
-            {weakestDevice.trend === 'improving' ? 'trending_up' : weakestDevice.trend === 'degrading' ? 'trending_down' : 'trending_flat'}
-          </span>
-          <span className="text-xs text-fg-muted font-medium">
-            {weakestDevice.trend || 'stable'}
-          </span>
+    <section aria-labelledby="ai-health-heading" className="bg-surface-1 rounded-lg p-5 border border-line flex flex-col items-center justify-center gap-3">
+      <h3 id="ai-health-heading" className="self-start text-sm font-semibold text-fg">AI health score</h3>
+      <RingGauge value={networkHealth} label="Network health" />
+      {weakestDevice ? (
+        <div className="w-full rounded-md bg-surface-2 px-3 py-2 text-xs">
+          <p className="text-fg-muted">Weakest device</p>
+          <div className="mt-1 flex items-center justify-between gap-2">
+            <span className="truncate text-sm font-medium text-fg">{weakestDevice.deviceName}</span>
+            <StatusPill status={healthMeta(weakestDevice.score)} />
+          </div>
+          <p className="mt-1 inline-flex items-center gap-1 text-fg-muted">
+            <span className="material-symbols-outlined text-sm" aria-hidden="true">{TREND_ICON[trend] ?? 'trending_flat'}</span>
+            Trend {trend}
+          </p>
         </div>
+      ) : (
+        <p className="text-xs text-fg-muted text-center">Waiting for telemetry</p>
       )}
-      <p className="text-xs text-fg-muted mt-2 text-center">
-        {weakestDevice ? `${weakestDevice.deviceName} needs watch` : 'Waiting for telemetry'}
-      </p>
-      <Sparkline data={healthArray.map((item) => item.score).slice(-12)} color="var(--color-success)" className="mt-2" />
-    </div>
+    </section>
   );
 }
 

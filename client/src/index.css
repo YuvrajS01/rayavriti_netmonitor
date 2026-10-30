@@ -254,137 +254,86 @@
 /* ── Scrollbar ─────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--color-line); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: var(--color-line-strong); }
+::-webkit-scrollbar-thumb { background: var(--color-line-strong); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-fg-subtle); }
 
 * {
   scrollbar-width: thin;
-  scrollbar-color: var(--color-line) transparent;
+  scrollbar-color: var(--color-line-strong) transparent;
 }
 
-/* ── Radial Gauge Animation ────────────────────────────── */
+/* ── Motion ──────────────────────────────────────────────
+   Rule: motion explains a change, then stops. Two durations (120/200ms),
+   no infinite loops — the one exception is the 3s pulse on a *new*
+   critical alert, which still ends. Everything collapses under
+   prefers-reduced-motion (JS motion checks useReducedMotion()). */
+
+/* Gauge fill on first paint */
 @keyframes gauge-fill {
   from { stroke-dashoffset: var(--gauge-circumference, 440); }
   to   { stroke-dashoffset: var(--gauge-offset, 440); }
 }
+.gauge-ring { animation: gauge-fill 600ms var(--ease-out-quart) both; }
 
-.gauge-ring {
-  animation: gauge-fill 1.2s var(--ease-out-quart) forwards;
-}
-
-/* ── Trend Pulse ───────────────────────────────────────── */
-@keyframes trend-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
-}
-.trend-pulse {
-  animation: trend-pulse 2s ease-in-out infinite;
-}
-
-/* ── Factor Bar Animation ──────────────────────────────── */
-@keyframes factor-fill {
+/* Bars that grow from the left (factor bars, flow bands, gantt bars) */
+@keyframes grow-x {
   from { transform: scaleX(0); }
   to   { transform: scaleX(1); }
 }
-.factor-bar-fill {
+.factor-bar-fill,
+.flow-band,
+.gantt-bar {
   transform-origin: left;
-  animation: factor-fill 0.8s var(--ease-out-quart) forwards;
+  animation: grow-x var(--duration-normal) var(--ease-out-quart) both;
 }
 
-/* ── Slide Down Accordion ──────────────────────────────── */
+/* Accordion (sidebar groups) */
 .animate-slide-down {
   display: grid;
   grid-template-rows: 0fr;
-  transition: grid-template-rows 120ms var(--ease-out-quart);
-  will-change: grid-template-rows;
+  transition: grid-template-rows var(--duration-fast) var(--ease-out-quart);
 }
-.animate-slide-down[data-open="true"] {
-  grid-template-rows: 1fr;
-}
-.animate-slide-down > * {
-  overflow: hidden;
-  min-height: 0;
-}
+.animate-slide-down[data-open="true"] { grid-template-rows: 1fr; }
+.animate-slide-down > * { overflow: hidden; min-height: 0; }
 
-/* ── Toast Slide Up ────────────────────────────────────── */
-@keyframes slide-up {
-  from { opacity: 0; transform: translateY(12px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-.animate-slide-up {
-  animation: slide-up 140ms var(--ease-out-quart) forwards;
-}
-
-/* ── Page Entrance ─────────────────────────────────────── */
-@keyframes page-enter {
+/* Toast / page / card entrance */
+@keyframes rise-in {
   from { opacity: 0; transform: translateY(6px); }
   to   { opacity: 1; transform: translateY(0); }
 }
-.page-enter {
-  animation: page-enter 120ms var(--ease-out-quart) forwards;
-}
-
-/* ── Card Stagger Entry ────────────────────────────────── */
-@keyframes card-enter {
-  from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
+.animate-slide-up { animation: rise-in var(--duration-fast) var(--ease-out-quart) both; }
+.page-enter { animation: rise-in var(--duration-fast) var(--ease-out-quart) both; }
 .card-stagger {
-  animation: card-enter 140ms var(--ease-out-quart) backwards;
-  animation-delay: calc(var(--i, 0) * 24ms);
+  animation: rise-in var(--duration-normal) var(--ease-out-quart) backwards;
+  animation-delay: calc(min(var(--i, 0), 8) * 20ms);
 }
+.fade-in-up,
+.report-tab-content > * { animation: rise-in var(--duration-normal) var(--ease-out-quart) both; }
+.login-card { box-shadow: var(--shadow-e3); animation: rise-in var(--duration-normal) var(--ease-out-expo) both; }
 
-/* ── Visual telemetry system ───────────────────────────── */
+/* Skeleton loading sheen (only while data is loading). */
 @keyframes shimmer {
   from { background-position: 200% 0; }
-  to { background-position: -200% 0; }
+  to   { background-position: -200% 0; }
 }
-@keyframes glow-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 color-mix(in oklch, var(--glow-color, var(--color-success)) 0%, transparent); }
-  50% { box-shadow: 0 0 18px 1px color-mix(in oklch, var(--glow-color, var(--color-success)) 28%, transparent); }
-}
-@keyframes particle-drift { to { transform: rotate(360deg); } }
-.shimmer { background: linear-gradient(100deg, var(--color-surface-1) 35%, var(--color-surface-3) 50%, var(--color-surface-1) 65%); background-size: 200% 100%; animation: shimmer 1.6s linear infinite; }
-.glass-card { background: color-mix(in oklch, var(--color-surface-1) 82%, transparent); backdrop-filter: blur(14px); border: 1px solid color-mix(in oklch, var(--color-line) 45%, transparent); }
-.glow-success { --glow-color: var(--color-success); animation: glow-pulse 2.4s ease-in-out infinite; }
-.glow-error { --glow-color: var(--color-error); animation: glow-pulse 1.6s ease-in-out infinite; }
-.glow-warning { --glow-color: var(--color-warning); animation: glow-pulse 2s ease-in-out infinite; }
-.stat-card { transition: transform var(--duration-normal) var(--ease-out-quart), border-color var(--duration-normal), box-shadow var(--duration-normal); }
-.stat-card:hover { transform: translateY(-2px); border-color: color-mix(in oklch, var(--color-primary) 38%, var(--color-line)); box-shadow: 0 12px 26px color-mix(in oklch, var(--color-canvas) 75%, transparent); }
-.ring-particles::before, .ring-particles::after { content: ''; position: absolute; inset: -8px; border: 1px dashed color-mix(in oklch, var(--color-success) 55%, transparent); border-radius: inherit; animation: particle-drift 10s linear infinite; }
-.ring-particles::after { inset: 7px; animation-direction: reverse; animation-duration: 7s; }
-.status-dot-live { box-shadow: 0 0 0 0 color-mix(in oklch, var(--color-success) 50%, transparent); animation: live-pulse 1.8s ease-out infinite; }
-@keyframes live-pulse { 70% { box-shadow: 0 0 0 7px transparent; } 100% { box-shadow: 0 0 0 0 transparent; } }
-@keyframes flow-band { from { transform: scaleX(.03); opacity: .2; } to { transform: scaleX(1); opacity: 1; } }
-.flow-band { transform-origin: left; animation: flow-band .65s var(--ease-out-quart) both; }
-.gantt-bar { animation: flow-band .5s var(--ease-out-quart) both; transform-origin: left; }
-.login-atmosphere { position: relative; overflow: hidden; }
-.login-atmosphere::before { content: ''; pointer-events: none; position: fixed; inset: -20%; background: radial-gradient(circle at 25% 30%, color-mix(in oklch, var(--color-primary) 13%, transparent) 0 1px, transparent 2px), radial-gradient(circle at 72% 68%, color-mix(in oklch, var(--color-success) 12%, transparent) 0 1px, transparent 2px); background-size: 92px 92px, 138px 138px; animation: particle-drift 38s linear infinite; }
-.login-card { box-shadow: 0 24px 80px color-mix(in oklch, var(--color-canvas) 65%, transparent); animation: page-enter .45s var(--ease-out-expo) both; }
-
-/* ── GPU-Accelerated Utilities ─────────────────────────── */
-.gpu-accelerate {
-  transform: translateZ(0);
-  will-change: transform;
+.shimmer {
+  background: linear-gradient(100deg, var(--color-surface-2) 35%, var(--color-surface-3) 50%, var(--color-surface-2) 65%);
+  background-size: 200% 100%;
+  animation: shimmer 1.6s linear infinite;
 }
 
-.fade-in-up {
-  animation: report-fade var(--duration-normal) var(--ease-out-quart) forwards;
+/* New critical alert: three 1s pulses, then still. Apply only to an alert
+   that arrived since the page loaded (not to every critical row). */
+@keyframes alert-pulse {
+  0%   { box-shadow: 0 0 0 0 color-mix(in oklab, var(--color-status-down) 55%, transparent); }
+  100% { box-shadow: 0 0 0 10px transparent; }
 }
+.alert-new-pulse { animation: alert-pulse 1s ease-out 3; }
 
 /* ── Content Visibility (skip off-screen rendering) ────── */
 .content-visibility-auto {
   content-visibility: auto;
   contain-intrinsic-size: auto 400px;
-}
-
-/* ── Report Tab Fade-In ────────────────────────────────── */
-@keyframes report-fade {
-  from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-.report-tab-content > * {
-  animation: report-fade var(--duration-normal) ease-out forwards;
 }
 
 /* ── Reduced Motion ────────────────────────────────────── */
@@ -393,53 +342,79 @@
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
 
 /* ── Print Styles ──────────────────────────────────────── */
 @media print {
-  body {
-    background: #fff !important;
-    color: #111 !important;
-    font-size: 11px;
+  /* Paper always uses the light theme, whatever the screen shows. */
+  :root, :root[data-theme] {
+    color-scheme: light;
+    --color-canvas: #F5F7F6;
+    --color-surface-1: #FFFFFF;
+    --color-surface-2: #EEF2F0;
+    --color-surface-3: #E2E8E5;
+    --color-inset: #F5F7F6;
+    --color-line: #D3DBD7;
+    --color-line-strong: #A3AEA8;
+    --color-fg: #141A17;
+    --color-fg-muted: #4B5751;
+    --color-fg-subtle: #616D67;
+    --color-primary: #5C4A1E;
+    --color-primary-hover: #4A3B16;
+    --color-on-primary: #FFFFFF;
+    --color-focus: #5C4A1E;
+    --color-status-up: #0F7A45;
+    --color-status-warning: #945600;
+    --color-status-down: #C02A26;
+    --color-status-unknown: #5B6472;
+    --color-status-maintenance: #6D4FD8;
+    --color-status-info: #1D63C9;
+    --color-on-status: #FFFFFF;
+    --color-error-hover: #A92622;
+    --color-scrim: rgb(20 26 23 / 0.45);
+    --color-chart-1: #2F6BD0;
+    --color-chart-2: #C2561A;
+    --color-chart-3: #A43FA0;
+    --color-chart-4: #3F8A26;
+    --color-chart-5: #1C7FA6;
+    --color-chart-6: #C04274;
+    --color-chart-7: #8A7414;
+    --color-chart-8: #5C66C9;
+    --shadow-e1: 0 1px 2px rgb(20 26 23 / 0.08);
+    --shadow-e2: 0 4px 14px rgb(20 26 23 / 0.1);
+    --shadow-e3: 0 16px 44px rgb(20 26 23 / 0.18);
   }
+  body { font-size: 11px; }
   .no-print, nav, aside, header:has(button), [class*="sidebar"] {
     display: none !important;
   }
   .print-header {
     display: block !important;
-    border-bottom: 2px solid #111;
+    border-bottom: 2px solid var(--color-fg);
     padding-bottom: 8px;
     margin-bottom: 16px;
   }
-  .print-header h1 { color: #111 !important; font-size: 22px !important; }
-  .print-header p { color: #444 !important; }
+  .print-header h1 { font-size: 22px !important; }
   .print-footer {
     display: block !important;
-    border-top: 1px solid #ccc;
+    border-top: 1px solid var(--color-line);
     padding-top: 8px;
     margin-top: 24px;
-    font-size: 9px;
-    color: #888;
+    font-size: 12px;
+    color: var(--color-fg-subtle);
   }
   .report-section {
     break-inside: avoid;
     page-break-inside: avoid;
   }
-  /* Flatten dark cards to white for paper */
-  [class*="bg-canvas"] {
-    background: #fff !important;
-    border-color: #ddd !important;
-  }
-  [class*="text-fg"] { color: #333 !important; }
-  [class*="text-primary"] { color: #3a7d00 !important; }
-  [class*="text-error"] { color: #c00 !important; }
   ::-webkit-scrollbar { display: none; }
 
   /* Hide charts, show accessible data tables */
   .recharts-wrapper,
-  .recharts-canvas,
-  svg.recharts-canvas { display: none !important; }
+  .recharts-surface,
+  svg.recharts-surface { display: none !important; }
   .sr-only {
     position: static !important;
     width: auto !important;
@@ -456,6 +431,6 @@
   main { margin-left: 0 !important; padding: 16px !important; }
 
   /* Ensure tables print well */
-  table { font-size: 10px !important; }
+  table { font-size: 11px !important; }
   tr { page-break-inside: avoid; }
 }
