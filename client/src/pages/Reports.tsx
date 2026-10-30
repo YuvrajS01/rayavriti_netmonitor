@@ -1,4 +1,5 @@
-import { useState, useCallback, lazy, Suspense } from 'react';
+import { useState, useCallback, Suspense } from 'react';
+import { lazyWithRetry } from '../utils/lazyWithRetry';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getReportSummary, getReportTimeseries, getReportDeviceBreakdown, getReportAlerts, getReportISP, downloadMetricsCsv, getDevices } from '../api/client';
 import { queryKeys } from '../api/queryKeys';
@@ -12,11 +13,11 @@ const EMPTY_REPORT_ALERTS: ReportAlert[] = [];
 const EMPTY_ISP: ISPReportLink[] = [];
 const EMPTY_DEVICES: Device[] = [];
 
-const SummaryTab = lazy(() => import('../components/reports/SummaryTab'));
-const DeviceTab = lazy(() => import('../components/reports/DeviceTab'));
-const SlaTab = lazy(() => import('../components/reports/SlaTab'));
-const AlertTab = lazy(() => import('../components/reports/AlertTab'));
-const IspTab = lazy(() => import('../components/reports/IspTab'));
+const SummaryTab = lazyWithRetry(() => import('../components/reports/SummaryTab'));
+const DeviceTab = lazyWithRetry(() => import('../components/reports/DeviceTab'));
+const SlaTab = lazyWithRetry(() => import('../components/reports/SlaTab'));
+const AlertTab = lazyWithRetry(() => import('../components/reports/AlertTab'));
+const IspTab = lazyWithRetry(() => import('../components/reports/IspTab'));
 
 function formatLocalInput(date: Date) {
   const d = new Date(date.getTime() - date.getTimezoneOffset() * 60000);

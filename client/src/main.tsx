@@ -8,6 +8,14 @@ import '@fontsource-variable/plus-jakarta-sans'
 import '@fontsource-variable/jetbrains-mono'
 import App from './App'
 import { restoreSession } from './api/auth'
+import { reloadOnceForNewBuild } from './utils/lazyWithRetry'
+
+// Vite fires this when a modulepreload/CSS dependency of a lazy chunk 404s
+// (usually a deploy replaced the hashed assets): reload once to pick up
+// the new build instead of failing the navigation.
+window.addEventListener('vite:preloadError', (event) => {
+  if (reloadOnceForNewBuild()) event.preventDefault()
+})
 
 // Restore the session from the HttpOnly refresh cookie before first paint
 // of any protected route; ProtectedRoute shows a loader meanwhile.

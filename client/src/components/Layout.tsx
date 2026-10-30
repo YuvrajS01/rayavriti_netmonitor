@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, memo, type FormEvent } from 'react';
+import { useState, useEffect, useMemo, memo, Suspense, type FormEvent } from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useSessionUser } from '../store/session';
 import { logout, getAlertCounts } from '../api/client';
@@ -6,6 +6,8 @@ import { useSocketConnected } from '../hooks/useSocket';
 import { useQuery } from '@tanstack/react-query';
 import { queryKeys } from '../api/queryKeys';
 import IconColor from '../assets/brand/Icon-color.svg';
+import ErrorBoundary from './ErrorBoundary';
+import PageLoader from './ui/PageLoader';
 
 interface NavItem {
   to: string;
@@ -350,7 +352,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
         <main id="main-content" className={`min-h-[calc(100vh-64px)] flex-1 bg-surface p-4 pb-20 sm:p-6 lg:pb-6 ${sidebarOpen ? 'lg:ml-[260px]' : 'ml-0'}`}>
           <div key={location.pathname} className="page-enter">
-            {children}
+            {/* Keyed by pathname (via the parent): a crashed or still-loading
+                page stays inside the content area and navigating away resets it. */}
+            <ErrorBoundary scope="route">
+              <Suspense fallback={<PageLoader />}>
+                {children}
+              </Suspense>
+            </ErrorBoundary>
           </div>
         </main>
       </div>
