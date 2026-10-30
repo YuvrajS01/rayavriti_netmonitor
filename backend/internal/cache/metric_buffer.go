@@ -41,6 +41,11 @@ func (b *MetricBuffer) Push(ctx context.Context, m *models.Metric) error {
 	return b.rdb.Client().RPush(ctx, metricsBufferKey, data).Err()
 }
 
+// Len returns the number of metrics waiting in Redis to be persisted.
+func (b *MetricBuffer) Len(ctx context.Context) (int64, error) {
+	return b.rdb.Client().LLen(ctx, metricsBufferKey).Result()
+}
+
 func (b *MetricBuffer) Start(ctx context.Context) {
 	ctx, b.cancel = context.WithCancel(ctx)
 	b.wg.Add(1)

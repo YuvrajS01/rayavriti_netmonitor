@@ -9,6 +9,7 @@ import (
 	"github.com/rayavriti/netmonitor-backend/internal/cache"
 	"github.com/rayavriti/netmonitor-backend/internal/database"
 	"github.com/rayavriti/netmonitor-backend/internal/engine"
+	"github.com/rayavriti/netmonitor-backend/internal/metrics"
 	"github.com/rayavriti/netmonitor-backend/internal/models"
 	"github.com/rayavriti/netmonitor-backend/internal/websocket"
 )
@@ -68,7 +69,9 @@ func (rp *ResultPipeline) Stop() {
 		rp.cancel()
 	}
 	rp.wg.Wait()
-	rp.flush(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	rp.flush(ctx)
 	slog.Info("result pipeline stopped")
 }
 
@@ -104,7 +107,14 @@ func (rp *ResultPipeline) run(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			flushBatch()
+			// The run context is already cancelled; persist the final batch
+			// (and anything still queued) with a fresh, bounded context.
+			finalCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 15*time.Second)
+			if len(batch) > 0 {
+				rp.processBatch(finalCtx, batch)
+			}
+			rp.flush(finalCtx)
+			cancel()
 			return
 		case result := <-rp.resultCh:
 			batch = append(batch, result)
@@ -118,6 +128,11 @@ func (rp *ResultPipeline) run(ctx context.Context) {
 }
 
 func (rp *ResultPipeline) processBatch(ctx context.Context, batch []PollResult) {
+	start := time.Now()
+	defer func() {
+		metrics.PipelineBatchDuration.Observe(time.Since(start).Seconds())
+		metrics.PipelineBatchSize.Observe(float64(len(batch)))
+	}()
 	metrics := make([]*models.Metric, 0, len(batch))
 
 	for _, pr := range batch {

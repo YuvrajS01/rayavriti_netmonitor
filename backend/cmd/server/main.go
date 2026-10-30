@@ -20,6 +20,7 @@ import (
 	"github.com/rayavriti/netmonitor-backend/internal/database"
 	"github.com/rayavriti/netmonitor-backend/internal/engine"
 	"github.com/rayavriti/netmonitor-backend/internal/logging"
+	"github.com/rayavriti/netmonitor-backend/internal/metrics"
 	"github.com/rayavriti/netmonitor-backend/internal/monitoring"
 	"github.com/rayavriti/netmonitor-backend/internal/reports"
 	"github.com/rayavriti/netmonitor-backend/internal/retention"
@@ -228,6 +229,9 @@ func run() error {
 	sched.Start(context.Background())
 	logger.Info("Scheduler started")
 
+	// Prometheus metrics (served by the admin listener below).
+	registerRuntimeMetrics(cfg.App.Version, db, sched, hub, metricBuf)
+
 	// 10. Initialize anomaly engine (shares its baseline cache with the alert engine)
 	anomalyEng := engine.NewAnomalyEngine(db, slog.Default())
 	anomalyEng.SetBaselineCache(baselineCache)
@@ -273,6 +277,8 @@ func run() error {
 	// 13. Initialize HTTP server
 	srv := server.New(cfg, appDB, hub, logger, server.WithRedis(rdb), server.WithAlertEngine(alertEng), server.WithServiceMode(&serviceMode))
 
+	adminSrv := server.StartAdmin(cfg.App.AdminAddr, cfg.App.PprofEnabled)
+
 	// 13. Start server in goroutine
 	errChan := make(chan error, 1)
 	go func() {
@@ -292,23 +298,68 @@ func run() error {
 		logger.Info("Shutdown signal received", "signal", sig)
 	}
 
-	// 15. Graceful shutdown
+	// 15. Graceful shutdown. Order matters: stop intake first, then the
+	// producers (scheduler, collectors), then what they feed (alert engine,
+	// metric buffer), and the WebSocket hub last so every component can still
+	// broadcast while it drains.
 	logger.Info("Shutting down...")
-	sched.Stop()
-	ispCollector.Stop()
-	reportScheduler.Stop()
-	if metricBuf != nil {
-		metricBuf.Stop()
-	}
-	anomalyEng.Stop()
-	alertEng.Stop()
-	retSched.Stop()
-	hub.Stop()
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	if err := srv.Shutdown(ctx); err != nil {
 		logger.Error("Server shutdown error", "error", err)
 	}
+	sched.Stop()
+	ispCollector.Stop()
+	reportScheduler.Stop()
+	anomalyEng.Stop()
+	alertEng.Stop()
+	if metricBuf != nil {
+		metricBuf.Stop()
+	}
+	retSched.Stop()
+	hub.Stop()
+	_ = adminSrv.Shutdown(ctx)
 	logger.Info("Shutdown complete")
 	return nil
+}
+
+// registerRuntimeMetrics exposes state other components already track as
+// Prometheus gauges read at scrape time.
+func registerRuntimeMetrics(version string, db *database.Postgres, sched *scheduler.Scheduler, hub *websocket.Hub, metricBuf *cache.MetricBuffer) {
+	metrics.SetBuildInfo(version)
+	if db != nil && db.Pool() != nil {
+		metrics.RegisterPool(db.Pool())
+	}
+	metrics.RegisterGaugeFunc("poller", "scheduled_devices", "Devices currently scheduled for polling.",
+		func() float64 { return float64(sched.JobCount()) })
+	metrics.RegisterGaugeFunc("poller", "unreachable_devices", "Scheduled devices in unreachable backoff.",
+		func() float64 { return float64(sched.UnreachableCount()) })
+	metrics.RegisterGaugeFunc("poller", "busy_workers", "Workers currently running a poll.",
+		func() float64 { return float64(sched.PoolMetrics().BusyWorkers) })
+	for _, q := range []struct {
+		name string
+		get  func(scheduler.WorkerPoolMetricsSnapshot) int
+	}{
+		{"critical", func(m scheduler.WorkerPoolMetricsSnapshot) int { return m.QueuedCritical }},
+		{"normal", func(m scheduler.WorkerPoolMetricsSnapshot) int { return m.QueuedNormal }},
+		{"low", func(m scheduler.WorkerPoolMetricsSnapshot) int { return m.QueuedLow }},
+	} {
+		get := q.get
+		metrics.RegisterGaugeFunc("poller", "queue_depth_"+q.name, "Poll jobs waiting in the "+q.name+" priority queue.",
+			func() float64 { return float64(get(sched.PoolMetrics())) })
+	}
+	metrics.RegisterGaugeFunc("websocket", "clients", "Connected WebSocket clients.",
+		func() float64 { return float64(hub.ConnectionCount()) })
+	if metricBuf != nil {
+		metrics.RegisterGaugeFunc("metric_buffer", "length", "Metrics waiting in the Redis buffer to be persisted.",
+			func() float64 {
+				ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+				defer cancel()
+				n, err := metricBuf.Len(ctx)
+				if err != nil {
+					return -1
+				}
+				return float64(n)
+			})
+	}
 }

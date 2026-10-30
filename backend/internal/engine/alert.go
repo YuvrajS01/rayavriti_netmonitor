@@ -11,6 +11,7 @@ import (
 
 	"github.com/rayavriti/netmonitor-backend/internal/cache"
 	"github.com/rayavriti/netmonitor-backend/internal/database"
+	"github.com/rayavriti/netmonitor-backend/internal/metrics"
 	"github.com/rayavriti/netmonitor-backend/internal/models"
 	"github.com/rayavriti/netmonitor-backend/internal/websocket"
 )
@@ -41,11 +42,16 @@ type AlertEngine struct {
 	notifQueue    chan notificationJob
 	notifWorkers  int
 	notifExitOnce sync.Once
+	// notifDone tells workers to drain what is queued and exit. notifQueue is
+	// never closed: enqueue may race with Stop and must not panic.
+	notifDone chan struct{}
 }
 
 const (
-	notifQueueSize   = 256
-	notifWorkerCount = 4
+	notifQueueSize = 256
+	// notifDrainTimeout bounds how long Stop waits for queued notifications.
+	notifDrainTimeout = 10 * time.Second
+	notifWorkerCount  = 4
 )
 
 type notificationJob struct {
@@ -62,6 +68,7 @@ func NewAlertEngine(db database.Database, hub *websocket.Hub, notifier *Notifier
 		ruleLocks:     newKeyedMutex(),
 		notifQueue:    make(chan notificationJob, notifQueueSize),
 		notifWorkers:  notifWorkerCount,
+		notifDone:     make(chan struct{}),
 	}
 	for _, opt := range opts {
 		opt(e)
@@ -141,16 +148,12 @@ func (e *AlertEngine) Start(ctx context.Context) {
 }
 
 func (e *AlertEngine) Stop() {
+	// Workers drain already-queued notifications (bounded by
+	// notifDrainTimeout) before exiting; background loops stop via ctx.
+	e.notifExitOnce.Do(func() { close(e.notifDone) })
 	if e.cancel != nil {
 		e.cancel()
 	}
-	// Stop draining the notification queue so in-flight jobs finish on the
-	// workers and no Send call ever blocks the evaluation path.
-	e.notifExitOnce.Do(func() {
-		if e.notifQueue != nil {
-			close(e.notifQueue)
-		}
-	})
 	e.wg.Wait()
 	slog.Info("Alert engine stopped")
 }
@@ -593,6 +596,7 @@ func (e *AlertEngine) sendNotifications(_ context.Context, rule *models.AlertRul
 	default:
 		// Queue full: drop rather than block the monitoring pipeline. The
 		// alert itself and its history are already persisted.
+		metrics.NotificationsTotal.WithLabelValues("all", "dropped").Inc()
 		slog.Warn("Notification queue full, dropping delivery",
 			"alert_id", alert.ID, "rule_id", rule.ID, "device_id", alert.DeviceID)
 	}
@@ -602,17 +606,38 @@ func (e *AlertEngine) sendNotifications(_ context.Context, rule *models.AlertRul
 // slow channel is bounded and isolated from other deliveries.
 func (e *AlertEngine) notifWorker(ctx context.Context) {
 	defer e.wg.Done()
+	// Deliveries outlive engine cancellation so a shutdown doesn't abort a
+	// send halfway; each one is still bounded by its own timeout.
+	deliverBase := context.WithoutCancel(ctx)
+	deliver := func(job notificationJob) {
+		deliverCtx, cancel := context.WithTimeout(deliverBase, 15*time.Second)
+		e.deliverNotifications(deliverCtx, job.rule, job.alert)
+		cancel()
+	}
 	for {
 		select {
-		case <-ctx.Done():
+		case job := <-e.notifQueue:
+			deliver(job)
+		case <-e.notifDone:
+			e.drainNotifications(deliver)
 			return
-		case job, ok := <-e.notifQueue:
-			if !ok {
-				return
-			}
-			deliverCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
-			e.deliverNotifications(deliverCtx, job.rule, job.alert)
-			cancel()
+		case <-ctx.Done():
+			e.drainNotifications(deliver)
+			return
+		}
+	}
+}
+
+// drainNotifications delivers jobs already queued when the engine stops,
+// giving up after notifDrainTimeout.
+func (e *AlertEngine) drainNotifications(deliver func(notificationJob)) {
+	deadline := time.Now().Add(notifDrainTimeout)
+	for time.Now().Before(deadline) {
+		select {
+		case job := <-e.notifQueue:
+			deliver(job)
+		default:
+			return
 		}
 	}
 }
@@ -670,6 +695,7 @@ func (e *AlertEngine) deliverNotifications(ctx context.Context, rule *models.Ale
 		err := deliveryErr
 
 		if err != nil {
+			metrics.NotificationsTotal.WithLabelValues(ch.Type, "failed").Inc()
 			slog.Warn("Notification delivery failed",
 				"channel_id", ch.ID, "channel_type", ch.Type,
 				"channel_name", ch.Name, "alert_id", alert.ID,
@@ -682,6 +708,7 @@ func (e *AlertEngine) deliverNotifications(ctx context.Context, rule *models.Ale
 					"error":        err.Error(),
 				})
 		} else {
+			metrics.NotificationsTotal.WithLabelValues(ch.Type, "sent").Inc()
 			slog.Debug("Notification delivered",
 				"channel_id", ch.ID, "channel_type", ch.Type,
 				"channel_name", ch.Name, "alert_id", alert.ID,
