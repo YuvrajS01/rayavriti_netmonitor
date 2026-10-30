@@ -1,4 +1,5 @@
-import { act, render, screen } from '@testing-library/react';
+import { act, render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import MockAdapter from 'axios-mock-adapter';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../App';
@@ -73,5 +74,24 @@ describe('App shell', () => {
 
     expect(await screen.findByText('Network Overview', {}, { timeout: 3000 })).toBeInTheDocument();
     expect(screen.getByLabelText('Account menu')).toBeInTheDocument();
+
+    // Layout landmarks and navigation state are exposed to assistive tech.
+    expect(document.getElementById('main-content')).toHaveAttribute('tabindex', '-1');
+    const nav = screen.getByRole('navigation', { name: 'Main navigation' });
+    const overview = within(nav).getByRole('link', { name: 'Overview' });
+    expect(overview).toHaveAttribute('aria-current', 'page');
+    expect(within(nav).getByRole('button', { name: 'Operations' })).toHaveAttribute('aria-expanded', 'true');
+    expect(within(nav).getByRole('button', { name: 'Reports' })).toHaveAttribute('aria-expanded', 'false');
+
+    // The account menu (with the theme control) closes on Escape and outside clicks.
+    const account = screen.getByRole('button', { name: 'Account menu' });
+    await userEvent.click(account);
+    expect(screen.getByRole('group', { name: 'Theme' })).toBeInTheDocument();
+    await userEvent.keyboard('{Escape}');
+    expect(screen.queryByRole('group', { name: 'Theme' })).toBeNull();
+    expect(account).toHaveFocus();
+    await userEvent.click(account);
+    await userEvent.click(document.body);
+    expect(screen.queryByRole('group', { name: 'Theme' })).toBeNull();
   });
 });
