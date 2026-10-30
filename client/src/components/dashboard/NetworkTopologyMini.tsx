@@ -71,8 +71,7 @@ export default function NetworkTopologyMini() {
   }, []);
 
   useSocket({
-    onMetricUpdate: (metric) => {
-      const mm = metric as unknown as Metric;
+    onMetricUpdate: (mm) => {
       metricsRef.current.set(mm.deviceId, mm);
       rebuild();
     },

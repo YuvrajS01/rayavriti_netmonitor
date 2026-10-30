@@ -89,11 +89,11 @@ export default function FlowAnalysis() {
   }, [loadData]);
 
   useSocket({
-    onFlowUpdate: (data) => {
-      const d = data as { sample?: Array<{ src: string; dst: string; proto: string; bytes: number }>; count?: number };
-      if (d.sample) {
+    onFlowUpdate: (d) => {
+      const sample = d.sample;
+      if (sample) {
         setFlowFeed((prev) => {
-          const newItems = d.sample!.map((s) => ({ ...s, time: new Date().toLocaleTimeString() }));
+          const newItems = sample.map((s) => ({ ...s, time: new Date().toLocaleTimeString() }));
           return [...newItems, ...prev].slice(0, 30);
         });
       }

@@ -1,7 +1,8 @@
-import { useEffect, useRef, useCallback, useState } from 'react';
+import { useEffect, useRef, useCallback, useMemo, useState } from 'react';
 import { useSelector } from 'react-redux';
 import { getToken } from '../api/client';
-import { SocketContext, type EventName, type Handler } from './socketContext';
+import { SocketContext, SocketStatusContext } from './socketContext';
+import { parseWsMessage, type WsEventName, type WsHandler } from '../api/wsEvents';
 import { resolveWebSocketUrl } from './socketUrl';
 import type { RootState } from '../store';
 
@@ -11,7 +12,7 @@ const PING_INTERVAL = 30000;
 
 export function SocketProvider({ children }: { children: React.ReactNode }) {
   const wsRef = useRef<WebSocket | null>(null);
-  const handlersRef = useRef<Map<EventName, Set<Handler>>>(new Map());
+  const handlersRef = useRef<Map<WsEventName, Set<(data: never) => void>>>(new Map());
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pingTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const reconnectAttempts = useRef(0);
@@ -68,18 +69,13 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     };
 
     ws.onmessage = (event) => {
-      try {
-        const msg = JSON.parse(event.data) as { type: string; data: Record<string, unknown> };
-        if (!msg.type || msg.type === 'ping' || msg.type === 'pong') return;
-
-        const handlers = handlersRef.current.get(msg.type as EventName);
-        if (handlers) {
-          for (const handler of handlers) {
-            handler(msg.data);
-          }
+      const msg = parseWsMessage(event.data);
+      if (!msg) return;
+      const handlers = handlersRef.current.get(msg.type);
+      if (handlers) {
+        for (const handler of handlers) {
+          (handler as (data: unknown) => void)(msg.data);
         }
-      } catch {
-        // Non-JSON message — ignore
       }
     };
 
@@ -136,31 +132,31 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     };
   }, [connect, clearTimers]);
 
-  const subscribe = useCallback((event: EventName, handler: Handler) => {
+  const subscribe = useCallback(<K extends WsEventName>(event: K, handler: WsHandler<K>) => {
     let handlers = handlersRef.current.get(event);
     if (!handlers) {
       handlers = new Set();
       handlersRef.current.set(event, handlers);
     }
-    handlers.add(handler);
+    const set = handlers;
+    const fn = handler as (data: never) => void;
+    set.add(fn);
 
     return () => {
-      handlers!.delete(handler);
-      if (handlers!.size === 0) {
+      set.delete(fn);
+      if (set.size === 0) {
         handlersRef.current.delete(event);
       }
     };
   }, []);
 
-  const emit = useCallback((event: string, data?: unknown) => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({ type: event, data }));
-    }
-  }, []);
+  const value = useMemo(() => ({ subscribe }), [subscribe]);
 
   return (
-    <SocketContext.Provider value={{ subscribe, emit, connected }}>
-      {children}
+    <SocketContext.Provider value={value}>
+      <SocketStatusContext.Provider value={connected}>
+        {children}
+      </SocketStatusContext.Provider>
     </SocketContext.Provider>
   );
 }

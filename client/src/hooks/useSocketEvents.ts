@@ -1,52 +1,53 @@
 import { useEffect, useRef } from 'react';
 import { useSocketContext } from './socketContext';
-import type { DeviceStatusEvent } from '../api/types';
+import type { WsEventName, WsHandler } from '../api/wsEvents';
 
-type SocketHandlers = {
-  onMetricUpdate?: (metric: Record<string, unknown>) => void;
-  onAlertTriggered?: (alert: Record<string, unknown>) => void;
-  onAlertResolved?: (alert: Record<string, unknown>) => void;
-  onDeviceStatus?: (event: DeviceStatusEvent) => void;
-  onBootstrap?: (payload: Record<string, unknown>) => void;
-  onFlowUpdate?: (flow: Record<string, unknown>) => void;
-  onPacketCaptured?: (packet: Record<string, unknown>) => void;
-  onCaptureStatus?: (status: Record<string, unknown>) => void;
-};
-
-const EVENT_MAP: Record<keyof SocketHandlers, string> = {
+const EVENT_MAP = {
   onMetricUpdate: 'metric:update',
   onAlertTriggered: 'alert:triggered',
+  onAlertUpdated: 'alert:updated',
   onAlertResolved: 'alert:resolved',
   onDeviceStatus: 'device:status',
   onBootstrap: 'bootstrap',
   onFlowUpdate: 'flow:update',
   onPacketCaptured: 'capture:packet',
   onCaptureStatus: 'capture:status',
+  onPortsScanned: 'ports:scanned',
+  onRemoteStatus: 'remote:status',
+  onRemoteMetrics: 'remote:metrics',
+} as const satisfies Record<string, WsEventName>;
+
+type HandlerProp = keyof typeof EVENT_MAP;
+
+export type SocketHandlers = {
+  [P in HandlerProp]?: WsHandler<(typeof EVENT_MAP)[P]>;
 };
 
+const HANDLER_PROPS = Object.keys(EVENT_MAP) as HandlerProp[];
+
+/**
+ * Subscribe to typed WebSocket events for the lifetime of the component.
+ * Handlers may change identity on every render; the latest one is always
+ * invoked without resubscribing.
+ */
 export function useSocketEvents(handlers: SocketHandlers) {
-  const { subscribe, emit } = useSocketContext();
+  const { subscribe } = useSocketContext();
   const handlersRef = useRef(handlers);
 
   useEffect(() => {
     handlersRef.current = handlers;
-  }, [handlers]);
+  });
+
+  // Resubscribe only when the *set* of handled events changes.
+  const activeKey = HANDLER_PROPS.filter((prop) => handlers[prop]).join(',');
 
   useEffect(() => {
-    const cleanups: (() => void)[] = [];
-
-    for (const [prop, event] of Object.entries(EVENT_MAP) as [keyof SocketHandlers, string][]) {
-      if (handlersRef.current[prop]) {
-        const unsub = subscribe(event as never, (data: Record<string, unknown>) => {
-          // Payloads are validated by the backend contract, not at runtime.
-          (handlersRef.current[prop] as ((payload: unknown) => void) | undefined)?.(data);
-        });
-        cleanups.push(unsub);
-      }
-    }
-
+    const props = activeKey ? (activeKey.split(',') as HandlerProp[]) : [];
+    const cleanups = props.map((prop) =>
+      subscribe(EVENT_MAP[prop], (data: unknown) => {
+        (handlersRef.current[prop] as ((payload: unknown) => void) | undefined)?.(data);
+      }),
+    );
     return () => cleanups.forEach((fn) => fn());
-  }, [subscribe]);
-
-  return { emit };
+  }, [subscribe, activeKey]);
 }

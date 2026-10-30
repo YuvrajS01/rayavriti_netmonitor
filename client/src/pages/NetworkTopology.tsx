@@ -111,8 +111,7 @@ export default function NetworkTopology() {
   }, []);
 
   useSocket({
-    onMetricUpdate: (metric) => {
-      const mm = metric as unknown as Metric;
+    onMetricUpdate: (mm) => {
       setMetricsMap((prev) => new Map(prev).set(mm.deviceId, mm));
     },
     onDeviceStatus: ({ deviceId, status }) => {

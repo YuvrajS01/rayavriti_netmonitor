@@ -4,7 +4,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { clearCredentials } from '../store/authSlice';
 import type { RootState } from '../store';
 import { logout, getAlertCounts } from '../api/client';
-import { useSocket, useSocketContext } from '../hooks/useSocket';
+import { useSocket, useSocketConnected } from '../hooks/useSocket';
 import IconColor from '../assets/brand/Icon-color.svg';
 
 interface NavItem {
@@ -108,7 +108,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
   const dispatch = useDispatch();
   const user = useSelector((s: RootState) => s.auth.user);
-  const { connected } = useSocketContext();
+  const connected = useSocketConnected();
   const [sidebarOpen, setSidebarOpen] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 1024);
   const [activeAlertCount, setActiveAlertCount] = useState(0);
   const [command, setCommand] = useState('');

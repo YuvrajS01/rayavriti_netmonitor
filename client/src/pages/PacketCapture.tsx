@@ -4,7 +4,11 @@ import {
   getCapturePackets, getCaptureSessions
 } from '../api/client';
 import { useSocket } from '../hooks/useSocket';
-import type { CapturedPacket, CaptureSession, NetworkInterface } from '../api/types';
+import type { CaptureSession, NetworkInterface } from '../api/types';
+import type { CapturePacketItem } from '../api/wsEvents';
+
+/** Live packets arrive without a DB id; packets loaded over REST carry one. */
+type PacketRow = CapturePacketItem & { id?: number };
 import { formatBytes } from '../utils/formatters';
 import SectionHeader from '../components/ui/SectionHeader';
 import EmptyState from '../components/ui/EmptyState';
@@ -27,7 +31,7 @@ function captureErrorMessage(reason: unknown, fallback: string) {
   return typeof body?.error?.message === 'string' ? body.error.message : fallback;
 }
 
-const HexDump = ({ hex }: { hex: string }) => {
+const HexDump = ({ hex }: { hex?: string }) => {
   const rows = useMemo(() => {
     if (!hex) return [];
     const bytes = hex.split(' ');
@@ -69,8 +73,8 @@ export default function PacketCapture() {
   const [selectedIface, setSelectedIface] = useState('');
   const [bpfFilter, setBpfFilter] = useState('');
   const [activeSession, setActiveSession] = useState<CaptureSession | null>(null);
-  const [packets, setPackets] = useState<CapturedPacket[]>([]);
-  const [selectedPacket, setSelectedPacket] = useState<CapturedPacket | null>(null);
+  const [packets, setPackets] = useState<PacketRow[]>([]);
+  const [selectedPacket, setSelectedPacket] = useState<PacketRow | null>(null);
   const [sessions, setSessions] = useState<CaptureSession[]>([]);
   const [isStarting, setIsStarting] = useState(false);
   const [error, setError] = useState('');
@@ -148,8 +152,7 @@ export default function PacketCapture() {
   };
 
   useSocket({
-    onPacketCaptured: (data) => {
-      const batch = data as { sessionId: number; packets: CapturedPacket[] };
+    onPacketCaptured: (batch) => {
       const session = activeSessionRef.current;
       if (session && batch.sessionId === session.id && batch.packets) {
         setPackets((prev) => {
@@ -159,8 +162,7 @@ export default function PacketCapture() {
         });
       }
     },
-    onCaptureStatus: (data) => {
-      const d = data as { sessionId: number; status: string; error?: string; packetCount?: number; bytesCaptured?: number };
+    onCaptureStatus: (d) => {
       if (d.status === 'stopped' || d.status === 'error') {
         const session = activeSessionRef.current;
         if (session && d.sessionId === session.id) {

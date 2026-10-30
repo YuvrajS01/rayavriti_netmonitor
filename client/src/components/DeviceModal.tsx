@@ -135,11 +135,10 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
   }, [loadData]);
 
   useSocket({
-    onMetricUpdate: (metric: Record<string, unknown>) => {
-      const m = metric as unknown as Metric;
+    onMetricUpdate: (m) => {
       if (m.deviceId === device.id) {
         setMetrics((prev) => {
-          const updated = [...prev, m as Metric];
+          const updated = [...prev, m];
           if (updated.length > 50) updated.shift();
           return updated;
         });

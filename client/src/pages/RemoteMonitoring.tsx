@@ -50,8 +50,8 @@ export default function RemoteMonitoring() {
   }, []);
 
   useEffect(() => { refresh(); }, [refresh]);
-  useEffect(() => subscribe('remote:status' as never, refresh), [subscribe, refresh]);
-  useEffect(() => subscribe('remote:metrics' as never, refresh), [subscribe, refresh]);
+  useEffect(() => subscribe('remote:status', refresh), [subscribe, refresh]);
+  useEffect(() => subscribe('remote:metrics', refresh), [subscribe, refresh]);
 
   const select = (id: number) => { void getRemoteInstance(id).then((response) => setSelected(response.data)).catch(() => setError('Unable to load instance details.')); };
   const submit = async (event: FormEvent) => {

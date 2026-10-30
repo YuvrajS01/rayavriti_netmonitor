@@ -102,13 +102,13 @@ export default function Dashboard() {
   useEffect(() => { loadData(); }, [loadData]);
 
   useSocket({
-    onBootstrap: (payload) => {
-      const p = payload as { stats: DashboardStats; latestMetrics: Metric[]; alerts: Alert[] };
+    onBootstrap: (p) => {
       if (p.stats) setStats((prev) => ({ ...prev, ...p.stats }));
-      if (p.latestMetrics) {
+      const latest = p.latestMetrics;
+      if (latest) {
         setMetrics((prev) => {
           const merged = [...prev];
-          for (const bm of p.latestMetrics) {
+          for (const bm of latest) {
             const idx = merged.findIndex((m) => m.deviceId === bm.deviceId);
             if (idx === -1) {
               merged.push(bm);
@@ -121,7 +121,7 @@ export default function Dashboard() {
         setHistoryMetrics((prev) => {
           const existing = new Set(prev.map((m) => `${m.deviceId}-${m.timestamp}`));
           const merged = [...prev];
-          for (const bm of p.latestMetrics) {
+          for (const bm of latest) {
             if (!existing.has(`${bm.deviceId}-${bm.timestamp}`)) {
               merged.push(bm);
             }
@@ -138,7 +138,7 @@ export default function Dashboard() {
     },
     onMetricUpdate: (metric) => {
       setMetrics((prev) => {
-        const m = metric as unknown as Metric;
+        const m = metric;
         if (!m.protocol) {
           const existing = prev.find((x) => x.deviceId === m.deviceId);
           if (existing?.protocol) m.protocol = existing.protocol;
@@ -146,8 +146,7 @@ export default function Dashboard() {
         return [m, ...prev.filter((x) => x.deviceId !== m.deviceId)];
       });
       setHistoryMetrics((prev) => {
-        const m = metric as unknown as Metric;
-        const updated = [m, ...prev];
+        const updated = [metric, ...prev];
         if (updated.length > 500) updated.pop();
         return updated;
       });

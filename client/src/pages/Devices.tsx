@@ -54,8 +54,7 @@ export default function Devices() {
   }, [location.search]);
 
   useSocket({
-    onMetricUpdate: (metric) => {
-      const m = metric as unknown as Metric;
+    onMetricUpdate: (m) => {
       setMetricsMap((prev) => {
         const next = new Map(prev);
         next.set(m.deviceId, m);
