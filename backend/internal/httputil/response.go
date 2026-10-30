@@ -84,22 +84,8 @@ func SendInternalError(w http.ResponseWriter, err error) {
 // SQLSTATE; connection and timeout failures become a 500; anything else is
 // one of our own validation errors and is shown with the given status.
 func SendStoreError(w http.ResponseWriter, status int, err error) {
-	var pgErr *pgconn.PgError
 	switch {
-	case errors.As(err, &pgErr):
-		slog.Warn("store error", "sqlstate", pgErr.Code, "error", err)
-		switch {
-		case pgErr.Code == "23505":
-			SendError(w, http.StatusConflict, "a record with these values already exists")
-		case pgErr.Code == "23503":
-			SendError(w, http.StatusBadRequest, "a referenced record does not exist or is still in use")
-		case pgErr.Code == "23502":
-			SendError(w, http.StatusBadRequest, "a required field is missing")
-		case strings.HasPrefix(pgErr.Code, "22"), strings.HasPrefix(pgErr.Code, "23"):
-			SendError(w, http.StatusBadRequest, "invalid value")
-		default:
-			SendInternalError(w, err)
-		}
+	case sendPgError(w, err):
 	case errors.Is(err, pgx.ErrNoRows):
 		SendError(w, http.StatusNotFound, "not found")
 	case isInfraError(err):
@@ -107,6 +93,37 @@ func SendStoreError(w http.ResponseWriter, status int, err error) {
 	default:
 		SendError(w, status, err.Error())
 	}
+}
+
+// SendDBError is SendStoreError for calls that never produce user-facing
+// validation errors: anything that isn't a mapped PostgreSQL error is a 500.
+func SendDBError(w http.ResponseWriter, err error) {
+	if !sendPgError(w, err) {
+		SendInternalError(w, err)
+	}
+}
+
+// sendPgError writes a safe response for a PostgreSQL error and reports
+// whether err was one.
+func sendPgError(w http.ResponseWriter, err error) bool {
+	var pgErr *pgconn.PgError
+	if !errors.As(err, &pgErr) {
+		return false
+	}
+	slog.Warn("store error", "sqlstate", pgErr.Code, "error", err)
+	switch {
+	case pgErr.Code == "23505":
+		SendError(w, http.StatusConflict, "a record with these values already exists")
+	case pgErr.Code == "23503":
+		SendError(w, http.StatusBadRequest, "a referenced record does not exist or is still in use")
+	case pgErr.Code == "23502":
+		SendError(w, http.StatusBadRequest, "a required field is missing")
+	case strings.HasPrefix(pgErr.Code, "22"), strings.HasPrefix(pgErr.Code, "23"):
+		SendError(w, http.StatusBadRequest, "invalid value")
+	default:
+		SendInternalError(w, err)
+	}
+	return true
 }
 
 func isInfraError(err error) bool {

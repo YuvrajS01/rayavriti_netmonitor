@@ -73,7 +73,7 @@ func (h *AlertHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 	created, err := h.db.CreateAlert(r.Context(), &a)
 	if err != nil {
-		httputil.SendInternalError(w, err)
+		httputil.SendDBError(w, err)
 		return
 	}
 	httputil.SendCreated(w, created)
