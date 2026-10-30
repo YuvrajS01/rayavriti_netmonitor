@@ -1231,4 +1231,20 @@ var migrations = []Migration{
 	// v5.2: SNMPv3 USM credentials (security name, level, auth/priv
 	// protocols and passphrases), used when snmp_version is '3'.
 	{Version: 50, SQL: `ALTER TABLE devices ADD COLUMN IF NOT EXISTS snmp_v3 JSONB;`},
+	// v5.2: LLDP neighbours reported by polled devices. Version 51 is
+	// reserved for flow ingest.
+	{Version: 52, SQL: `CREATE TABLE IF NOT EXISTS device_neighbors (
+		device_id         BIGINT      NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+		local_port_num    INTEGER     NOT NULL,
+		local_port        TEXT        NOT NULL,
+		remote_chassis_id TEXT        NOT NULL,
+		remote_port_id    TEXT        NOT NULL,
+		remote_sys_name   TEXT        NOT NULL DEFAULT '',
+		remote_port_desc  TEXT        NOT NULL DEFAULT '',
+		remote_mgmt_ip    TEXT        NOT NULL DEFAULT '',
+		first_seen        TIMESTAMPTZ NOT NULL,
+		last_seen         TIMESTAMPTZ NOT NULL,
+		PRIMARY KEY (device_id, local_port_num, remote_chassis_id, remote_port_id)
+	);
+	CREATE INDEX IF NOT EXISTS idx_device_neighbors_mgmt ON device_neighbors (remote_mgmt_ip) WHERE remote_mgmt_ip <> '';`},
 }

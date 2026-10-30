@@ -946,3 +946,7 @@ func (m *serverMockDB) UpdateDeviceStatuses(ctx context.Context, ids []int64, st
 func (m *serverMockDB) RecordInterfaceSamples(ctx context.Context, samples []models.InterfaceSample) error {
 	return nil
 }
+
+func (m *serverMockDB) ReplaceDeviceNeighbors(ctx context.Context, deviceID int64, neighbors []models.LLDPNeighbor) error {
+	return nil
+}
