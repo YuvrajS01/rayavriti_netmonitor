@@ -76,6 +76,12 @@ func scopeCondition(sc *ScopeFilter, argN int) (string, []any) {
 	return "(" + strings.Join(conds, " OR ") + ")", args
 }
 
+// ScopeCondition exposes scopeCondition to handlers that build their own
+// queries against devices.
+func ScopeCondition(sc *ScopeFilter, argN int) (string, []any) {
+	return scopeCondition(sc, argN)
+}
+
 func (p *Postgres) GetDevicesFiltered(ctx context.Context, f DeviceFilter) ([]models.Device, int, error) {
 	where := []string{}
 	args := []any{}
@@ -196,8 +202,7 @@ func (p *Postgres) GetAlertCounts(ctx context.Context) (models.AlertCounts, erro
 // or nil if none exists.
 func (p *Postgres) FindActiveAlert(ctx context.Context, deviceID int64, message string) (*models.Alert, error) {
 	rows, err := p.pool.Query(ctx, `
-		SELECT id,device_id,device_name,severity,message,status,rule_id,
-		       created_at,acknowledged_at,resolved_at,acknowledged_by,resolved_by
+		SELECT `+alertCols+`
 		FROM alerts
 		WHERE device_id=$1 AND message=$2 AND status='active'
 		LIMIT 1`, deviceID, message)
@@ -220,8 +225,7 @@ func (p *Postgres) FindActiveAlert(ctx context.Context, deviceID int64, message 
 func (p *Postgres) GetAlertsForReport(ctx context.Context, from, to time.Time, deviceID *int64) ([]models.Alert, error) {
 	args := []any{from, to}
 	query := `
-		SELECT id,COALESCE(device_id,0),COALESCE(device_name,''),severity,message,status,COALESCE(rule_id,0),
-		       created_at,acknowledged_at,resolved_at,acknowledged_by,resolved_by
+		SELECT ` + alertCols + `
 		FROM alerts
 		WHERE created_at BETWEEN $1 AND $2`
 

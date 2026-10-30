@@ -93,14 +93,17 @@ func (rp *ResultPipeline) run(ctx context.Context) {
 	defer rp.wg.Done()
 
 	batch := make([]PollResult, 0, rp.batchSize)
-	timer := time.NewTimer(time.Duration(rp.flushMs) * time.Millisecond)
-	defer timer.Stop()
+	// A ticker, not a timer re-armed only after non-empty flushes: a timer
+	// that fired while the batch was empty was never re-armed, after which
+	// results were persisted only once batchSize had accumulated (minutes
+	// of lag on small deployments).
+	ticker := time.NewTicker(time.Duration(rp.flushMs) * time.Millisecond)
+	defer ticker.Stop()
 
 	flushBatch := func() {
 		if len(batch) > 0 {
 			rp.processBatch(ctx, batch)
 			batch = batch[:0]
-			timer.Reset(time.Duration(rp.flushMs) * time.Millisecond)
 		}
 	}
 
@@ -121,7 +124,7 @@ func (rp *ResultPipeline) run(ctx context.Context) {
 			if len(batch) >= rp.batchSize {
 				flushBatch()
 			}
-		case <-timer.C:
+		case <-ticker.C:
 			flushBatch()
 		}
 	}
@@ -145,6 +148,18 @@ func (rp *ResultPipeline) processBatch(ctx context.Context, batch []PollResult) 
 	}
 
 	rp.writeMetrics(ctx, metrics)
+
+	var samples []models.InterfaceSample
+	for _, pr := range batch {
+		if pr.CollectResult != nil {
+			samples = append(samples, pr.CollectResult.Interfaces...)
+		}
+	}
+	if len(samples) > 0 {
+		if err := rp.db.RecordInterfaceSamples(ctx, samples); err != nil {
+			slog.Warn("failed to persist interface samples", "count", len(samples), "error", err)
+		}
+	}
 
 	// Persist device statuses in one statement per batch; the database only
 	// rewrites rows whose status changed. Within a batch the latest poll

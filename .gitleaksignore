@@ -1,0 +1,4 @@
+# False positives: test assertions comparing SNMPv3 passphrase fields with
+# the mask placeholder (generic-api-key matches "...Passphrase != ...").
+501b8fb88438246085c62b33b96407d8623b8aca:backend/internal/handlers/snmp_v3_test.go:generic-api-key:31
+501b8fb88438246085c62b33b96407d8623b8aca:backend/internal/handlers/snmp_v3_test.go:generic-api-key:82

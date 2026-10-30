@@ -2,7 +2,7 @@
   <h1>Rayavriti NetMonitor</h1>
   <p><strong>Production-grade, real-time network monitoring and traffic visibility platform.</strong></p>
 
-  ![Version](https://img.shields.io/badge/Version-5.0.0-brightgreen?style=flat-square)
+  ![Version](https://img.shields.io/badge/Version-5.0.1-brightgreen?style=flat-square)
   ![Go](https://img.shields.io/badge/Go-1.26-00ADD8?style=flat-square&logo=go)
   ![React](https://img.shields.io/badge/React-19-blue?style=flat-square&logo=react)
   ![TypeScript](https://img.shields.io/badge/TypeScript-Strict-blue?style=flat-square&logo=typescript)
@@ -291,7 +291,7 @@ See `documentation/api_documentation.md` and `documentation/postman_guide.md` fo
 
 | Variable | Default | Applies to |
 |---|---|---|
-| `METRICS_RETENTION_DAYS` | `30` | `metrics`, `isp_metrics` (minimum 4, so raw data outlives the rollup refresh window) |
+| `METRICS_RETENTION_DAYS` | `30` | `metrics`, `interface_metrics`, `isp_metrics` (minimum 4, so raw data outlives the rollup refresh window) |
 | `METRICS_HOURLY_RETENTION_DAYS` | `400` | `metrics_hourly` (`metrics_daily` is kept forever) |
 | `FLOWS_RETENTION_DAYS` | `7` | `flows` |
 | `ALERTS_RETENTION_DAYS` | `90` | resolved alerts, `alert_history`, `notification_log`, `suppressed_alerts` |
