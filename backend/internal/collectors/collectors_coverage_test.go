@@ -9,6 +9,7 @@ import (
 
 	"github.com/gosnmp/gosnmp"
 	"github.com/rayavriti/netmonitor-backend/internal/models"
+	"github.com/rayavriti/netmonitor-backend/internal/netutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -44,6 +45,10 @@ func TestNormalizeHost(t *testing.T) {
 
 // ── HTTPCollector.Collect ─────────────────────────────────────────────────────
 
+// loopbackHTTPCollector can reach httptest servers, which the production
+// host policy deliberately blocks.
+var loopbackHTTPCollector = HTTPCollector{client: newHTTPClient(netutil.HostPolicy{})}
+
 func TestHTTPCollector_Collect_Success(t *testing.T) {
 	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -52,7 +57,7 @@ func TestHTTPCollector_Collect_Success(t *testing.T) {
 	}))
 	defer server.Close()
 
-	c := HTTPCollector{}
+	c := loopbackHTTPCollector
 	device := &models.Device{IPAddress: server.URL, Port: 0}
 	result, err := c.Collect(context.Background(), device)
 	require.NoError(t, err)
@@ -70,7 +75,7 @@ func TestHTTPCollector_Collect_Timeout(t *testing.T) {
 	}))
 	defer server.Close()
 
-	c := HTTPCollector{}
+	c := loopbackHTTPCollector
 	device := &models.Device{IPAddress: server.URL, Port: 0}
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
@@ -88,7 +93,7 @@ func TestHTTPCollector_Collect_CustomPath(t *testing.T) {
 	}))
 	defer server.Close()
 
-	c := HTTPCollector{}
+	c := loopbackHTTPCollector
 	device := &models.Device{IPAddress: server.URL, HTTPPath: "/health"}
 	result, err := c.Collect(context.Background(), device)
 	require.NoError(t, err)
@@ -102,7 +107,7 @@ func TestHTTPCollector_Collect_ExpectedStatusMismatch(t *testing.T) {
 	}))
 	defer server.Close()
 
-	c := HTTPCollector{}
+	c := loopbackHTTPCollector
 	device := &models.Device{
 		IPAddress:          server.URL,
 		Port:               0,
@@ -120,7 +125,7 @@ func TestHTTPCollector_Collect_ExplicitPort(t *testing.T) {
 	}))
 	defer server.Close()
 
-	c := HTTPCollector{}
+	c := loopbackHTTPCollector
 	device := &models.Device{IPAddress: "127.0.0.1", Port: 19876}
 	// Unreachable port — should return down
 	result, err := c.Collect(context.Background(), device)
@@ -135,7 +140,7 @@ func TestHTTPCollector_Collect_ExpectedStatusMatches(t *testing.T) {
 	}))
 	defer server.Close()
 
-	c := HTTPCollector{}
+	c := loopbackHTTPCollector
 	device := &models.Device{
 		IPAddress:          server.URL,
 		HTTPExpectedStatus: http.StatusAccepted,
@@ -154,7 +159,7 @@ func TestHTTPSCollector_Collect_DelegatesToHTTP(t *testing.T) {
 	}))
 	defer server.Close()
 
-	c := HTTPSCollector{}
+	c := HTTPSCollector{client: loopbackHTTPCollector.client}
 	// Use server.URL which will be https://127.0.0.1:<port>
 	device := &models.Device{IPAddress: server.URL, Protocol: "https"}
 	result, err := c.Collect(context.Background(), device)
@@ -438,4 +443,34 @@ func TestCollectInterfaces_InactiveFiltered(t *testing.T) {
 	}
 	interfaces := collectInterfaces(baseTable, nil)
 	assert.Len(t, interfaces, 0)
+}
+
+func TestHTTPCollector_Collect_PathCannotChangeHost(t *testing.T) {
+	t.Parallel()
+	c := loopbackHTTPCollector
+	for _, path := range []string{"@169.254.169.254/latest", "//169.254.169.254/latest"} {
+		result, err := c.Collect(context.Background(), &models.Device{IPAddress: "10.0.0.1", HTTPPath: path})
+		require.NoError(t, err)
+		assert.Equal(t, "down", result.Status, path)
+	}
+}
+
+func TestHTTPCollector_Collect_ServerErrorIsDown(t *testing.T) {
+	t.Parallel()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusServiceUnavailable)
+	}))
+	defer server.Close()
+	result, err := loopbackHTTPCollector.Collect(context.Background(), &models.Device{IPAddress: server.URL})
+	require.NoError(t, err)
+	assert.Equal(t, "down", result.Status)
+}
+
+func TestHTTPCollector_Collect_BlocksLoopbackInProduction(t *testing.T) {
+	t.Parallel()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	defer server.Close()
+	result, err := HTTPCollector{}.Collect(context.Background(), &models.Device{IPAddress: server.URL})
+	require.NoError(t, err)
+	assert.Equal(t, "down", result.Status)
 }
