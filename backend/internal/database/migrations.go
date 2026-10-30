@@ -1197,4 +1197,24 @@ var migrations = []Migration{
 	SELECT add_continuous_aggregate_policy('metrics_daily',
 		start_offset => INTERVAL '7 days', end_offset => INTERVAL '1 day',
 		schedule_interval => INTERVAL '6 hours', if_not_exists => TRUE);`},
+	// v5.2 interface throughput (B4): one narrow row per interface per poll,
+	// instead of SNMP interface blobs inside metrics.details.
+	{Version: 49, SQL: `CREATE TABLE IF NOT EXISTS interface_metrics (
+		time        TIMESTAMPTZ      NOT NULL,
+		device_id   BIGINT           NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+		if_index    INTEGER          NOT NULL,
+		if_name     TEXT             NOT NULL,
+		in_bps      DOUBLE PRECISION NOT NULL,
+		out_bps     DOUBLE PRECISION NOT NULL,
+		utilization REAL,
+		oper_status SMALLINT         NOT NULL,
+		speed_bps   BIGINT           NOT NULL
+	);
+	SELECT create_hypertable('interface_metrics', 'time', chunk_time_interval => INTERVAL '1 day', if_not_exists => TRUE);
+	CREATE INDEX IF NOT EXISTS idx_interface_metrics_dev_if ON interface_metrics (device_id, if_index, time DESC);
+	ALTER TABLE interface_metrics SET (
+		timescaledb.compress,
+		timescaledb.compress_segmentby = 'device_id, if_index',
+		timescaledb.compress_orderby = 'time DESC');
+	SELECT add_compression_policy('interface_metrics', compress_after => INTERVAL '3 days', if_not_exists => TRUE);`},
 }

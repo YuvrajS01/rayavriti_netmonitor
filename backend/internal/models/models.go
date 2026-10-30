@@ -487,3 +487,17 @@ const (
 	PermSystemLogs          = "system.logs"
 	PermRemoteManage        = "remote.manage"
 )
+
+// InterfaceSample is one poll of one network interface: throughput derived
+// from SNMP octet-counter deltas between consecutive polls.
+type InterfaceSample struct {
+	DeviceID    int64     `json:"deviceId"`
+	Time        time.Time `json:"time"`
+	IfIndex     int       `json:"ifIndex"`
+	Name        string    `json:"name"`
+	InBps       float64   `json:"inBps"`
+	OutBps      float64   `json:"outBps"`
+	Utilization *float64  `json:"utilization,omitempty"` // percent of speed, max of in/out
+	OperStatus  int       `json:"operStatus"`            // IF-MIB ifOperStatus (1 = up)
+	SpeedBps    int64     `json:"speedBps"`
+}

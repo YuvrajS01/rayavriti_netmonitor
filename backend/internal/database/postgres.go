@@ -335,6 +335,24 @@ func (p *Postgres) UpdateDeviceStatuses(ctx context.Context, ids []int64, status
 	return changed, rows.Err()
 }
 
+func (p *Postgres) RecordInterfaceSamples(ctx context.Context, samples []models.InterfaceSample) error {
+	if len(samples) == 0 {
+		return nil
+	}
+	_, err := p.pool.CopyFrom(ctx, pgx.Identifier{"interface_metrics"},
+		[]string{"time", "device_id", "if_index", "if_name", "in_bps", "out_bps", "utilization", "oper_status", "speed_bps"},
+		pgx.CopyFromSlice(len(samples), func(i int) ([]any, error) {
+			s := samples[i]
+			var util *float32
+			if s.Utilization != nil {
+				u := float32(*s.Utilization)
+				util = &u
+			}
+			return []any{s.Time, s.DeviceID, s.IfIndex, s.Name, s.InBps, s.OutBps, util, int16(s.OperStatus), s.SpeedBps}, nil //nolint:gosec // ifOperStatus is 1-7
+		}))
+	return err
+}
+
 // ── Metrics ───────────────────────────────────────────────────────────────────
 
 func (p *Postgres) RecordMetric(ctx context.Context, m *models.Metric) error {

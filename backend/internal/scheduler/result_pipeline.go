@@ -146,6 +146,18 @@ func (rp *ResultPipeline) processBatch(ctx context.Context, batch []PollResult) 
 
 	rp.writeMetrics(ctx, metrics)
 
+	var samples []models.InterfaceSample
+	for _, pr := range batch {
+		if pr.CollectResult != nil {
+			samples = append(samples, pr.CollectResult.Interfaces...)
+		}
+	}
+	if len(samples) > 0 {
+		if err := rp.db.RecordInterfaceSamples(ctx, samples); err != nil {
+			slog.Warn("failed to persist interface samples", "count", len(samples), "error", err)
+		}
+	}
+
 	// Persist device statuses in one statement per batch; the database only
 	// rewrites rows whose status changed. Within a batch the latest poll
 	// of a device wins.

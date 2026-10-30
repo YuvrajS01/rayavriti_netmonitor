@@ -112,10 +112,10 @@ func (SNMPCollector) Collect(ctx context.Context, device *models.Device) (*Resul
 	t, err := collectTable(g, oidHRStorageTable, []int{2, 3, 4, 5, 6}, 20)
 	storageRes := tableResult{table: t, err: err}
 
-	t, err = collectTable(g, oidIfTable, []int{2, 5, 8, 10, 16}, 20)
+	t, err = collectTable(g, oidIfTable, []int{2, 5, 8, 10, 16}, 40)
 	ifRes := tableResult{table: t, err: err}
 
-	t, err = collectTable(g, oidIfXTable, []int{1, 6, 10, 15}, 20)
+	t, err = collectTable(g, oidIfXTable, []int{1, 6, 10, 15}, 40)
 	ifXRes := tableResult{table: t, err: err}
 
 	elapsed := float64(time.Since(start).Milliseconds())
@@ -167,10 +167,37 @@ func (SNMPCollector) Collect(ctx context.Context, device *models.Device) (*Resul
 		}
 	}
 
-	// Parse interfaces
+	// Parse interfaces. ifXTable (64-bit counters, ifName) is optional:
+	// some agents only implement ifTable.
 	var interfaces []map[string]any
-	if ifRes.err == nil && ifXRes.err == nil {
-		interfaces = collectInterfaces(ifRes.table, ifXRes.table)
+	var samples []models.InterfaceSample
+	var totalBps *float64
+	if ifRes.err == nil {
+		xTable := ifXRes.table
+		if ifXRes.err != nil {
+			xTable = nil
+		}
+		interfaces = collectInterfaces(ifRes.table, xTable)
+		samples = interfaceSamples(device.ID, time.Now(), ifRes.table, xTable)
+		byIndex := make(map[int]models.InterfaceSample, len(samples))
+		var sum float64
+		for _, s := range samples {
+			byIndex[s.IfIndex] = s
+			sum += s.InBps + s.OutBps
+		}
+		for _, row := range interfaces {
+			if idx, ok := row["index"].(int); ok {
+				if s, ok := byIndex[idx]; ok {
+					row["inBps"], row["outBps"] = s.InBps, s.OutBps
+					if s.Utilization != nil {
+						row["utilization"] = *s.Utilization
+					}
+				}
+			}
+		}
+		if len(samples) > 0 {
+			totalBps = &sum
+		}
 	}
 
 	// Determine status
@@ -214,6 +241,8 @@ func (SNMPCollector) Collect(ctx context.Context, device *models.Device) (*Resul
 		CPUUsage:     f64(cpuAvg),
 		MemoryUsage:  f64(memoryPercent),
 		Details:      details,
+		Bandwidth:    totalBps,
+		Interfaces:   samples,
 	}, nil
 }
 
@@ -222,9 +251,22 @@ type tableResult struct {
 	err   error
 }
 
+// walk visits every varbind under oid. SNMPv2c/v3 use GETBULK, fetching
+// MaxRepetitions rows per round trip; v1 has no GETBULK and falls back to
+// GETNEXT, one round trip per value (B4).
+func walk(g *gosnmp.GoSNMP, oid string, maxRepetitions int, fn gosnmp.WalkFunc) error {
+	if g.Version == gosnmp.Version1 {
+		return g.Walk(oid, fn)
+	}
+	if maxRepetitions > 0 {
+		g.MaxRepetitions = uint32(maxRepetitions) //nolint:gosec // small positive constant
+	}
+	return g.BulkWalk(oid, fn)
+}
+
 func collectSubtree(g *gosnmp.GoSNMP, oid string, maxRepetitions int) ([]gosnmp.SnmpPDU, error) {
 	var results []gosnmp.SnmpPDU
-	err := g.Walk(oid, func(pdu gosnmp.SnmpPDU) error {
+	err := walk(g, oid, maxRepetitions, func(pdu gosnmp.SnmpPDU) error {
 		results = append(results, pdu)
 		return nil
 	})
@@ -235,7 +277,7 @@ func collectTable(g *gosnmp.GoSNMP, oid string, columns []int, maxRepetitions in
 	table := make(map[string]map[string]gosnmp.SnmpPDU)
 	for _, col := range columns {
 		colOid := fmt.Sprintf("%s.%d", oid, col)
-		err := g.Walk(colOid, func(pdu gosnmp.SnmpPDU) error {
+		err := walk(g, colOid, maxRepetitions, func(pdu gosnmp.SnmpPDU) error {
 			// Extract row index from OID: oid.col.index
 			oidStr := pdu.Name
 			// Find the column number and index
