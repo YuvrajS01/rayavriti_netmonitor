@@ -1,11 +1,14 @@
-import { render, screen } from '@testing-library/react';
+import { render as rtlRender, screen } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import type { ReactElement } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import RemoteMonitoring from '../RemoteMonitoring';
 import * as remoteApi from '../../api/remoteApi';
 
-vi.mock('../../hooks/useSocket', () => ({
-  useSocketContext: () => ({ subscribe: vi.fn(() => () => {}) }),
-}));
+function render(ui: ReactElement) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return rtlRender(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
+}
 
 vi.mock('../../api/remoteApi', () => ({
   getRemoteOverview: vi.fn(),

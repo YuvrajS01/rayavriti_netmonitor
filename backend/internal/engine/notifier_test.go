@@ -22,7 +22,7 @@ func TestNotifier_Send_WebhookSuccess(t *testing.T) {
 	}))
 	defer server.Close()
 
-	notifier := NewNotifier()
+	notifier := newTestNotifier()
 	ch := models.NotificationChannel{
 		ID:     1,
 		Type:   "webhook",
@@ -52,7 +52,7 @@ func TestNotifier_Send_WebhookServerError(t *testing.T) {
 	}))
 	defer server.Close()
 
-	notifier := NewNotifier()
+	notifier := newTestNotifier()
 	ch := models.NotificationChannel{
 		ID:     1,
 		Type:   "webhook",
@@ -67,7 +67,7 @@ func TestNotifier_Send_WebhookServerError(t *testing.T) {
 
 func TestNotifier_Send_WebhookNoURL(t *testing.T) {
 	t.Parallel()
-	notifier := NewNotifier()
+	notifier := newTestNotifier()
 	ch := models.NotificationChannel{
 		ID:     1,
 		Type:   "webhook",
@@ -82,7 +82,7 @@ func TestNotifier_Send_WebhookNoURL(t *testing.T) {
 
 func TestNotifier_Send_DisabledChannel(t *testing.T) {
 	t.Parallel()
-	notifier := NewNotifier()
+	notifier := newTestNotifier()
 	ch := models.NotificationChannel{
 		ID:      1,
 		Type:    "webhook",
@@ -100,7 +100,7 @@ func TestNotifier_Send_DisabledChannel(t *testing.T) {
 
 func TestNotifier_Send_UnsupportedChannelType(t *testing.T) {
 	t.Parallel()
-	notifier := NewNotifier()
+	notifier := newTestNotifier()
 	ch := models.NotificationChannel{
 		ID:     1,
 		Type:   "sms",
@@ -122,7 +122,7 @@ func TestNotifier_Send_MultipleChannels(t *testing.T) {
 	}))
 	defer server.Close()
 
-	notifier := NewNotifier()
+	notifier := newTestNotifier()
 	channels := []models.NotificationChannel{
 		{ID: 1, Type: "webhook", Config: map[string]any{"url": server.URL}},
 		{ID: 2, Type: "webhook", Config: map[string]any{"url": server.URL}},
@@ -143,7 +143,7 @@ func TestNotifier_Send_ContextCancellation(t *testing.T) {
 	}))
 	defer server.Close()
 
-	notifier := NewNotifier()
+	notifier := newTestNotifier()
 	ch := models.NotificationChannel{
 		ID:     1,
 		Type:   "webhook",
@@ -172,7 +172,7 @@ func TestNotifier_Send_TelegramSuccess(t *testing.T) {
 	defer server.Close()
 
 	// Override the Telegram API base URL by pointing at our test server
-	notifier := NewNotifier()
+	notifier := newTestNotifier()
 	ch := models.NotificationChannel{
 		ID:   1,
 		Type: "telegram",
@@ -201,7 +201,7 @@ func TestNotifier_Send_TelegramSuccess(t *testing.T) {
 
 func TestNotifier_Send_TelegramNoToken(t *testing.T) {
 	t.Parallel()
-	notifier := NewNotifier()
+	notifier := newTestNotifier()
 	ch := models.NotificationChannel{
 		ID:   1,
 		Type: "telegram",
@@ -218,7 +218,7 @@ func TestNotifier_Send_TelegramNoToken(t *testing.T) {
 
 func TestNotifier_Send_TelegramNoChatID(t *testing.T) {
 	t.Parallel()
-	notifier := NewNotifier()
+	notifier := newTestNotifier()
 	ch := models.NotificationChannel{
 		ID:   1,
 		Type: "telegram",
@@ -235,7 +235,7 @@ func TestNotifier_Send_TelegramNoChatID(t *testing.T) {
 
 func TestSendToChatID_NoToken(t *testing.T) {
 	t.Parallel()
-	notifier := NewNotifier()
+	notifier := newTestNotifier()
 	alert := &models.Alert{ID: 1}
 
 	err := notifier.SendToChatID(context.Background(), "", "123456", alert, nil)
@@ -245,7 +245,7 @@ func TestSendToChatID_NoToken(t *testing.T) {
 
 func TestSendToChatID_NoChatID(t *testing.T) {
 	t.Parallel()
-	notifier := NewNotifier()
+	notifier := newTestNotifier()
 	alert := &models.Alert{ID: 1}
 
 	err := notifier.SendToChatID(context.Background(), "test-token", "", alert, nil)
@@ -262,7 +262,7 @@ func TestSendToChatID_ServerError(t *testing.T) {
 	}))
 	defer server.Close()
 
-	notifier := NewNotifier()
+	notifier := newTestNotifier()
 	alert := &models.Alert{ID: 1, Severity: "critical", Message: "Test"}
 
 	// We can't easily redirect the API URL, but we can test the method routing

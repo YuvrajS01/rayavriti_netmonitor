@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/rayavriti/netmonitor-backend/internal/collectors"
+	"github.com/rayavriti/netmonitor-backend/internal/metrics"
 	"github.com/rayavriti/netmonitor-backend/internal/models"
 )
 
@@ -41,6 +42,11 @@ type WorkerPool struct {
 	execute   func(context.Context, PollJob) PollResult
 	resultFn  func(PollResult)
 	cancel    context.CancelFunc
+	// stop tells workers to take no new jobs; in-flight polls finish
+	// (up to drainTimeout) before the job context is cancelled.
+	stop         chan struct{}
+	stopOnce     sync.Once
+	drainTimeout time.Duration
 }
 
 type PollResult struct {
@@ -89,12 +95,14 @@ func NewWorkerPool(cfg WorkerPoolConfig, executeFn func(context.Context, PollJob
 	}
 
 	return &WorkerPool{
-		workers:   cfg.WorkerCount,
-		criticalQ: make(chan PollJob, cfg.CriticalQueueSize),
-		normalQ:   make(chan PollJob, cfg.NormalQueueSize),
-		lowQ:      make(chan PollJob, cfg.LowQueueSize),
-		metrics:   &WorkerPoolMetrics{},
-		execute:   executeFn,
+		workers:      cfg.WorkerCount,
+		criticalQ:    make(chan PollJob, cfg.CriticalQueueSize),
+		normalQ:      make(chan PollJob, cfg.NormalQueueSize),
+		lowQ:         make(chan PollJob, cfg.LowQueueSize),
+		metrics:      &WorkerPoolMetrics{},
+		execute:      executeFn,
+		stop:         make(chan struct{}),
+		drainTimeout: 20 * time.Second,
 	}
 }
 
@@ -111,11 +119,28 @@ func (wp *WorkerPool) Start(ctx context.Context) {
 	slog.Info("worker pool started", "workers", wp.workers)
 }
 
+// Stop lets in-flight polls finish (bounded by drainTimeout) so their
+// results are delivered, then cancels anything still running. Queued jobs
+// that haven't started are abandoned.
 func (wp *WorkerPool) Stop() {
+	wp.stopOnce.Do(func() { close(wp.stop) })
+	done := make(chan struct{})
+	go func() {
+		wp.wg.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(wp.drainTimeout):
+		slog.Warn("worker pool drain timed out, cancelling in-flight polls")
+		if wp.cancel != nil {
+			wp.cancel()
+		}
+		<-done
+	}
 	if wp.cancel != nil {
 		wp.cancel()
 	}
-	wp.wg.Wait()
 	slog.Info("worker pool stopped")
 }
 
@@ -130,7 +155,8 @@ func (wp *WorkerPool) Enqueue(job PollJob) bool {
 		case wp.criticalQ <- job:
 			return true
 		default:
-			slog.Warn("critical queue full, dropping job", "deviceID", job.Device.ID)
+			slog.Debug("critical queue full, dropping job", "deviceID", job.Device.ID)
+			metrics.PollsDropped.WithLabelValues("critical").Inc()
 			wp.metrics.QueuedCritical.Add(-1)
 			return false
 		}
@@ -140,7 +166,8 @@ func (wp *WorkerPool) Enqueue(job PollJob) bool {
 		case wp.normalQ <- job:
 			return true
 		default:
-			slog.Warn("normal queue full, dropping job", "deviceID", job.Device.ID)
+			slog.Debug("normal queue full, dropping job", "deviceID", job.Device.ID)
+			metrics.PollsDropped.WithLabelValues("normal").Inc()
 			wp.metrics.QueuedNormal.Add(-1)
 			return false
 		}
@@ -150,7 +177,8 @@ func (wp *WorkerPool) Enqueue(job PollJob) bool {
 		case wp.lowQ <- job:
 			return true
 		default:
-			slog.Warn("low queue full, dropping job", "deviceID", job.Device.ID)
+			slog.Debug("low queue full, dropping job", "deviceID", job.Device.ID)
+			metrics.PollsDropped.WithLabelValues("low").Inc()
 			wp.metrics.QueuedLow.Add(-1)
 			return false
 		}
@@ -185,6 +213,8 @@ func (wp *WorkerPool) worker(ctx context.Context, id int) {
 	for {
 		select {
 		case <-ctx.Done():
+			return
+		case <-wp.stop:
 			return
 		default:
 		}
@@ -253,6 +283,8 @@ func (wp *WorkerPool) worker(ctx context.Context, id int) {
 			wp.executeJob(ctx, job)
 			continue
 		case <-ctx.Done():
+			return
+		case <-wp.stop:
 			return
 		}
 	}

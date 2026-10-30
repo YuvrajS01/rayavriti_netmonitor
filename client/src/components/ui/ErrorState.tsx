@@ -1,3 +1,5 @@
+import Button from './Button';
+
 interface ErrorStateProps {
   message: string;
   onRetry?: () => void;
@@ -5,13 +7,13 @@ interface ErrorStateProps {
 
 export default function ErrorState({ message, onRetry }: ErrorStateProps) {
   return (
-    <div role="alert" className="bg-error/10 border border-error/30 rounded-lg p-6 text-center">
-      <span className="material-symbols-outlined text-error text-3xl mb-2">error</span>
-      <p className="text-sm text-error font-medium">{message}</p>
+    <div role="alert" className="bg-surface-1 border border-line border-l-4 border-l-error rounded-lg p-6 text-center">
+      <span className="material-symbols-outlined text-error text-3xl mb-2" aria-hidden="true">error</span>
+      <p className="text-sm text-fg font-medium">{message}</p>
       {onRetry && (
-        <button onClick={onRetry} className="mt-3 text-xs text-on-surface-variant hover:text-primary transition-colors underline">
+        <Button variant="secondary" size="sm" icon="refresh" onClick={onRetry} className="mt-4">
           Retry
-        </button>
+        </Button>
       )}
     </div>
   );

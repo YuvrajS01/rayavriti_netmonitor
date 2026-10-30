@@ -16,14 +16,24 @@ Every finding below was located in code. Items spot-checked a second time are ma
 ## Status
 
 **Fixed in v4.5.1 (Phase 0):**
-- **Security:** S1, S2, S3, S4, S5, S6, S12, S13, S14.
-- **Security, partial:** S8 covers the HTTP collector and remote fleet only. Import, discovery, templates and notifier still need the safe dialer.
-- **Backend:** B3, B5, B6, B7, B15.
-- **Frontend:** F2.
-- **Design:** D1, D2.
-- **Ops:** O1, O3, O6, O8, O9, O10.
+- **Security:** S1–S6, S12–S14.
+- **Backend:** B3, B5, B6 (completed in 5.0.0), B7, B15.
+- **Frontend and design:** F2, D1, D2.
+- **Ops:** O1, O3, O6, O8–O10.
 
-**Still open:** everything else, tracked for the v5 roadmap in section 7.
+**Fixed in v5.0.0 (Phase 1):**
+- **Security:** S7–S11, S15–S19, S21, S22, plus an Origin check on cookie-authenticated writes.
+- **Backend:** B1, B2, B8, B9, B11, B12, B14, B17, B18, B20, B25.
+- **Frontend:** F3–F11.
+- **Design:** D3–D8, except the navigation restructure.
+- **Ops:** O2.
+
+**Still open:**
+- **Security:** S20 (2FA).
+- **Backend:** B4 (SNMP bulk walks and SNMPv3), B10 partially (discovery still forks ping and arp per host), B13 (NetFlow ingest), B16 (WebSocket protocol v2).
+- **Design:** the navigation restructure.
+- **Ops:** O4 (simulator service), O5, O7.
+- **Roadmap:** everything in Phase 2.
 
 ---
 

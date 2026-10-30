@@ -18,10 +18,10 @@ describe('StatCard', () => {
     expect(screen.getByText('All Clear')).toBeInTheDocument();
   });
 
-  it('applies default text-on-surface color', () => {
+  it('applies default text-fg color', () => {
     render(<StatCard label="Test" value="Val" />);
     const valueEl = screen.getByText('Val');
-    expect(valueEl.className).toContain('text-on-surface');
+    expect(valueEl.className).toContain('text-fg');
   });
 
   it('applies custom color', () => {
@@ -40,9 +40,9 @@ describe('StatCard', () => {
     expect(screen.queryByText('check_circle')).not.toBeInTheDocument();
   });
 
-  it('applies surface-container-low bg', () => {
+  it('uses the surface-1 card background', () => {
     const { container } = render(<StatCard label="Test" value="Val" />);
-    expect(container.firstChild).toHaveClass('bg-surface-container-low');
+    expect(container.firstChild).toHaveClass('bg-surface-1');
   });
 
   it('applies rounded-lg', () => {
@@ -50,10 +50,15 @@ describe('StatCard', () => {
     expect(container.firstChild).toHaveClass('rounded-lg');
   });
 
-  it('applies font-headline and text-2xl to value', () => {
+  it('renders the value large with tabular numbers', () => {
     render(<StatCard label="Test" value="Big" />);
     const valueEl = screen.getByText('Big');
-    expect(valueEl.className).toContain('font-headline');
+    expect(valueEl.className).toContain('tabular-nums');
     expect(valueEl.className).toContain('text-2xl');
+  });
+
+  it('is a static tile (no hover lift)', () => {
+    const { container } = render(<StatCard label="Test" value={3} />);
+    expect((container.firstChild as HTMLElement).className).not.toMatch(/hover:|stat-card/);
   });
 });

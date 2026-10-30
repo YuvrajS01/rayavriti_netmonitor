@@ -1,21 +1,68 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { getDevices, getLatestMetrics } from '../api/client';
 import { getTopologyTree, type TopologyNode } from '../api/resources';
-import { useSocket } from '../hooks/useSocket';
+import { queryKeys } from '../api/queryKeys';
 import type { Device, Metric } from '../api/types';
 import SectionHeader from '../components/ui/SectionHeader';
 import Card from '../components/ui/Card';
+import IconButton from '../components/ui/IconButton';
+import Button from '../components/ui/Button';
+import { StatusDot, StatusPill, StatusShapeIcon } from '../components/ui/Status';
+import { STATUS_META, normalizeStatus, type Status, type StatusShape } from '../utils/status';
+import { readToken, readTokenAlpha } from '../utils/tokens';
+import { THEME_CHANGE_EVENT } from '../theme/theme';
+import { prefersReducedMotion } from '../hooks/useReducedMotion';
 
-const COLOR: Record<string, string> = {
-  up: '#9bc86e', ok: '#9bc86e',
-  warning: '#ebc434', degraded: '#ebc434',
-  down: '#e86060', unknown: '#8c8c8c',
-};
-const STATUS_KEYS = Object.keys(COLOR) as (keyof typeof COLOR)[];
-const colorFor = (s: string) => (STATUS_KEYS.includes(s as keyof typeof COLOR) ? COLOR[s as keyof typeof COLOR] : COLOR.unknown);
+/** Canvas can't use var(): resolve the theme tokens, re-read on theme change. */
+interface CanvasPalette {
+  status: Record<Status, string>;
+  edge: string;
+  edgeInferred: string;
+  edgeLabel: string;
+  nodeFill: string;
+  label: string;
+  particle: string;
+  particleDown: string;
+}
 
-const CATEGORY_SHAPES: Record<string, (ctx: CanvasRenderingContext2D, x: number, y: number, r: number) => void> = {
+function readPalette(): CanvasPalette {
+  const status = Object.fromEntries(
+    (Object.keys(STATUS_META) as Status[]).map((s) => [s, readToken(STATUS_META[s].token)]),
+  ) as Record<Status, string>;
+  return {
+    status,
+    edge: readToken('line-strong'),
+    edgeInferred: readToken('line'),
+    edgeLabel: readToken('fg-subtle'),
+    nodeFill: readToken('surface-2'),
+    label: readToken('fg'),
+    particle: readTokenAlpha('fg-muted', 0.7),
+    particleDown: readTokenAlpha('status-down', 0.85),
+  };
+}
+
+/** Draws the status shape (● ▲ ■ ? ‖ –) as a badge so status never relies on colour alone. */
+function drawStatusBadge(ctx: CanvasRenderingContext2D, shape: StatusShape, x: number, y: number, color: string, bg: string) {
+  const r = 5;
+  ctx.save();
+  ctx.fillStyle = bg;
+  ctx.beginPath(); ctx.arc(x, y, r + 2.5, 0, 2 * Math.PI); ctx.fill();
+  ctx.fillStyle = color; ctx.strokeStyle = color; ctx.lineWidth = 1.8;
+  ctx.beginPath();
+  if (shape === 'circle') { ctx.arc(x, y, r, 0, 2 * Math.PI); ctx.fill(); }
+  else if (shape === 'triangle') { ctx.moveTo(x, y - r); ctx.lineTo(x + r, y + r * 0.8); ctx.lineTo(x - r, y + r * 0.8); ctx.closePath(); ctx.fill(); }
+  else if (shape === 'square') { ctx.rect(x - r * 0.85, y - r * 0.85, r * 1.7, r * 1.7); ctx.fill(); }
+  else if (shape === 'ring') { ctx.arc(x, y, r * 0.8, 0, 2 * Math.PI); ctx.stroke(); }
+  else if (shape === 'pause') { ctx.rect(x - r * 0.75, y - r * 0.8, r * 0.5, r * 1.6); ctx.rect(x + r * 0.25, y - r * 0.8, r * 0.5, r * 1.6); ctx.fill(); }
+  else { ctx.rect(x - r, y - r * 0.3, r * 2, r * 0.6); ctx.fill(); }
+  ctx.restore();
+}
+
+type ShapeFn = (ctx: CanvasRenderingContext2D, x: number, y: number, r: number) => void;
+
+const CATEGORY_SHAPES = {
   router: (ctx, x, y, r) => {
     // Circle with crosshair
     ctx.beginPath(); ctx.arc(x, y, r, 0, 2 * Math.PI); ctx.fill(); ctx.stroke();
@@ -40,7 +87,7 @@ const CATEGORY_SHAPES: Record<string, (ctx: CanvasRenderingContext2D, x: number,
   default: (ctx, x, y, r) => {
     ctx.beginPath(); ctx.arc(x, y, r, 0, 2 * Math.PI); ctx.fill(); ctx.stroke();
   },
-};
+} satisfies Record<string, ShapeFn>;
 
 function getCategoryShape(category: string | undefined) {
   if (!category) return CATEGORY_SHAPES.default;
@@ -74,12 +121,31 @@ function flattenTree(nodes: TopologyNode[]): Array<{ parentId: number; childId: 
   return edges;
 }
 
+const EMPTY_DEVICES: Device[] = [];
+
 export default function NetworkTopology() {
   const fgRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
-  const [devices, setDevices] = useState<Device[]>([]);
-  const [metricsMap, setMetricsMap] = useState<Map<number, Metric>>(new Map());
-  const [topoEdges, setTopoEdges] = useState<Array<{ parentId: number; childId: number; port?: string }>>([]);
+  // Devices and latest metrics are kept live by useLiveQueryBridge.
+  const devicesQuery = useQuery({
+    queryKey: queryKeys.devices.list(),
+    queryFn: ({ signal }) => getDevices({ signal }),
+  });
+  const metricsQuery = useQuery({
+    queryKey: queryKeys.metrics.latest,
+    queryFn: ({ signal }) => getLatestMetrics({ signal }),
+  });
+  // The dependency tree is optional; without it links are inferred.
+  const treeQuery = useQuery({
+    queryKey: queryKeys.topology.tree,
+    queryFn: ({ signal }) => getTopologyTree({ signal }),
+  });
+  const devices = devicesQuery.data?.data || EMPTY_DEVICES;
+  const metricsMap = useMemo(
+    () => new Map((metricsQuery.data?.data || []).map((item: Metric) => [item.deviceId, item])),
+    [metricsQuery.data],
+  );
+  const topoEdges = useMemo(() => flattenTree(treeQuery.data?.data || []), [treeQuery.data]);
   const [selected, setSelected] = useState<Device | null>(null);
   const [hovered, setHovered] = useState<{ node: SimNode } | null>(null);
   const [filters, setFilters] = useState({ status: 'all', protocol: 'all', category: 'all' });
@@ -87,38 +153,6 @@ export default function NetworkTopology() {
   const [size, setSize] = useState({ w: 900, h: 560 });
   const metricsRef = useRef(metricsMap);
   useEffect(() => { metricsRef.current = metricsMap; }, [metricsMap]);
-
-  // Fetch data on mount
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const [d, m, t] = await Promise.all([
-          getDevices(),
-          getLatestMetrics(),
-          getTopologyTree().catch(() => ({ data: [] as TopologyNode[] })),
-        ]);
-        if (cancelled) return;
-        setDevices(d.data || []);
-        setMetricsMap(new Map((m.data || []).map((item: Metric) => [item.deviceId, item])));
-        const treeData = t.data || [];
-        setTopoEdges(flattenTree(treeData));
-      } catch {
-        if (!cancelled) setDevices([]);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, []);
-
-  useSocket({
-    onMetricUpdate: (metric) => {
-      const mm = metric as unknown as Metric;
-      setMetricsMap((prev) => new Map(prev).set(mm.deviceId, mm));
-    },
-    onDeviceStatus: ({ deviceId, status }) => {
-      setDevices((prev) => prev.map((d) => (d.id === deviceId ? { ...d, status } : d)));
-    },
-  });
 
   const nodeById = useMemo(() => new Map(devices.map((d) => [d.id, d])), [devices]);
   const protocols = useMemo(() => Array.from(new Set(devices.map((d) => d.protocol))).sort(), [devices]);
@@ -140,8 +174,7 @@ export default function NetworkTopology() {
     const list = devices.filter((d) => {
       const status = statusOf(d, metricsMap);
       if (filters.status !== 'all') {
-        const ok = filters.status === 'up' ? status === 'up' || status === 'ok' : filters.status === 'down' ? status === 'down' : (status === 'warning' || status === 'degraded');
-        if (!ok) return false;
+        if (normalizeStatus(status) !== filters.status) return false;
       }
       if (filters.protocol !== 'all' && d.protocol !== filters.protocol) return false;
       if (filters.category !== 'all' && d.deviceCategory !== filters.category) return false;
@@ -168,7 +201,7 @@ export default function NetworkTopology() {
         /gateway|router|core|firewall/i.test(d.name || '');
       const hub = visible.list.find(isHub) ?? visible.list[0];
       for (const d of visible.list) {
-        if (d.id !== hub.id && !supplementedIds.has(d.id)) inferred++;
+        if (d.id !== hub?.id && !supplementedIds.has(d.id)) inferred++;
       }
     }
     return topoEdges.length + inferred;
@@ -187,7 +220,7 @@ export default function NetworkTopology() {
       const radius = Math.min(W, H) * 0.3;
       return ex ? { ...ex, name: d.name, status: statusOf(d, metricsMap), ip: d.ipAddress, category: d.deviceCategory || '' } : {
         id: d.id, name: d.name, status: statusOf(d, metricsMap), ip: d.ipAddress, category: d.deviceCategory || '',
-        x: W / 2 + Math.cos(angle) * radius, y: H / 2 + Math.sin(angle) * radius, vx: 0, vy: 0, r: 7,
+        x: W / 2 + Math.cos(angle) * radius, y: H / 2 + Math.sin(angle) * radius, vx: 0, vy: 0, r: 12,
       };
     });
     const nodeMap = new Map(nodes.map((n) => [n.id, n]));
@@ -216,10 +249,12 @@ export default function NetworkTopology() {
         /gateway|router|core|switch|firewall/i.test(d.deviceCategory || '') ||
         /gateway|router|core|firewall/i.test(d.name || '');
       const hub = visible.list.find(isHub) ?? visible.list[0];
-      const hubNode = nodeMap.get(hub.id)!;
-      for (const d of visible.list) {
-        if (d.id !== hub.id && !linkedIds.has(d.id) && nodeMap.has(hub.id)) {
-          links.push({ source: hubNode, target: nodeMap.get(d.id)! });
+      const hubNode = hub && nodeMap.get(hub.id);
+      if (hub && hubNode) {
+        for (const d of visible.list) {
+          if (d.id !== hub.id && !linkedIds.has(d.id)) {
+            links.push({ source: hubNode, target: nodeMap.get(d.id)! });
+          }
         }
       }
     }
@@ -241,6 +276,11 @@ export default function NetworkTopology() {
     ctx.scale(dpr, dpr);
     const state = sim.current;
 
+    let palette = readPalette();
+    const refreshPalette = () => { palette = readPalette(); };
+    window.addEventListener(THEME_CHANGE_EVENT, refreshPalette);
+    const reducedMotion = prefersReducedMotion();
+
     let last = performance.now();
     const tick = (now: number) => {
       const dt = Math.min(32, now - last); last = now;
@@ -254,10 +294,12 @@ export default function NetworkTopology() {
       // forces
       for (let i = 0; i < nodes.length; i++) {
         const a = nodes[i];
+        if (!a) continue;
         if (a.fx != null) { a.x = a.fx; a.y = a.fy!; a.vx = 0; a.vy = 0; continue; }
         // repulsion
         for (let j = i + 1; j < nodes.length; j++) {
           const b = nodes[j];
+          if (!b) continue;
           let dx = a.x - b.x, dy = a.y - b.y;
           let dist = Math.hypot(dx, dy) || 0.01;
           if (dist < 1) { dx = Math.random(); dy = Math.random(); dist = 1; }
@@ -296,68 +338,68 @@ export default function NetworkTopology() {
       // edges
       const t = now / 600;
       for (const l of state.links) {
-        const srcColor = colorFor(l.source.status);
-        const tgtColor = colorFor(l.target.status);
+        const linkDown = normalizeStatus(l.source.status) === 'down' || normalizeStatus(l.target.status) === 'down';
         // Line
         ctx.beginPath();
         ctx.moveTo(l.source.x, l.source.y);
         ctx.lineTo(l.target.x, l.target.y);
         const isReal = l.port !== undefined || topoEdges.length > 0;
-        ctx.strokeStyle = isReal ? 'rgba(155,200,110,0.25)' : 'rgba(140,140,130,0.15)';
+        ctx.strokeStyle = isReal ? palette.edge : palette.edgeInferred;
         ctx.lineWidth = isReal ? 1.5 : 0.8;
         ctx.stroke();
 
-        // Animated particle along edge
-        const p = (t + (l.source.id + l.target.id) * 0.13) % 1;
-        const px = l.source.x + (l.target.x - l.source.x) * p;
-        const py = l.source.y + (l.target.y - l.source.y) * p;
-        ctx.beginPath();
-        ctx.arc(px, py, 1.8, 0, 2 * Math.PI);
-        ctx.fillStyle = srcColor === COLOR.down || tgtColor === COLOR.down ? 'rgba(232,96,96,0.7)' : 'rgba(155,200,110,0.7)';
-        ctx.fill();
+        // Particle along the edge shows flow direction (static under reduced motion).
+        if (!reducedMotion) {
+          const p = (t + (l.source.id + l.target.id) * 0.13) % 1;
+          const px = l.source.x + (l.target.x - l.source.x) * p;
+          const py = l.source.y + (l.target.y - l.source.y) * p;
+          ctx.beginPath();
+          ctx.arc(px, py, 1.8, 0, 2 * Math.PI);
+          ctx.fillStyle = linkDown ? palette.particleDown : palette.particle;
+          ctx.fill();
+        }
 
         // Port label
         if (l.port) {
           const mx = (l.source.x + l.target.x) / 2;
           const my = (l.source.y + l.target.y) / 2;
-          ctx.font = '8px "JetBrains Mono Variable", "JetBrains Mono", monospace';
+          ctx.font = '12px "JetBrains Mono Variable", "JetBrains Mono", monospace';
           ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
-          ctx.fillStyle = 'rgba(180,180,170,0.6)';
+          ctx.fillStyle = palette.edgeLabel;
           ctx.fillText(l.port, mx, my - 3);
         }
       }
 
       // nodes
       for (const n of nodes) {
-        const c = colorFor(n.status);
+        const meta = STATUS_META[normalizeStatus(n.status)];
+        const c = palette.status[meta.status];
         const drawShape = getCategoryShape(n.category);
 
-        // Glow ring
-        ctx.save();
-        ctx.globalAlpha = 0.25;
+        // Category shape, outlined in the status colour
+        ctx.fillStyle = palette.nodeFill;
         ctx.strokeStyle = c;
-        ctx.lineWidth = 1;
-        ctx.beginPath(); ctx.arc(n.x, n.y, n.r + 4, 0, 2 * Math.PI); ctx.stroke();
-        ctx.restore();
-
-        // Shape fill + stroke
-        ctx.fillStyle = 'rgba(38,38,29,0.95)';
-        ctx.strokeStyle = c;
-        ctx.lineWidth = 1.8;
+        ctx.lineWidth = 2;
         drawShape(ctx, n.x, n.y, n.r);
+
+        // Status shape badge (colour-blind safe)
+        drawStatusBadge(ctx, meta.shape, n.x + n.r + 2, n.y - n.r - 2, c, palette.nodeFill);
 
         // Label
         const label = n.name.length > 16 ? `${n.name.slice(0, 15)}…` : n.name;
-        ctx.font = '9px "Plus Jakarta Sans Variable", "Plus Jakarta Sans", sans-serif';
+        ctx.font = '12px "Instrument Sans Variable", "Instrument Sans", sans-serif';
         ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-        ctx.fillStyle = 'rgba(225,225,215,0.9)';
+        ctx.fillStyle = palette.label;
         ctx.fillText(label, n.x, n.y + n.r + 5);
       }
       ctx.restore();
       state.raf = requestAnimationFrame(tick);
     };
     state.raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(state.raf);
+    return () => {
+      cancelAnimationFrame(state.raf);
+      window.removeEventListener(THEME_CHANGE_EVENT, refreshPalette);
+    };
   }, [size, zoom, nodeById, topoEdges]);
 
   const toWorld = (clientX: number, clientY: number) => {
@@ -414,39 +456,58 @@ export default function NetworkTopology() {
   return (
     <div className="space-y-5">
       <SectionHeader
-        title="Network Topology"
+        title="Network topology"
         subtitle="Live force-directed dependency map built from real device relationships."
-        action={<Link to="/devices" className="text-xs text-primary font-semibold hover:underline">Back to devices</Link>}
+        action={
+          <Link to="/devices" className="inline-flex min-h-control items-center gap-2 rounded-md border border-line bg-surface-2 px-4 text-sm font-medium text-fg hover:bg-surface-3 hover:border-line-strong">
+            <span className="material-symbols-outlined text-[18px]" aria-hidden="true">arrow_back</span>Back to devices
+          </Link>
+        }
       />
 
       <div className="flex flex-wrap items-center gap-3">
-        <select value={filters.status} onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value }))} className="bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-3 py-2 text-xs text-on-surface outline-none focus:ring-1 focus:ring-primary">
+        <select aria-label="Filter by status" value={filters.status} onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value }))} className="bg-surface-1 border border-line rounded-md px-3 py-2 text-sm text-fg outline-none focus:border-primary">
           <option value="all">All statuses</option>
           <option value="up">Up</option>
           <option value="warning">Warning</option>
           <option value="down">Down</option>
+          <option value="unknown">Unknown</option>
         </select>
-        <select value={filters.protocol} onChange={(e) => setFilters((f) => ({ ...f, protocol: e.target.value }))} className="bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-3 py-2 text-xs text-on-surface outline-none focus:ring-1 focus:ring-primary">
+        <select aria-label="Filter by protocol" value={filters.protocol} onChange={(e) => setFilters((f) => ({ ...f, protocol: e.target.value }))} className="bg-surface-1 border border-line rounded-md px-3 py-2 text-sm text-fg outline-none focus:border-primary">
           <option value="all">All protocols</option>
           {protocols.map((p) => <option key={p} value={p}>{p.toUpperCase()}</option>)}
         </select>
-        <select value={filters.category} onChange={(e) => setFilters((f) => ({ ...f, category: e.target.value }))} className="bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-3 py-2 text-xs text-on-surface outline-none focus:ring-1 focus:ring-primary">
+        <select aria-label="Filter by category" value={filters.category} onChange={(e) => setFilters((f) => ({ ...f, category: e.target.value }))} className="bg-surface-1 border border-line rounded-md px-3 py-2 text-sm text-fg outline-none focus:border-primary">
           <option value="all">All categories</option>
           {categories.map((c) => <option key={c} value={c}>{c}</option>)}
         </select>
+        {/* Keyboard/screen-reader route into the canvas: pick a node to inspect it. */}
+        <select
+          aria-label="Inspect node"
+          value={selected ? String(selected.id) : ''}
+          onChange={(e) => setSelected(nodeById.get(Number(e.target.value)) ?? null)}
+          className="bg-surface-1 border border-line rounded-md px-3 py-2 text-sm text-fg outline-none focus:border-primary max-w-56"
+        >
+          <option value="">Inspect node…</option>
+          {visible.list.map((d) => <option key={d.id} value={String(d.id)}>{d.name}</option>)}
+        </select>
         <div className="ml-auto flex items-center gap-2">
-          <button onClick={() => zoomBy(1.2)} className="w-8 h-8 grid place-items-center rounded-md border border-outline-variant/30 text-on-surface-variant hover:text-on-surface hover:border-primary/50"><span className="material-symbols-outlined text-base">add</span></button>
-          <button onClick={() => zoomBy(0.83)} className="w-8 h-8 grid place-items-center rounded-md border border-outline-variant/30 text-on-surface-variant hover:text-on-surface hover:border-primary/50"><span className="material-symbols-outlined text-base">remove</span></button>
-          <button onClick={() => { setZoom(1); sim.current.pan = { x: 0, y: 0 }; }} className="px-3 h-8 rounded-md border border-outline-variant/30 text-xs text-on-surface-variant hover:text-on-surface hover:border-primary/50">Reset</button>
+          <IconButton icon="add" label="Zoom in" variant="secondary" size="sm" onClick={() => zoomBy(1.2)} />
+          <IconButton icon="remove" label="Zoom out" variant="secondary" size="sm" onClick={() => zoomBy(0.83)} />
+          <Button size="sm" variant="secondary" onClick={() => { setZoom(1); sim.current.pan = { x: 0, y: 0 }; }}>Reset view</Button>
         </div>
       </div>
 
       {/* Legend */}
-      <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-[10px] uppercase tracking-wide text-on-surface-variant">
-        <span className="text-success">● Up</span>
-        <span className="text-warning">● Warning</span>
-        <span className="text-error">● Down</span>
-        <span className="border-l border-outline-variant/30 pl-5">◯ Host</span>
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-fg-muted">
+        {(['up', 'warning', 'down', 'unknown'] as const).map((s) => (
+          <span key={s} className={`inline-flex items-center gap-1.5 ${STATUS_META[s].text}`}>
+            <StatusShapeIcon shape={STATUS_META[s].shape} />
+            <span className="text-fg-muted">{STATUS_META[s].label}</span>
+          </span>
+        ))}
+        <span className="border-l border-line pl-5">◯ Host</span>
+        <span>⊕ Router</span>
         <span>◇ Switch</span>
         <span>⬡ Firewall</span>
         <span>▢ Server</span>
@@ -454,17 +515,19 @@ export default function NetworkTopology() {
 
       <div className="grid grid-cols-1 xl:grid-cols-[1fr_280px] gap-5">
         <Card variant="low" className="p-4 overflow-hidden min-h-[600px] relative">
-          <div className="text-[10px] uppercase tracking-wide text-on-surface-variant mb-3 flex items-center gap-3">
-            <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-success status-dot-live" /> Live topology</span>
-            <span className="font-data">{visible.list.length} nodes</span>
-            <span className="font-data">{realEdgeCount} dependency edges</span>
-            {edgeCount > realEdgeCount && <span className="font-data text-outline">+{edgeCount - realEdgeCount} inferred</span>}
+          <div className="text-xs text-fg-muted mb-3 flex items-center gap-3">
+            <span className="flex items-center gap-1.5"><StatusDot status="up" label="" size={8} /> Live topology</span>
+            <span className="font-mono">{visible.list.length} nodes</span>
+            <span className="font-mono">{realEdgeCount} dependency edges</span>
+            {edgeCount > realEdgeCount && <span className="font-mono text-fg-subtle">+{edgeCount - realEdgeCount} inferred</span>}
           </div>
           <div ref={wrapRef} className="relative">
             {visible.list.length ? (
               <canvas
                 ref={fgRef}
                 className="touch-none cursor-grab active:cursor-grabbing rounded"
+                role="img"
+                aria-label={`Topology map of ${visible.list.length} devices. Use the Inspect node list to select one.`}
                 style={{ width: size.w, height: size.h }}
                 onPointerDown={onDown}
                 onPointerMove={onMove}
@@ -474,18 +537,15 @@ export default function NetworkTopology() {
                 onWheel={onWheel}
               />
             ) : (
-              <div className="h-[540px] grid place-items-center text-sm text-on-surface-variant">No devices available for topology mapping.</div>
+              <div className="h-[540px] grid place-items-center text-sm text-fg-muted">No devices available for topology mapping.</div>
             )}
             {hovered && (
-              <div className="absolute top-2 left-2 z-10 bg-surface-container-high border border-outline-variant/30 rounded-lg p-3 text-xs max-w-[240px] pointer-events-none">
-                <strong className="font-headline text-sm block truncate">{hovered.node.name}</strong>
-                <span className="text-on-surface-variant font-data">{hovered.node.ip}</span>
+              <div className="absolute top-2 left-2 z-sticky bg-surface-2 border border-line-strong shadow-e2 rounded-md p-3 text-xs max-w-[240px] pointer-events-none">
+                <strong className="text-sm block truncate">{hovered.node.name}</strong>
+                <span className="text-fg-muted font-mono">{hovered.node.ip}</span>
                 <div className="mt-1.5 flex items-center gap-2">
-                  <span className="flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full" style={{ background: colorFor(hovered.node.status) }} />
-                    <span className="uppercase tracking-wide" style={{ color: colorFor(hovered.node.status) }}>{hovered.node.status}</span>
-                  </span>
-                  {hovered.node.category && <span className="text-outline">· {hovered.node.category}</span>}
+                  <StatusPill status={hovered.node.status} />
+                  {hovered.node.category && <span className="text-fg-subtle">· {hovered.node.category}</span>}
                 </div>
               </div>
             )}
@@ -495,37 +555,37 @@ export default function NetworkTopology() {
         <Card variant="low" className="p-5">
           {selected ? (
             <>
-              <p className="text-[10px] text-on-surface-variant uppercase tracking-wide">Selected node</p>
-              <h2 className="font-headline text-xl font-semibold mt-1">{selected.name}</h2>
-              <p className="font-data text-xs text-on-surface-variant mt-1">{selected.ipAddress}{selected.port > 0 ? `:${selected.port}` : ''}</p>
+              <p className="text-xs text-fg-muted">Selected node</p>
+              <h2 className="text-xl font-semibold mt-1">{selected.name}</h2>
+              <p className="font-mono text-xs text-fg-muted mt-1">{selected.ipAddress}{selected.port > 0 ? `:${selected.port}` : ''}</p>
               <dl className="mt-6 space-y-4 text-sm">
                 <div>
-                  <dt className="text-[10px] uppercase text-on-surface-variant">Status</dt>
-                  <dd style={{ color: colorFor(metricsMap.get(selected.id)?.status || selected.status) }} className="font-semibold capitalize">{metricsMap.get(selected.id)?.status || selected.status}</dd>
+                  <dt className="text-xs text-fg-muted">Status</dt>
+                  <dd className="mt-1"><StatusPill status={metricsMap.get(selected.id)?.status || selected.status} size="md" /></dd>
                 </div>
                 <div>
-                  <dt className="text-[10px] uppercase text-on-surface-variant">Protocol</dt>
+                  <dt className="text-xs text-fg-muted">Protocol</dt>
                   <dd className="font-semibold uppercase">{selected.protocol}</dd>
                 </div>
                 {selected.deviceCategory && (
                   <div>
-                    <dt className="text-[10px] uppercase text-on-surface-variant">Category</dt>
+                    <dt className="text-xs text-fg-muted">Category</dt>
                     <dd className="capitalize">{selected.deviceCategory}</dd>
                   </div>
                 )}
                 <div>
-                  <dt className="text-[10px] uppercase text-on-surface-variant">Parent dependency</dt>
+                  <dt className="text-xs text-fg-muted">Parent dependency</dt>
                   <dd>{selected.parentDeviceId ? (nodeById.get(selected.parentDeviceId)?.name || `Device #${selected.parentDeviceId}`) : 'Root / auto-discovered'}</dd>
                 </div>
                 <div>
-                  <dt className="text-[10px] uppercase text-on-surface-variant">Response</dt>
-                  <dd className="font-data">{metricsMap.get(selected.id)?.responseTime != null ? `${metricsMap.get(selected.id)!.responseTime}ms` : '—'}</dd>
+                  <dt className="text-xs text-fg-muted">Response</dt>
+                  <dd className="font-mono">{metricsMap.get(selected.id)?.responseTime != null ? `${metricsMap.get(selected.id)!.responseTime}ms` : '—'}</dd>
                 </div>
               </dl>
-              <button onClick={() => setSelected(null)} className="mt-6 text-xs text-primary font-semibold hover:underline">Clear selection</button>
+              <Button size="sm" variant="ghost" icon="close" className="mt-6" onClick={() => setSelected(null)}>Clear selection</Button>
             </>
           ) : (
-            <div className="text-sm text-on-surface-variant pt-12">Select a node to inspect its live status and dependency chain.</div>
+            <div className="text-sm text-fg-muted pt-12">Select a node to inspect its live status and dependency chain.</div>
           )}
         </Card>
       </div>

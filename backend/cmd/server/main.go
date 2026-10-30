@@ -20,7 +20,10 @@ import (
 	"github.com/rayavriti/netmonitor-backend/internal/database"
 	"github.com/rayavriti/netmonitor-backend/internal/engine"
 	"github.com/rayavriti/netmonitor-backend/internal/logging"
+	"github.com/rayavriti/netmonitor-backend/internal/metrics"
+	"github.com/rayavriti/netmonitor-backend/internal/models"
 	"github.com/rayavriti/netmonitor-backend/internal/monitoring"
+	"github.com/rayavriti/netmonitor-backend/internal/rbac"
 	"github.com/rayavriti/netmonitor-backend/internal/reports"
 	"github.com/rayavriti/netmonitor-backend/internal/retention"
 	"github.com/rayavriti/netmonitor-backend/internal/scheduler"
@@ -90,6 +93,10 @@ func run() error {
 	}
 	logger.Info("Migrations complete")
 
+	if err := db.ApplyRetentionPolicies(context.Background(), retentionPolicies(cfg, logger)); err != nil {
+		return fmt.Errorf("apply retention policies: %w", err)
+	}
+
 	// 5. Seed defaults
 	adminPass := cfg.Auth.AdminPassword
 	if adminPass == "" {
@@ -110,6 +117,11 @@ func run() error {
 
 	// 6. Initialize WebSocket hub with bootstrap function
 	bootstrapFn := func(ctx context.Context, userID int64, username, role string) (map[string]any, error) {
+		user := map[string]any{"id": userID, "username": username, "role": role}
+		if !rbac.IsUnscopedRole(role) {
+			// Scoped users only receive their own devices' state (S7).
+			return scopedBootstrap(ctx, appDB, db, userID, user)
+		}
 		stats, err := appDB.GetDashboardStats(ctx)
 		if err != nil {
 			stats = map[string]any{}
@@ -126,11 +138,7 @@ func run() error {
 			"stats":         stats,
 			"latestMetrics": latestMetrics,
 			"alerts":        alerts,
-			"user": map[string]any{
-				"id":       userID,
-				"username": username,
-				"role":     role,
-			},
+			"user":          user,
 		}, nil
 	}
 	hub := websocket.NewHub(
@@ -228,6 +236,9 @@ func run() error {
 	sched.Start(context.Background())
 	logger.Info("Scheduler started")
 
+	// Prometheus metrics (served by the admin listener below).
+	registerRuntimeMetrics(cfg.App.Version, db, sched, hub, metricBuf)
+
 	// 10. Initialize anomaly engine (shares its baseline cache with the alert engine)
 	anomalyEng := engine.NewAnomalyEngine(db, slog.Default())
 	anomalyEng.SetBaselineCache(baselineCache)
@@ -235,10 +246,11 @@ func run() error {
 	logger.Info("Anomaly engine started")
 
 	// 11. Initialize retention scheduler
-	retSched := retention.New(db,
-		cfg.Collector.MetricsRetentionDays,
-		cfg.Collector.FlowRetentionDays,
-		cfg.Collector.AlertsRetentionDays)
+	retSched := retention.New(db, retention.Config{
+		AlertsDays:        cfg.Collector.AlertsRetentionDays,
+		HealthHistoryDays: cfg.Collector.MonHealthRetentionDays,
+		CaptureDays:       cfg.Collector.CaptureRetentionDays,
+	})
 	retSched.Start(context.Background())
 	logger.Info("Retention scheduler started")
 
@@ -273,6 +285,8 @@ func run() error {
 	// 13. Initialize HTTP server
 	srv := server.New(cfg, appDB, hub, logger, server.WithRedis(rdb), server.WithAlertEngine(alertEng), server.WithServiceMode(&serviceMode))
 
+	adminSrv := server.StartAdmin(cfg.App.AdminAddr, cfg.App.PprofEnabled)
+
 	// 13. Start server in goroutine
 	errChan := make(chan error, 1)
 	go func() {
@@ -292,23 +306,151 @@ func run() error {
 		logger.Info("Shutdown signal received", "signal", sig)
 	}
 
-	// 15. Graceful shutdown
+	// 15. Graceful shutdown. Order matters: stop intake first, then the
+	// producers (scheduler, collectors), then what they feed (alert engine,
+	// metric buffer), and the WebSocket hub last so every component can still
+	// broadcast while it drains.
 	logger.Info("Shutting down...")
-	sched.Stop()
-	ispCollector.Stop()
-	reportScheduler.Stop()
-	if metricBuf != nil {
-		metricBuf.Stop()
-	}
-	anomalyEng.Stop()
-	alertEng.Stop()
-	retSched.Stop()
-	hub.Stop()
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	if err := srv.Shutdown(ctx); err != nil {
 		logger.Error("Server shutdown error", "error", err)
 	}
+	sched.Stop()
+	ispCollector.Stop()
+	reportScheduler.Stop()
+	anomalyEng.Stop()
+	alertEng.Stop()
+	if metricBuf != nil {
+		metricBuf.Stop()
+	}
+	retSched.Stop()
+	hub.Stop()
+	_ = adminSrv.Shutdown(ctx)
 	logger.Info("Shutdown complete")
 	return nil
+}
+
+// scopedBootstrap builds the initial WebSocket payload for a location- or
+// subnet-scoped user from their devices only.
+func scopedBootstrap(ctx context.Context, appDB database.Database, db *database.Postgres, userID int64, user map[string]any) (map[string]any, error) {
+	scopes, err := rbac.LoadScopes(ctx, db.Pool(), userID)
+	if err != nil {
+		return nil, err
+	}
+	sf := (&rbac.ScopeContext{IsScoped: true, Scopes: scopes}).DatabaseScopeFilter()
+	devices, _, err := appDB.GetDevicesFiltered(ctx, database.DeviceFilter{Scope: sf, Limit: 100000})
+	if err != nil {
+		return nil, err
+	}
+	allowed := make(map[int64]bool, len(devices))
+	var online, offline int
+	for _, d := range devices {
+		allowed[d.ID] = true
+		switch d.Status {
+		case "up":
+			online++
+		case "down":
+			offline++
+		}
+	}
+	var latest []models.Metric
+	if all, err := appDB.GetLatestMetrics(ctx); err == nil {
+		for _, m := range all {
+			if allowed[m.DeviceID] {
+				latest = append(latest, m)
+			}
+		}
+	}
+	alerts, activeAlerts, err := appDB.GetAlerts(ctx, "active", 50, 0, sf)
+	if err != nil {
+		alerts, activeAlerts = nil, 0
+	}
+	return map[string]any{
+		"stats": map[string]any{
+			"totalDevices":   len(devices),
+			"onlineDevices":  online,
+			"offlineDevices": offline,
+			"activeAlerts":   activeAlerts,
+		},
+		"latestMetrics": latest,
+		"alerts":        alerts,
+		"user":          user,
+	}, nil
+}
+
+// minRawMetricsDays keeps raw metrics longer than the metrics_hourly refresh
+// window (3 days). If raw data were dropped inside that window, the next
+// refresh would see the hours as empty and erase their rollups.
+const minRawMetricsDays = 4
+
+// retentionPolicies maps config to TimescaleDB retention policies.
+func retentionPolicies(cfg *config.Config, logger *logging.Logger) []database.RetentionPolicy {
+	c := cfg.Collector
+	metricsDays := c.MetricsRetentionDays
+	if metricsDays > 0 && metricsDays < minRawMetricsDays {
+		logger.Warn("METRICS_RETENTION_DAYS is below the rollup refresh window; raising it",
+			"configured", metricsDays, "effective", minRawMetricsDays)
+		metricsDays = minRawMetricsDays
+	}
+	return []database.RetentionPolicy{
+		{Relation: "metrics", Days: metricsDays},
+		{Relation: "metrics_hourly", Days: c.MetricsHourlyRetentionDays},
+		{Relation: "isp_metrics", Days: metricsDays},
+		{Relation: "flows", Days: c.FlowRetentionDays},
+		{Relation: "system_log_events", Days: c.LogRetentionDays},
+		{Relation: "capture_packets", Days: c.CaptureRetentionDays},
+		{Relation: "alert_history", Days: c.AlertsRetentionDays},
+		{Relation: "notification_log", Days: c.AlertsRetentionDays},
+		{Relation: "suppressed_alerts", Days: c.AlertsRetentionDays},
+		{Relation: "remote_snapshots", Days: cfg.Remote.SnapshotRetentionDays},
+		{Relation: "monitoring_http_requests", Days: c.MonHTTPRetentionDays},
+		{Relation: "monitoring_db_queries", Days: c.MonDBRetentionDays},
+		{Relation: "monitoring_collector_runs", Days: c.MonCollectorRetentionDays},
+		{Relation: "monitoring_system_metrics", Days: c.MonHealthRetentionDays},
+		{Relation: "monitoring_alerts", Days: c.MonAlertRetentionDays},
+		{Relation: "monitoring_alert_activity", Days: c.MonAlertRetentionDays},
+		// incident_timeline and metrics_daily are kept indefinitely.
+	}
+}
+
+// registerRuntimeMetrics exposes state other components already track as
+// Prometheus gauges read at scrape time.
+func registerRuntimeMetrics(version string, db *database.Postgres, sched *scheduler.Scheduler, hub *websocket.Hub, metricBuf *cache.MetricBuffer) {
+	metrics.SetBuildInfo(version)
+	if db != nil && db.Pool() != nil {
+		metrics.RegisterPool(db.Pool())
+	}
+	metrics.RegisterGaugeFunc("poller", "scheduled_devices", "Devices currently scheduled for polling.",
+		func() float64 { return float64(sched.JobCount()) })
+	metrics.RegisterGaugeFunc("poller", "unreachable_devices", "Scheduled devices in unreachable backoff.",
+		func() float64 { return float64(sched.UnreachableCount()) })
+	metrics.RegisterGaugeFunc("poller", "busy_workers", "Workers currently running a poll.",
+		func() float64 { return float64(sched.PoolMetrics().BusyWorkers) })
+	for _, q := range []struct {
+		name string
+		get  func(scheduler.WorkerPoolMetricsSnapshot) int
+	}{
+		{"critical", func(m scheduler.WorkerPoolMetricsSnapshot) int { return m.QueuedCritical }},
+		{"normal", func(m scheduler.WorkerPoolMetricsSnapshot) int { return m.QueuedNormal }},
+		{"low", func(m scheduler.WorkerPoolMetricsSnapshot) int { return m.QueuedLow }},
+	} {
+		get := q.get
+		metrics.RegisterGaugeFunc("poller", "queue_depth_"+q.name, "Poll jobs waiting in the "+q.name+" priority queue.",
+			func() float64 { return float64(get(sched.PoolMetrics())) })
+	}
+	metrics.RegisterGaugeFunc("websocket", "clients", "Connected WebSocket clients.",
+		func() float64 { return float64(hub.ConnectionCount()) })
+	if metricBuf != nil {
+		metrics.RegisterGaugeFunc("metric_buffer", "length", "Metrics waiting in the Redis buffer to be persisted.",
+			func() float64 {
+				ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+				defer cancel()
+				n, err := metricBuf.Len(ctx)
+				if err != nil {
+					return -1
+				}
+				return float64(n)
+			})
+	}
 }

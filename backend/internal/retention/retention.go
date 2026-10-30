@@ -1,3 +1,7 @@
+// Package retention sweeps plain (non-hypertable) tables that grow without
+// bound. Hypertables — metrics, flows, logs, alert/notification history,
+// capture packets and the rest — are pruned by TimescaleDB retention
+// policies (database.ApplyRetentionPolicies), which drop whole chunks.
 package retention
 
 import (
@@ -7,63 +11,52 @@ import (
 	"time"
 
 	"github.com/rayavriti/netmonitor-backend/internal/database"
-	"github.com/rayavriti/netmonitor-backend/internal/models"
 )
 
-type Scheduler struct {
-	db                   database.Database
-	metricsRetentionDays int
-	flowsRetentionDays   int
-	alertsRetentionDays  int
-	cancel               context.CancelFunc
-	wg                   sync.WaitGroup
+// Config sets how many days each plain table keeps. Zero or negative keeps
+// rows forever.
+type Config struct {
+	AlertsDays        int
+	HealthHistoryDays int
+	CaptureDays       int
 }
 
-func New(db database.Database, metricsDays, flowsDays, alertsDays int) *Scheduler {
-	return &Scheduler{
-		db:                   db,
-		metricsRetentionDays: metricsDays,
-		flowsRetentionDays:   flowsDays,
-		alertsRetentionDays:  alertsDays,
-	}
+type Scheduler struct {
+	db     database.Database
+	cfg    Config
+	cancel context.CancelFunc
+	wg     sync.WaitGroup
+}
+
+func New(db database.Database, cfg Config) *Scheduler {
+	return &Scheduler{db: db, cfg: cfg}
 }
 
 func (s *Scheduler) Start(ctx context.Context) {
 	ctx, s.cancel = context.WithCancel(ctx)
 
 	slog.Info("Retention scheduler started",
-		"metrics_retention_days", s.metricsRetentionDays,
-		"flows_retention_days", s.flowsRetentionDays,
-		"alerts_retention_days", s.alertsRetentionDays,
+		"alerts_retention_days", s.cfg.AlertsDays,
+		"health_history_retention_days", s.cfg.HealthHistoryDays,
+		"capture_retention_days", s.cfg.CaptureDays,
 		"interval_hours", 6,
 	)
 
-	// Run initial sweep after 30 seconds (give server time to boot)
 	s.wg.Add(1)
-	go func() { //nolint:gosec // Background retention sweep; request context not applicable
+	go func() {
 		defer s.wg.Done()
 		timer := time.NewTimer(30 * time.Second)
-		select {
-		case <-ctx.Done():
-			timer.Stop()
-			return
-		case <-timer.C:
-			s.prune(context.Background())
-		}
-	}()
-
-	// Periodic sweep every 6 hours
-	s.wg.Add(1)
-	go func() { //nolint:gosec // Background retention sweep; request context not applicable
-		defer s.wg.Done()
+		defer timer.Stop()
 		ticker := time.NewTicker(6 * time.Hour)
 		defer ticker.Stop()
 		for {
 			select {
 			case <-ctx.Done():
 				return
+			case <-timer.C:
+				s.prune(ctx)
 			case <-ticker.C:
-				s.prune(context.Background())
+				s.prune(ctx)
 			}
 		}
 	}()
@@ -77,100 +70,31 @@ func (s *Scheduler) Stop() {
 	slog.Info("Retention scheduler stopped")
 }
 
+type pruneJob struct {
+	name string
+	days int
+	fn   func(context.Context, time.Time) (int64, error)
+}
+
 func (s *Scheduler) prune(ctx context.Context) {
-	slog.Info("Starting data retention sweep")
 	start := time.Now()
-	var totalMetrics, totalFlows, totalAlerts, totalSessions int64
-
-	// Prune old metrics
-	func() {
-		cutoff := time.Now().AddDate(0, 0, -s.metricsRetentionDays)
-		count, err := s.db.PruneMetrics(ctx, cutoff)
+	jobs := []pruneJob{
+		{"resolved_alerts", s.cfg.AlertsDays, s.db.PruneAlerts},
+		{"health_score_history", s.cfg.HealthHistoryDays, s.db.PruneHealthScoreHistory},
+		{"capture_sessions", s.cfg.CaptureDays, s.db.PruneCaptureSessions},
+	}
+	deleted := map[string]int64{}
+	for _, job := range jobs {
+		if job.days <= 0 {
+			continue
+		}
+		cutoff := time.Now().AddDate(0, 0, -job.days)
+		n, err := job.fn(ctx, cutoff)
 		if err != nil {
-			slog.Error("Failed to prune metrics", "error", err, "cutoff", cutoff)
-			return
+			slog.Error("Retention prune failed", "table", job.name, "cutoff", cutoff, "error", err)
+			continue
 		}
-		totalMetrics = count
-		if count > 0 {
-			slog.Info("Pruned metrics",
-				"deleted", count,
-				"cutoff", cutoff,
-				"retention_days", s.metricsRetentionDays,
-			)
-		}
-	}()
-
-	// Prune old flow records
-	func() {
-		cutoff := time.Now().AddDate(0, 0, -s.flowsRetentionDays)
-		count, err := s.db.PruneFlows(ctx, cutoff)
-		if err != nil {
-			slog.Error("Failed to prune flows", "error", err, "cutoff", cutoff)
-			return
-		}
-		totalFlows = count
-		if count > 0 {
-			slog.Info("Pruned flow records",
-				"deleted", count,
-				"cutoff", cutoff,
-				"retention_days", s.flowsRetentionDays,
-			)
-		}
-	}()
-
-	// Prune resolved alerts
-	func() {
-		cutoff := time.Now().AddDate(0, 0, -s.alertsRetentionDays)
-		count, err := s.db.PruneAlerts(ctx, cutoff)
-		if err != nil {
-			slog.Error("Failed to prune alerts", "error", err, "cutoff", cutoff)
-			return
-		}
-		totalAlerts = count
-		if count > 0 {
-			slog.Info("Pruned resolved alerts",
-				"deleted", count,
-				"cutoff", cutoff,
-				"retention_days", s.alertsRetentionDays,
-			)
-		}
-	}()
-
-	// Prune old stopped capture sessions (keep 30 days)
-	func() {
-		cutoff := time.Now().AddDate(0, 0, -30)
-		sessions, err := s.db.GetCaptureSessions(ctx)
-		if err != nil {
-			slog.Error("Failed to get capture sessions for pruning", "error", err)
-			return
-		}
-		for _, session := range sessions {
-			if session.Status != "running" && session.StartedAt.Before(cutoff) {
-				stats := models.CaptureSessionStats{
-					TotalPackets: session.TotalPackets,
-					TotalBytes:   session.TotalBytes,
-				}
-				if err := s.db.StopCaptureSession(ctx, session.ID, stats); err != nil {
-					slog.Warn("Failed to prune capture session", "session_id", session.ID, "error", err)
-					continue
-				}
-				totalSessions++
-			}
-		}
-		if totalSessions > 0 {
-			slog.Info("Pruned old capture sessions",
-				"deleted", totalSessions,
-				"retention_days", 30,
-			)
-		}
-	}()
-
-	duration := time.Since(start)
-	slog.Info("Data retention sweep complete",
-		"metrics_deleted", totalMetrics,
-		"flows_deleted", totalFlows,
-		"alerts_deleted", totalAlerts,
-		"sessions_deleted", totalSessions,
-		"duration_ms", duration.Milliseconds(),
-	)
+		deleted[job.name] = n
+	}
+	slog.Info("Data retention sweep complete", "deleted", deleted, "duration_ms", time.Since(start).Milliseconds())
 }

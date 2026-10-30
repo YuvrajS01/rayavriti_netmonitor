@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/netip"
+	"strconv"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
@@ -126,7 +128,7 @@ func (h *RoleHandler) Create(w http.ResponseWriter, r *http.Request) {
 		body.DisplayName = body.Name
 	}
 	if err := validatePermissions(body.Permissions); err != nil {
-		httputil.SendError(w, http.StatusBadRequest, err.Error())
+		httputil.SendStoreError(w, http.StatusBadRequest, err)
 		return
 	}
 	// Check for duplicate name
@@ -143,7 +145,7 @@ func (h *RoleHandler) Create(w http.ResponseWriter, r *http.Request) {
 		"permissions":  string(permJSON),
 	})
 	if err != nil {
-		httputil.SendError(w, http.StatusBadRequest, err.Error())
+		httputil.SendStoreError(w, http.StatusBadRequest, err)
 		return
 	}
 	httputil.SendCreated(w, item)
@@ -187,7 +189,7 @@ func (h *RoleHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 	if body.Permissions != nil {
 		if err := validatePermissions(body.Permissions); err != nil {
-			httputil.SendError(w, http.StatusBadRequest, err.Error())
+			httputil.SendStoreError(w, http.StatusBadRequest, err)
 			return
 		}
 		permJSON, _ := json.Marshal(body.Permissions)
@@ -199,7 +201,7 @@ func (h *RoleHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 	item, err := h.store.UpdateResource(r.Context(), "roles", id, patch)
 	if err != nil {
-		httputil.SendError(w, http.StatusBadRequest, err.Error())
+		httputil.SendStoreError(w, http.StatusBadRequest, err)
 		return
 	}
 	httputil.SendOK(w, item)
@@ -231,7 +233,7 @@ func (h *RoleHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.store.DeleteResource(r.Context(), "roles", id); err != nil {
-		httputil.SendError(w, http.StatusBadRequest, err.Error())
+		httputil.SendStoreError(w, http.StatusBadRequest, err)
 		return
 	}
 	httputil.SendOK(w, map[string]bool{"deleted": true})
@@ -247,11 +249,11 @@ func NewUserScopeHandler(db database.Database) *UserScopeHandler {
 	return &UserScopeHandler{store: store}
 }
 
-var validScopeTypes = map[string]bool{
-	"location":   true,
-	"department": true,
-	"device":     true,
-}
+// validScopeTypes are the scope kinds enforcement understands (see
+// deviceMatchesScope and database.scopeCondition). "department" and
+// "device" were accepted before but matched nothing, silently hiding all
+// devices from the user.
+var validScopeTypes = map[string]bool{"location": true, "subnet": true}
 
 func (h *UserScopeHandler) List(w http.ResponseWriter, r *http.Request) {
 	if h.store == nil {
@@ -289,17 +291,30 @@ func (h *UserScopeHandler) Create(w http.ResponseWriter, r *http.Request) {
 		httputil.SendError(w, http.StatusBadRequest, "invalid body")
 		return
 	}
+	// The user comes from the URL (/users/{id}/scopes); body.user_id is only
+	// honoured on the legacy route without {id}.
+	if id, ok := urlID(r, "id"); ok {
+		body.UserID = id
+	}
 	if body.UserID == 0 {
 		httputil.SendError(w, http.StatusBadRequest, "user_id is required")
 		return
 	}
 	if !validScopeTypes[body.ScopeType] {
-		httputil.SendError(w, http.StatusBadRequest, "scope_type must be one of: location, department, device")
+		httputil.SendError(w, http.StatusBadRequest, "scope_type must be one of: location, subnet")
 		return
 	}
-	if body.ScopeValue == "" {
-		httputil.SendError(w, http.StatusBadRequest, "scope_value is required")
-		return
+	switch body.ScopeType {
+	case "location":
+		if _, err := strconv.ParseInt(body.ScopeValue, 10, 64); err != nil {
+			httputil.SendError(w, http.StatusBadRequest, "scope_value must be a location id")
+			return
+		}
+	case "subnet":
+		if _, err := netip.ParsePrefix(body.ScopeValue); err != nil {
+			httputil.SendError(w, http.StatusBadRequest, "scope_value must be a CIDR such as 10.1.0.0/16")
+			return
+		}
 	}
 	// Check for duplicate
 	existing, _ := h.store.ListResources(r.Context(), "user_scopes", map[string]string{
@@ -317,7 +332,7 @@ func (h *UserScopeHandler) Create(w http.ResponseWriter, r *http.Request) {
 		"scope_value": body.ScopeValue,
 	})
 	if err != nil {
-		httputil.SendError(w, http.StatusBadRequest, err.Error())
+		httputil.SendStoreError(w, http.StatusBadRequest, err)
 		return
 	}
 	httputil.SendCreated(w, item)
@@ -328,13 +343,21 @@ func (h *UserScopeHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		httputil.SendError(w, http.StatusNotImplemented, "resource storage not available")
 		return
 	}
-	id, err := parseID(chi.URLParam(r, "id"))
-	if err != nil {
+	// {sid} is the scope row; it must belong to user {id}. This used to
+	// delete the user_scopes row whose id equalled the *user* id (S17).
+	userID, ok1 := urlID(r, "id")
+	scopeID, ok2 := urlID(r, "sid")
+	if !ok1 || !ok2 {
 		httputil.SendError(w, http.StatusBadRequest, "invalid id")
 		return
 	}
-	if err := h.store.DeleteResource(r.Context(), "user_scopes", id); err != nil {
-		httputil.SendError(w, http.StatusBadRequest, err.Error())
+	row, err := h.store.GetResource(r.Context(), "user_scopes", scopeID)
+	if err != nil || row == nil || fmt.Sprint(row["user_id"]) != strconv.FormatInt(userID, 10) {
+		notFound(w)
+		return
+	}
+	if err := h.store.DeleteResource(r.Context(), "user_scopes", scopeID); err != nil {
+		httputil.SendInternalError(w, err)
 		return
 	}
 	httputil.SendOK(w, map[string]bool{"deleted": true})

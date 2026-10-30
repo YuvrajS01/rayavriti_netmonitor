@@ -1,42 +1,90 @@
-import { getAccessToken, setAccessToken, v1 } from './http';
+import {
+  isAuthRejection, refreshAccessToken, setAccessToken, setSessionExpiredHandler, v1,
+} from './http';
+import { queryClient } from './queryClient';
+import { sessionStore, type SessionUser } from '../store/session';
 
-const TOKEN_STORAGE_KEY = 'netmonitor_token';
+/**
+ * Session controller. The access token lives only in memory (http.ts); the
+ * HttpOnly refresh cookie restores it on page load. Nothing auth-related is
+ * persisted in localStorage.
+ */
+
+// Keys written by earlier versions; removed so stale tokens don't linger.
+const LEGACY_STORAGE_KEYS = ['netmonitor_token', 'netmonitor_refresh_token', 'netmonitor_user'];
+
+const CHANNEL_NAME = 'netmonitor-auth';
+type AuthMessage = { type: 'logout' } | { type: 'login' };
+
+const channel: BroadcastChannel | null =
+  typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel(CHANNEL_NAME) : null;
+
+/** Drop the in-memory session and cached data for this tab. */
+function clearLocalSession() {
+  setAccessToken(null);
+  queryClient.clear();
+  sessionStore.setUnauthenticated();
+}
+
+setSessionExpiredHandler(clearLocalSession);
+
+channel?.addEventListener('message', (event: MessageEvent<AuthMessage>) => {
+  if (event.data?.type === 'logout') {
+    clearLocalSession();
+  } else if (event.data?.type === 'login' && sessionStore.getState().status !== 'authenticated') {
+    void restoreSession();
+  }
+});
+
+/** Called once on app start: exchange the refresh cookie for a session. */
+export async function restoreSession(): Promise<void> {
+  for (const key of LEGACY_STORAGE_KEYS) {
+    try { localStorage.removeItem(key); } catch { /* storage unavailable */ }
+  }
+  sessionStore.setRestoring();
+  try {
+    const { user } = await refreshAccessToken();
+    if (user) sessionStore.setAuthenticated(user);
+    else sessionStore.setUnauthenticated();
+  } catch (error) {
+    // A rejected refresh token already ended the session via the handler;
+    // anything else (server down, timeout) is retryable, not a logout.
+    if (isAuthRejection(error)) sessionStore.setUnauthenticated();
+    else sessionStore.setUnreachable();
+  }
+}
 
 interface LoginResponse {
   token: string;
-  refreshToken: string;
-  user: { id: number; username: string; role: string; permissions?: string[] };
+  user: SessionUser;
 }
 
-// Rehydrate the in-memory access token on module load so that the WebSocket
-// connection can authenticate immediately after a page reload, without
-// waiting for a fresh login. The persisted user in localStorage is what
-// drives `isAuthenticated`, so the token must be restored alongside it.
-if (typeof window !== 'undefined') {
-  const persisted = window.localStorage.getItem(TOKEN_STORAGE_KEY);
-  if (persisted) setAccessToken(persisted);
+export async function login(username: string, password: string): Promise<LoginResponse> {
+  const r = await v1.post('/auth/login', { username, password });
+  const body = r.data as Record<string, unknown>;
+  const record = (body?.data !== undefined ? body.data : body) as Record<string, unknown>;
+  const token = (record?.accessToken || record?.token) as string;
+  const user = record?.user as SessionUser;
+  setAccessToken(token);
+  queryClient.clear();
+  sessionStore.setAuthenticated(user);
+  channel?.postMessage({ type: 'login' } satisfies AuthMessage);
+  return { token, user };
 }
 
-export const login = (username: string, password: string) =>
-  v1.post('/auth/login', { username, password }).then((r): { success: boolean; data: LoginResponse } => {
-    const raw = r.data;
-    const body = raw as Record<string, unknown>;
-    const data = body?.data !== undefined ? body.data : body;
-    const record = data as Record<string, unknown>;
-    const token = (record?.accessToken || record?.token) as string;
-    const refreshToken = record?.refreshToken as string;
-    const user = record?.user as LoginResponse['user'];
-    setAccessToken(token);
-    localStorage.setItem(TOKEN_STORAGE_KEY, token);
-    localStorage.setItem('netmonitor_user', JSON.stringify(user));
-    return { success: true, data: { token, refreshToken, user } };
-  });
-
-export const logout = () =>
-  v1.post('/auth/logout').finally(() => {
-    setAccessToken(null);
-    localStorage.removeItem(TOKEN_STORAGE_KEY);
-    localStorage.removeItem('netmonitor_user');
-  });
-
-export const getToken = getAccessToken;
+/**
+ * Revoke the refresh token server-side (clears both cookies), then end the
+ * session here and in every other open tab. Resolves even if the request
+ * fails; returns whether the server confirmed the logout.
+ */
+export async function logout(): Promise<boolean> {
+  let confirmed = true;
+  try {
+    await v1.post('/auth/logout', {});
+  } catch {
+    confirmed = false;
+  }
+  clearLocalSession();
+  channel?.postMessage({ type: 'logout' } satisfies AuthMessage);
+  return confirmed;
+}

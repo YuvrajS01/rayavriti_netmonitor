@@ -1,23 +1,23 @@
-import { v1, wrap } from './http';
+import { v1, wrap, type RequestOptions } from './http';
 import type { CaptureSession, CapturedPacket, NetworkInterface } from './types';
 
-export const getInterfaces = () =>
-  v1.get('/capture/interfaces').then((r) => wrap<NetworkInterface[]>(r.data));
+export const getInterfaces = ({ signal }: RequestOptions = {}) =>
+  v1.get('/capture/interfaces', { signal }).then((r) => wrap<NetworkInterface[]>(r.data));
 
-export const startCaptureSession = (body: { interface: string; filter?: string }) =>
-  v1.post('/capture/start', body).then((r) => wrap<CaptureSession>(r.data));
+export const startCaptureSession = (body: { interface: string; filter?: string }, { signal }: RequestOptions = {}) =>
+  v1.post('/capture/start', body, { signal }).then((r) => wrap<CaptureSession>(r.data));
 
-export const stopCaptureSession = (id: number) =>
-  v1.post(`/capture/${id}/stop`).then((r) => wrap<CaptureSession>(r.data));
+export const stopCaptureSession = (id: number, { signal }: RequestOptions = {}) =>
+  v1.post(`/capture/${id}/stop`, undefined, { signal }).then((r) => wrap<CaptureSession>(r.data));
 
-export const getCaptureSession = (id: number) =>
-  v1.get(`/capture/${id}`).then((r) => wrap<CaptureSession>(r.data));
+export const getCaptureSession = (id: number, { signal }: RequestOptions = {}) =>
+  v1.get(`/capture/${id}`, { signal }).then((r) => wrap<CaptureSession>(r.data));
 
-export const getCapturePackets = (sessionId: number, params: Record<string, number> = {}) => {
+export const getCapturePackets = (sessionId: number, params: Record<string, number> = {}, { signal }: RequestOptions = {}) => {
   const qs = new URLSearchParams();
   for (const [k, v] of Object.entries(params)) { qs.set(k, String(v)); }
-  return v1.get(`/capture/${sessionId}/packets?${qs}`).then((r) => wrap<CapturedPacket[]>(r.data));
+  return v1.get(`/capture/${sessionId}/packets?${qs}`, { signal }).then((r) => wrap<CapturedPacket[]>(r.data));
 };
 
-export const getCaptureSessions = () =>
-  v1.get('/capture/sessions').then((r) => wrap<CaptureSession[]>(r.data));
+export const getCaptureSessions = ({ signal }: RequestOptions = {}) =>
+  v1.get('/capture/sessions', { signal }).then((r) => wrap<CaptureSession[]>(r.data));

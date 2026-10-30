@@ -1,5 +1,9 @@
 import { useMemo, useState, useCallback } from 'react';
 import type { ResourceRow } from '../api/resources';
+import { asText } from '../utils/formatters';
+import { STATUS_META, type Status } from '../utils/status';
+import { StatusShapeIcon } from './ui/Status';
+import IconButton from './ui/IconButton';
 
 interface LocationTreeProps {
   locations: ResourceRow[];
@@ -52,8 +56,8 @@ function buildNodes(flat: ResourceRow[]): TreeNode[] {
 }
 
 function matchesSearch(node: TreeNode, needle: string): boolean {
-  const name = String(node.name ?? '').toLowerCase();
-  const code = String(node.code ?? '').toLowerCase();
+  const name = asText(node.name).toLowerCase();
+  const code = asText(node.code).toLowerCase();
   if (name.includes(needle) || code.includes(needle)) return true;
   return node._children.some((c) => matchesSearch(c, needle));
 }
@@ -63,26 +67,16 @@ function StatusDots({ status }: { status: Record<string, unknown> }) {
   const down = Number(status.down ?? 0);
   const warning = Number(status.warning ?? 0);
   if (up + down + warning === 0) return null;
+  const parts: [Status, number][] = [['down', down], ['warning', warning], ['up', up]];
   return (
-    <span className="flex items-center gap-1 ml-auto shrink-0">
-      {down > 0 && (
-        <span className="flex items-center gap-0.5 text-[10px] font-semibold text-error">
-          <span className="w-2 h-2 rounded-full bg-error inline-block" />
-          {down}
+    <span className="flex items-center gap-1.5 ml-auto shrink-0">
+      {parts.filter(([, n]) => n > 0).map(([s, n]) => (
+        <span key={s} className={`flex items-center gap-1 text-xs font-semibold tabular-nums ${STATUS_META[s].text}`}>
+          <StatusShapeIcon shape={STATUS_META[s].shape} size={8} />
+          {n}
+          <span className="sr-only"> {STATUS_META[s].label.toLowerCase()}</span>
         </span>
-      )}
-      {warning > 0 && (
-        <span className="flex items-center gap-0.5 text-[10px] font-semibold text-warning">
-          <span className="w-2 h-2 rounded-full bg-warning inline-block" />
-          {warning}
-        </span>
-      )}
-      {up > 0 && (
-        <span className="flex items-center gap-0.5 text-[10px] font-semibold text-success">
-          <span className="w-2 h-2 rounded-full bg-success inline-block" />
-          {up}
-        </span>
-      )}
+      ))}
     </span>
   );
 }
@@ -128,24 +122,30 @@ function TreeItem({
         role="button"
         tabIndex={0}
         onClick={handleClick}
-        onKeyDown={(e) => e.key === 'Enter' && handleClick()}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleClick(); }
+        }}
         className={[
-          'flex items-center gap-2 px-3 py-2 rounded-md cursor-pointer transition-all duration-150 group',
+          'flex items-center gap-2 px-3 py-2 rounded-md cursor-pointer transition-colors duration-[var(--duration-fast)] group',
           isSelected
-            ? 'bg-primary/15 text-primary ring-1 ring-primary/30'
-            : 'hover:bg-surface-container-low/80 text-on-surface',
+            ? 'bg-surface-3 text-fg ring-1 ring-line-strong'
+            : 'hover:bg-surface-2 text-fg',
         ].join(' ')}
         style={{ paddingLeft: `${node._depth * 20 + 8}px` }}
       >
         {/* Expand toggle */}
         {hasChildren ? (
           <button
+            type="button"
             onClick={toggleExpand}
-            className="w-5 h-5 flex items-center justify-center shrink-0 rounded hover:bg-primary/10 transition-colors"
+            aria-label={`${expanded ? 'Collapse' : 'Expand'} ${String(node.name)}`}
+            aria-expanded={expanded}
+            className="w-5 h-5 flex items-center justify-center shrink-0 rounded hover:bg-surface-3 transition-colors"
           >
             <span
+              aria-hidden="true"
               className={[
-                'material-symbols-outlined text-sm transition-transform duration-200',
+                'material-symbols-outlined text-sm transition-transform duration-[var(--duration-normal)]',
                 expanded ? 'rotate-90' : '',
               ].join(' ')}
             >
@@ -158,9 +158,10 @@ function TreeItem({
 
         {/* Icon */}
         <span
+          aria-hidden="true"
           className={[
             'material-symbols-outlined text-base shrink-0',
-            isSelected ? 'text-primary' : 'text-on-surface-variant group-hover:text-on-surface',
+            isSelected ? 'text-fg' : 'text-fg-muted group-hover:text-fg',
           ].join(' ')}
         >
           {icon}
@@ -168,19 +169,19 @@ function TreeItem({
 
         {/* Name and code */}
         <div className="min-w-0 flex-1">
-          <span className="font-headline font-semibold text-sm truncate block">
+          <span className="font-semibold text-sm truncate block">
             {String(node.name)}
           </span>
           {node.code ? (
-            <span className="text-[10px] text-on-surface-variant uppercase tracking-wide">
-              {String(node.code)}
+            <span className="font-mono text-xs text-fg-muted">
+              {asText(node.code)}
             </span>
           ) : null}
         </div>
 
         {/* Device count badge */}
         {showDeviceCount && devCount > 0 && (
-          <span className="text-[10px] bg-surface-container-lowest text-on-surface-variant px-1.5 py-0.5 rounded-full font-semibold shrink-0">
+          <span className="text-xs bg-surface-3 text-fg-muted px-1.5 py-0.5 rounded-full font-semibold tabular-nums shrink-0" aria-label={`${devCount} devices`}>
             {devCount}
           </span>
         )}
@@ -192,7 +193,8 @@ function TreeItem({
       {/* Children */}
       {hasChildren && (
         <div
-          className="overflow-hidden transition-all duration-200"
+          className="overflow-hidden transition-[max-height,opacity] duration-[var(--duration-normal)]"
+          inert={!expanded || undefined}
           style={{
             maxHeight: expanded ? `${node._children.length * 500}px` : '0',
             opacity: expanded ? 1 : 0,
@@ -240,8 +242,8 @@ export default function LocationTree({
     const ids = new Set<number>();
     if (!needle) return ids;
     function collect(node: TreeNode): boolean {
-      const nameMatch = String(node.name ?? '').toLowerCase().includes(needle);
-      const codeMatch = String(node.code ?? '').toLowerCase().includes(needle);
+      const nameMatch = asText(node.name).toLowerCase().includes(needle);
+      const codeMatch = asText(node.code).toLowerCase().includes(needle);
       let childMatch = false;
       for (const c of node._children) {
         if (collect(c)) childMatch = true;
@@ -262,35 +264,38 @@ export default function LocationTree({
     <div className="flex flex-col h-full">
       {/* Search bar */}
       <div className="relative mb-3">
-        <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-base text-outline">
+        <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-base text-fg-subtle" aria-hidden="true">
           search
         </span>
         <input
+          type="search"
+          aria-label="Search locations"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search locations..."
-          className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg pl-9 pr-8 py-2 text-sm text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary outline-none transition-[box-shadow]"
+          className="w-full bg-inset border border-line rounded-md pl-9 pr-9 py-2 text-sm text-fg placeholder:text-fg-subtle focus:border-primary outline-none transition-colors"
         />
         {search && (
-          <button
+          <IconButton
+            icon="close"
+            label="Clear search"
+            size="sm"
             onClick={handleClear}
-            className="absolute right-2 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface"
-          >
-            <span className="material-symbols-outlined text-base">close</span>
-          </button>
+            className="absolute right-1 top-1/2 -translate-y-1/2"
+          />
         )}
       </div>
 
       {/* Tree */}
       {filtered.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-8 text-on-surface-variant">
-          <span className="material-symbols-outlined text-3xl mb-2">account_tree</span>
-          <p className="text-xs uppercase tracking-wide">
+        <div className="flex flex-col items-center justify-center py-8 text-fg-muted">
+          <span className="material-symbols-outlined text-3xl mb-2 text-fg-subtle" aria-hidden="true">account_tree</span>
+          <p className="text-sm">
             {needle ? 'No matching locations' : 'No locations yet'}
           </p>
         </div>
       ) : (
-        <ul role="tree" className="flex-1 overflow-y-auto space-y-0.5">
+        <ul role="tree" aria-label="Locations" className="flex-1 overflow-y-auto space-y-0.5">
           {filtered.map((node) => (
             <TreeItem
               key={Number(node.id)}

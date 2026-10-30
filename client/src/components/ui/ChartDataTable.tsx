@@ -8,17 +8,17 @@ export default function ChartDataTable({ title, columns, rows }: ChartDataTableP
   if (rows.length === 0) return null;
 
   return (
-    <table className="w-full text-left border-collapse text-xs" role="table" aria-label={title}>
+    <table className="w-full text-left border-collapse text-xs" aria-label={title}>
       <thead>
-        <tr className="text-[10px] uppercase tracking-wide text-on-surface-variant font-label border-b border-outline-variant/20">
+        <tr className="text-xs text-fg-muted border-b border-line">
           {columns.map((col) => (
-            <th key={col} className="pb-2 font-medium pr-4">{col}</th>
+            <th key={col} scope="col" className="pb-2 font-medium pr-4">{col}</th>
           ))}
         </tr>
       </thead>
       <tbody>
         {rows.map((row, i) => (
-          <tr key={i} className="border-b border-outline-variant/10">
+          <tr key={i} className="border-b border-line">
             {row.map((cell, j) => (
               <td key={j} className="py-1.5 pr-4 font-mono">{cell}</td>
             ))}

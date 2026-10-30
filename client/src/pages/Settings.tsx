@@ -1,98 +1,102 @@
-import { useSelector, useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
-import { clearCredentials } from '../store/authSlice';
 import { logout } from '../api/client';
-import type { RootState } from '../store';
+import { useSessionUser } from '../store/session';
+import Button from '../components/ui/Button';
 import SectionHeader from '../components/ui/SectionHeader';
+import { DensitySwitcher, ThemeSwitcher } from '../components/ui/ThemeSwitcher';
 import { useToast } from '../components/ui/useToast';
 
 const APP_VERSION = import.meta.env.VITE_APP_VERSION || __APP_VERSION__;
 
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-1.5">
+      <p className="text-xs font-medium text-fg-muted">{label}</p>
+      {children}
+    </div>
+  );
+}
+
 export default function Settings() {
-  const user = useSelector((s: RootState) => s.auth.user);
-  const dispatch = useDispatch();
+  const user = useSessionUser();
   const navigate = useNavigate();
   const { addToast } = useToast();
 
   const handleLogout = async () => {
-    try {
-      await logout();
-    } catch {
-      addToast('Logout failed. Your session may still be active.', 'error');
-    }
-    dispatch(clearCredentials());
-    navigate('/login');
+    const confirmed = await logout();
+    if (!confirmed) addToast('Logout failed. Your session may still be active.', 'error');
+    await navigate('/login');
   };
 
   return (
     <div>
       <SectionHeader
         title="Settings"
-        subtitle="Configure your account and review system information."
+        subtitle="Appearance, your account and system information."
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        {/* Account Settings */}
-        <section className="lg:col-span-8 bg-surface-container-low rounded-lg p-8 border border-outline-variant/20">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="font-headline text-xl font-semibold flex items-center gap-3">
-              <span className="material-symbols-outlined text-primary">account_circle</span>
-              Account Profile
-            </h2>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div className="space-y-2">
-              <label className="font-label text-xs text-primary uppercase tracking-wide">Operator Name</label>
-              <div className="w-full bg-surface-container-lowest border-0 border-b border-outline-variant/30 text-on-surface font-body p-3">
-                {user?.username || 'admin'}
-              </div>
-            </div>
-            <div className="space-y-2">
-              <label className="font-label text-xs text-primary uppercase tracking-wide">System Role</label>
-              <div className="w-full bg-surface-container-lowest border-b border-outline-variant/30 text-on-surface-variant font-body p-3 flex justify-between items-center">
-                <span>{user?.role || 'admin'}</span>
-                <span className="material-symbols-outlined text-sm">lock</span>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* Quick Actions */}
-        <section className="lg:col-span-4 space-y-8">
-          <div className="bg-surface-container-low rounded-lg p-8 border border-outline-variant/20">
-            <h2 className="font-headline text-xl font-semibold mb-6 flex items-center gap-3">
-              <span className="material-symbols-outlined text-primary">hub</span>
-              Quick Actions
-            </h2>
-            <div className="space-y-4">
-              <button onClick={handleLogout} className="w-full py-3 border border-error text-error hover:bg-error hover:text-on-error font-semibold rounded-md transition-[background-color,color] text-sm uppercase tracking-wide">
-                Sign Out
-              </button>
-            </div>
-          </div>
-        </section>
-
-        {/* System Info */}
-        <section className="lg:col-span-12 bg-surface-container-low rounded-lg p-8 border border-outline-variant/20">
-          <h2 className="font-headline text-xl font-semibold mb-6 flex items-center gap-3">
-            <span className="material-symbols-outlined text-primary">info</span>
-            System Information
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <section aria-labelledby="appearance-heading" className="lg:col-span-12 bg-surface-1 rounded-lg p-6 border border-line">
+          <h2 id="appearance-heading" className="text-lg font-semibold mb-1 flex items-center gap-3">
+            <span className="material-symbols-outlined text-fg-muted" aria-hidden="true">contrast</span>
+            Appearance
           </h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm">
-            <div>
-              <p className="text-xs text-primary uppercase tracking-wide mb-1">Version</p>
-              <p className="font-semibold">NetMonitor+ v{APP_VERSION}</p>
-            </div>
-            <div>
-              <p className="text-xs text-primary uppercase tracking-wide mb-1">Backend</p>
-              <p className="font-semibold">Go + PostgreSQL + TimescaleDB</p>
-            </div>
-            <div>
-              <p className="text-xs text-primary uppercase tracking-wide mb-1">Frontend</p>
-              <p className="font-semibold">React + TypeScript + TailwindCSS</p>
-            </div>
+          <p className="text-sm text-fg-muted mb-5">
+            Stored in this browser. System follows the light or dark setting of your operating system.
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-2xl">
+            <ThemeSwitcher />
+            <DensitySwitcher />
           </div>
+        </section>
+
+        <section aria-labelledby="account-heading" className="lg:col-span-8 bg-surface-1 rounded-lg p-6 border border-line">
+          <h2 id="account-heading" className="text-lg font-semibold mb-5 flex items-center gap-3">
+            <span className="material-symbols-outlined text-fg-muted" aria-hidden="true">account_circle</span>
+            Account profile
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <Field label="Operator name">
+              <div className="w-full rounded-md border border-line bg-inset p-3 text-fg">{user?.username || 'admin'}</div>
+            </Field>
+            <Field label="System role">
+              <div className="w-full rounded-md border border-line bg-inset p-3 text-fg-muted flex justify-between items-center">
+                <span>{user?.role || 'admin'}</span>
+                <span className="material-symbols-outlined text-sm" aria-label="Read-only" role="img">lock</span>
+              </div>
+            </Field>
+          </div>
+        </section>
+
+        <section aria-labelledby="actions-heading" className="lg:col-span-4 bg-surface-1 rounded-lg p-6 border border-line">
+          <h2 id="actions-heading" className="text-lg font-semibold mb-5 flex items-center gap-3">
+            <span className="material-symbols-outlined text-fg-muted" aria-hidden="true">hub</span>
+            Quick actions
+          </h2>
+          <Button variant="danger-outline" icon="logout" onClick={handleLogout} className="w-full">
+            Sign out
+          </Button>
+        </section>
+
+        <section aria-labelledby="system-heading" className="lg:col-span-12 bg-surface-1 rounded-lg p-6 border border-line">
+          <h2 id="system-heading" className="text-lg font-semibold mb-5 flex items-center gap-3">
+            <span className="material-symbols-outlined text-fg-muted" aria-hidden="true">info</span>
+            System information
+          </h2>
+          <dl className="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm">
+            <div>
+              <dt className="text-xs font-medium text-fg-muted mb-1">Version</dt>
+              <dd className="font-semibold tabular-nums">NetMonitor+ v{APP_VERSION}</dd>
+            </div>
+            <div>
+              <dt className="text-xs font-medium text-fg-muted mb-1">Backend</dt>
+              <dd className="font-semibold">Go + PostgreSQL + TimescaleDB</dd>
+            </div>
+            <div>
+              <dt className="text-xs font-medium text-fg-muted mb-1">Frontend</dt>
+              <dd className="font-semibold">React + TypeScript + Tailwind CSS</dd>
+            </div>
+          </dl>
         </section>
       </div>
     </div>

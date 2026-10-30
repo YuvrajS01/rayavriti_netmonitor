@@ -8,12 +8,12 @@ interface SectionHeaderProps {
 
 export default function SectionHeader({ title, subtitle, action }: SectionHeaderProps) {
   return (
-    <header className="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-6">
+    <header className="mb-6 flex flex-col md:flex-row md:items-end justify-between gap-4">
       <div>
-        <h1 className="font-headline text-2xl font-semibold text-on-surface tracking-tight mb-2">{title}</h1>
-        {subtitle && <p className="text-on-surface-variant font-body text-sm max-w-xl">{subtitle}</p>}
+        <h1 className="text-2xl font-semibold text-fg mb-1">{title}</h1>
+        {subtitle && <p className="text-fg-muted text-sm max-w-2xl">{subtitle}</p>}
       </div>
-      {action && <div className="flex items-center gap-4">{action}</div>}
+      {action && <div className="flex flex-wrap items-center gap-3">{action}</div>}
     </header>
   );
 }

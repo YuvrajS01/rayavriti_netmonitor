@@ -9,7 +9,7 @@ interface Props {
   className?: string;
 }
 
-export default function Sparkline({ data, width = 92, height = 28, color = 'var(--color-success)', showTrend = false, className }: Props) {
+export default function Sparkline({ data, width = 92, height = 28, color = 'var(--color-chart-1)', showTrend = false, className }: Props) {
   const id = useId().replace(/:/g, '');
   const { line, area, trend } = useMemo(() => {
     const values = data.length > 1 ? data : [...data, ...(data.length ? data : [0])];
@@ -19,15 +19,16 @@ export default function Sparkline({ data, width = 92, height = 28, color = 'var(
       const y = height - 3 - ((value - min) / range) * (height - 7);
       return `${x.toFixed(1)},${y.toFixed(1)}`;
     });
-    return { line: points.join(' '), area: `0,${height} ${points.join(' ')} ${width},${height}`, trend: values.at(-1)! - values[0] };
+    return { line: points.join(' '), area: `0,${height} ${points.join(' ')} ${width},${height}`, trend: (values.at(-1) ?? 0) - (values[0] ?? 0) };
   }, [data, height, width]);
   if (!data.length) return null;
-  return <div className={`inline-flex items-center gap-1 ${className ?? ''}`} aria-label={`Trend ${trend >= 0 ? 'up' : 'down'}`}>
-    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Recent trend">
+  return <div className={`inline-flex items-center gap-1 ${className ?? ''}`}>
+    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`Recent trend, ${trend >= 0 ? 'rising' : 'falling'}`}>
       <defs><linearGradient id={`spark-${id}`} x1="0" x2="0" y1="0" y2="1"><stop stopColor={color} stopOpacity=".4"/><stop offset="1" stopColor={color} stopOpacity="0"/></linearGradient></defs>
       <polygon points={area} fill={`url(#spark-${id})`} />
       <polyline points={line} fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
     </svg>
-    {showTrend && <span className={`material-symbols-outlined text-sm ${trend >= 0 ? 'text-success' : 'text-error'}`}>{trend >= 0 ? 'trending_up' : 'trending_down'}</span>}
+    {/* Direction only, in neutral ink: "up" is not automatically good. */}
+    {showTrend && <span className="material-symbols-outlined text-sm text-fg-muted" aria-hidden="true">{trend >= 0 ? 'trending_up' : 'trending_down'}</span>}
   </div>;
 }

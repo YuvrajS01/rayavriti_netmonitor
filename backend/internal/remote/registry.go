@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"fmt"
+	"golang.org/x/crypto/hkdf"
 	"io"
 	"net/url"
 	"strings"
@@ -20,19 +21,41 @@ import (
 type Store struct {
 	pool *pgxpool.Pool
 	aead cipher.AEAD
+	// legacy decrypts credentials written before ENCRYPTION_KEY was set
+	// (key = SHA-256 of the JWT secret). Nil when no migration is needed.
+	legacy cipher.AEAD
 }
 
-func NewStore(pool *pgxpool.Pool, secret string) (*Store, error) {
-	key := sha256.Sum256([]byte(secret))
-	block, err := aes.NewCipher(key[:])
+// NewStore builds the remote-instance store. With an encryptionKey, new
+// credentials are sealed with an HKDF-derived key and rows written under the
+// legacy JWT-derived key are re-encrypted on first read. Without one, the
+// legacy key keeps being used so existing deployments continue to work.
+func NewStore(pool *pgxpool.Pool, encryptionKey, jwtSecret string) (*Store, error) {
+	legacyKey := sha256.Sum256([]byte(jwtSecret))
+	legacy, err := newAEAD(legacyKey[:])
 	if err != nil {
 		return nil, err
 	}
-	aead, err := cipher.NewGCM(block)
+	if encryptionKey == "" {
+		return &Store{pool: pool, aead: legacy}, nil
+	}
+	key := make([]byte, 32)
+	if _, err := io.ReadFull(hkdf.New(sha256.New, []byte(encryptionKey), nil, []byte("netmonitor/remote-credentials/v1")), key); err != nil {
+		return nil, err
+	}
+	primary, err := newAEAD(key)
 	if err != nil {
 		return nil, err
 	}
-	return &Store{pool: pool, aead: aead}, nil
+	return &Store{pool: pool, aead: primary, legacy: legacy}, nil
+}
+
+func newAEAD(key []byte) (cipher.AEAD, error) {
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, err
+	}
+	return cipher.NewGCM(block)
 }
 
 func (s *Store) encrypt(value string) ([]byte, error) {
@@ -43,12 +66,23 @@ func (s *Store) encrypt(value string) ([]byte, error) {
 	return s.aead.Seal(nonce, nonce, []byte(value), nil), nil
 }
 
-func (s *Store) decrypt(value []byte) (string, error) {
-	if len(value) < s.aead.NonceSize() {
+func open(aead cipher.AEAD, value []byte) (string, error) {
+	if len(value) < aead.NonceSize() {
 		return "", fmt.Errorf("invalid encrypted remote credential")
 	}
-	plain, err := s.aead.Open(nil, value[:s.aead.NonceSize()], value[s.aead.NonceSize():], nil)
+	plain, err := aead.Open(nil, value[:aead.NonceSize()], value[aead.NonceSize():], nil)
 	return string(plain), err
+}
+
+// decrypt opens a credential, reporting whether it was sealed with the
+// legacy key and should be re-encrypted.
+func (s *Store) decrypt(value []byte) (plain string, legacy bool, err error) {
+	plain, err = open(s.aead, value)
+	if err == nil || s.legacy == nil {
+		return plain, false, err
+	}
+	plain, err = open(s.legacy, value)
+	return plain, err == nil, err
 }
 
 func Validate(input CreateInstance) error {
@@ -179,7 +213,17 @@ func (s *Store) credential(ctx context.Context, id int64) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return s.decrypt(value)
+	plain, legacy, err := s.decrypt(value)
+	if err != nil {
+		return "", err
+	}
+	if legacy {
+		// Migrate to the current key; failure just retries on the next read.
+		if sealed, err := s.encrypt(plain); err == nil {
+			_, _ = s.pool.Exec(ctx, "UPDATE remote_instances SET api_key_enc=$2 WHERE id=$1", id, sealed)
+		}
+	}
+	return plain, nil
 }
 func (s *Store) SaveSnapshot(ctx context.Context, snapshot Snapshot) error {
 	_, err := s.pool.Exec(ctx, `INSERT INTO remote_snapshots (instance_id,device_count,device_up_count,device_down_count,alert_count,critical_alerts,health_score,latency_ms,version,raw_data) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`, snapshot.InstanceID, snapshot.DeviceCount, snapshot.DeviceUpCount, snapshot.DeviceDownCount, snapshot.AlertCount, snapshot.CriticalAlerts, snapshot.HealthScore, snapshot.LatencyMS, snapshot.Version, snapshot.RawData)
@@ -223,10 +267,6 @@ func (s *Store) Overview(ctx context.Context) (Overview, error) {
 	var v Overview
 	err := s.pool.QueryRow(ctx, `SELECT COUNT(*),COUNT(*) FILTER (WHERE status='online'),COUNT(*) FILTER (WHERE status='offline'),COUNT(*) FILTER (WHERE status='degraded'),COALESCE((SELECT SUM(alert_count) FROM (SELECT DISTINCT ON (instance_id) alert_count FROM remote_snapshots ORDER BY instance_id,timestamp DESC) latest),0) FROM remote_instances`).Scan(&v.TotalInstances, &v.Online, &v.Offline, &v.Degraded, &v.AlertCount)
 	return v, err
-}
-func (s *Store) PruneSnapshots(ctx context.Context, days int) error {
-	_, err := s.pool.Exec(ctx, "DELETE FROM remote_snapshots WHERE timestamp < NOW() - ($1 * INTERVAL '1 day')", days)
-	return err
 }
 func (s *Store) Due(ctx context.Context) ([]Instance, error) { return s.List(ctx) }
 func (s *Store) Now() time.Time                              { return time.Now() }

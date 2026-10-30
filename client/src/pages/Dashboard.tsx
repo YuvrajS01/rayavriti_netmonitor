@@ -1,9 +1,9 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useMemo, Suspense } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { getStats, getLatestMetrics, getAlerts, getInsights, getSystemInfo } from '../api/client';
+import { queryKeys } from '../api/queryKeys';
 import { useSocket } from '../hooks/useSocket';
-import type { DashboardStats, Metric, Alert, InsightsResponse, SystemInfo } from '../api/types';
-import ExpandedChartsModal from '../components/ExpandedChartsModal';
-import ResourceLoadModal from '../components/ResourceLoadModal';
+import type { DashboardStats, Metric, InsightsResponse, SystemInfo } from '../api/types';
 import StatCard from '../components/ui/StatCard';
 import SectionHeader from '../components/ui/SectionHeader';
 import { DashboardSkeleton } from '../components/dashboard/DashboardSkeleton';
@@ -17,6 +17,11 @@ import { LatestMetricsTable } from '../components/dashboard/LatestMetricsTable';
 import { ActiveAlertsList } from '../components/dashboard/ActiveAlertsList';
 import { StatusHeatmap } from '../components/dashboard/StatusHeatmap';
 import NetworkTopologyMini from '../components/dashboard/NetworkTopologyMini';
+import { lazyWithRetry } from '../utils/lazyWithRetry';
+import { normalizeStatus } from '../utils/status';
+
+const ExpandedChartsModal = lazyWithRetry(() => import('../components/ExpandedChartsModal'));
+const ResourceLoadModal = lazyWithRetry(() => import('../components/ResourceLoadModal'));
 
 interface MultiLinePoint {
   time: string;
@@ -46,130 +51,81 @@ function buildMultiLineData(metrics: Metric[]): { data: MultiLinePoint[]; device
   return { data, devices };
 }
 
+const HISTORY_LIMIT = 500;
+const EMPTY_STATS: DashboardStats = { totalDevices: 0, onlineDevices: 0, offlineDevices: 0, warningDevices: 0, uptimePercent: 100, totalMetrics24h: 0, activeAlerts: 0, avgResponseTime: 0 };
+
+const historyKey = (m: Metric) => `${m.deviceId}-${m.timestamp}`;
+
+/** Newest-first, de-duplicated union of live samples and the latest snapshot. */
+function mergeHistory(live: Metric[], latest: Metric[]): Metric[] {
+  const seen = new Set<string>();
+  const out: Metric[] = [];
+  for (const m of [...live, ...latest]) {
+    const key = historyKey(m);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(m);
+    if (out.length >= HISTORY_LIMIT) break;
+  }
+  return out;
+}
+
 export default function Dashboard() {
-  const [stats, setStats] = useState<DashboardStats>({ totalDevices: 0, onlineDevices: 0, offlineDevices: 0, warningDevices: 0, uptimePercent: 100, totalMetrics24h: 0, activeAlerts: 0, avgResponseTime: 0 });
-  const [metrics, setMetrics] = useState<Metric[]>([]);
-  const [historyMetrics, setHistoryMetrics] = useState<Metric[]>([]);
-  const [alerts, setAlerts] = useState<Alert[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [lastUpdated, setLastUpdated] = useState('Waiting for updates...');
-  const [hostInfo, setHostInfo] = useState<SystemInfo | undefined>();
-  const [insights, setInsights] = useState<InsightsResponse | null>(null);
+  const [liveMetrics, setLiveMetrics] = useState<Metric[]>([]);
   const [showExpandedCharts, setShowExpandedCharts] = useState(false);
   const [showResourceModal, setShowResourceModal] = useState(false);
 
-  const lastStatsFetch = useRef(0);
-  const lastAlertFetch = useRef(0);
-  const THROTTLE_MS = 30_000;
-
-  const loadData = useCallback(async () => {
-    try {
-      const [statsRes, metricsRes, alertsRes] = await Promise.allSettled([
-        getStats(), getLatestMetrics(), getAlerts('active'),
-      ]);
-      const metricsData = metricsRes.status === 'fulfilled' ? (metricsRes.value.data || []) : [];
-      const m = metricsData;
-      const online = m.filter((x: Metric) => x.status === 'up' || x.status === 'ok').length;
-      const warning = m.filter((x: Metric) => x.status === 'warning' || x.status === 'degraded').length;
-      const uptimePercent = m.length > 0 ? Math.round((online / m.length) * 100) : 100;
-      if (statsRes.status === 'fulfilled') {
-        setStats({
-          ...statsRes.value.data,
-          warningDevices: warning,
-          uptimePercent,
-        });
-      }
-      setMetrics(metricsData);
-      setHistoryMetrics(metricsData);
-      setAlerts(alertsRes.status === 'fulfilled' ? (alertsRes.value.data || []) : []);
-      setLastUpdated(`Loaded ${new Date().toLocaleTimeString()}`);
-
-      // Fetch insights from server-side health scores
-      getInsights().then((r) => setInsights(r.data)).catch(() => {});
-    } catch { /* handled by interceptor */ }
-    finally {
-      setLoading(false);
-    }
-
-    // Fire system info in parallel — it has its own error handling and sleeps 1s on the backend,
-    // so it should never block the page render.
-    getSystemInfo().then((res) => {
-      if (res.data) setHostInfo(res.data);
-    }).catch(() => {});
-  }, []);
-
-  // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { loadData(); }, [loadData]);
+  // Stats and insights are aggregates the socket doesn't carry; poll them
+  // (TanStack pauses polling while the tab is hidden).
+  const statsQuery = useQuery({
+    queryKey: queryKeys.system.stats,
+    queryFn: ({ signal }) => getStats({ signal }),
+    refetchInterval: 30_000,
+  });
+  // metrics.latest and alerts are kept live by useLiveQueryBridge.
+  const metricsQuery = useQuery({
+    queryKey: queryKeys.metrics.latest,
+    queryFn: ({ signal }) => getLatestMetrics({ signal }),
+  });
+  const alertsQuery = useQuery({
+    queryKey: queryKeys.alerts.list('active'),
+    queryFn: ({ signal }) => getAlerts('active', undefined, { signal }),
+  });
+  const insightsQuery = useQuery({
+    queryKey: queryKeys.insights.current(),
+    queryFn: ({ signal }) => getInsights({ signal }),
+    refetchInterval: 30_000,
+  });
+  // Host load sleeps ~1s on the backend; it renders independently.
+  const hostInfoQuery = useQuery({
+    queryKey: queryKeys.system.info,
+    queryFn: ({ signal }) => getSystemInfo({ signal }),
+  });
 
   useSocket({
-    onBootstrap: (payload) => {
-      const p = payload as { stats: DashboardStats; latestMetrics: Metric[]; alerts: Alert[] };
-      if (p.stats) setStats((prev) => ({ ...prev, ...p.stats }));
-      if (p.latestMetrics) {
-        setMetrics((prev) => {
-          const merged = [...prev];
-          for (const bm of p.latestMetrics) {
-            const idx = merged.findIndex((m) => m.deviceId === bm.deviceId);
-            if (idx === -1) {
-              merged.push(bm);
-            } else if (new Date(bm.timestamp) > new Date(merged[idx].timestamp)) {
-              merged[idx] = bm;
-            }
-          }
-          return merged;
-        });
-        setHistoryMetrics((prev) => {
-          const existing = new Set(prev.map((m) => `${m.deviceId}-${m.timestamp}`));
-          const merged = [...prev];
-          for (const bm of p.latestMetrics) {
-            if (!existing.has(`${bm.deviceId}-${bm.timestamp}`)) {
-              merged.push(bm);
-            }
-          }
-          if (merged.length > 500) merged.splice(0, merged.length - 500);
-          return merged;
-        });
-      }
-      if (p.alerts) setAlerts(p.alerts);
-      setLastUpdated(`Connected ${new Date().toLocaleTimeString()}`);
-      getSystemInfo().then((res) => {
-        if (res.data) setHostInfo(res.data);
-      }).catch(() => {});
-    },
     onMetricUpdate: (metric) => {
-      setMetrics((prev) => {
-        const m = metric as unknown as Metric;
-        if (!m.protocol) {
-          const existing = prev.find((x) => x.deviceId === m.deviceId);
-          if (existing?.protocol) m.protocol = existing.protocol;
-        }
-        return [m, ...prev.filter((x) => x.deviceId !== m.deviceId)];
-      });
-      setHistoryMetrics((prev) => {
-        const m = metric as unknown as Metric;
-        const updated = [m, ...prev];
-        if (updated.length > 500) updated.pop();
-        return updated;
-      });
-      setLastUpdated(`Updated ${new Date().toLocaleTimeString()}`);
-      const now = Date.now();
-      if (now - lastStatsFetch.current > THROTTLE_MS) {
-        lastStatsFetch.current = now;
-        getStats().then((r) => setStats((prev) => ({ ...prev, ...r.data }))).catch(() => {});
-        getInsights().then((r) => setInsights(r.data)).catch(() => {});
-      }
-    },
-    onAlertTriggered: () => {
-      const now = Date.now();
-      if (now - lastAlertFetch.current > THROTTLE_MS) {
-        lastAlertFetch.current = now;
-        Promise.all([getAlerts('active'), getStats()]).then(([a, s]) => {
-          setAlerts(a.data || []);
-          setStats(s.data);
-        }).catch(() => {});
-      }
+      setLiveMetrics((prev) => [metric, ...prev].slice(0, HISTORY_LIMIT));
     },
   });
+
+  const loading = statsQuery.isPending || metricsQuery.isPending || alertsQuery.isPending;
+  const metrics = useMemo(() => metricsQuery.data?.data || [], [metricsQuery.data]);
+  const alerts = alertsQuery.data?.data || [];
+  const insights: InsightsResponse | null = insightsQuery.data?.data ?? null;
+  const hostInfo: SystemInfo | undefined = hostInfoQuery.data?.data;
+  const historyMetrics = useMemo(() => mergeHistory(liveMetrics, metrics), [liveMetrics, metrics]);
+  const lastUpdated = metricsQuery.dataUpdatedAt
+    ? `Updated ${new Date(metricsQuery.dataUpdatedAt).toLocaleTimeString()}`
+    : 'Waiting for updates...';
+
+  const stats = useMemo<DashboardStats>(() => {
+    const online = metrics.filter((x) => normalizeStatus(x.status) === 'up').length;
+    const warning = metrics.filter((x) => normalizeStatus(x.status) === 'warning').length;
+    const uptimePercent = metrics.length > 0 ? Math.round((online / metrics.length) * 100) : 100;
+    return statsQuery.data
+      ? { ...EMPTY_STATS, ...statsQuery.data.data, warningDevices: warning, uptimePercent }
+      : EMPTY_STATS;
+  }, [statsQuery.data, metrics]);
 
   const { data: multiLineData, devices: trackedDevices } = useMemo(() => buildMultiLineData(historyMetrics), [historyMetrics]);
   const healthArray = useMemo(() => insights?.health || [], [insights]);
@@ -179,7 +135,7 @@ export default function Dashboard() {
   // Server load comes from the NetMonitor host itself (gopsutil); the
   // "devices down" share is computed from the latest poll of each device.
   const systemInfo = useMemo(() => {
-    const down = metrics.filter((x) => x.status === 'down').length;
+    const down = metrics.filter((x) => normalizeStatus(x.status) === 'down').length;
     return {
       cpu: Math.round(hostInfo?.cpu.usage ?? 0),
       memory: Math.round(hostInfo?.memory.percent ?? 0),
@@ -195,24 +151,23 @@ export default function Dashboard() {
       ) : (
       <>
       <SectionHeader
-        title="Network Overview"
+        title="Network overview"
         subtitle="Real-time monitoring dashboard for all connected devices."
         action={
-          <span className="text-on-surface-variant font-data text-xs">{lastUpdated}</span>
+          <span className="text-fg-muted font-mono text-xs">{lastUpdated}</span>
         }
       />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6" aria-live="polite" aria-label="Device statistics">
-        <StatCard label="Total Devices" value={stats.totalDevices} />
+        <StatCard label="Total devices" value={stats.totalDevices} />
         <StatCard label="Online" value={stats.onlineDevices} delta={`${stats.onlineDevices}/${stats.totalDevices || 0}`} />
-        <StatCard label="Devices Up" value={stats.uptimePercent ?? 100} format="percent" />
-        <StatCard label="Active Alerts" value={stats.activeAlerts} color={stats.activeAlerts ? 'text-error' : 'text-on-surface'} delta={stats.activeAlerts ? 'needs attention' : 'clear'} />
+        <StatCard label="Devices up" value={stats.uptimePercent ?? 100} format="percent" />
+        <StatCard label="Active alerts" value={stats.activeAlerts} color={stats.activeAlerts ? 'text-status-down' : 'text-fg'} delta={stats.activeAlerts ? 'Needs attention' : 'Clear'} />
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-6 content-visibility-auto">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-6">
         <AiHealthScore networkHealth={networkHealth} insights={insights} />
         <SmartInsights insights={insights} />
-        <StatusHeatmap metrics={historyMetrics} />
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-6 content-visibility-auto">
@@ -220,8 +175,11 @@ export default function Dashboard() {
         <StatusDistribution metrics={metrics} />
       </div>
 
-      <div className="grid grid-cols-1 gap-6 mb-6 content-visibility-auto">
-        <NetworkTopologyMini />
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-6 content-visibility-auto">
+        <StatusHeatmap metrics={historyMetrics} />
+        <div className="xl:col-span-2 flex flex-col [&>section]:flex-1">
+          <NetworkTopologyMini />
+        </div>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-6 content-visibility-auto">
@@ -234,13 +192,15 @@ export default function Dashboard() {
         <ActiveAlertsList alerts={alerts} />
       </div>
 
-      {showExpandedCharts && (
-        <ExpandedChartsModal metrics={historyMetrics} onClose={() => setShowExpandedCharts(false)} />
-      )}
+      <Suspense fallback={null}>
+        {showExpandedCharts && (
+          <ExpandedChartsModal metrics={historyMetrics} onClose={() => setShowExpandedCharts(false)} />
+        )}
 
-      {showResourceModal && (
-        <ResourceLoadModal systemInfo={systemInfo} onClose={() => setShowResourceModal(false)} />
-      )}
+        {showResourceModal && (
+          <ResourceLoadModal systemInfo={systemInfo} onClose={() => setShowResourceModal(false)} />
+        )}
+      </Suspense>
       </>
       )}
     </div>

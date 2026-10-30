@@ -1,4 +1,6 @@
-import { useEffect, useRef } from 'react';
+import { useRef } from 'react';
+import Dialog from './ui/Dialog';
+import Button from './ui/Button';
 
 interface ConfirmDialogProps {
   open: boolean;
@@ -11,6 +13,11 @@ interface ConfirmDialogProps {
   onCancel: () => void;
 }
 
+/**
+ * Confirmation on the shared <Dialog>. Focus starts on Cancel so a stray
+ * Enter can never trigger the destructive action; the confirm button is
+ * solid (danger or primary) so it reads as the consequential choice.
+ */
 export default function ConfirmDialog({
   open,
   title,
@@ -21,91 +28,23 @@ export default function ConfirmDialog({
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
-  const dialogRef = useRef<HTMLDivElement>(null);
-  const previousFocus = useRef<HTMLElement | null>(null);
-  const confirmBtnRef = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-
-    previousFocus.current = document.activeElement as HTMLElement;
-    setTimeout(() => confirmBtnRef.current?.focus(), 0);
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onCancel();
-        return;
-      }
-      if (e.key !== 'Tab' || !dialogRef.current) return;
-      const focusable = dialogRef.current.querySelectorAll<HTMLElement>(
-        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-      );
-      if (focusable.length === 0) return;
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      if (e.shiftKey && document.activeElement === first) {
-        e.preventDefault();
-        last.focus();
-      } else if (!e.shiftKey && document.activeElement === last) {
-        e.preventDefault();
-        first.focus();
-      }
-    };
-
-    document.addEventListener('keydown', handleKeyDown);
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-      previousFocus.current?.focus();
-    };
-  }, [open, onCancel]);
-
-  if (!open) return null;
-
+  const cancelRef = useRef<HTMLButtonElement>(null);
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 pt-20 bg-black/60" onClick={onCancel}>
-      <div
-        ref={dialogRef}
-        role="alertdialog"
-        aria-modal="true"
-        aria-labelledby="confirm-title"
-        aria-describedby="confirm-message"
-        className="bg-surface-container-low border border-outline-variant/30 rounded-lg w-full max-w-md max-h-[90vh] overflow-hidden flex flex-col"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="p-6 shrink-0">
-          <div className="flex items-center gap-3 mb-4">
-            <span className={`material-symbols-outlined text-3xl ${danger ? 'text-error' : 'text-primary'}`}>
-              {danger ? 'warning' : 'help'}
-            </span>
-            <h2 id="confirm-title" className="font-headline text-lg font-semibold text-on-surface uppercase tracking-tight">
-              {title}
-            </h2>
-          </div>
-          <p id="confirm-message" className="text-sm text-on-surface-variant leading-relaxed">
-            {message}
-          </p>
-        </div>
-        <div className="flex border-t border-outline-variant/20 shrink-0">
-          <button
-            onClick={onCancel}
-            className="flex-1 py-3 text-xs font-headline font-semibold uppercase tracking-wide text-on-surface-variant hover:bg-surface-container-low transition-colors"
-          >
-            {cancelLabel}
-          </button>
-          <div className="w-px bg-outline-variant/20" />
-          <button
-            ref={confirmBtnRef}
-            onClick={onConfirm}
-            className={`flex-1 py-3 text-xs font-headline font-semibold uppercase tracking-wide transition-colors ${
-              danger
-                ? 'text-error hover:bg-error/10'
-                : 'text-primary hover:bg-primary/10'
-            }`}
-          >
-            {confirmLabel}
-          </button>
-        </div>
-      </div>
-    </div>
+    <Dialog
+      open={open}
+      onClose={onCancel}
+      role="alertdialog"
+      size="sm"
+      title={title}
+      initialFocusRef={cancelRef}
+      footer={
+        <>
+          <Button ref={cancelRef} variant="secondary" onClick={onCancel}>{cancelLabel}</Button>
+          <Button variant={danger ? 'danger' : 'primary'} onClick={onConfirm}>{confirmLabel}</Button>
+        </>
+      }
+    >
+      <p className="text-sm leading-relaxed text-fg-muted">{message}</p>
+    </Dialog>
   );
 }

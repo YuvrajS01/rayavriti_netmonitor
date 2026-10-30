@@ -90,6 +90,24 @@ jobs:
         run: go tool cover -func=coverage.out | tail -1
         working-directory: backend
 
+  integration:
+    name: Integration (TimescaleDB)
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache-dependency-path: backend/go.sum
+
+      - name: Run database integration tests
+        run: go test -tags integration -count=1 ./internal/database/... ./internal/campus/...
+        working-directory: backend
+
   security:
     name: Security scan
     runs-on: ubuntu-latest
@@ -138,7 +156,7 @@ jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
-    needs: [lint, test]
+    needs: [lint, test, integration]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -175,7 +193,10 @@ jobs:
           echo "=== Bundle Size Report ==="
           MAX_JS_CHUNK_KB=500
           MAX_CSS_KB=100
-          MAX_TOTAL_JS_KB=1200
+          # Raw size of all chunks, lazy ones included. Raised from 1200
+          # when TanStack Query (~40 KB) replaced the hand-rolled fetching;
+          # first-load JS stayed flat (~+1 KB gzip) as Redux was dropped.
+          MAX_TOTAL_JS_KB=1300
           dist="client/dist"
           for f in "$dist"/assets/*.js; do
             size_kb=$(($(stat -c%s "$f") / 1024))

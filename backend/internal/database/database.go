@@ -85,6 +85,9 @@ type Database interface {
 	UpdateDevice(ctx context.Context, id int64, d *models.Device) (*models.Device, error)
 	DeleteDevice(ctx context.Context, id int64) error
 	UpdateDeviceStatus(ctx context.Context, id int64, status string) error
+	// UpdateDeviceStatuses writes many statuses in one statement, touching
+	// only rows whose status actually changed, and returns their IDs.
+	UpdateDeviceStatuses(ctx context.Context, ids []int64, statuses []string) ([]int64, error)
 	GetEnabledDevices(ctx context.Context) ([]models.Device, error)
 	GetDevicesByStatus(ctx context.Context, status string) ([]models.Device, error)
 
@@ -194,9 +197,14 @@ type Database interface {
 	DeleteDashboard(ctx context.Context, id int64) error
 
 	// Retention
-	PruneMetrics(ctx context.Context, olderThan time.Time) (int64, error)
-	PruneFlows(ctx context.Context, olderThan time.Time) (int64, error)
+	// Hypertables (metrics, flows, logs, …) are pruned by TimescaleDB
+	// retention policies (ApplyRetentionPolicies); these cover plain tables.
 	PruneAlerts(ctx context.Context, olderThan time.Time) (int64, error)
+	// GetMetricBaselines returns per-device mean/stddev of each numeric
+	// metric field since the given time, computed in one aggregate query.
+	GetMetricBaselines(ctx context.Context, since time.Time) ([]MetricBaseline, error)
+	PruneHealthScoreHistory(ctx context.Context, olderThan time.Time) (int64, error)
+	PruneCaptureSessions(ctx context.Context, olderThan time.Time) (int64, error)
 
 	// Health Scores
 	UpsertHealthScore(ctx context.Context, score *models.DeviceHealthScoreRow) error
@@ -217,4 +225,14 @@ type Database interface {
 
 	// RBAC
 	GetRolePermissions(ctx context.Context, roleID int64) ([]string, error)
+}
+
+// MetricBaseline is the population mean and standard deviation of one metric
+// field for one device over a window.
+type MetricBaseline struct {
+	DeviceID int64
+	Field    string
+	Mean     float64
+	StdDev   float64
+	Count    int
 }

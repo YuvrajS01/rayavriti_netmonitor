@@ -1,11 +1,16 @@
-import { useState, useEffect, useMemo, memo, type FormEvent } from 'react';
+import { useState, useEffect, useMemo, useRef, memo, Suspense, type FormEvent } from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
-import { useDispatch, useSelector } from 'react-redux';
-import { clearCredentials } from '../store/authSlice';
-import type { RootState } from '../store';
+import { useSessionUser } from '../store/session';
 import { logout, getAlertCounts } from '../api/client';
-import { useSocket, useSocketContext } from '../hooks/useSocket';
+import { useSocketConnected } from '../hooks/useSocket';
+import { useQuery } from '@tanstack/react-query';
+import { queryKeys } from '../api/queryKeys';
 import IconColor from '../assets/brand/Icon-color.svg';
+import ErrorBoundary from './ErrorBoundary';
+import PageLoader from './ui/PageLoader';
+import { ThemeSwitcher } from './ui/ThemeSwitcher';
+import IconButton from './ui/IconButton';
+import { StatusDot } from './ui/Status';
 
 interface NavItem {
   to: string;
@@ -84,19 +89,21 @@ const SidebarLink = memo(function SidebarLink({ to, label, icon, badge, end, onC
       to={to}
       end={end}
       onClick={onClick}
+      // NavLink sets aria-current="page" on the active link (asserted in Layout.test.tsx).
       className={({ isActive }) =>
-        `group relative mx-2 flex h-9 items-center gap-3 rounded-md px-3 font-body text-sm transition-colors duration-100 ${
+        `group relative mx-2 flex h-9 items-center gap-3 rounded-md px-3 text-sm transition-colors duration-[var(--duration-fast)] ${
           isActive
-            ? 'bg-surface-container-high text-on-surface'
-            : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low'
+            ? 'bg-surface-2 font-medium text-fg before:absolute before:left-0 before:top-2 before:bottom-2 before:w-0.5 before:rounded-full before:bg-primary'
+            : 'text-fg-muted hover:text-fg hover:bg-surface-1'
         }`
       }
     >
-      <span className="material-symbols-outlined text-[18px] text-current">{icon}</span>
+      <span className="material-symbols-outlined text-[18px] text-current" aria-hidden="true">{icon}</span>
       <span className="min-w-0 flex-1 truncate">{label}</span>
       {badge != null && badge > 0 && (
-        <span className="ml-auto rounded-full bg-error/15 px-2 py-0.5 text-[10px] font-semibold text-error min-w-[20px] text-center">
+        <span className="ml-auto min-w-[20px] rounded-full bg-error/12 px-2 py-0.5 text-center text-xs font-semibold tabular-nums text-error">
           {badge > 99 ? '99+' : badge}
+          <span className="sr-only"> active</span>
         </span>
       )}
     </NavLink>
@@ -106,11 +113,14 @@ const SidebarLink = memo(function SidebarLink({ to, label, icon, badge, end, onC
 export default function Layout({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const dispatch = useDispatch();
-  const user = useSelector((s: RootState) => s.auth.user);
-  const { connected } = useSocketContext();
-  const [sidebarOpen, setSidebarOpen] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 1024);
-  const [activeAlertCount, setActiveAlertCount] = useState(0);
+  const user = useSessionUser();
+  const connected = useSocketConnected();
+  const [isDesktop, setIsDesktop] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 1024);
+  const [sidebarOpen, setSidebarOpen] = useState(isDesktop);
+  const mainRef = useRef<HTMLElement>(null);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const accountRef = useRef<HTMLDivElement>(null);
+  const accountButtonRef = useRef<HTMLButtonElement>(null);
   const [command, setCommand] = useState('');
   const [accountOpen, setAccountOpen] = useState(false);
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({
@@ -160,132 +170,171 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       item.label.toLowerCase().includes(needle) || item.to.toLowerCase().includes(needle)
     );
     if (match) {
-      navigate(match.to);
+      void navigate(match.to);
     } else {
-      navigate(`/devices?search=${encodeURIComponent(query)}`);
+      void navigate(`/devices?search=${encodeURIComponent(query)}`);
     }
     setCommand('');
   };
 
-  const fetchAlertCount = () => {
-    getAlertCounts()
-      .then((res) => setActiveAlertCount(res.data?.active ?? 0))
-      .catch(() => {});
-  };
-
-  useEffect(() => {
-    fetchAlertCount();
-  }, []);
-
-  useSocket({
-    onAlertTriggered: () => fetchAlertCount(),
-    onAlertResolved: () => fetchAlertCount(),
-    onBootstrap: () => fetchAlertCount(),
+  // Invalidated by alert/bootstrap WebSocket events (useLiveQueryBridge).
+  const alertCountsQuery = useQuery({
+    queryKey: queryKeys.alerts.counts(),
+    queryFn: ({ signal }) => getAlertCounts({ signal }),
   });
+  const activeAlertCount = alertCountsQuery.data?.data?.active ?? 0;
 
+  // Move focus to the content on navigation so screen readers announce the
+  // new page and keyboard users don't restart from the header. <main> has
+  // tabIndex={-1} so it is focusable without entering the tab order.
+  const firstRender = useRef(true);
   useEffect(() => {
-    const main = document.getElementById('main-content');
-    if (main) main.focus();
+    if (firstRender.current) { firstRender.current = false; return; }
+    mainRef.current?.focus({ preventScroll: true });
   }, [location.pathname]);
 
   useEffect(() => {
     const media = window.matchMedia('(min-width: 1024px)');
     const handleChange = () => {
+      setIsDesktop(media.matches);
+      // Leaving desktop width closes the (now overlaying) sidebar.
       if (!media.matches) setSidebarOpen(false);
     };
     media.addEventListener('change', handleChange);
     return () => media.removeEventListener('change', handleChange);
   }, []);
 
+  // Account menu: close on Escape or a press outside it.
+  useEffect(() => {
+    if (!accountOpen) return;
+    const onPointer = (event: PointerEvent) => {
+      if (!accountRef.current?.contains(event.target as Node)) setAccountOpen(false);
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      setAccountOpen(false);
+      accountButtonRef.current?.focus();
+    };
+    document.addEventListener('pointerdown', onPointer);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('pointerdown', onPointer);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [accountOpen]);
+
+  // Mobile drawer: Escape closes it and returns focus to the toggle.
+  const drawerOpen = sidebarOpen && !isDesktop;
+  useEffect(() => {
+    if (!drawerOpen) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      setSidebarOpen(false);
+      menuButtonRef.current?.focus();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [drawerOpen]);
+
   const handleLogout = async () => {
-    try { await logout(); } catch { /* ignore */ }
-    dispatch(clearCredentials());
-    navigate('/login');
+    await logout();
+    await navigate('/login');
   };
 
+  const initial = user?.username?.charAt(0).toUpperCase() || 'A';
+
   return (
-    <div className="min-h-screen bg-background text-on-surface font-body">
-      {/* Skip to content link for keyboard users */}
-      <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:bg-primary focus:text-on-primary focus:px-4 focus:py-2 focus:rounded-lg focus:font-bold focus:text-sm">
+    <div className="min-h-screen bg-canvas text-fg">
+      <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-tooltip focus:rounded-md focus:bg-primary focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-on-primary">
         Skip to content
       </a>
-      <header className="fixed top-0 z-40 flex h-16 w-full items-center justify-between border-b border-outline-variant/30 bg-background/95 px-4 text-sm text-on-surface backdrop-blur lg:px-6">
+      <header className="fixed top-0 z-header flex h-16 w-full items-center justify-between gap-3 border-b border-line bg-canvas px-4 text-sm text-fg lg:px-6">
         <div className="flex min-w-0 items-center gap-3">
-          <button
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="material-symbols-outlined flex h-9 w-9 items-center justify-center rounded-md text-on-surface-variant transition-colors duration-100 hover:bg-surface-container-low hover:text-on-surface"
-            aria-label="Toggle sidebar"
-          >
-            menu
-          </button>
+          <IconButton
+            ref={menuButtonRef}
+            icon="menu"
+            label={sidebarOpen ? 'Hide navigation' : 'Show navigation'}
+            aria-expanded={sidebarOpen}
+            aria-controls="app-sidebar"
+            onClick={() => setSidebarOpen((open) => !open)}
+          />
           <div className="min-w-0">
-            <div className="text-[11px] font-label uppercase tracking-wide text-on-surface-variant">{currentGroup}</div>
-            <div className="truncate font-headline text-base font-semibold text-on-surface">{currentItem?.label || 'Overview'}</div>
+            <div className="text-xs text-fg-muted">{currentGroup}</div>
+            <div className="truncate text-base font-semibold text-fg">{currentItem?.label || 'Overview'}</div>
           </div>
         </div>
 
-        <form onSubmit={handleCommandSubmit} className="mx-4 hidden w-full max-w-xl md:block">
+        <form onSubmit={handleCommandSubmit} role="search" className="mx-4 hidden w-full max-w-xl md:block">
           <label className="relative block">
-            <span className="material-symbols-outlined pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-outline">search</span>
+            <span className="sr-only">Search devices or jump to a page</span>
+            <span className="material-symbols-outlined pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-fg-subtle" aria-hidden="true">search</span>
             <input
+              type="search"
               value={command}
               onChange={(e) => setCommand(e.target.value)}
-              className="h-10 w-full rounded-md border border-outline-variant/30 bg-surface-container-lowest pl-10 pr-3 text-sm text-on-surface placeholder:text-outline outline-none transition-colors focus:border-primary"
+              className="h-10 w-full rounded-md border border-line bg-surface-1 pl-10 pr-3 text-sm text-fg placeholder:text-fg-subtle outline-none transition-colors focus:border-primary"
               placeholder="Search devices or jump to a page"
             />
           </label>
         </form>
 
         <div className="flex items-center gap-2">
-          <div className="hidden items-center gap-2 rounded-md border border-outline-variant/25 bg-surface-container-low px-3 py-2 text-xs text-on-surface-variant sm:flex">
-            <span className={`h-2 w-2 rounded-full ${connected ? 'bg-success' : 'bg-outline'}`} />
+          <div className="hidden items-center gap-2 rounded-md border border-line bg-surface-1 px-3 py-2 text-xs text-fg-muted sm:flex" role="status">
+            <StatusDot status={connected ? 'up' : 'unknown'} size={8} label="" />
             <span>{connected ? 'Live' : 'Realtime paused'}</span>
           </div>
           <NavLink
             to="/alerts"
-            className={`flex h-9 items-center gap-2 rounded-md px-3 text-sm transition-colors duration-100 ${
+            className={`flex h-10 items-center gap-2 rounded-md px-3 text-sm font-medium transition-colors duration-[var(--duration-fast)] ${
               activeAlertCount > 0
-                ? 'bg-error-container text-on-error-container hover:bg-error/25'
-                : 'bg-surface-container-low text-on-surface-variant hover:bg-surface-container hover:text-on-surface'
+                ? 'bg-error/12 text-error hover:bg-error/20'
+                : 'bg-surface-1 text-fg-muted hover:bg-surface-2 hover:text-fg'
             }`}
-            aria-label="Alerts"
+            aria-label={activeAlertCount > 0 ? `Alerts, ${activeAlertCount} active` : 'Alerts, none active'}
           >
-            <span className="material-symbols-outlined text-[18px]">notifications</span>
-            <span className="hidden font-medium sm:inline">{activeAlertCount > 99 ? '99+' : activeAlertCount}</span>
+            <span className="material-symbols-outlined text-[18px]" aria-hidden="true">notifications</span>
+            <span className="hidden tabular-nums sm:inline" aria-hidden="true">{activeAlertCount > 99 ? '99+' : activeAlertCount}</span>
           </NavLink>
-          <div className="relative">
+          <div className="relative" ref={accountRef}>
             <button
+              ref={accountButtonRef}
+              type="button"
               onClick={() => setAccountOpen((open) => !open)}
-              className="flex h-9 items-center gap-2 rounded-md border border-outline-variant/25 bg-surface-container-low px-2 text-on-surface transition-colors duration-100 hover:bg-surface-container"
+              className="flex h-10 items-center gap-2 rounded-md border border-line bg-surface-1 px-2 text-fg transition-colors duration-[var(--duration-fast)] hover:bg-surface-2"
               aria-label="Account menu"
               aria-expanded={accountOpen}
+              aria-controls="account-menu"
             >
-              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-surface-container-highest text-xs font-semibold">
-                {user?.username?.charAt(0).toUpperCase() || 'A'}
-              </span>
-              <span className="material-symbols-outlined hidden text-[18px] text-on-surface-variant sm:inline">expand_more</span>
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-surface-3 text-xs font-semibold" aria-hidden="true">{initial}</span>
+              <span className="material-symbols-outlined hidden text-[18px] text-fg-muted sm:inline" aria-hidden="true">expand_more</span>
             </button>
             {accountOpen && (
-              <div className="absolute right-0 top-11 w-56 rounded-lg border border-outline-variant/25 bg-surface-container-low p-2 shadow-xl shadow-black/30">
+              <div id="account-menu" className="absolute right-0 top-12 z-drawer w-72 rounded-lg border border-line-strong bg-surface-1 p-2 shadow-e2">
                 <div className="px-3 py-2">
-                  <div className="truncate text-sm font-medium text-on-surface">{user?.username || 'Admin'}</div>
-                  <div className="truncate text-xs text-on-surface-variant">{user?.role || 'admin'}</div>
+                  <div className="truncate text-sm font-medium text-fg">{user?.username || 'Admin'}</div>
+                  <div className="truncate text-xs text-fg-muted">{user?.role || 'admin'}</div>
                 </div>
-                <NavLink
-                  to="/settings"
-                  onClick={() => setAccountOpen(false)}
-                  className="flex h-9 items-center gap-2 rounded-md px-3 text-sm text-on-surface-variant transition-colors hover:bg-surface-container hover:text-on-surface"
-                >
-                  <span className="material-symbols-outlined text-[18px]">settings</span>
-                  Settings
-                </NavLink>
-                <button
-                  onClick={handleLogout}
-                  className="mt-1 flex h-9 w-full items-center gap-2 rounded-md px-3 text-left text-sm text-error transition-colors hover:bg-error/10"
-                >
-                  <span className="material-symbols-outlined text-[18px]">logout</span>
-                  Sign out
-                </button>
+                <div className="px-3 pb-3 pt-1">
+                  <ThemeSwitcher size="sm" />
+                </div>
+                <div className="border-t border-line pt-1">
+                  <NavLink
+                    to="/settings"
+                    onClick={() => setAccountOpen(false)}
+                    className="flex h-9 items-center gap-2 rounded-md px-3 text-sm text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg"
+                  >
+                    <span className="material-symbols-outlined text-[18px]" aria-hidden="true">settings</span>
+                    Settings
+                  </NavLink>
+                  <button
+                    type="button"
+                    onClick={handleLogout}
+                    className="mt-1 flex h-9 w-full items-center gap-2 rounded-md px-3 text-left text-sm text-error transition-colors hover:bg-error/12"
+                  >
+                    <span className="material-symbols-outlined text-[18px]" aria-hidden="true">logout</span>
+                    Sign out
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -293,50 +342,57 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       </header>
 
       <div className="flex pt-16">
-        {/* Sidebar */}
+        {drawerOpen && (
+          <div className="fixed inset-0 top-16 z-drawer bg-scrim lg:hidden" aria-hidden="true" onClick={() => setSidebarOpen(false)} />
+        )}
         <aside
-          className={`fixed left-0 top-16 z-40 flex h-[calc(100vh-64px)] w-[260px] transform-gpu flex-col border-r border-outline-variant/30 bg-surface-dim transition-transform duration-150 ease-out will-change-transform ${
+          id="app-sidebar"
+          className={`fixed left-0 top-16 z-drawer flex h-[calc(100dvh-64px)] w-[260px] flex-col border-r border-line bg-canvas transition-transform duration-[var(--duration-normal)] ease-out ${
             sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-          }`}
+          } ${drawerOpen ? 'shadow-e3' : ''}`}
           aria-hidden={!sidebarOpen}
           inert={!sidebarOpen || undefined}
         >
-          <div className="border-b border-outline-variant/20 px-4 py-4">
+          <div className="border-b border-line px-4 py-4">
             <div className="flex items-center gap-2">
               <img src={IconColor} alt="" className="h-7 w-7" aria-hidden="true" />
               <div>
-                <div className="font-headline text-base font-semibold leading-tight text-on-surface">rayavriti</div>
-                <div className="text-[10px] font-label uppercase tracking-wide text-on-surface-variant">NetMonitor</div>
+                <div className="text-base font-semibold leading-tight text-fg">rayavriti</div>
+                <div className="text-xs text-fg-muted">NetMonitor</div>
               </div>
             </div>
           </div>
 
-          <nav className="flex-1 overflow-y-auto py-3" aria-label="Sidebar navigation">
+          <nav className="flex-1 overflow-y-auto py-3" aria-label="Main navigation">
             {visibleGroups.map((group) => {
               const active = isGroupActive(group);
               const expanded = active || (expandedGroups[group.label] ?? false);
+              const groupId = `nav-group-${group.label.toLowerCase().replace(/[^a-z]+/g, '-')}`;
               return (
                 <div key={group.label} className="mb-2">
                   <button
+                    type="button"
                     onClick={() => toggleGroup(group.label)}
-                    className={`mb-1 flex h-8 w-full items-center gap-2 px-4 font-label text-[11px] font-semibold uppercase tracking-wide transition-colors duration-100 ${
-                      active ? 'text-on-surface' : 'text-on-surface-variant hover:text-on-surface'
+                    aria-expanded={expanded}
+                    aria-controls={groupId}
+                    className={`mb-1 flex h-8 w-full items-center gap-2 px-4 text-xs font-semibold transition-colors duration-[var(--duration-fast)] ${
+                      active ? 'text-fg' : 'text-fg-muted hover:text-fg'
                     }`}
                   >
-                    <span className="material-symbols-outlined text-[16px]">
+                    <span className="material-symbols-outlined text-[16px]" aria-hidden="true">
                       {expanded ? 'expand_more' : 'chevron_right'}
                     </span>
                     <span className="truncate">{group.label}</span>
                   </button>
-                  <div className="animate-slide-down" data-open={expanded ? 'true' : 'false'}>
-                    <div className="space-y-1">
+                  <div id={groupId} className="animate-slide-down" data-open={expanded ? 'true' : 'false'} inert={!expanded || undefined}>
+                    <div className="space-y-0.5">
                       {group.items.map((item) => (
                         <SidebarLink
                           key={item.to}
                           {...item}
                           badge={item.to === '/alerts' ? activeAlertCount : undefined}
                           onClick={() => {
-                            if (window.innerWidth < 1024) setSidebarOpen(false);
+                            if (!isDesktop) setSidebarOpen(false);
                           }}
                         />
                       ))}
@@ -347,39 +403,51 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             })}
           </nav>
 
-          <div className="mt-auto border-t border-outline-variant/20 p-3">
-            <div className="flex items-center gap-3 rounded-lg bg-surface-container-low p-3">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-surface-container-highest text-xs font-semibold text-on-surface">
-                {user?.username?.charAt(0).toUpperCase() || 'A'}
+          <div className="mt-auto border-t border-line p-3">
+            <div className="flex items-center gap-3 rounded-md bg-surface-1 p-3">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-surface-3 text-xs font-semibold text-fg" aria-hidden="true">
+                {initial}
               </div>
               <div className="min-w-0">
-                <div className="truncate text-sm font-medium text-on-surface">{user?.username || 'Admin'}</div>
-                <div className="truncate text-xs text-on-surface-variant">{user?.role || 'admin'}</div>
+                <div className="truncate text-sm font-medium text-fg">{user?.username || 'Admin'}</div>
+                <div className="truncate text-xs text-fg-muted">{user?.role || 'admin'}</div>
               </div>
             </div>
           </div>
         </aside>
 
-        <main id="main-content" className={`min-h-[calc(100vh-64px)] flex-1 bg-surface p-4 pb-20 sm:p-6 lg:pb-6 ${sidebarOpen ? 'lg:ml-[260px]' : 'ml-0'}`}>
+        <main
+          id="main-content"
+          ref={mainRef}
+          tabIndex={-1}
+          className={`min-h-[calc(100dvh-64px)] min-w-0 flex-1 bg-canvas p-4 pb-24 sm:p-6 lg:pb-6 ${sidebarOpen ? 'lg:ml-[260px]' : 'ml-0'}`}
+        >
           <div key={location.pathname} className="page-enter">
-            {children}
+            {/* Keyed by pathname (via the parent): a crashed or still-loading
+                page stays inside the content area and navigating away resets it. */}
+            <ErrorBoundary scope="route">
+              <Suspense fallback={<PageLoader />}>
+                {children}
+              </Suspense>
+            </ErrorBoundary>
           </div>
         </main>
       </div>
 
-      {/* Mobile Bottom Nav — only on small screens */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-background border-t border-outline-variant/30 flex justify-around items-center px-4 z-50" aria-label="Mobile navigation">
+      {/* Mobile bottom nav sits on the sticky layer, under the drawer and any
+          modal (dialogs use the top layer). */}
+      <nav className="fixed bottom-0 left-0 right-0 z-sticky flex h-16 items-center justify-around border-t border-line bg-canvas px-4 lg:hidden" aria-label="Mobile navigation">
         {mobileItems.map((item) => (
           <NavLink
             key={item.to}
             to={item.to}
             end={item.to === '/'}
             className={({ isActive }) =>
-              `flex flex-col items-center gap-1 transition-colors duration-100 ${isActive ? 'text-on-surface' : 'text-on-surface-variant'}`
+              `flex min-w-16 flex-col items-center gap-1 rounded-md px-2 py-1 transition-colors duration-[var(--duration-fast)] ${isActive ? 'text-fg' : 'text-fg-muted'}`
             }
           >
-            <span className="material-symbols-outlined text-[20px]">{item.icon}</span>
-            <span className="text-[10px] font-medium">{item.label.split(' ')[0]}</span>
+            <span className="material-symbols-outlined text-[20px]" aria-hidden="true">{item.icon}</span>
+            <span className="text-xs font-medium">{item.label.split(' ')[0]}</span>
           </NavLink>
         ))}
       </nav>

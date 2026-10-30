@@ -23,6 +23,20 @@ func (h *MetricHandler) Latest(w http.ResponseWriter, r *http.Request) {
 		httputil.SendInternalError(w, err)
 		return
 	}
+	allowed, err := scopedDeviceIDs(r.Context(), r, h.db)
+	if err != nil {
+		httputil.SendInternalError(w, err)
+		return
+	}
+	if allowed != nil {
+		kept := metrics[:0]
+		for _, m := range metrics {
+			if allowed[m.DeviceID] {
+				kept = append(kept, m)
+			}
+		}
+		metrics = kept
+	}
 	httputil.SendOK(w, metrics)
 }
 

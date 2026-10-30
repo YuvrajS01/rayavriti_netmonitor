@@ -6,10 +6,12 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"github.com/rayavriti/netmonitor-backend/internal/netutil"
 	"io"
 	"log/slog"
 	"net"
 	"net/http"
+	"net/netip"
 	"os/exec"
 	"regexp"
 	"strconv"
@@ -840,9 +842,20 @@ func (r *StartScanRequest) Validate() error {
 	if r.Subnet == "" {
 		return fmt.Errorf("subnet is required")
 	}
-	_, _, err := net.ParseCIDR(r.Subnet)
+	prefix, err := netip.ParsePrefix(strings.TrimSpace(r.Subnet))
 	if err != nil {
 		return fmt.Errorf("invalid CIDR: %w", err)
+	}
+	// Every address is expanded and probed, so bound the sweep: a /8 or
+	// any IPv6 prefix would exhaust memory (B10/S21).
+	if !prefix.Addr().Is4() {
+		return fmt.Errorf("only IPv4 subnets can be scanned")
+	}
+	if prefix.Bits() < minScanPrefixBits {
+		return fmt.Errorf("subnet is too large: use /%d or smaller (at most %d addresses)", minScanPrefixBits, 1<<(32-minScanPrefixBits))
+	}
+	if err := netutil.ValidateHost(prefix.Masked().Addr().String(), netutil.DefaultHostPolicy()); err != nil {
+		return fmt.Errorf("subnet is not allowed: %w", err)
 	}
 	switch r.ScanType {
 	case "", "ping_only", "ping_snmp", "full":
@@ -854,6 +867,9 @@ func (r *StartScanRequest) Validate() error {
 	}
 	return nil
 }
+
+// minScanPrefixBits caps a discovery sweep at a /16 (65,536 addresses).
+const minScanPrefixBits = 16
 
 func expandCIDR(cidr string) ([]string, error) {
 	ip, ipnet, err := net.ParseCIDR(cidr)

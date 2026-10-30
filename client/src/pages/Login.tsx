@@ -1,10 +1,9 @@
 import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useDispatch } from 'react-redux';
-import { setCredentials } from '../store/authSlice';
 import { login } from '../api/client';
 import LockupColor from '../assets/brand/Lockup-color.svg';
 import IconColor from '../assets/brand/Icon-color.svg';
+import Button from '../components/ui/Button';
 
 export default function Login() {
   const [username, setUsername] = useState('');
@@ -12,20 +11,14 @@ export default function Login() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
-  const dispatch = useDispatch();
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
     try {
-      const result = await login(username.trim(), password);
-      const u = result.data.user;
-      dispatch(setCredentials({
-        token: result.data.token,
-        user: { id: u.id, username: u.username, role: u.role, permissions: u.permissions },
-      }));
-      navigate('/');
+      await login(username.trim(), password);
+      await navigate('/');
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error || 'Login failed';
       setError(msg);
@@ -35,69 +28,75 @@ export default function Login() {
   };
 
   return (
-    <div className="bg-surface text-on-surface font-body min-h-screen flex login-atmosphere">
-      {/* Left Panel — Brand */}
+    <div className="bg-canvas text-fg min-h-screen flex">
+      {/* Brand panel */}
       <div
-        className="hidden lg:flex lg:w-1/2 bg-surface-dim items-center justify-center"
+        className="hidden lg:flex lg:w-1/2 bg-surface-1 border-r border-line items-center justify-center"
         style={{
-          backgroundImage: 'radial-gradient(circle, oklch(22% 0.016 150) 1px, transparent 1px)',
+          backgroundImage: 'radial-gradient(circle, var(--color-line-strong) 1px, transparent 1px)',
           backgroundSize: '24px 24px',
         }}
       >
         <img src={LockupColor} alt="Rayavriti" className="max-w-xs" />
       </div>
 
-      {/* Right Panel — Form */}
       <main className="w-full lg:w-1/2 flex items-center justify-center px-6 py-12">
         <div className="w-full max-w-md">
-          {/* Mobile brand icon */}
           <img src={IconColor} alt="Rayavriti" className="w-10 h-10 mb-6 lg:hidden" />
 
-          {/* Login Card */}
-          <div className="glass-card rounded-xl p-8 w-full max-w-md login-card">
-            <div className="mb-8">
-              <h2 className="font-headline text-2xl font-semibold text-on-surface">Sign in</h2>
-            </div>
+          <div className="login-card rounded-lg border border-line bg-surface-1 p-8 w-full">
+            <h1 className="text-2xl font-semibold text-fg mb-1">Sign in</h1>
+            <p className="text-sm text-fg-muted mb-8">NetMonitor operator console</p>
 
-            <form className="space-y-6" onSubmit={handleSubmit}>
-              <div className="space-y-2">
-                <label className="font-label text-xs tracking-wide text-on-surface-variant ml-1">Username</label>
-                <div className="relative flex items-center bg-surface-container rounded-lg px-4 py-3 border border-outline-variant/20 text-on-surface placeholder:text-outline focus-within:border-primary focus-within:ring-1 focus-within:ring-primary/30">
-                  <span className="material-symbols-outlined text-outline text-lg mr-3">person</span>
+            <form className="space-y-5" onSubmit={handleSubmit} noValidate>
+              <div className="space-y-1.5">
+                <label htmlFor="login-username" className="text-xs font-medium text-fg-muted">Username</label>
+                <div className="relative flex items-center rounded-md border border-line bg-inset px-3 focus-within:border-primary">
+                  <span className="material-symbols-outlined text-fg-subtle text-lg mr-2" aria-hidden="true">person</span>
                   <input
-                    className="bg-transparent border-none p-0 w-full text-on-surface placeholder:text-outline focus:ring-0 text-sm tracking-tight font-body outline-none"
-                    placeholder="Username"
+                    id="login-username"
+                    className="h-11 w-full bg-transparent text-sm text-fg placeholder:text-fg-subtle outline-none"
                     type="text"
+                    autoComplete="username"
+                    autoFocus
+                    required
+                    aria-invalid={error ? true : undefined}
+                    aria-describedby={error ? 'login-error' : undefined}
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
                   />
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <label className="font-label text-xs tracking-wide text-on-surface-variant ml-1">Password</label>
-                <div className="relative flex items-center bg-surface-container rounded-lg px-4 py-3 border border-outline-variant/20 text-on-surface placeholder:text-outline focus-within:border-primary focus-within:ring-1 focus-within:ring-primary/30">
-                  <span className="material-symbols-outlined text-outline text-lg mr-3">lock</span>
+              <div className="space-y-1.5">
+                <label htmlFor="login-password" className="text-xs font-medium text-fg-muted">Password</label>
+                <div className="relative flex items-center rounded-md border border-line bg-inset px-3 focus-within:border-primary">
+                  <span className="material-symbols-outlined text-fg-subtle text-lg mr-2" aria-hidden="true">lock</span>
                   <input
-                    className="bg-transparent border-none p-0 w-full text-on-surface placeholder:text-outline focus:ring-0 text-sm tracking-tight font-body outline-none"
-                    placeholder="••••••••••••"
+                    id="login-password"
+                    className="h-11 w-full bg-transparent text-sm text-fg placeholder:text-fg-subtle outline-none"
                     type="password"
+                    autoComplete="current-password"
+                    required
+                    aria-invalid={error ? true : undefined}
+                    aria-describedby={error ? 'login-error' : undefined}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                   />
                 </div>
               </div>
 
-              <button
-                type="submit"
-                disabled={loading}
-                className="bg-primary text-on-primary font-body font-medium py-3 rounded-md w-full hover:bg-primary-dim transition-colors duration-200 flex items-center justify-center disabled:opacity-50"
-              >
-                <span>{loading ? 'Signing In...' : 'Sign In'}</span>
-              </button>
-            </form>
+              {error && (
+                <p id="login-error" role="alert" className="flex items-center gap-2 text-sm text-error">
+                  <span className="material-symbols-outlined text-[18px]" aria-hidden="true">error</span>
+                  {error}
+                </p>
+              )}
 
-            {error && <div className="text-error text-sm mt-4">{error}</div>}
+              <Button type="submit" disabled={loading} className="w-full h-11">
+                {loading ? 'Signing in…' : 'Sign in'}
+              </Button>
+            </form>
           </div>
         </div>
       </main>

@@ -130,7 +130,7 @@ func TestAlertEngine_AsyncNotificationDelivery(t *testing.T) {
 			}, nil
 		},
 	}
-	engine := NewAlertEngine(db, nil, NewNotifier())
+	engine := NewAlertEngine(db, nil, newTestNotifier())
 	engine.Start(context.Background())
 	defer engine.Stop()
 
@@ -146,7 +146,7 @@ func TestAlertEngine_AsyncNotificationDelivery(t *testing.T) {
 
 func TestAlertEngine_NotificationWorkerRespectsContext(t *testing.T) {
 	t.Parallel()
-	engine := NewAlertEngine(&mockDB{}, nil, NewNotifier())
+	engine := NewAlertEngine(&mockDB{}, nil, newTestNotifier())
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 

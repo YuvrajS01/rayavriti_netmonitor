@@ -1,4 +1,4 @@
-import { v1, wrap } from './http';
+import { v1, wrap, type RequestOptions } from './http';
 
 export type ResourceRow = Record<string, unknown>;
 
@@ -46,40 +46,45 @@ export interface LocationNode {
   children?: LocationNode[];
 }
 
-export async function getResourceSummary() {
-  const res = await v1.get('/phase2/summary');
+export async function getResourceSummary({ signal }: RequestOptions = {}) {
+  const res = await v1.get('/phase2/summary', { signal });
   return wrap<ResourceSummary>(res.data);
 }
 
-export async function listResources(path: string) {
-  const res = await v1.get(path);
+export async function listResources(path: string, { signal }: RequestOptions = {}) {
+  const res = await v1.get(path, { signal });
   return wrap<ResourceRow[]>(res.data);
 }
 
-export async function createResource(path: string, payload: ResourceRow) {
-  const res = await v1.post(path, payload);
+export async function createResource(path: string, payload: ResourceRow, { signal }: RequestOptions = {}) {
+  const res = await v1.post(path, payload, { signal });
   return wrap<ResourceRow>(res.data);
 }
 
-export async function updateResource(path: string, id: number | string, payload: ResourceRow) {
-  const res = await v1.put(`${path}/${id}`, payload);
+export async function updateResource(path: string, id: number | string, payload: ResourceRow, { signal }: RequestOptions = {}) {
+  const res = await v1.put(`${path}/${id}`, payload, { signal });
   return wrap<ResourceRow>(res.data);
+}
+
+export async function deleteResource(path: string, id: number | string, { signal }: RequestOptions = {}) {
+  const res = await v1.delete(`${path}/${id}`, { signal });
+  return res.data as unknown;
 }
 
 /** Fetch the device dependency tree from /api/v1/topology */
-export async function getTopologyTree() {
-  const res = await v1.get('/topology');
+export async function getTopologyTree({ signal }: RequestOptions = {}) {
+  const res = await v1.get('/topology', { signal });
   return wrap<TopologyNode[]>(res.data);
 }
 
 /** Fetch locations as a nested tree with per-location device status counts */
-export async function getLocationTree() {
-  const res = await v1.get('/locations?format=tree_with_status');
+export async function getLocationTree({ signal }: RequestOptions = {}) {
+  const res = await v1.get('/locations?format=tree_with_status', { signal });
   return wrap<LocationNode[]>(res.data);
 }
 
 /** Fetch device IDs assigned to a specific location */
-export async function getLocationDevices(locationId: number) {
-  const res = await v1.get(`/locations/${locationId}/devices`);
+export async function getLocationDevices(locationId: number, { signal }: RequestOptions = {}) {
+  const res = await v1.get(`/locations/${locationId}/devices`, { signal });
   return wrap<{ deviceIds: number[] }>(res.data);
 }

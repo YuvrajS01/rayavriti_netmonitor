@@ -19,7 +19,7 @@ describe('Button', () => {
   it('applies secondary variant', () => {
     render(<Button variant="secondary">Secondary</Button>);
     const btn = screen.getByRole('button');
-    expect(btn.className).toContain('bg-surface-container-highest');
+    expect(btn.className).toContain('bg-surface-2');
     expect(btn.className).toContain('border');
   });
 
@@ -40,7 +40,7 @@ describe('Button', () => {
   it('applies ghost variant', () => {
     render(<Button variant="ghost">Ghost</Button>);
     const btn = screen.getByRole('button');
-    expect(btn.className).toContain('text-on-surface-variant');
+    expect(btn.className).toContain('text-fg-muted');
   });
 
   it('applies primary-outline variant', () => {
@@ -77,10 +77,10 @@ describe('Button', () => {
     expect(screen.getByRole('button').className).toContain('extra-class');
   });
 
-  it('applies font-body, font-medium base classes', () => {
+  it('applies font-medium and rounded-md base classes', () => {
     render(<Button>Styled</Button>);
     const btn = screen.getByRole('button');
-    expect(btn.className).toContain('font-body');
+    expect(btn.className).toContain('rounded-md');
     expect(btn.className).toContain('font-medium');
   });
 });

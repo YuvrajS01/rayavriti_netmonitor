@@ -1,13 +1,28 @@
-import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
+import { useState, useCallback, Suspense } from 'react';
+import { lazyWithRetry } from '../utils/lazyWithRetry';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getReportSummary, getReportTimeseries, getReportDeviceBreakdown, getReportAlerts, getReportISP, downloadMetricsCsv, getDevices } from '../api/client';
+import { queryKeys } from '../api/queryKeys';
+import { useDebouncedValue } from '../hooks/useDebouncedValue';
 import type { ReportSummary, ReportTimeseriesPoint as TimeseriesPoint, DeviceBreakdown, ReportAlert, Device } from '../api/types';
 import type { ISPReportLink } from '../api/reports';
+import Button from '../components/ui/Button';
+import IconButton from '../components/ui/IconButton';
+import ErrorState from '../components/ui/ErrorState';
+import { TabPanel, Tabs } from '../components/ui/Tabs';
+import { useTabParam, useTabsId } from '../hooks/useTabParam';
 
-const SummaryTab = lazy(() => import('../components/reports/SummaryTab'));
-const DeviceTab = lazy(() => import('../components/reports/DeviceTab'));
-const SlaTab = lazy(() => import('../components/reports/SlaTab'));
-const AlertTab = lazy(() => import('../components/reports/AlertTab'));
-const IspTab = lazy(() => import('../components/reports/IspTab'));
+const EMPTY_SERIES: TimeseriesPoint[] = [];
+const EMPTY_BREAKDOWN: DeviceBreakdown[] = [];
+const EMPTY_REPORT_ALERTS: ReportAlert[] = [];
+const EMPTY_ISP: ISPReportLink[] = [];
+const EMPTY_DEVICES: Device[] = [];
+
+const SummaryTab = lazyWithRetry(() => import('../components/reports/SummaryTab'));
+const DeviceTab = lazyWithRetry(() => import('../components/reports/DeviceTab'));
+const SlaTab = lazyWithRetry(() => import('../components/reports/SlaTab'));
+const AlertTab = lazyWithRetry(() => import('../components/reports/AlertTab'));
+const IspTab = lazyWithRetry(() => import('../components/reports/IspTab'));
 
 function formatLocalInput(date: Date) {
   const d = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
@@ -25,12 +40,13 @@ function toQuery(from: string, to: string, deviceId?: number) {
 
 type TabId = 'summary' | 'devices' | 'sla' | 'alerts' | 'isp';
 const TABS: { id: TabId; label: string; icon: string }[] = [
-  { id: 'summary', label: 'Executive Summary', icon: 'dashboard' },
-  { id: 'devices', label: 'Device Performance', icon: 'devices' },
-  { id: 'sla', label: 'SLA Compliance', icon: 'verified' },
-  { id: 'alerts', label: 'Alert History', icon: 'notifications' },
-  { id: 'isp', label: 'ISP Links', icon: 'router' },
+  { id: 'summary', label: 'Executive summary', icon: 'dashboard' },
+  { id: 'devices', label: 'Device performance', icon: 'devices' },
+  { id: 'sla', label: 'SLA compliance', icon: 'verified' },
+  { id: 'alerts', label: 'Alert history', icon: 'notifications' },
+  { id: 'isp', label: 'ISP links', icon: 'router' },
 ];
+const TAB_IDS = TABS.map((t) => t.id);
 
 const RANGES = [
   { hours: 1, label: '1h' },
@@ -40,64 +56,55 @@ const RANGES = [
   { hours: 720, label: '30d' },
 ];
 
+function rangeInputs(hours: number) {
+  const now = new Date();
+  const before = new Date(now.getTime() - hours * 60 * 60 * 1000);
+  return { from: formatLocalInput(before), to: formatLocalInput(now) };
+}
+
+const DEFAULT_RANGE_HOURS = 24;
+
 export default function Reports() {
-  const [summary, setSummary] = useState<ReportSummary | null>(null);
-  const [series, setSeries] = useState<TimeseriesPoint[]>([]);
-  const [deviceBreakdown, setDeviceBreakdown] = useState<DeviceBreakdown[]>([]);
-  const [reportAlerts, setReportAlerts] = useState<ReportAlert[]>([]);
-  const [ispLinks, setIspLinks] = useState<ISPReportLink[]>([]);
-  const [allDevices, setAllDevices] = useState<Device[]>([]);
-  const [from, setFrom] = useState('');
-  const [to, setTo] = useState('');
-  const [activeRange, setActiveRange] = useState(24);
-  const [activeTab, setActiveTab] = useState<TabId>('summary');
+  const queryClient = useQueryClient();
+  const [range, setRangeInputs] = useState(() => rangeInputs(DEFAULT_RANGE_HOURS));
+  const { from, to } = range;
+  const [activeRange, setActiveRange] = useState(DEFAULT_RANGE_HOURS);
+  const [activeTab, setActiveTab] = useTabParam(TAB_IDS);
+  const tabsId = useTabsId();
   const [selectedDevice, setSelectedDevice] = useState<number | undefined>(undefined);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const setRange = useCallback((hours: number) => {
-    const now = new Date();
-    const before = new Date(now.getTime() - hours * 60 * 60 * 1000);
-    setFrom(formatLocalInput(before));
-    setTo(formatLocalInput(now));
+    setRangeInputs(rangeInputs(hours));
     setActiveRange(hours);
   }, []);
+  const setFrom = (value: string) => setRangeInputs((r) => ({ ...r, from: value }));
+  const setTo = (value: string) => setRangeInputs((r) => ({ ...r, to: value }));
 
-  const refresh = useCallback(async () => {
-    if (!from || !to) return;
-    setLoading(true);
-    setError(null);
-    const query = toQuery(from, to, selectedDevice);
-    try {
-      const [sumRes, tsRes, devRes, alertRes, ispRes] = await Promise.all([
-        getReportSummary(query),
-        getReportTimeseries(query),
-        getReportDeviceBreakdown(query),
-        getReportAlerts(query),
-        getReportISP(query),
-      ]);
-      setSummary(sumRes.data);
-      setSeries(tsRes.data || []);
-      setDeviceBreakdown(devRes.data || []);
-      setReportAlerts(alertRes.data || []);
-      setIspLinks(ispRes.data || []);
-    } catch {
-      setError('Failed to load report data. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  }, [from, to, selectedDevice]);
+  // Typing in the datetime inputs shouldn't fire five requests per keystroke.
+  const debouncedRange = useDebouncedValue(range, 400);
+  const query = toQuery(debouncedRange.from, debouncedRange.to, selectedDevice);
+  const enabled = Boolean(debouncedRange.from && debouncedRange.to);
 
-  useEffect(() => {
-    getDevices().then(r => setAllDevices(r.data || [])).catch(() => {});
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setRange(24);
-  }, [setRange]);
+  // Each query is keyed by the filter, so a slow response for an old filter
+  // can never overwrite the current one (the race the old effect had).
+  const summaryQuery = useQuery({ queryKey: queryKeys.reports.summary(query), queryFn: ({ signal }) => getReportSummary(query, { signal }), enabled });
+  const seriesQuery = useQuery({ queryKey: queryKeys.reports.timeseries(query), queryFn: ({ signal }) => getReportTimeseries(query, { signal }), enabled });
+  const breakdownQuery = useQuery({ queryKey: queryKeys.reports.devices(query), queryFn: ({ signal }) => getReportDeviceBreakdown(query, { signal }), enabled });
+  const alertsQuery = useQuery({ queryKey: queryKeys.reports.alerts(query), queryFn: ({ signal }) => getReportAlerts(query, { signal }), enabled });
+  const ispQuery = useQuery({ queryKey: queryKeys.reports.isp(query), queryFn: ({ signal }) => getReportISP(query, { signal }), enabled });
+  const devicesQuery = useQuery({ queryKey: queryKeys.devices.list(), queryFn: ({ signal }) => getDevices({ signal }) });
 
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (from && to) refresh();
-  }, [from, to, selectedDevice, refresh]);
+  const reportQueries = [summaryQuery, seriesQuery, breakdownQuery, alertsQuery, ispQuery];
+  const loading = reportQueries.some((q) => q.isFetching);
+  const error = reportQueries.some((q) => q.isError) ? 'Failed to load report data. Please try again.' : null;
+  const refresh = () => { void queryClient.invalidateQueries({ queryKey: queryKeys.reports.all }); };
+
+  const summary: ReportSummary | null = summaryQuery.data?.data ?? null;
+  const series = seriesQuery.data?.data || EMPTY_SERIES;
+  const deviceBreakdown = breakdownQuery.data?.data || EMPTY_BREAKDOWN;
+  const reportAlerts = alertsQuery.data?.data || EMPTY_REPORT_ALERTS;
+  const ispLinks = ispQuery.data?.data || EMPTY_ISP;
+  const allDevices = devicesQuery.data?.data || EMPTY_DEVICES;
 
   const handleSelectDevice = (id: number) => {
     setSelectedDevice(prev => prev === id ? undefined : id);
@@ -114,107 +121,104 @@ export default function Reports() {
       <header className="mb-6 print-header">
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-2">
           <div>
-            <h1 className="font-headline text-2xl font-semibold text-on-surface mb-1">Reports</h1>
-            <p className="text-on-surface-variant font-body max-w-xl text-sm">Historical analytics, SLA compliance, and performance reports across all monitored nodes.</p>
+            <h1 className="text-2xl font-semibold text-fg mb-1">Reports</h1>
+            <p className="text-fg-muted max-w-xl text-sm">Historical analytics, SLA compliance and performance across all monitored nodes.</p>
           </div>
           <div className="flex items-center gap-2 no-print">
-            <button onClick={() => downloadMetricsCsv(toQuery(from, to, selectedDevice))} className="px-4 py-2 rounded-lg text-sm border border-primary/40 text-primary font-semibold uppercase hover:bg-primary/5 transition-colors flex items-center gap-1.5">
-              <span className="material-symbols-outlined text-sm">download</span> CSV
-            </button>
-            <button onClick={handlePrint} className="px-4 py-2 rounded-lg text-sm border border-outline-variant/30 text-on-surface-variant font-semibold uppercase hover:text-on-surface hover:border-outline/40 transition-colors flex items-center gap-1.5">
-              <span className="material-symbols-outlined text-sm">print</span> Print
-            </button>
+            <Button variant="secondary" icon="download" onClick={() => { void downloadMetricsCsv(toQuery(from, to, selectedDevice)); }}>
+              Export CSV
+            </Button>
+            <Button variant="secondary" icon="print" onClick={handlePrint}>Print</Button>
           </div>
         </div>
       </header>
 
-      <div className="bg-surface-container-low rounded-lg border border-outline-variant/20 p-5 mb-6 no-print">
+      <section aria-label="Report filters" className="bg-surface-1 rounded-lg border border-line p-5 mb-6 no-print">
         <div className="flex flex-col xl:flex-row gap-4 xl:items-end xl:justify-between">
-          <div className="flex flex-wrap items-center gap-2">
-            {RANGES.map(r => (
-              <button key={r.hours} onClick={() => setRange(r.hours)}
-                className={`px-3 py-2 rounded-lg text-xs border font-semibold transition-[border-color,color,background-color] ${activeRange === r.hours ? 'border-primary/40 text-primary bg-primary/5' : 'border-outline-variant/20 text-on-surface-variant hover:text-on-surface'}`}>
-                {r.label}
-              </button>
-            ))}
-            <div className="h-5 w-px bg-outline-variant/30 mx-1" />
-            <select value={selectedDevice ?? ''} onChange={e => setSelectedDevice(e.target.value ? Number(e.target.value) : undefined)}
-              className="bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-3 py-2 text-xs text-on-surface outline-none cursor-pointer min-w-[140px]">
-              <option value="">All Devices</option>
-              {allDevices.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-            </select>
+          <div className="flex flex-wrap items-end gap-2">
+            <div role="group" aria-label="Quick range" className="inline-flex rounded-md border border-line bg-inset p-0.5">
+              {RANGES.map(r => (
+                <button
+                  key={r.hours}
+                  type="button"
+                  aria-pressed={activeRange === r.hours}
+                  onClick={() => setRange(r.hours)}
+                  className={`h-8 min-w-11 rounded-[6px] px-3 text-sm font-medium transition-colors ${activeRange === r.hours ? 'bg-surface-3 text-fg shadow-e1' : 'text-fg-muted hover:text-fg'}`}
+                >
+                  {r.label}
+                </button>
+              ))}
+            </div>
+            <label className="flex flex-col gap-1 text-xs text-fg-muted">
+              Device
+              <select value={selectedDevice ?? ''} onChange={e => setSelectedDevice(e.target.value ? Number(e.target.value) : undefined)}
+                className="h-9 min-w-[160px] rounded-md border border-line bg-inset px-3 text-sm text-fg outline-none focus:border-primary">
+                <option value="">All devices</option>
+                {allDevices.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+              </select>
+            </label>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <input type="datetime-local" value={from} onChange={e => setFrom(e.target.value)} className="bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-3 py-2 text-xs text-on-surface outline-none" />
-            <input type="datetime-local" value={to} onChange={e => setTo(e.target.value)} className="bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-3 py-2 text-xs text-on-surface outline-none" />
-            <button onClick={refresh} disabled={loading} className="px-4 py-2 rounded-lg text-sm bg-primary text-on-primary font-semibold uppercase hover:bg-primary/90 transition-colors flex items-center gap-1.5 disabled:opacity-50">
-              {loading ? <span className="material-symbols-outlined text-sm animate-spin">refresh</span> : <span className="material-symbols-outlined text-sm">play_arrow</span>}
+          <div className="flex flex-wrap items-end gap-2">
+            <label className="flex flex-col gap-1 text-xs text-fg-muted">
+              From
+              <input type="datetime-local" value={from} onChange={e => setFrom(e.target.value)} className="h-9 rounded-md border border-line bg-inset px-3 text-sm text-fg outline-none focus:border-primary" />
+            </label>
+            <label className="flex flex-col gap-1 text-xs text-fg-muted">
+              To
+              <input type="datetime-local" value={to} onChange={e => setTo(e.target.value)} className="h-9 rounded-md border border-line bg-inset px-3 text-sm text-fg outline-none focus:border-primary" />
+            </label>
+            <Button size="sm" className="h-9" icon={loading ? 'progress_activity' : 'play_arrow'} onClick={refresh} disabled={loading}>
               Run
-            </button>
+            </Button>
           </div>
         </div>
-      </div>
+      </section>
 
       {selectedDevice && (
         <div className="flex items-center gap-2 mb-4 no-print">
-          <span className="text-[10px] text-on-surface-variant uppercase tracking-wide">Filtered:</span>
-          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary/10 border border-primary/30 text-primary text-xs font-semibold">
+          <span className="text-xs text-fg-muted">Filtered to</span>
+          <span className="inline-flex items-center gap-1 rounded-full border border-line-strong bg-surface-2 py-0.5 pl-3 pr-1 text-xs font-medium text-fg">
             {allDevices.find(d => d.id === selectedDevice)?.name || `Device ${selectedDevice}`}
-            <button onClick={() => setSelectedDevice(undefined)} className="hover:text-on-surface transition-colors">
-              <span className="material-symbols-outlined text-sm">close</span>
-            </button>
+            <IconButton icon="close" label="Clear device filter" size="sm" className="h-6 w-6" onClick={() => setSelectedDevice(undefined)} />
           </span>
         </div>
       )}
 
-      <div className="flex gap-1 mb-6 overflow-x-auto no-print border-b border-outline-variant/20 pb-px">
-        {TABS.map(tab => (
-          <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-2 px-4 py-3 text-xs font-semibold uppercase tracking-wide transition-[color,border-color,background-color] rounded-t-lg whitespace-nowrap ${activeTab === tab.id ? 'text-primary border-b-2 border-primary bg-primary/5' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-lowest/50'}`}>
-            <span className="material-symbols-outlined text-sm">{tab.icon}</span>
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      <Tabs items={TABS} value={activeTab} onChange={setActiveTab} label="Report sections" idBase={tabsId} className="mb-6 no-print" />
 
-      {loading && (
-        <div className="flex flex-col items-center justify-center py-16">
-          <span className="material-symbols-outlined text-4xl text-primary mb-3">hourglass_top</span>
-          <p className="text-sm text-on-surface-variant uppercase tracking-wide">Loading report data...</p>
-        </div>
-      )}
-
-      {error && !loading && (
-        <div className="bg-error/10 border border-error/30 rounded-lg p-6 text-center">
-          <span className="material-symbols-outlined text-error text-3xl mb-2">error</span>
-          <p className="text-sm text-error font-semibold">{error}</p>
-          <button onClick={refresh} className="mt-3 text-xs text-on-surface-variant hover:text-on-surface transition-colors underline">
-            Retry
-          </button>
-        </div>
-      )}
-
-      {!loading && !error && (
-        <div className="report-tab-content">
-          <Suspense fallback={
-            <div className="flex flex-col items-center justify-center py-16">
-              <span className="material-symbols-outlined text-4xl text-primary mb-3">hourglass_top</span>
-              <p className="text-sm text-on-surface-variant uppercase tracking-wide">Loading tab...</p>
+      {TABS.map((tab) => (
+        <TabPanel key={tab.id} idBase={tabsId} id={tab.id} value={activeTab}>
+          {loading ? (
+            <ReportLoading message="Loading report data…" />
+          ) : error ? (
+            <ErrorState message={error} onRetry={refresh} />
+          ) : (
+            <div className="report-tab-content">
+              <Suspense fallback={<ReportLoading message="Loading section…" />}>
+                {tab.id === 'summary' && <SummaryTab summary={summary} series={series} />}
+                {tab.id === 'devices' && <DeviceTab devices={deviceBreakdown} onSelectDevice={handleSelectDevice} />}
+                {tab.id === 'sla' && <SlaTab summary={summary} series={series} />}
+                {tab.id === 'alerts' && <AlertTab alerts={reportAlerts} />}
+                {tab.id === 'isp' && <IspTab links={ispLinks} />}
+              </Suspense>
             </div>
-          }>
-            {activeTab === 'summary' && <SummaryTab summary={summary} series={series} />}
-            {activeTab === 'devices' && <DeviceTab devices={deviceBreakdown} onSelectDevice={handleSelectDevice} />}
-            {activeTab === 'sla' && <SlaTab summary={summary} series={series} />}
-            {activeTab === 'alerts' && <AlertTab alerts={reportAlerts} />}
-            {activeTab === 'isp' && <IspTab links={ispLinks} />}
-          </Suspense>
-        </div>
-      )}
+          )}
+        </TabPanel>
+      ))}
 
       <div className="print-footer hidden">
         <p>Rayavriti NetMonitor — Report generated {new Date().toLocaleString()}</p>
         <p>Period: {from ? new Date(from).toLocaleString() : '—'} to {to ? new Date(to).toLocaleString() : '—'}</p>
       </div>
+    </div>
+  );
+}
+
+function ReportLoading({ message }: { message: string }) {
+  return (
+    <div role="status" className="flex flex-col items-center justify-center gap-3 py-16">
+      <span className="material-symbols-outlined animate-spin text-3xl text-fg-muted" aria-hidden="true">progress_activity</span>
+      <p className="text-sm text-fg-muted">{message}</p>
     </div>
   );
 }

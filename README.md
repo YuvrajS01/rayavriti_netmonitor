@@ -2,7 +2,7 @@
   <h1>Rayavriti NetMonitor</h1>
   <p><strong>Production-grade, real-time network monitoring and traffic visibility platform.</strong></p>
 
-  ![Version](https://img.shields.io/badge/Version-4.5.1-brightgreen?style=flat-square)
+  ![Version](https://img.shields.io/badge/Version-5.0.0-brightgreen?style=flat-square)
   ![Go](https://img.shields.io/badge/Go-1.26-00ADD8?style=flat-square&logo=go)
   ![React](https://img.shields.io/badge/React-19-blue?style=flat-square&logo=react)
   ![TypeScript](https://img.shields.io/badge/TypeScript-Strict-blue?style=flat-square&logo=typescript)
@@ -202,6 +202,15 @@ All configuration via environment variables. See [`.env.example`](.env.example) 
 | `FLOW_RETENTION_DAYS` | `7` | Auto-delete flow records older than N days |
 | `ALERTS_RETENTION_DAYS` | `90` | Auto-delete resolved alerts older than N days |
 | `CAPTURE_ENABLED` | `true` | Enable packet capture feature |
+| `ENCRYPTION_KEY` | — | Key for stored credentials (min 32 chars). Without it the JWT-derived key is used; once it's set, existing credentials are re-encrypted on first use |
+| `ADMIN_ADDR` | `127.0.0.1:9464` | Admin listener for Prometheus `/metrics` (empty disables) |
+| `PPROF_ENABLED` | `false` | Also serve `/debug/pprof` on the admin listener |
+
+### Health and metrics
+
+- `GET /livez`: liveness (the process is serving HTTP).
+- `GET /readyz` (alias `/health`): readiness. Returns 503 when the database is unreachable.
+- `GET http://ADMIN_ADDR/metrics`: Prometheus metrics. These cover poll counts and latency by protocol, queue depths, dropped and in-flight-skipped polls, pipeline batch timing, DB pool stats, WebSocket clients and drops, notification outcomes, HTTP latency by route, and build info. The admin listener is separate from the API and is not authenticated, so keep it on loopback or a management network.
 
 ---
 
@@ -271,23 +280,27 @@ See `documentation/api_documentation.md` and `documentation/postman_guide.md` fo
 
 ## Database
 
-**PostgreSQL 16 + TimescaleDB** with automated retention policies.
+**PostgreSQL 16 + TimescaleDB is required.** The image pinned in Docker Compose is `timescale/timescaledb:2.28.2-pg16`. NetMonitor creates the extension on first start and fails with a clear error if it can't.
 
-### Hypertables
+### Storage lifecycle
 
-| Table | Time Column | Purpose |
+- **Hypertables:** `metrics`, `flows`, `system_log_events`, `capture_packets`, `alert_history`, `notification_log`, `suppressed_alerts`, `isp_metrics`, `remote_snapshots`, `incident_timeline` and the `monitoring_*` tables.
+- **Compression:** `metrics` after 7 days, `flows` after 2 days, `system_log_events` after 3 days. Uses TimescaleDB native compression.
+- **Rollups:** the continuous aggregates `metrics_hourly` and `metrics_daily` store per-device sample and status counts and response-time sum/sum²/min/max, plus loss, CPU and memory. Dashboards, availability and performance reports, and hour-or-coarser report time series read these instead of raw rows. Real-time aggregation includes the most recent, not-yet-materialized data.
+- **Retention:** TimescaleDB retention policies drop whole chunks. They are reconciled from config at every startup (a policy is replaced only when its value changes). Plain tables (resolved alerts, health-score history, finished capture sessions) are swept every 6h.
+
+| Variable | Default | Applies to |
 |---|---|---|
-| `metrics` | `timestamp` | Device metrics (ping, HTTP, SNMP, etc.) |
-| `flows` | `created_at` | NetFlow/sFlow records |
-| `capture_packets` | `timestamp` | Captured packet data |
-| `alert_history` | `created_at` | Alert lifecycle events |
-| `remote_snapshots` | `created_at` | Remote instance snapshots |
+| `METRICS_RETENTION_DAYS` | `30` | `metrics`, `isp_metrics` (minimum 4, so raw data outlives the rollup refresh window) |
+| `METRICS_HOURLY_RETENTION_DAYS` | `400` | `metrics_hourly` (`metrics_daily` is kept forever) |
+| `FLOWS_RETENTION_DAYS` | `7` | `flows` |
+| `ALERTS_RETENTION_DAYS` | `90` | resolved alerts, `alert_history`, `notification_log`, `suppressed_alerts` |
+| `LOG_RETENTION_DAYS` | `14` | `system_log_events` |
+| `CAPTURE_RETENTION_DAYS` | `7` | `capture_packets`, finished capture sessions |
+| `REMOTE_SNAPSHOT_RETENTION_DAYS` | `30` | `remote_snapshots` |
+| `MON_*_RETENTION_DAYS` | various | `monitoring_*` tables; `MON_HEALTH_RETENTION_DAYS` also covers health-score history |
 
-### Retention (auto-prunes every 6h)
-
-- **Metrics:** 30 days
-- **Flow records:** 7 days
-- **Resolved alerts:** 90 days
+Set a value to `0` to keep that data forever.
 
 ---
 

@@ -9,6 +9,7 @@ import (
 	"github.com/rayavriti/netmonitor-backend/internal/cache"
 	"github.com/rayavriti/netmonitor-backend/internal/database"
 	"github.com/rayavriti/netmonitor-backend/internal/engine"
+	"github.com/rayavriti/netmonitor-backend/internal/metrics"
 	"github.com/rayavriti/netmonitor-backend/internal/models"
 	"github.com/rayavriti/netmonitor-backend/internal/websocket"
 )
@@ -68,7 +69,9 @@ func (rp *ResultPipeline) Stop() {
 		rp.cancel()
 	}
 	rp.wg.Wait()
-	rp.flush(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	rp.flush(ctx)
 	slog.Info("result pipeline stopped")
 }
 
@@ -104,7 +107,14 @@ func (rp *ResultPipeline) run(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			flushBatch()
+			// The run context is already cancelled; persist the final batch
+			// (and anything still queued) with a fresh, bounded context.
+			finalCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 15*time.Second)
+			if len(batch) > 0 {
+				rp.processBatch(finalCtx, batch)
+			}
+			rp.flush(finalCtx)
+			cancel()
 			return
 		case result := <-rp.resultCh:
 			batch = append(batch, result)
@@ -118,6 +128,11 @@ func (rp *ResultPipeline) run(ctx context.Context) {
 }
 
 func (rp *ResultPipeline) processBatch(ctx context.Context, batch []PollResult) {
+	start := time.Now()
+	defer func() {
+		metrics.PipelineBatchDuration.Observe(time.Since(start).Seconds())
+		metrics.PipelineBatchSize.Observe(float64(len(batch)))
+	}()
 	metrics := make([]*models.Metric, 0, len(batch))
 
 	for _, pr := range batch {
@@ -131,14 +146,27 @@ func (rp *ResultPipeline) processBatch(ctx context.Context, batch []PollResult) 
 
 	rp.writeMetrics(ctx, metrics)
 
-	// Update device status in database
+	// Persist device statuses in one statement per batch; the database only
+	// rewrites rows whose status changed. Within a batch the latest poll
+	// of a device wins.
+	latest := make(map[int64]PollResult, len(batch))
 	for _, pr := range batch {
-		if pr.Status != "" {
-			if pg, ok := rp.db.(interface {
-				UpdateDeviceStatus(context.Context, int64, string) error
-			}); ok {
-				_ = pg.UpdateDeviceStatus(ctx, pr.Device.ID, pr.Status)
-			}
+		if pr.Status == "" {
+			continue
+		}
+		if prev, ok := latest[pr.Device.ID]; !ok || pr.FinishedAt.After(prev.FinishedAt) {
+			latest[pr.Device.ID] = pr
+		}
+	}
+	if len(latest) > 0 {
+		ids := make([]int64, 0, len(latest))
+		statuses := make([]string, 0, len(latest))
+		for id, pr := range latest {
+			ids = append(ids, id)
+			statuses = append(statuses, pr.Status)
+		}
+		if _, err := rp.db.UpdateDeviceStatuses(ctx, ids, statuses); err != nil {
+			slog.Warn("failed to persist device statuses", "count", len(ids), "error", err)
 		}
 	}
 

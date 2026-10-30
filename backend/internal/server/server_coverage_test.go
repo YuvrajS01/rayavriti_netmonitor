@@ -251,12 +251,6 @@ func (m *serverMockDB) SaveDashboard(ctx context.Context, d *models.Dashboard) (
 	return nil, nil
 }
 func (m *serverMockDB) DeleteDashboard(ctx context.Context, id int64) error { return nil }
-func (m *serverMockDB) PruneMetrics(ctx context.Context, olderThan time.Time) (int64, error) {
-	return 0, nil
-}
-func (m *serverMockDB) PruneFlows(ctx context.Context, olderThan time.Time) (int64, error) {
-	return 0, nil
-}
 func (m *serverMockDB) PruneAlerts(ctx context.Context, olderThan time.Time) (int64, error) {
 	return 0, nil
 }
@@ -931,4 +925,20 @@ func TestRequestSize_OversizedRequest(t *testing.T) {
 	// The body is limited; reading should fail or return partial
 	_, err := fmt.Fprint(rec, "")
 	assert.NoError(t, err)
+}
+
+func (m *serverMockDB) PruneHealthScoreHistory(ctx context.Context, olderThan time.Time) (int64, error) {
+	return 0, nil
+}
+
+func (m *serverMockDB) PruneCaptureSessions(ctx context.Context, olderThan time.Time) (int64, error) {
+	return 0, nil
+}
+
+func (m *serverMockDB) GetMetricBaselines(ctx context.Context, since time.Time) ([]database.MetricBaseline, error) {
+	return nil, nil
+}
+
+func (m *serverMockDB) UpdateDeviceStatuses(ctx context.Context, ids []int64, statuses []string) ([]int64, error) {
+	return nil, nil
 }

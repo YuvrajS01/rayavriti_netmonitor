@@ -8,6 +8,7 @@ import (
 	"encoding/csv"
 	"errors"
 	"fmt"
+	"github.com/rayavriti/netmonitor-backend/internal/netutil"
 	"io"
 	"log/slog"
 	"net"
@@ -357,6 +358,15 @@ func (s *ImportService) Execute(ctx context.Context, rows []ImportRow) (*ImportR
 	}()
 
 	result := &ImportResult{}
+
+	// Rows come back from the client after preview, so they are re-checked
+	// here: Execute must not trust what Preview validated.
+	for _, row := range rows {
+		if err = netutil.ValidateHost(row.Host, netutil.DefaultHostPolicy()); err != nil {
+			result.Errors = append(result.Errors, fmt.Sprintf("line %d (%s): host is not allowed", row.LineNumber, row.Name))
+			return result, fmt.Errorf("line %d: host %q is not allowed: %w", row.LineNumber, row.Host, err)
+		}
+	}
 
 	for _, row := range rows {
 		var deviceID int64
