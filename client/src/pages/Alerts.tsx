@@ -1,5 +1,7 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useMemo } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { getAlerts, getAlertCounts, getGroupedAlerts, acknowledgeAlert, resolveAlert } from '../api/client';
+import { queryKeys } from '../api/queryKeys';
 import type { Alert, AlertCounts } from '../api/types';
 import type { AlertGroup } from '../api/alerts';
 import SectionHeader from '../components/ui/SectionHeader';
@@ -20,55 +22,61 @@ function severityColors(severity: string) {
   return { text: 'text-primary', bg: 'bg-primary/10', border: 'border-primary' };
 }
 
-export default function Alerts() {
+const EMPTY_COUNTS: AlertCounts = { active: 0, acknowledged: 0, resolved: 0 };
+const EMPTY_ALERTS: Alert[] = [];
+const EMPTY_GROUPS: AlertGroup[] = [];
 
-  const [alerts, setAlerts] = useState<Alert[]>([]);
-  const [grouped, setGrouped] = useState<AlertGroup[]>([]);
-  const [counts, setCounts] = useState<AlertCounts>({ active: 0, acknowledged: 0, resolved: 0 });
+export default function Alerts() {
+  const queryClient = useQueryClient();
   const [currentTab, setCurrentTab] = useState<'active' | 'acknowledged' | 'resolved'>('active');
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'grouped' | 'list'>('grouped');
 
-  const load = useCallback(async (tab: string = currentTab) => {
-    setLoading(true);
-    try {
-      setError(null);
-      const [alertsRes, countsRes, groupedRes] = await Promise.all([
-        getAlerts(tab, 300),
-        getAlertCounts(),
-        getGroupedAlerts(tab),
-      ]);
-      setAlerts(alertsRes.data || []);
-      setCounts(countsRes.data || { active: 0, acknowledged: 0, resolved: 0 });
-      setGrouped(groupedRes.data || []);
-    } catch {
-      setError('Failed to load alerts. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  }, [currentTab]);
+  // All three are invalidated by alert WebSocket events (useLiveQueryBridge),
+  // so the list stays live without a full-page reload after each action.
+  const alertsQuery = useQuery({
+    queryKey: queryKeys.alerts.list(currentTab, 300),
+    queryFn: ({ signal }) => getAlerts(currentTab, 300, { signal }),
+  });
+  const countsQuery = useQuery({
+    queryKey: queryKeys.alerts.counts(),
+    queryFn: ({ signal }) => getAlertCounts({ signal }),
+  });
+  const groupedQuery = useQuery({
+    queryKey: queryKeys.alerts.grouped(currentTab),
+    queryFn: ({ signal }) => getGroupedAlerts(currentTab, { signal }),
+  });
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { load(currentTab); }, [currentTab, load]);
+  const alerts = alertsQuery.data?.data || EMPTY_ALERTS;
+  const grouped = groupedQuery.data?.data || EMPTY_GROUPS;
+  const counts = countsQuery.data?.data || EMPTY_COUNTS;
+  const queries = [alertsQuery, countsQuery, groupedQuery];
+  const loading = queries.some((q) => q.isPending);
+  const error = actionError ?? (queries.some((q) => q.isError) ? 'Failed to load alerts. Please try again.' : null);
 
-  const handleAck = async (id: number) => {
-    try {
-      await acknowledgeAlert(id);
-      load(currentTab);
-    } catch {
-      setError('Failed to acknowledge alert. Please try again.');
-    }
+  const retry = () => {
+    setActionError(null);
+    void queryClient.invalidateQueries({ queryKey: queryKeys.alerts.all });
   };
 
-  const handleResolve = async (id: number) => {
-    try {
-      await resolveAlert(id);
-      load(currentTab);
-    } catch {
-      setError('Failed to resolve alert. Please try again.');
-    }
-  };
+  const onActionSettled = () => queryClient.invalidateQueries({ queryKey: queryKeys.alerts.all });
+
+  const ackMutation = useMutation({
+    mutationFn: (id: number) => acknowledgeAlert(id),
+    onMutate: () => setActionError(null),
+    onError: () => setActionError('Failed to acknowledge alert. Please try again.'),
+    onSettled: onActionSettled,
+  });
+
+  const resolveMutation = useMutation({
+    mutationFn: (id: number) => resolveAlert(id),
+    onMutate: () => setActionError(null),
+    onError: () => setActionError('Failed to resolve alert. Please try again.'),
+    onSettled: onActionSettled,
+  });
+
+  const handleAck = (id: number) => ackMutation.mutate(id);
+  const handleResolve = (id: number) => resolveMutation.mutate(id);
 
   const tabs = [
     { key: 'active' as const, label: 'Active', count: counts.active },
@@ -142,7 +150,7 @@ export default function Alerts() {
       {loading && <LoadingState message="Loading alerts..." />}
 
       {/* Error State */}
-      {error && !loading && <ErrorState message={error} onRetry={() => load(currentTab)} />}
+      {error && !loading && <ErrorState message={error} onRetry={retry} />}
 
       {/* Grouped View */}
       {!loading && !error && currentTab === 'active' && viewMode === 'grouped' && (

@@ -1,7 +1,16 @@
-import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
+import { useState, useCallback, lazy, Suspense } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getReportSummary, getReportTimeseries, getReportDeviceBreakdown, getReportAlerts, getReportISP, downloadMetricsCsv, getDevices } from '../api/client';
+import { queryKeys } from '../api/queryKeys';
+import { useDebouncedValue } from '../hooks/useDebouncedValue';
 import type { ReportSummary, ReportTimeseriesPoint as TimeseriesPoint, DeviceBreakdown, ReportAlert, Device } from '../api/types';
 import type { ISPReportLink } from '../api/reports';
+
+const EMPTY_SERIES: TimeseriesPoint[] = [];
+const EMPTY_BREAKDOWN: DeviceBreakdown[] = [];
+const EMPTY_REPORT_ALERTS: ReportAlert[] = [];
+const EMPTY_ISP: ISPReportLink[] = [];
+const EMPTY_DEVICES: Device[] = [];
 
 const SummaryTab = lazy(() => import('../components/reports/SummaryTab'));
 const DeviceTab = lazy(() => import('../components/reports/DeviceTab'));
@@ -40,64 +49,54 @@ const RANGES = [
   { hours: 720, label: '30d' },
 ];
 
+function rangeInputs(hours: number) {
+  const now = new Date();
+  const before = new Date(now.getTime() - hours * 60 * 60 * 1000);
+  return { from: formatLocalInput(before), to: formatLocalInput(now) };
+}
+
+const DEFAULT_RANGE_HOURS = 24;
+
 export default function Reports() {
-  const [summary, setSummary] = useState<ReportSummary | null>(null);
-  const [series, setSeries] = useState<TimeseriesPoint[]>([]);
-  const [deviceBreakdown, setDeviceBreakdown] = useState<DeviceBreakdown[]>([]);
-  const [reportAlerts, setReportAlerts] = useState<ReportAlert[]>([]);
-  const [ispLinks, setIspLinks] = useState<ISPReportLink[]>([]);
-  const [allDevices, setAllDevices] = useState<Device[]>([]);
-  const [from, setFrom] = useState('');
-  const [to, setTo] = useState('');
-  const [activeRange, setActiveRange] = useState(24);
+  const queryClient = useQueryClient();
+  const [range, setRangeInputs] = useState(() => rangeInputs(DEFAULT_RANGE_HOURS));
+  const { from, to } = range;
+  const [activeRange, setActiveRange] = useState(DEFAULT_RANGE_HOURS);
   const [activeTab, setActiveTab] = useState<TabId>('summary');
   const [selectedDevice, setSelectedDevice] = useState<number | undefined>(undefined);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const setRange = useCallback((hours: number) => {
-    const now = new Date();
-    const before = new Date(now.getTime() - hours * 60 * 60 * 1000);
-    setFrom(formatLocalInput(before));
-    setTo(formatLocalInput(now));
+    setRangeInputs(rangeInputs(hours));
     setActiveRange(hours);
   }, []);
+  const setFrom = (value: string) => setRangeInputs((r) => ({ ...r, from: value }));
+  const setTo = (value: string) => setRangeInputs((r) => ({ ...r, to: value }));
 
-  const refresh = useCallback(async () => {
-    if (!from || !to) return;
-    setLoading(true);
-    setError(null);
-    const query = toQuery(from, to, selectedDevice);
-    try {
-      const [sumRes, tsRes, devRes, alertRes, ispRes] = await Promise.all([
-        getReportSummary(query),
-        getReportTimeseries(query),
-        getReportDeviceBreakdown(query),
-        getReportAlerts(query),
-        getReportISP(query),
-      ]);
-      setSummary(sumRes.data);
-      setSeries(tsRes.data || []);
-      setDeviceBreakdown(devRes.data || []);
-      setReportAlerts(alertRes.data || []);
-      setIspLinks(ispRes.data || []);
-    } catch {
-      setError('Failed to load report data. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  }, [from, to, selectedDevice]);
+  // Typing in the datetime inputs shouldn't fire five requests per keystroke.
+  const debouncedRange = useDebouncedValue(range, 400);
+  const query = toQuery(debouncedRange.from, debouncedRange.to, selectedDevice);
+  const enabled = Boolean(debouncedRange.from && debouncedRange.to);
 
-  useEffect(() => {
-    getDevices().then(r => setAllDevices(r.data || [])).catch(() => {});
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setRange(24);
-  }, [setRange]);
+  // Each query is keyed by the filter, so a slow response for an old filter
+  // can never overwrite the current one (the race the old effect had).
+  const summaryQuery = useQuery({ queryKey: queryKeys.reports.summary(query), queryFn: ({ signal }) => getReportSummary(query, { signal }), enabled });
+  const seriesQuery = useQuery({ queryKey: queryKeys.reports.timeseries(query), queryFn: ({ signal }) => getReportTimeseries(query, { signal }), enabled });
+  const breakdownQuery = useQuery({ queryKey: queryKeys.reports.devices(query), queryFn: ({ signal }) => getReportDeviceBreakdown(query, { signal }), enabled });
+  const alertsQuery = useQuery({ queryKey: queryKeys.reports.alerts(query), queryFn: ({ signal }) => getReportAlerts(query, { signal }), enabled });
+  const ispQuery = useQuery({ queryKey: queryKeys.reports.isp(query), queryFn: ({ signal }) => getReportISP(query, { signal }), enabled });
+  const devicesQuery = useQuery({ queryKey: queryKeys.devices.list(), queryFn: ({ signal }) => getDevices({ signal }) });
 
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (from && to) refresh();
-  }, [from, to, selectedDevice, refresh]);
+  const reportQueries = [summaryQuery, seriesQuery, breakdownQuery, alertsQuery, ispQuery];
+  const loading = reportQueries.some((q) => q.isFetching);
+  const error = reportQueries.some((q) => q.isError) ? 'Failed to load report data. Please try again.' : null;
+  const refresh = () => { void queryClient.invalidateQueries({ queryKey: queryKeys.reports.all }); };
+
+  const summary: ReportSummary | null = summaryQuery.data?.data ?? null;
+  const series = seriesQuery.data?.data || EMPTY_SERIES;
+  const deviceBreakdown = breakdownQuery.data?.data || EMPTY_BREAKDOWN;
+  const reportAlerts = alertsQuery.data?.data || EMPTY_REPORT_ALERTS;
+  const ispLinks = ispQuery.data?.data || EMPTY_ISP;
+  const allDevices = devicesQuery.data?.data || EMPTY_DEVICES;
 
   const handleSelectDevice = (id: number) => {
     setSelectedDevice(prev => prev === id ? undefined : id);
@@ -118,7 +117,7 @@ export default function Reports() {
             <p className="text-on-surface-variant font-body max-w-xl text-sm">Historical analytics, SLA compliance, and performance reports across all monitored nodes.</p>
           </div>
           <div className="flex items-center gap-2 no-print">
-            <button onClick={() => downloadMetricsCsv(toQuery(from, to, selectedDevice))} className="px-4 py-2 rounded-lg text-sm border border-primary/40 text-primary font-semibold uppercase hover:bg-primary/5 transition-colors flex items-center gap-1.5">
+            <button onClick={() => { void downloadMetricsCsv(toQuery(from, to, selectedDevice)); }} className="px-4 py-2 rounded-lg text-sm border border-primary/40 text-primary font-semibold uppercase hover:bg-primary/5 transition-colors flex items-center gap-1.5">
               <span className="material-symbols-outlined text-sm">download</span> CSV
             </button>
             <button onClick={handlePrint} className="px-4 py-2 rounded-lg text-sm border border-outline-variant/30 text-on-surface-variant font-semibold uppercase hover:text-on-surface hover:border-outline/40 transition-colors flex items-center gap-1.5">

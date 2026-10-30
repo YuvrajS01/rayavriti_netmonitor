@@ -4,7 +4,9 @@ import { useDispatch, useSelector } from 'react-redux';
 import { clearCredentials } from '../store/authSlice';
 import type { RootState } from '../store';
 import { logout, getAlertCounts } from '../api/client';
-import { useSocket, useSocketConnected } from '../hooks/useSocket';
+import { useSocketConnected } from '../hooks/useSocket';
+import { useQuery } from '@tanstack/react-query';
+import { queryKeys } from '../api/queryKeys';
 import IconColor from '../assets/brand/Icon-color.svg';
 
 interface NavItem {
@@ -110,7 +112,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const user = useSelector((s: RootState) => s.auth.user);
   const connected = useSocketConnected();
   const [sidebarOpen, setSidebarOpen] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 1024);
-  const [activeAlertCount, setActiveAlertCount] = useState(0);
   const [command, setCommand] = useState('');
   const [accountOpen, setAccountOpen] = useState(false);
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({
@@ -167,21 +168,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     setCommand('');
   };
 
-  const fetchAlertCount = () => {
-    getAlertCounts()
-      .then((res) => setActiveAlertCount(res.data?.active ?? 0))
-      .catch(() => {});
-  };
-
-  useEffect(() => {
-    fetchAlertCount();
-  }, []);
-
-  useSocket({
-    onAlertTriggered: () => fetchAlertCount(),
-    onAlertResolved: () => fetchAlertCount(),
-    onBootstrap: () => fetchAlertCount(),
+  // Invalidated by alert/bootstrap WebSocket events (useLiveQueryBridge).
+  const alertCountsQuery = useQuery({
+    queryKey: queryKeys.alerts.counts(),
+    queryFn: ({ signal }) => getAlertCounts({ signal }),
   });
+  const activeAlertCount = alertCountsQuery.data?.data?.active ?? 0;
 
   useEffect(() => {
     const main = document.getElementById('main-content');

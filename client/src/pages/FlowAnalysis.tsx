@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import {
   AreaChart, Area, XAxis, YAxis, ResponsiveContainer, Tooltip, Legend,
   PieChart, Pie, Cell, BarChart, Bar,
@@ -7,8 +8,14 @@ import {
   getFlowStats, getFlowRecords, getTopTalkers,
   getProtocolDistribution, getFlowTimeseries
 } from '../api/client';
+import { queryKeys } from '../api/queryKeys';
 import { useSocket } from '../hooks/useSocket';
 import type { FlowRecord, TopTalker, ProtocolBreakdown, FlowStats, FlowTimeseriesPoint } from '../api/types';
+
+const EMPTY_TIMESERIES: FlowTimeseriesPoint[] = [];
+const EMPTY_TALKERS: TopTalker[] = [];
+const EMPTY_PROTOCOLS: ProtocolBreakdown[] = [];
+const EMPTY_FLOWS: FlowRecord[] = [];
 import { PROTOCOL_COLORS, CHART_COLORS, TOOLTIP_STYLE, AXIS_TICK_STYLE, LEGEND_STYLE } from '../utils/chartConfig';
 import { formatBytes, formatNumber } from '../utils/formatters';
 import StatCard from '../components/ui/StatCard';
@@ -18,75 +25,34 @@ import SectionHeader from '../components/ui/SectionHeader';
 import Treemap from '../components/charts/Treemap';
 import SankeyDiagram from '../components/charts/SankeyDiagram';
 
+const FLOW_POLL_MS = 10_000;
+
 export default function FlowAnalysis() {
-  const [stats, setStats] = useState<FlowStats | null>(null);
-  const [timeseries, setTimeseries] = useState<FlowTimeseriesPoint[]>([]);
-  const [topSources, setTopSources] = useState<TopTalker[]>([]);
-  const [topDestinations, setTopDestinations] = useState<TopTalker[]>([]);
-  const [protocols, setProtocols] = useState<ProtocolBreakdown[]>([]);
-  const [flows, setFlows] = useState<FlowRecord[]>([]);
   const [flowFeed, setFlowFeed] = useState<Array<{ src: string; dst: string; proto: string; bytes: number; time: string }>>([]);
   const [filterIp, setFilterIp] = useState('');
   const [filterProto, setFilterProto] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const lastFlowStatsFetch = useRef(0);
 
-  const loadData = useCallback(async () => {
-    try {
-      setError(null);
-      const [statsRes, tsRes, srcRes, dstRes, protoRes, flowsRes] = await Promise.all([
-        getFlowStats(),
-        getFlowTimeseries({ bucketMinutes: 5 }),
-        getTopTalkers({ limit: 10, direction: 'src' }),
-        getTopTalkers({ limit: 10, direction: 'dst' }),
-        getProtocolDistribution(),
-        getFlowRecords({ limit: 50 }),
-      ]);
-      const rawStats = statsRes.data as unknown as Record<string, unknown> | null;
-      if (rawStats) {
-        setStats({
-          totalFlows: Number(rawStats.totalFlows) || 0,
-          totalBytes: Number(rawStats.totalBytes) || 0,
-          totalPackets: Number(rawStats.totalPackets) || 0,
-          uniqueSources: Number(rawStats.uniqueSources) || 0,
-          uniqueDestinations: Number(rawStats.uniqueDestinations) || 0,
-        });
-      }
-      setTimeseries(tsRes.data || []);
-      setTopSources(srcRes.data || []);
-      setTopDestinations(dstRes.data || []);
-      const rawProtos = protoRes.data as unknown as Record<string, number> | ProtocolBreakdown[] | null;
-      if (rawProtos && !Array.isArray(rawProtos)) {
-        const entries = Object.entries(rawProtos);
-        const totalBytes = entries.reduce((s, [, v]) => s + (v as number), 0);
-        setProtocols(entries.map(([name, bytes]) => ({
-          protocolName: name,
-          protocolNumber: 0,
-          bytes: bytes as number,
-          bytesFormatted: formatBytes(bytes as number),
-          packets: 0,
-          flows: 0,
-          percentage: totalBytes > 0 ? Math.round(((bytes as number) / totalBytes) * 100) : 0,
-        })));
-      } else {
-        setProtocols((rawProtos as ProtocolBreakdown[]) || []);
-      }
-      setFlows(flowsRes.data || []);
-    } catch {
-      setError('Failed to load flow data. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  // Independent queries: one failing endpoint no longer blanks the page.
+  // refetchInterval pauses while the tab is hidden.
+  const poll = { refetchInterval: FLOW_POLL_MS } as const;
+  const statsQuery = useQuery({ queryKey: queryKeys.flows.stats(), queryFn: ({ signal }) => getFlowStats({ signal }), ...poll });
+  const timeseriesQuery = useQuery({ queryKey: queryKeys.flows.timeseries(5), queryFn: ({ signal }) => getFlowTimeseries({ bucketMinutes: 5 }, { signal }), ...poll });
+  const sourcesQuery = useQuery({ queryKey: queryKeys.flows.topTalkers('src', 10), queryFn: ({ signal }) => getTopTalkers({ limit: 10, direction: 'src' }, { signal }), ...poll });
+  const destinationsQuery = useQuery({ queryKey: queryKeys.flows.topTalkers('dst', 10), queryFn: ({ signal }) => getTopTalkers({ limit: 10, direction: 'dst' }, { signal }), ...poll });
+  const protocolsQuery = useQuery({ queryKey: queryKeys.flows.protocols(), queryFn: ({ signal }) => getProtocolDistribution({}, { signal }), ...poll });
+  const flowsQuery = useQuery({ queryKey: queryKeys.flows.records(50), queryFn: ({ signal }) => getFlowRecords({ limit: 50 }, { signal }), ...poll });
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { loadData(); }, [loadData]);
+  const queries = [statsQuery, timeseriesQuery, sourcesQuery, destinationsQuery, protocolsQuery, flowsQuery];
+  const loading = queries.every((q) => q.isPending);
+  const error = queries.every((q) => q.isError) ? 'Failed to load flow data. Please try again.' : null;
+  const retry = () => { for (const q of queries) void q.refetch(); };
 
-  useEffect(() => {
-    const interval = setInterval(loadData, 10_000);
-    return () => clearInterval(interval);
-  }, [loadData]);
+  const stats: FlowStats | null = statsQuery.data?.data ?? null;
+  const timeseries = timeseriesQuery.data?.data || EMPTY_TIMESERIES;
+  const topSources = sourcesQuery.data?.data || EMPTY_TALKERS;
+  const topDestinations = destinationsQuery.data?.data || EMPTY_TALKERS;
+  const protocols = protocolsQuery.data?.data || EMPTY_PROTOCOLS;
+  const flows = flowsQuery.data?.data || EMPTY_FLOWS;
 
   useSocket({
     onFlowUpdate: (d) => {
@@ -96,22 +62,6 @@ export default function FlowAnalysis() {
           const newItems = sample.map((s) => ({ ...s, time: new Date().toLocaleTimeString() }));
           return [...newItems, ...prev].slice(0, 30);
         });
-      }
-      const now = Date.now();
-      if (now - lastFlowStatsFetch.current > 15_000) {
-        lastFlowStatsFetch.current = now;
-        getFlowStats().then((r) => {
-          const raw = r.data as unknown as Record<string, unknown> | null;
-          if (raw) {
-            setStats({
-              totalFlows: Number(raw.totalFlows) || 0,
-              totalBytes: Number(raw.totalBytes) || 0,
-              totalPackets: Number(raw.totalPackets) || 0,
-              uniqueSources: Number(raw.uniqueSources) || 0,
-              uniqueDestinations: Number(raw.uniqueDestinations) || 0,
-            });
-          }
-        }).catch(() => {});
       }
     },
   });
@@ -139,7 +89,7 @@ export default function FlowAnalysis() {
 
       {loading && <LoadingState message="Loading flow data..." />}
 
-      {error && !loading && <ErrorState message={error} onRetry={loadData} />}
+      {error && !loading && <ErrorState message={error} onRetry={retry} />}
 
       {!loading && !error && (
         <>
