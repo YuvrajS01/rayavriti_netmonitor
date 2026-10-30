@@ -106,7 +106,13 @@ func evaluateStateChange(condition models.AlertRuleCondition, metric *models.Met
 			result.Result = currentStatus != expectedValue
 		}
 		if result.Result {
-			result.Description = fmt.Sprintf("status changed: %s → %s (expected %s)", previousStatus, currentStatus, expectedValue)
+			// The condition matches the current status, which isn't always a
+			// transition; only describe a change when there was one.
+			if previousStatus != "" && previousStatus != currentStatus {
+				result.Description = fmt.Sprintf("status changed: %s → %s", previousStatus, currentStatus)
+			} else {
+				result.Description = fmt.Sprintf("status is %s", currentStatus)
+			}
 		}
 
 	case "port_state":

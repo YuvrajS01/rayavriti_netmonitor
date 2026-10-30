@@ -117,6 +117,17 @@ type Alert struct {
 	AcknowledgedBy *string    `json:"acknowledgedBy,omitempty"`
 	ResolvedBy     *string    `json:"resolvedBy,omitempty"`
 	RuleID         *int64     `json:"ruleId,omitempty"`
+	AssignedTo     *int64     `json:"assignedTo"`
+	AssignedToName *string    `json:"assignedToName"`
+}
+
+// AlertNote is an operator note on an alert.
+type AlertNote struct {
+	ID        int64     `json:"id"`
+	AlertID   int64     `json:"alertId"`
+	Text      string    `json:"text"`
+	Author    string    `json:"author"`
+	CreatedAt time.Time `json:"createdAt"`
 }
 
 type AlertCounts struct {
