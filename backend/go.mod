@@ -12,6 +12,7 @@ require (
 	github.com/gorilla/websocket v1.5.3
 	github.com/gosnmp/gosnmp v1.43.2
 	github.com/jackc/pgx/v5 v5.10.0
+	github.com/netsampler/goflow2/v2 v2.2.7
 	github.com/prometheus-community/pro-bing v0.8.0
 	github.com/prometheus/client_golang v1.25.0
 	github.com/redis/go-redis/v9 v9.20.1
@@ -51,6 +52,7 @@ require (
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
 	github.com/klauspost/compress v1.20.1 // indirect
+	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/lufia/plan9stats v0.0.0-20211012122336-39d0f177ccd0 // indirect
 	github.com/magiconair/properties v1.8.10 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
