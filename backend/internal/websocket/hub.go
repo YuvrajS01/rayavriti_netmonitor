@@ -15,6 +15,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rayavriti/netmonitor-backend/internal/auth"
+	"github.com/rayavriti/netmonitor-backend/internal/metrics"
 )
 
 // defaultDevOrigins are origins used by the Vite dev server and the API's own
@@ -111,8 +112,15 @@ type Hub struct {
 	scopeFilter atomic.Pointer[ScopeFilterFunc]
 	db          *pgxpool.Pool
 	stopOnce    sync.Once
-	stopped     bool
+	// done stops Run and makes Broadcast a no-op. broadcast itself is never
+	// closed, so a Broadcast racing with Stop can't panic.
+	done chan struct{}
 }
+
+var (
+	broadcastFullDrops = metrics.WSMessagesDropped.WithLabelValues("broadcast_full")
+	slowClientDrops    = metrics.WSMessagesDropped.WithLabelValues("slow_client")
+)
 
 // ScopeFilterFunc determines whether a client should receive a message.
 // Returns true if the message should be delivered to the client.
@@ -126,6 +134,7 @@ func NewHub(jwtSecret string, bootstrap BootstrapFunc, allowedOrigins []string) 
 	return &Hub{
 		clients:   make(map[*client]struct{}),
 		broadcast: make(chan Message, 256),
+		done:      make(chan struct{}),
 		jwtSecret: jwtSecret,
 		bootstrap: bootstrap,
 		upgrader: websocket.Upgrader{
@@ -154,7 +163,13 @@ func (h *Hub) SetDB(db *pgxpool.Pool) {
 }
 
 func (h *Hub) Run() {
-	for msg := range h.broadcast {
+	for {
+		var msg Message
+		select {
+		case <-h.done:
+			return
+		case msg = <-h.broadcast:
+		}
 		b, err := json.Marshal(msg)
 		if err != nil {
 			continue
@@ -177,6 +192,7 @@ func (h *Hub) Run() {
 				count++
 			default:
 				// slow client: drop message for this client
+				slowClientDrops.Inc()
 			}
 		}
 		h.mu.RUnlock()
@@ -202,31 +218,25 @@ func (h *Hub) Broadcast(msg Message) {
 		h.publisher(context.Background(), msg)
 		return
 	}
-	h.mu.RLock()
-	stopped := h.stopped
-	h.mu.RUnlock()
-	if stopped {
-		return
-	}
-	select {
-	case h.broadcast <- msg:
-	default:
-		slog.Warn("WebSocket broadcast channel full, dropping message", "event", string(msg.Type))
-	}
+	h.enqueue(msg)
 }
 
 // BroadcastLocal sends a message to locally connected clients only (no Redis publish).
 // Used by the Pub/Sub subscriber to deliver messages from other instances.
 func (h *Hub) BroadcastLocal(msg Message) {
-	h.mu.RLock()
-	stopped := h.stopped
-	h.mu.RUnlock()
-	if stopped {
+	h.enqueue(msg)
+}
+
+func (h *Hub) enqueue(msg Message) {
+	select {
+	case <-h.done:
 		return
+	default:
 	}
 	select {
 	case h.broadcast <- msg:
 	default:
+		broadcastFullDrops.Inc()
 		slog.Warn("WebSocket broadcast channel full, dropping message", "event", string(msg.Type))
 	}
 }
@@ -239,10 +249,7 @@ func (h *Hub) SetPublisher(fn func(ctx context.Context, msg Message)) {
 
 func (h *Hub) Stop() {
 	h.stopOnce.Do(func() {
-		h.mu.Lock()
-		h.stopped = true
-		h.mu.Unlock()
-		close(h.broadcast)
+		close(h.done)
 		h.mu.Lock()
 		for c := range h.clients {
 			c.mu.Lock()

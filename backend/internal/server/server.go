@@ -98,6 +98,7 @@ func (s *Server) Start() error {
 
 	// Middleware
 	r.Use(RequestID)
+	r.Use(HTTPMetrics)
 	r.Use(Recovery)
 	r.Use(SecurityHeaders)
 	r.Use(logging.RequestLogger(s.logger, s.cfg.Logging.SlowRequestMs))

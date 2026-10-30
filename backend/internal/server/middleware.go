@@ -13,9 +13,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/go-chi/chi/v5"
+	chimw "github.com/go-chi/chi/v5/middleware"
 	"github.com/rayavriti/netmonitor-backend/internal/auth"
 	"github.com/rayavriti/netmonitor-backend/internal/cache"
 	"github.com/rayavriti/netmonitor-backend/internal/logging"
+	"github.com/rayavriti/netmonitor-backend/internal/metrics"
 	"golang.org/x/time/rate"
 )
 
@@ -183,6 +186,28 @@ func Recovery(next http.Handler) http.Handler {
 }
 
 // RequestSize limits the maximum request body size.
+// HTTPMetrics records request latency labelled by chi route pattern (never
+// the raw path, which would explode label cardinality).
+func HTTPMetrics(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ww := chimw.NewWrapResponseWriter(w, r.ProtoMajor)
+		start := time.Now()
+		next.ServeHTTP(ww, r)
+		route := "other"
+		if rc := chi.RouteContext(r.Context()); rc != nil {
+			if p := rc.RoutePattern(); p != "" && p != "/*" {
+				route = p
+			}
+		}
+		status := ww.Status()
+		if status == 0 {
+			status = http.StatusOK
+		}
+		code := strconv.Itoa(status/100) + "xx"
+		metrics.HTTPRequestDuration.WithLabelValues(r.Method, route, code).Observe(time.Since(start).Seconds())
+	})
+}
+
 // Paths in exempt are skipped because nested MaxBytesReaders can only lower
 // a limit: those handlers must apply their own cap.
 func RequestSize(max int64, exempt ...string) func(http.Handler) http.Handler {

@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/rayavriti/netmonitor-backend/internal/metrics"
 	"github.com/rayavriti/netmonitor-backend/internal/models"
 )
 
@@ -31,7 +32,10 @@ type ScheduleEntry struct {
 	// detect transitions, independent of how stale the DB snapshot in
 	// Device is between reconciles.
 	LastStatus string
-	index      int
+	// InFlight is set while a job for this device is queued or running, so
+	// an overloaded pool doesn't accumulate duplicate jobs for one device.
+	InFlight bool
+	index    int
 }
 
 type ScheduleHeap []*ScheduleEntry
@@ -62,6 +66,10 @@ type PollDispatcher struct {
 	wg        sync.WaitGroup
 	cancel    context.CancelFunc
 	wakeup    chan struct{}
+	// splay spreads first polls across each device's interval. It is
+	// enabled only around the initial bulk load, so devices added later
+	// are polled immediately.
+	splay bool
 }
 
 func NewPollDispatcher(pool *WorkerPool, defaultInterval time.Duration) *PollDispatcher {
@@ -74,6 +82,41 @@ func NewPollDispatcher(pool *WorkerPool, defaultInterval time.Duration) *PollDis
 		interval:  defaultInterval,
 		wakeup:    make(chan struct{}, 1),
 	}
+}
+
+// BeginInitialLoad enables start-up splay for the devices scheduled next.
+func (d *PollDispatcher) BeginInitialLoad() {
+	d.mu.Lock()
+	d.splay = true
+	d.mu.Unlock()
+}
+
+// EndInitialLoad turns off start-up splay: devices added from now on are
+// polled as soon as they are scheduled.
+func (d *PollDispatcher) EndInitialLoad() {
+	d.mu.Lock()
+	d.splay = false
+	d.mu.Unlock()
+}
+
+// splayOffset deterministically spreads devices across [0, interval) so a
+// restart doesn't make every device due at the same instant.
+func splayOffset(deviceID int64, interval time.Duration) time.Duration {
+	if interval <= 0 {
+		return 0
+	}
+	h := uint64(deviceID) * 0x9E3779B97F4A7C15 //nolint:gosec // hashing, overflow intended
+	return time.Duration(h % uint64(interval))
+}
+
+// Done clears the in-flight flag once a device's poll result has been
+// handled (or its job was dropped).
+func (d *PollDispatcher) Done(deviceID int64) {
+	d.mu.Lock()
+	if entry, ok := d.deviceMap[deviceID]; ok {
+		entry.InFlight = false
+	}
+	d.mu.Unlock()
 }
 
 func (d *PollDispatcher) Start(ctx context.Context) {
@@ -126,12 +169,16 @@ func (d *PollDispatcher) Upsert(device models.Device, priority int, interval tim
 			}
 		}
 	} else {
+		next := time.Now()
+		if d.splay {
+			next = next.Add(splayOffset(device.ID, interval))
+		}
 		entry = &ScheduleEntry{
 			DeviceID:   device.ID,
 			Device:     device,
 			Priority:   priority,
 			Interval:   interval,
-			NextPollAt: time.Now(),
+			NextPollAt: next,
 			State:      StateHealthy,
 		}
 		d.deviceMap[device.ID] = entry
@@ -317,6 +364,15 @@ func (d *PollDispatcher) dispatchDue() {
 			continue
 		}
 
+		if entry.InFlight {
+			// Previous poll still queued or running: skip this cycle.
+			metrics.PollsSkippedInFlight.Inc()
+			entry.NextPollAt = now.Add(entry.effectiveInterval())
+			heap.Push(d.schedule, entry)
+			continue
+		}
+		entry.InFlight = true
+
 		priority := entry.Priority
 		if entry.State == StateUnreachable {
 			priority = 2
@@ -340,13 +396,27 @@ func (d *PollDispatcher) dispatchDue() {
 
 	for _, job := range toEnqueue {
 		if !d.pool.Enqueue(job) {
-			// Queue full — re-arm this device's NextPollAt so the next
-			// reconcile cycle retries it (M16 — previously the drop was
-			// silent and the dispatcher kept re-scheduling immediately).
-			slog.Warn("enqueue failed, will retry on next reconcile",
-				"deviceID", job.Device.ID)
+			// Queue full: clear in-flight and retry after a quarter of the
+			// interval instead of waiting a whole cycle.
+			d.retrySoon(job.Device.ID)
 		}
 	}
+}
+
+func (d *PollDispatcher) retrySoon(deviceID int64) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	entry, ok := d.deviceMap[deviceID]
+	if !ok {
+		return
+	}
+	entry.InFlight = false
+	delay := entry.effectiveInterval() / 4
+	if delay < 2*time.Second {
+		delay = 2 * time.Second
+	}
+	entry.NextPollAt = time.Now().Add(delay)
+	heap.Fix(d.schedule, entry.index)
 }
 
 func (d *PollDispatcher) rescheduleTimer(timer *time.Timer) {

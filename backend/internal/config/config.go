@@ -39,6 +39,10 @@ type AppConfig struct {
 	Version     string
 	CORSOrigins []string
 	PublicDir   string
+	// AdminAddr serves /metrics (and pprof when PprofEnabled) on a separate
+	// listener. Empty disables it. Keep it on loopback or a private network.
+	AdminAddr    string
+	PprofEnabled bool
 }
 
 type DatabaseConfig struct {
@@ -164,11 +168,13 @@ func Load() (*Config, error) {
 
 	cfg := &Config{
 		App: AppConfig{
-			Port:        envInt("PORT", 3000),
-			AppEnv:      envStr("APP_ENV", envStr("NODE_ENV", "development")),
-			Version:     envStr("VERSION", BuildVersion),
-			CORSOrigins: envSliceDefault("CORS_ORIGINS", []string{"http://localhost:3000"}),
-			PublicDir:   envStr("PUBLIC_DIR", "/app/public"),
+			Port:         envInt("PORT", 3000),
+			AppEnv:       envStr("APP_ENV", envStr("NODE_ENV", "development")),
+			Version:      envStr("VERSION", BuildVersion),
+			CORSOrigins:  envSliceDefault("CORS_ORIGINS", []string{"http://localhost:3000"}),
+			PublicDir:    envStr("PUBLIC_DIR", "/app/public"),
+			AdminAddr:    envStr("ADMIN_ADDR", "127.0.0.1:9464"),
+			PprofEnabled: envBool("PPROF_ENABLED", false),
 		},
 		Database: DatabaseConfig{
 			DSN:               envStr("DATABASE_URL", envStr("DATABASE_DSN", "postgres://postgres:postgres@localhost:5432/netmonitor?sslmode=disable")),

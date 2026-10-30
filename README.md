@@ -202,6 +202,14 @@ All configuration via environment variables. See [`.env.example`](.env.example) 
 | `FLOW_RETENTION_DAYS` | `7` | Auto-delete flow records older than N days |
 | `ALERTS_RETENTION_DAYS` | `90` | Auto-delete resolved alerts older than N days |
 | `CAPTURE_ENABLED` | `true` | Enable packet capture feature |
+| `ADMIN_ADDR` | `127.0.0.1:9464` | Admin listener for Prometheus `/metrics` (empty disables) |
+| `PPROF_ENABLED` | `false` | Also serve `/debug/pprof` on the admin listener |
+
+### Health and metrics
+
+- `GET /livez`: liveness (the process is serving HTTP).
+- `GET /readyz` (alias `/health`): readiness. Returns 503 when the database is unreachable.
+- `GET http://ADMIN_ADDR/metrics`: Prometheus metrics. These cover poll counts and latency by protocol, queue depths, dropped and in-flight-skipped polls, pipeline batch timing, DB pool stats, WebSocket clients and drops, notification outcomes, HTTP latency by route, and build info. The admin listener is separate from the API and is not authenticated, so keep it on loopback or a management network.
 
 ---
 
