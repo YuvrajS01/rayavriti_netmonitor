@@ -11,11 +11,30 @@ import (
 	"github.com/rayavriti/netmonitor-backend/internal/httputil"
 	"github.com/rayavriti/netmonitor-backend/internal/models"
 	"github.com/rayavriti/netmonitor-backend/internal/rbac"
+	"github.com/rayavriti/netmonitor-backend/internal/websocket"
 )
 
-type AlertHandler struct{ db database.Database }
+type AlertHandler struct {
+	db  database.Database
+	hub *websocket.Hub
+}
 
 func NewAlertHandler(db database.Database) *AlertHandler { return &AlertHandler{db: db} }
+
+// WithHub makes acknowledge/resolve publish alert:updated events.
+func (h *AlertHandler) WithHub(hub *websocket.Hub) *AlertHandler {
+	h.hub = hub
+	return h
+}
+
+func (h *AlertHandler) publishUpdated(r *http.Request, id int64) {
+	if h.hub == nil {
+		return
+	}
+	if a, err := h.db.GetAlert(r.Context(), id); err == nil && a != nil {
+		h.hub.Broadcast(websocket.Message{Type: websocket.EventAlertUpdated, Data: a})
+	}
+}
 
 func (h *AlertHandler) List(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
@@ -145,6 +164,7 @@ func (h *AlertHandler) Acknowledge(w http.ResponseWriter, r *http.Request) {
 		httputil.SendInternalError(w, err)
 		return
 	}
+	h.publishUpdated(r, id)
 	httputil.SendOK(w, map[string]bool{"acknowledged": true})
 }
 
@@ -163,6 +183,7 @@ func (h *AlertHandler) Resolve(w http.ResponseWriter, r *http.Request) {
 		httputil.SendInternalError(w, err)
 		return
 	}
+	h.publishUpdated(r, id)
 	httputil.SendOK(w, map[string]bool{"resolved": true})
 }
 

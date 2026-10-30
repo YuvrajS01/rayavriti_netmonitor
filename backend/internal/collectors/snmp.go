@@ -23,8 +23,11 @@ const (
 	oidHRStorageSize   = ".1.3.6.1.2.1.25.2.3.1.5"
 	oidHRStorageUsed   = ".1.3.6.1.2.1.25.2.3.1.6"
 	oidHRStorageUnits  = ".1.3.6.1.2.1.25.2.3.1.4"
-	oidIfTable         = ".1.3.6.1.2.1.2.2"
-	oidIfXTable        = ".1.3.6.1.2.1.31.1.1"
+	// Table walks address columns as <entry>.<column>, so these are the
+	// ifEntry / ifXEntry OIDs (table + ".1"). Using the table OIDs walked
+	// the wrong subtrees and returned no interfaces from real agents.
+	oidIfTable  = ".1.3.6.1.2.1.2.2.1"
+	oidIfXTable = ".1.3.6.1.2.1.31.1.1.1"
 )
 
 var hrStorageRAM = ".1.3.6.1.2.1.25.2.1.2"

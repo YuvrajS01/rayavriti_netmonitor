@@ -575,8 +575,7 @@ func (p *Postgres) GetAlerts(ctx context.Context, status string, limit, offset i
 	if err := p.pool.QueryRow(ctx, countSQL, args...).Scan(&total); err != nil {
 		return nil, 0, err
 	}
-	listSQL := `SELECT id,COALESCE(device_id,0),COALESCE(device_name,''),severity,message,status,rule_id,
-	                   created_at,acknowledged_at,resolved_at,acknowledged_by,resolved_by ` +
+	listSQL := `SELECT ` + alertCols + ` ` +
 		base + ` ORDER BY created_at DESC, id DESC`
 	listSQL += fmt.Sprintf(` LIMIT $%d OFFSET $%d`, argN, argN+1)
 	args = append(args, limit, offset)
@@ -590,31 +589,18 @@ func (p *Postgres) GetAlerts(ctx context.Context, status string, limit, offset i
 }
 
 // buildAlertScopeCondition renders a scope filter as a WHERE condition against
-// the alerts table. Location and subnet scopes are resolved through the
-// devices table since alerts only carry device_id.
+// the alerts table. Alerts only carry device_id, so the device scope
+// condition (shared with device listing) is applied through devices.
 func buildAlertScopeCondition(scope *ScopeFilter, args *[]any, argN *int) (string, bool) {
-	subConds := []string{}
-	if len(scope.LocationIDs) > 0 {
-		*args = append(*args, scope.LocationIDs)
-		subConds = append(subConds, fmt.Sprintf("location_id = ANY($%d)", *argN))
-		*argN++
-	}
-	for _, cidr := range scope.SubnetCIDRs {
-		*args = append(*args, cidr)
-		subConds = append(subConds, fmt.Sprintf("ip_address <<= $%d", *argN))
-		*argN++
-	}
-	if len(subConds) == 0 {
-		return "FALSE", true
-	}
-	inner := "(" + strings.Join(subConds, " OR ") + ")"
-	return fmt.Sprintf("device_id IN (SELECT id FROM devices WHERE %s)", inner), true
+	cond, scopeArgs := scopeCondition(scope, *argN)
+	*args = append(*args, scopeArgs...)
+	*argN += len(scopeArgs)
+	return fmt.Sprintf("device_id IN (SELECT id FROM devices WHERE %s)", cond), true
 }
 
 func (p *Postgres) GetAlert(ctx context.Context, id int64) (*models.Alert, error) {
 	rows, err := p.pool.Query(ctx, `
-		SELECT id,COALESCE(device_id,0),COALESCE(device_name,''),severity,message,status,rule_id,
-		       created_at,acknowledged_at,resolved_at,acknowledged_by,resolved_by
+		SELECT `+alertCols+`
 		FROM alerts WHERE id=$1`, id)
 	if err != nil {
 		return nil, err
@@ -678,8 +664,7 @@ func (p *Postgres) DeleteAlert(ctx context.Context, id int64) error {
 
 func (p *Postgres) FindActiveAlertByRuleAndDevice(ctx context.Context, ruleID, deviceID int64) (*models.Alert, error) {
 	rows, err := p.pool.Query(ctx, `
-		SELECT id,COALESCE(device_id,0),COALESCE(device_name,''),severity,message,status,rule_id,
-		       created_at,acknowledged_at,resolved_at,acknowledged_by,resolved_by
+		SELECT `+alertCols+`
 		FROM alerts WHERE status='active' AND rule_id=$1 AND device_id=$2
 		LIMIT 1`, ruleID, deviceID)
 	if err != nil {
@@ -696,6 +681,11 @@ func (p *Postgres) FindActiveAlertByRuleAndDevice(ctx context.Context, ruleID, d
 	return &alerts[0], nil
 }
 
+// alertCols is the column list every alert query selects; scanAlerts reads it.
+const alertCols = `id,COALESCE(device_id,0),COALESCE(device_name,''),severity,message,status,rule_id,
+	created_at,acknowledged_at,resolved_at,acknowledged_by,resolved_by,assigned_to,
+	(SELECT COALESCE(NULLIF(u.display_name,''),u.username) FROM users u WHERE u.id = alerts.assigned_to)`
+
 func scanAlerts(rows pgx.Rows) ([]models.Alert, error) {
 	var out []models.Alert
 	for rows.Next() {
@@ -703,6 +693,7 @@ func scanAlerts(rows pgx.Rows) ([]models.Alert, error) {
 		err := rows.Scan(
 			&a.ID, &a.DeviceID, &a.DeviceName, &a.Severity, &a.Message, &a.Status, &a.RuleID,
 			&a.CreatedAt, &a.AcknowledgedAt, &a.ResolvedAt, &a.AcknowledgedBy, &a.ResolvedBy,
+			&a.AssignedTo, &a.AssignedToName,
 		)
 		if err != nil {
 			return nil, err

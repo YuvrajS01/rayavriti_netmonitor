@@ -397,6 +397,7 @@ func retentionPolicies(cfg *config.Config, logger *logging.Logger) []database.Re
 		{Relation: "metrics", Days: metricsDays},
 		{Relation: "metrics_hourly", Days: c.MetricsHourlyRetentionDays},
 		{Relation: "isp_metrics", Days: metricsDays},
+		{Relation: "interface_metrics", Days: metricsDays},
 		{Relation: "flows", Days: c.FlowRetentionDays},
 		{Relation: "system_log_events", Days: c.LogRetentionDays},
 		{Relation: "capture_packets", Days: c.CaptureRetentionDays},
