@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -45,8 +46,8 @@ func (h *AuthHandler) authenticate(w http.ResponseWriter, r *http.Request, inclu
 	}
 
 	// Brute-force throttle: per-IP + per-username sliding window.
+	ip := clientIP(r)
 	if h.loginLimiter != nil {
-		ip := clientIP(r)
 		allowed, reason := h.loginLimiter.Allow(ip, body.Username)
 		if !allowed {
 			httputil.SendError(w, http.StatusTooManyRequests, reason)
@@ -55,7 +56,14 @@ func (h *AuthHandler) authenticate(w http.ResponseWriter, r *http.Request, inclu
 	}
 
 	user, err := h.db.GetUserByUsername(r.Context(), body.Username)
-	if err != nil || !auth.CheckPassword(body.Password, user.PasswordHash) {
+	if err != nil || user == nil {
+		// Spend the same scrypt work as a real check so response timing
+		// doesn't reveal which usernames exist.
+		auth.CheckPassword(body.Password, dummyPasswordHash())
+		httputil.SendError(w, http.StatusUnauthorized, "invalid credentials")
+		return
+	}
+	if !auth.CheckPassword(body.Password, user.PasswordHash) {
 		httputil.SendError(w, http.StatusUnauthorized, "invalid credentials")
 		return
 	}
@@ -66,7 +74,7 @@ func (h *AuthHandler) authenticate(w http.ResponseWriter, r *http.Request, inclu
 
 	// Successful authentication: clear the per-username throttle counter.
 	if h.loginLimiter != nil {
-		h.loginLimiter.ResetSuccess(body.Username)
+		h.loginLimiter.ResetSuccess(ip, body.Username)
 	}
 
 	// Load permissions from the roles table
@@ -581,18 +589,38 @@ func permissionsForRole(role string) []string {
 
 // clientIP extracts the client IP from a request, accounting for
 // X-Forwarded-For when the request is behind a reverse proxy.
+// clientIP returns the address used for login throttling. X-Forwarded-For is
+// client-controlled, so it is only honoured when the direct peer is a
+// reverse proxy on the same host, and then the rightmost entry (the one that
+// proxy appended) is used.
 func clientIP(r *http.Request) string {
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		for i := 0; i < len(xff); i++ {
-			if xff[i] == ',' {
-				return strings.TrimSpace(xff[:i])
-			}
-		}
-		return strings.TrimSpace(xff)
-	}
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
-		return r.RemoteAddr
+		host = r.RemoteAddr
+	}
+	peer := net.ParseIP(host)
+	if peer == nil || !peer.IsLoopback() {
+		return host
+	}
+	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+		parts := strings.Split(xff, ",")
+		if last := strings.TrimSpace(parts[len(parts)-1]); net.ParseIP(last) != nil {
+			return last
+		}
 	}
 	return host
+}
+
+var (
+	dummyHashOnce sync.Once
+	dummyHash     string
+)
+
+// dummyPasswordHash returns a fixed scrypt hash used to equalise login timing
+// for unknown usernames.
+func dummyPasswordHash() string {
+	dummyHashOnce.Do(func() {
+		dummyHash, _ = auth.HashPassword("netmonitor-timing-equaliser")
+	})
+	return dummyHash
 }

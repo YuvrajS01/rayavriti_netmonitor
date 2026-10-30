@@ -225,7 +225,7 @@ func (s *Server) Start() error {
 
 	// WebSocket scope filter: only deliver events to users with matching scopes
 	if pp, ok := s.db.(database.PoolProvider); ok && pp.Pool() != nil {
-		pool := pp.Pool()
+		locations := newDeviceLocationCache(pp.Pool(), time.Minute)
 		s.hub.SetScopeFilter(func(info websocket.ClientInfo, msg websocket.Message) bool {
 			if info.Role == "super_admin" || info.Role == "admin" {
 				return true
@@ -233,37 +233,25 @@ func (s *Server) Start() error {
 			if len(info.Scopes) == 0 {
 				return false
 			}
-			switch msg.Type {
-			case websocket.EventMetricUpdate, websocket.EventAlertTriggered,
-				websocket.EventAlertUpdated, websocket.EventAlertResolved,
-				websocket.EventDeviceStatus:
-				data, ok := msg.Data.(map[string]any)
-				if !ok {
-					return false
-				}
-				deviceID, _ := data["device_id"].(float64)
-				if deviceID == 0 {
-					return false
-				}
-				var locationID int64
-				_ = pool.QueryRow(context.Background(),
-					"SELECT COALESCE(location_id, 0) FROM devices WHERE id = $1", int64(deviceID)).
-					Scan(&locationID)
-				if locationID == 0 {
-					return false
-				}
-				for _, scope := range info.Scopes {
-					if scope.ScopeType == "location" && scope.ScopeValue == fmt.Sprintf("%d", locationID) {
-						return true
-					}
-				}
-				return false
-			default:
-				// Default: deny non-device events to scoped users (M34 —
-				// previously defaulted to true, leaking all non-device
-				// events to location-scoped users).
+			// Default: deny non-device events to scoped users (M34).
+			if !isDeviceEvent(msg.Type) {
 				return false
 			}
+			deviceID := messageDeviceID(msg.Data)
+			if deviceID == 0 {
+				return false
+			}
+			locationID := locations.locationOf(deviceID)
+			if locationID == 0 {
+				return false
+			}
+			want := fmt.Sprintf("%d", locationID)
+			for _, scope := range info.Scopes {
+				if scope.ScopeType == "location" && scope.ScopeValue == want {
+					return true
+				}
+			}
+			return false
 		})
 	}
 
