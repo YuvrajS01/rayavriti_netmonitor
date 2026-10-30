@@ -1,4 +1,4 @@
-import { v1, wrap } from './http';
+import { v1, wrap, type RequestOptions } from './http';
 
 export interface LogEvent {
   id: number;
@@ -63,17 +63,17 @@ export interface LogFilters {
 const params = (filters: LogFilters) =>
   Object.fromEntries(Object.entries(filters).filter(([, v]) => v !== undefined && v !== null && v !== ''));
 
-export const getLogs = (filters: LogFilters) =>
-  v1.get('/system/logs', { params: params(filters) }).then((r) => ({
+export const getLogs = (filters: LogFilters, { signal }: RequestOptions = {}) =>
+  v1.get('/system/logs', { params: params(filters), signal }).then((r) => ({
     data: wrap<{ events: LogEvent[] }>(r.data).data.events || [],
     total: (r.data?.meta?.total as number) || 0,
   }));
 
-export const getLogStats = (filters: LogFilters) =>
-  v1.get('/system/logs/stats', { params: params(filters) }).then((r) => wrap<LogStats>(r.data));
+export const getLogStats = (filters: LogFilters, { signal }: RequestOptions = {}) =>
+  v1.get('/system/logs/stats', { params: params(filters), signal }).then((r) => wrap<LogStats>(r.data));
 
-export const getVerboseSessions = () =>
-  v1.get('/system/logging/verbose-sessions', { params: { active: true } })
+export const getVerboseSessions = ({ signal }: RequestOptions = {}) =>
+  v1.get('/system/logging/verbose-sessions', { params: { active: true }, signal })
     .then((r) => wrap<{ sessions: VerboseSession[] }>(r.data));
 
 export const createVerboseSession = (body: {
@@ -83,10 +83,10 @@ export const createVerboseSession = (body: {
   userIds: string[];
   reason: string;
   durationMinutes: number;
-}) => v1.post('/system/logging/verbose-sessions', body).then((r) => wrap<VerboseSession>(r.data));
+}, { signal }: RequestOptions = {}) => v1.post('/system/logging/verbose-sessions', body, { signal }).then((r) => wrap<VerboseSession>(r.data));
 
-export const stopVerboseSession = (id: number) =>
-  v1.post(`/system/logging/verbose-sessions/${id}/stop`, {}).then((r) => wrap<{ stopped: boolean }>(r.data));
+export const stopVerboseSession = (id: number, { signal }: RequestOptions = {}) =>
+  v1.post(`/system/logging/verbose-sessions/${id}/stop`, {}, { signal }).then((r) => wrap<{ stopped: boolean }>(r.data));
 
 export const logsExportUrl = (filters: LogFilters) => {
   const query = new URLSearchParams(params(filters) as Record<string, string>).toString();

@@ -105,6 +105,23 @@ const handleTokenRefresh = async (error: AxiosError) => {
 v1.interceptors.request.use(attachToken);
 v1.interceptors.response.use((res) => res, handleTokenRefresh);
 
+/** Options accepted by every api function; `signal` cancels the request. */
+export interface RequestOptions {
+  signal?: AbortSignal;
+}
+
+/** Trigger a browser download for a blob fetched through the api layer. */
+export function saveBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 export function unwrapGoResponse<T>(raw: unknown): T {
   const body = raw as Record<string, unknown>;
   const data = body?.data !== undefined ? body.data : body;

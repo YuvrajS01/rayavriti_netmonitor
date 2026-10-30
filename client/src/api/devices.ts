@@ -1,23 +1,29 @@
-import { v1, wrap } from './http';
+import { v1, wrap, type RequestOptions } from './http';
 import type { Device, Metric, PortScanResult, PortScanResponse } from './types';
 
-export const getDevices = () =>
-  v1.get('/devices').then((r) => wrap<Device[]>(r.data));
+export const getDevices = ({ signal }: RequestOptions = {}) =>
+  v1.get('/devices', { signal }).then((r) => wrap<Device[]>(r.data));
 
-export const addDevice = (device: Record<string, unknown>) =>
-  v1.post('/devices', device).then((r) => wrap<Device>(r.data));
+export const addDevice = (device: Record<string, unknown>, { signal }: RequestOptions = {}) =>
+  v1.post('/devices', device, { signal }).then((r) => wrap<Device>(r.data));
 
-export const deleteDevice = (id: number) =>
-  v1.delete(`/devices/${id}`).then((r) => r.data);
+export const updateDevice = (id: number, patch: Record<string, unknown>, { signal }: RequestOptions = {}) =>
+  v1.put(`/devices/${id}`, patch, { signal }).then((r) => wrap<Device>(r.data));
 
-export const getLatestMetrics = () =>
-  v1.get('/metrics/latest').then((r) => wrap<Metric[]>(r.data));
+export const deleteDevice = (id: number, { signal }: RequestOptions = {}) =>
+  v1.delete(`/devices/${id}`, { signal }).then((r) => r.data);
 
-export const getDeviceMetrics = (id: number, limit?: number) =>
-  v1.get(`/devices/${id}/metrics${limit ? `?limit=${limit}` : ''}`).then((r) => wrap<Metric[]>(r.data));
+export const getLatestMetrics = ({ signal }: RequestOptions = {}) =>
+  v1.get('/metrics/latest', { signal }).then((r) => wrap<Metric[]>(r.data));
 
-export const getDevicePorts = (id: number) =>
-  v1.get(`/devices/${id}/ports`).then((r) => wrap<PortScanResult[]>(r.data));
+export const getDeviceMetrics = (id: number, limit?: number, { signal }: RequestOptions = {}) =>
+  v1.get(`/devices/${id}/metrics${limit ? `?limit=${limit}` : ''}`, { signal }).then((r) => wrap<Metric[]>(r.data));
 
-export const scanDevicePorts = (id: number) =>
-  v1.post(`/devices/${id}/scan-ports`).then((r) => wrap<PortScanResponse>(r.data));
+export const getDevicePorts = (id: number, { signal }: RequestOptions = {}) =>
+  v1.get(`/devices/${id}/ports`, { signal }).then((r) => wrap<PortScanResult[]>(r.data));
+
+export const scanDevicePorts = (id: number, { signal }: RequestOptions = {}) =>
+  v1.post(`/devices/${id}/scan-ports`, undefined, { signal }).then((r) => wrap<PortScanResponse>(r.data));
+
+export const downloadImportTemplate = ({ signal }: RequestOptions = {}) =>
+  v1.get('/import/template', { responseType: 'blob', signal }).then((r) => r.data as Blob);

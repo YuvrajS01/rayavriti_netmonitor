@@ -7,6 +7,9 @@ import { SocketProvider } from './hooks/useSocket';
 import { clearCredentials, setPermissions } from './store/authSlice';
 import { v1 } from './api/http';
 import { ToastProvider } from './components/ui/Toast';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { queryClient } from './api/queryClient';
+import { useLiveQueryBridge } from './hooks/useLiveQueryBridge';
 
 import Layout from './components/Layout';
 
@@ -138,18 +141,26 @@ function AppRoutes() {
   );
 }
 
+function LiveQueryBridge() {
+  useLiveQueryBridge();
+  return null;
+}
+
 export default function App() {
   return (
     <Provider store={store}>
-      <ErrorBoundary>
-        <SocketProvider>
-          <ToastProvider>
-            <BrowserRouter>
-              <AppRoutes />
-            </BrowserRouter>
-          </ToastProvider>
-        </SocketProvider>
-      </ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <ErrorBoundary>
+          <SocketProvider>
+            <LiveQueryBridge />
+            <ToastProvider>
+              <BrowserRouter>
+                <AppRoutes />
+              </BrowserRouter>
+            </ToastProvider>
+          </SocketProvider>
+        </ErrorBoundary>
+      </QueryClientProvider>
     </Provider>
   );
 }
