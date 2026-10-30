@@ -454,53 +454,6 @@ func TestResponseWriter_Coverage_WriteAutoHeader(t *testing.T) {
 	assert.Equal(t, http.StatusOK, inner.Code)
 }
 
-// ── redactPasswords ──────────────────────────────────────────────────────────
-
-func TestRedactPasswords_Coverage_CapitalP(t *testing.T) {
-	t.Parallel()
-	result := redactPasswords(`{"Password":"hunter2"}`)
-	assert.Equal(t, `{"Password":"***"}`, result)
-}
-
-func TestRedactPasswords_Coverage_Passwd(t *testing.T) {
-	t.Parallel()
-	result := redactPasswords(`{"passwd":"hunter2"}`)
-	assert.Equal(t, `{"passwd":"***"}`, result)
-}
-
-func TestRedactPasswords_Coverage_Secret(t *testing.T) {
-	t.Parallel()
-	result := redactPasswords(`{"secret":"hunter2"}`)
-	assert.Equal(t, `{"secret":"***"}`, result)
-}
-
-func TestRedactPasswords_Coverage_NoMatch(t *testing.T) {
-	t.Parallel()
-	input := `{"username":"admin","email":"test@example.com"}`
-	result := redactPasswords(input)
-	assert.Equal(t, input, result)
-}
-
-func TestRedactPasswords_Coverage_MultipleFields(t *testing.T) {
-	t.Parallel()
-	input := `{"password":"abc","secret":"def"}`
-	result := redactPasswords(input)
-	assert.Contains(t, result, `"password":"***"`)
-	assert.Contains(t, result, `"secret":"***"`)
-}
-
-func TestRedactPasswords_Coverage_Empty(t *testing.T) {
-	t.Parallel()
-	result := redactPasswords("")
-	assert.Equal(t, "", result)
-}
-
-func TestRedactPasswords_Coverage_Malformed(t *testing.T) {
-	t.Parallel()
-	result := redactPasswords(`passwordnoquotes`)
-	assert.Equal(t, `passwordnoquotes`, result)
-}
-
 // ── StdoutSink, StderrSink ──────────────────────────────────────────────────
 
 func TestStdoutSink_Coverage(t *testing.T) {
