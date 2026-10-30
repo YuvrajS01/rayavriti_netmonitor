@@ -8,14 +8,18 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/go-chi/chi/v5"
+	chimw "github.com/go-chi/chi/v5/middleware"
 	"github.com/rayavriti/netmonitor-backend/internal/auth"
 	"github.com/rayavriti/netmonitor-backend/internal/cache"
 	"github.com/rayavriti/netmonitor-backend/internal/logging"
+	"github.com/rayavriti/netmonitor-backend/internal/metrics"
 	"golang.org/x/time/rate"
 )
 
@@ -183,6 +187,66 @@ func Recovery(next http.Handler) http.Handler {
 }
 
 // RequestSize limits the maximum request body size.
+// RequireSameOrigin rejects state-changing requests authenticated by cookie
+// when their Origin is neither this host nor an allowed CORS origin.
+// SameSite=Strict cookies already stop cross-site forgery; this also stops
+// sibling subdomains (same site, different origin). Requests carrying a
+// bearer token or API key can't be forged by a browser and are not checked,
+// and requests without an Origin header (non-browser clients) pass.
+func RequireSameOrigin(allowed []string) func(http.Handler) http.Handler {
+	allow := make(map[string]bool, len(allowed))
+	for _, o := range allowed {
+		allow[strings.TrimRight(o, "/")] = true
+	}
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.Method {
+			case http.MethodGet, http.MethodHead, http.MethodOptions:
+				next.ServeHTTP(w, r)
+				return
+			}
+			if r.Header.Get("Authorization") != "" || r.Header.Get("X-Api-Key") != "" {
+				next.ServeHTTP(w, r)
+				return
+			}
+			origin := r.Header.Get("Origin")
+			if origin == "" || allow[origin] {
+				next.ServeHTTP(w, r)
+				return
+			}
+			if u, err := url.Parse(origin); err == nil && u.Host == r.Host {
+				next.ServeHTTP(w, r)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusForbidden)
+			_, _ = w.Write([]byte(`{"success":false,"error":{"code":"FORBIDDEN","message":"cross-origin request rejected"}}`))
+		})
+	}
+}
+
+// HTTPMetrics records request latency labelled by chi route pattern (never
+// the raw path, which would explode label cardinality).
+func HTTPMetrics(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ww := chimw.NewWrapResponseWriter(w, r.ProtoMajor)
+		start := time.Now()
+		next.ServeHTTP(ww, r)
+		route := "other"
+		if rc := chi.RouteContext(r.Context()); rc != nil {
+			if p := rc.RoutePattern(); p != "" && p != "/*" {
+				route = p
+			}
+		}
+		status := ww.Status()
+		if status == 0 {
+			status = http.StatusOK
+		}
+		code := strconv.Itoa(status/100) + "xx"
+		metrics.HTTPRequestDuration.WithLabelValues(r.Method, route, code).Observe(time.Since(start).Seconds())
+	})
+}
+
 // Paths in exempt are skipped because nested MaxBytesReaders can only lower
 // a limit: those handlers must apply their own cap.
 func RequestSize(max int64, exempt ...string) func(http.Handler) http.Handler {

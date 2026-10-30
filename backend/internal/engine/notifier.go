@@ -5,10 +5,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/rayavriti/netmonitor-backend/internal/netutil"
 	"log/slog"
 	"net"
 	"net/http"
 	"net/smtp"
+	"strings"
 	"time"
 
 	"github.com/rayavriti/netmonitor-backend/internal/models"
@@ -19,11 +21,31 @@ type Notifier struct {
 	client *http.Client
 }
 
-// NewNotifier creates a notification dispatcher.
+// NewNotifier creates a notification dispatcher. Webhook and Slack URLs are
+// user-supplied, so requests go through an SSRF-guarded client: loopback,
+// link-local and cloud metadata are refused at connect time and redirects
+// are not followed (private addresses stay allowed for internal services).
 func NewNotifier() *Notifier {
 	return &Notifier{
-		client: &http.Client{Timeout: 10 * time.Second},
+		client: netutil.SafeHTTPClient(netutil.SafeTransport(netutil.DefaultHostPolicy()), 10*time.Second),
 	}
+}
+
+// smtpPorts may be reached on loopback, where a local mail relay is a
+// normal setup. Every other loopback port is refused.
+var smtpPorts = map[string]bool{"25": true, "465": true, "587": true, "2525": true}
+
+func smtpDialer(port string) *net.Dialer {
+	policy := netutil.DefaultHostPolicy()
+	if smtpPorts[port] {
+		policy.RejectLoopback = false
+	}
+	return netutil.SafeDialer(policy, 10*time.Second)
+}
+
+// headerSafe strips CR/LF so values can't inject extra mail headers.
+func headerSafe(s string) string {
+	return strings.NewReplacer("\r", " ", "\n", " ").Replace(s)
 }
 
 // Send delivers an alert notification to the given channel.
@@ -127,7 +149,8 @@ func (n *Notifier) sendEmail(ctx context.Context, ch models.NotificationChannel,
 		return fmt.Errorf("email channel %d missing required config (smtp_host, from, to)", ch.ID)
 	}
 
-	subject := fmt.Sprintf("[NetMonitor %s] %s — %s", alert.Severity, alert.Message, alert.DeviceName)
+	from, to = headerSafe(from), headerSafe(to)
+	subject := headerSafe(fmt.Sprintf("[NetMonitor %s] %s — %s", alert.Severity, alert.Message, alert.DeviceName))
 	body := fmt.Sprintf(
 		"Device:     %s\n"+
 			"Severity:   %s\n"+
@@ -142,18 +165,16 @@ func (n *Notifier) sendEmail(ctx context.Context, ch models.NotificationChannel,
 	msg := fmt.Sprintf("From: %s\r\nTo: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n%s",
 		from, to, subject, body)
 
-	addr := net.JoinHostPort(host, func() string {
-		if port == "" {
-			return "25"
-		}
-		return port
-	}())
+	if port == "" {
+		port = "25"
+	}
+	addr := net.JoinHostPort(host, port)
 	var auth smtp.Auth
 	if username != "" && password != "" {
 		auth = smtp.PlainAuth("", username, password, host)
 	}
 
-	conn, err := net.DialTimeout("tcp", addr, 10*time.Second)
+	conn, err := smtpDialer(port).DialContext(ctx, "tcp", addr)
 	if err != nil {
 		return fmt.Errorf("smtp dial: %w", err)
 	}

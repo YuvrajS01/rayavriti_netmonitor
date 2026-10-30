@@ -25,16 +25,19 @@ var secretConfigKeys = map[string]bool{
 	"smtp_password": true,
 	"private_key":   true,
 	"passphrase":    true,
+	"bot_token":     true, // Telegram
+	"headers":       true, // webhook headers usually carry Authorization
+	"community":     true, // SNMP
 }
 
-// maskValue replaces a secret string with a masked placeholder, preserving
-// whether a value was set. The first and last characters are shown when the
-// value is long enough, otherwise it's fully masked.
-func maskValue(v string) string {
-	if len(v) <= 4 {
-		return "****"
-	}
-	return v[:1] + strings.Repeat("*", len(v)-2) + v[len(v)-1:]
+// secretPlaceholder is what clients see in place of a stored secret. A
+// client that sends it back on update keeps the stored value.
+const secretPlaceholder = "********"
+
+// maskValue replaces a secret with a fixed placeholder that reveals only
+// whether a value is set (no characters or length).
+func maskValue(string) string {
+	return secretPlaceholder
 }
 
 // maskChannelConfig returns a shallow copy of the config map with secret
@@ -54,14 +57,29 @@ func maskChannelConfig(cfg map[string]any) map[string]any {
 					masked[k] = val
 				}
 			default:
-				// Non-string secrets (rare): mask generically.
-				masked[k] = "****"
+				// Non-string secrets, e.g. a headers map.
+				masked[k] = secretPlaceholder
 			}
 		} else {
 			masked[k] = v
 		}
 	}
 	return masked
+}
+
+// restoreMaskedSecrets copies stored secrets into an incoming config where
+// the client sent the placeholder back unchanged, so re-saving a channel from
+// a form that displays masked values doesn't overwrite the real secret.
+func restoreMaskedSecrets(incoming, stored map[string]any) {
+	for k, v := range incoming {
+		if s, ok := v.(string); ok && s == secretPlaceholder && secretConfigKeys[strings.ToLower(k)] {
+			if orig, ok := stored[k]; ok {
+				incoming[k] = orig
+			} else {
+				delete(incoming, k)
+			}
+		}
+	}
 }
 
 // maskChannel returns a shallow copy of a NotificationChannel with its Config

@@ -80,10 +80,13 @@ func (s *MaintenanceService) IsUnderMaintenance(ctx context.Context, deviceID in
 func (s *MaintenanceService) getActiveWindows(ctx context.Context) ([]*MaintenanceWindow, error) {
 	rows, err := s.db.Query(ctx,
 		`SELECT id, name, COALESCE(description,''), scope_type, COALESCE(scope_value,''),
-			schedule_type, start_time, end_time, recurrence_rule,
+			schedule_type,
+			to_char(start_time AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
+			to_char(end_time AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
+			recurrence_rule,
 			recurrence_start_time, recurrence_end_time, COALESCE(recurrence_timezone,''),
 			suppress_alerts, suppress_notifications, show_maintenance_status,
-			COALESCE(created_by,''), enabled
+			COALESCE(created_by::text,''), enabled
 		FROM maintenance_windows WHERE enabled=TRUE ORDER BY id`)
 	if err != nil {
 		return nil, fmt.Errorf("query maintenance windows: %w", err)
@@ -130,7 +133,7 @@ func (s *MaintenanceService) windowAppliesTo(w *MaintenanceWindow, deviceID int6
 // based on its schedule type (once or recurring).
 func (s *MaintenanceService) windowIsActive(w *MaintenanceWindow, now time.Time) bool {
 	switch w.ScheduleType {
-	case "once":
+	case "once", "one_time": // the UI stores "one_time"
 		return s.isActiveOnce(w, now)
 	case "recurring":
 		return s.isActiveRecurring(w, now)

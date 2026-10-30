@@ -78,7 +78,7 @@ func (h *CampusHandler) GetLocation(w http.ResponseWriter, r *http.Request) {
 	}
 	loc, err := h.locations.GetByID(r.Context(), id)
 	if err != nil {
-		httputil.SendError(w, http.StatusNotFound, err.Error())
+		httputil.SendStoreError(w, http.StatusNotFound, err)
 		return
 	}
 	httputil.SendOK(w, loc)
@@ -124,7 +124,7 @@ func (h *CampusHandler) CreateLocation(w http.ResponseWriter, r *http.Request) {
 		if strings.Contains(err.Error(), "required") || strings.Contains(err.Error(), "invalid") {
 			status = http.StatusBadRequest
 		}
-		httputil.SendError(w, status, err.Error())
+		httputil.SendStoreError(w, status, err)
 		return
 	}
 	httputil.SendCreated(w, created)
@@ -195,7 +195,7 @@ func (h *CampusHandler) MoveLocation(w http.ResponseWriter, r *http.Request) {
 		if strings.Contains(err.Error(), "circular") {
 			status = http.StatusConflict
 		}
-		httputil.SendError(w, status, err.Error())
+		httputil.SendStoreError(w, status, err)
 		return
 	}
 	httputil.SendOK(w, map[string]string{"moved": strconv.FormatInt(id, 10)})

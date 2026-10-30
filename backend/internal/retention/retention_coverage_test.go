@@ -12,11 +12,9 @@ import (
 )
 
 type mockRetDB2 struct {
-	pruneMetricsFn       func(ctx context.Context, olderThan time.Time) (int64, error)
-	pruneFlowsFn         func(ctx context.Context, olderThan time.Time) (int64, error)
-	pruneAlertsFn        func(ctx context.Context, olderThan time.Time) (int64, error)
-	getCaptureSessionsFn func(ctx context.Context) ([]models.CaptureSession, error)
-	stopCaptureSessionFn func(ctx context.Context, id int64, stats models.CaptureSessionStats) error
+	pruneAlertsFn  func(ctx context.Context, olderThan time.Time) (int64, error)
+	pruneHealthFn  func(ctx context.Context, olderThan time.Time) (int64, error)
+	pruneCaptureFn func(ctx context.Context, olderThan time.Time) (int64, error)
 }
 
 func (m *mockRetDB2) Connect(ctx context.Context) error                       { return nil }
@@ -202,15 +200,9 @@ func (m *mockRetDB2) GetCaptureSession(ctx context.Context, id int64) (*models.C
 	return nil, nil
 }
 func (m *mockRetDB2) GetCaptureSessions(ctx context.Context) ([]models.CaptureSession, error) {
-	if m.getCaptureSessionsFn != nil {
-		return m.getCaptureSessionsFn(ctx)
-	}
 	return nil, nil
 }
 func (m *mockRetDB2) StopCaptureSession(ctx context.Context, id int64, stats models.CaptureSessionStats) error {
-	if m.stopCaptureSessionFn != nil {
-		return m.stopCaptureSessionFn(ctx, id, stats)
-	}
 	return nil
 }
 func (m *mockRetDB2) InsertCapturePacket(ctx context.Context, sessionID int64, p *models.CapturePacket) error {
@@ -235,18 +227,6 @@ func (m *mockRetDB2) SaveDashboard(ctx context.Context, d *models.Dashboard) (*m
 	return nil, nil
 }
 func (m *mockRetDB2) DeleteDashboard(ctx context.Context, id int64) error { return nil }
-func (m *mockRetDB2) PruneMetrics(ctx context.Context, olderThan time.Time) (int64, error) {
-	if m.pruneMetricsFn != nil {
-		return m.pruneMetricsFn(ctx, olderThan)
-	}
-	return 0, nil
-}
-func (m *mockRetDB2) PruneFlows(ctx context.Context, olderThan time.Time) (int64, error) {
-	if m.pruneFlowsFn != nil {
-		return m.pruneFlowsFn(ctx, olderThan)
-	}
-	return 0, nil
-}
 func (m *mockRetDB2) PruneAlerts(ctx context.Context, olderThan time.Time) (int64, error) {
 	if m.pruneAlertsFn != nil {
 		return m.pruneAlertsFn(ctx, olderThan)
@@ -300,174 +280,96 @@ func (m *mockRetDB2) GetRolePermissions(ctx context.Context, roleID int64) ([]st
 	return nil, nil
 }
 
-// ── prune calls all three prune functions ─────────────────────────────────────
+// ── prune calls each configured plain-table prune ─────────────────────────────
 
-func TestPrune_Coverage_CallsAllPruneFunctions(t *testing.T) {
+func TestPrune_Coverage_PrunesConfiguredTables(t *testing.T) {
 	t.Parallel()
-	metricsCalled := false
-	flowsCalled := false
-	alertsCalled := false
-
+	cutoffs := map[string]time.Time{}
+	record := func(name string) func(context.Context, time.Time) (int64, error) {
+		return func(_ context.Context, olderThan time.Time) (int64, error) {
+			cutoffs[name] = olderThan
+			return 1, nil
+		}
+	}
 	db := &mockRetDB2{
-		pruneMetricsFn: func(ctx context.Context, olderThan time.Time) (int64, error) {
-			metricsCalled = true
-			return 10, nil
-		},
-		pruneFlowsFn: func(ctx context.Context, olderThan time.Time) (int64, error) {
-			flowsCalled = true
-			return 20, nil
-		},
-		pruneAlertsFn: func(ctx context.Context, olderThan time.Time) (int64, error) {
-			alertsCalled = true
-			return 5, nil
-		},
+		pruneAlertsFn:  record("alerts"),
+		pruneHealthFn:  record("health"),
+		pruneCaptureFn: record("capture"),
 	}
 
-	s := New(db, 30, 7, 90)
+	s := New(db, Config{AlertsDays: 90, HealthHistoryDays: 30, CaptureDays: 7})
 	s.prune(context.Background())
 
-	assert.True(t, metricsCalled)
-	assert.True(t, flowsCalled)
-	assert.True(t, alertsCalled)
+	for name, days := range map[string]int{"alerts": 90, "health": 30, "capture": 7} {
+		got, ok := cutoffs[name]
+		if !ok {
+			t.Fatalf("%s was not pruned", name)
+		}
+		want := time.Now().AddDate(0, 0, -days)
+		assert.WithinDuration(t, want, got, time.Minute, name)
+	}
 }
 
-// ── prune with DB errors (doesn't crash) ─────────────────────────────────────
+// ── zero days keeps rows forever ─────────────────────────────────────────────
+
+func TestPrune_Coverage_ZeroDaysSkips(t *testing.T) {
+	t.Parallel()
+	called := false
+	db := &mockRetDB2{pruneCaptureFn: func(context.Context, time.Time) (int64, error) {
+		called = true
+		return 0, nil
+	}}
+	New(db, Config{AlertsDays: 90}).prune(context.Background())
+	assert.False(t, called)
+}
+
+// ── prune with DB errors (doesn't crash, continues) ──────────────────────────
 
 func TestPrune_Coverage_DBErrors(t *testing.T) {
 	t.Parallel()
+	captureCalled := false
 	db := &mockRetDB2{
-		pruneMetricsFn: func(ctx context.Context, olderThan time.Time) (int64, error) {
-			return 0, fmt.Errorf("metrics prune failed")
-		},
-		pruneFlowsFn: func(ctx context.Context, olderThan time.Time) (int64, error) {
-			return 0, fmt.Errorf("flows prune failed")
-		},
-		pruneAlertsFn: func(ctx context.Context, olderThan time.Time) (int64, error) {
-			return 0, fmt.Errorf("alerts prune failed")
+		pruneAlertsFn: func(context.Context, time.Time) (int64, error) { return 0, fmt.Errorf("alerts prune failed") },
+		pruneHealthFn: func(context.Context, time.Time) (int64, error) { return 0, fmt.Errorf("health prune failed") },
+		pruneCaptureFn: func(context.Context, time.Time) (int64, error) {
+			captureCalled = true
+			return 0, nil
 		},
 	}
-
-	s := New(db, 30, 7, 90)
-	s.prune(context.Background())
-}
-
-// ── prune prunes old capture sessions ─────────────────────────────────────────
-
-func TestPrune_Coverage_CaptureSessions(t *testing.T) {
-	t.Parallel()
-	stopCalled := map[int64]bool{}
-
-	db := &mockRetDB2{
-		getCaptureSessionsFn: func(ctx context.Context) ([]models.CaptureSession, error) {
-			return []models.CaptureSession{
-				{
-					ID:           1,
-					Status:       "stopped",
-					StartedAt:    time.Now().AddDate(0, 0, -60),
-					TotalPackets: 100,
-					TotalBytes:   5000,
-				},
-				{
-					ID:        2,
-					Status:    "running",
-					StartedAt: time.Now().AddDate(0, 0, -60),
-				},
-				{
-					ID:           3,
-					Status:       "stopped",
-					StartedAt:    time.Now().AddDate(0, 0, -10),
-					TotalPackets: 50,
-					TotalBytes:   2000,
-				},
-			}, nil
-		},
-		stopCaptureSessionFn: func(ctx context.Context, id int64, stats models.CaptureSessionStats) error {
-			stopCalled[id] = true
-			return nil
-		},
-	}
-
-	s := New(db, 30, 7, 90)
-	s.prune(context.Background())
-
-	assert.True(t, stopCalled[1])
-	assert.False(t, stopCalled[2])
-	assert.False(t, stopCalled[3])
-}
-
-// ── prune with sessions error ────────────────────────────────────────────────
-
-func TestPrune_Coverage_SessionsError(t *testing.T) {
-	t.Parallel()
-	db := &mockRetDB2{
-		getCaptureSessionsFn: func(ctx context.Context) ([]models.CaptureSession, error) {
-			return nil, fmt.Errorf("sessions query failed")
-		},
-	}
-
-	s := New(db, 30, 7, 90)
-	s.prune(context.Background())
-}
-
-// ── prune with session stop error ────────────────────────────────────────────
-
-func TestPrune_Coverage_SessionStopError(t *testing.T) {
-	t.Parallel()
-	db := &mockRetDB2{
-		getCaptureSessionsFn: func(ctx context.Context) ([]models.CaptureSession, error) {
-			return []models.CaptureSession{
-				{
-					ID:           1,
-					Status:       "stopped",
-					StartedAt:    time.Now().AddDate(0, 0, -60),
-					TotalPackets: 100,
-					TotalBytes:   5000,
-				},
-			}, nil
-		},
-		stopCaptureSessionFn: func(ctx context.Context, id int64, stats models.CaptureSessionStats) error {
-			return fmt.Errorf("stop failed")
-		},
-	}
-
-	s := New(db, 30, 7, 90)
-	s.prune(context.Background())
-}
-
-// ── New creates scheduler correctly ──────────────────────────────────────────
-
-func TestNew_Coverage_CreatesScheduler(t *testing.T) {
-	t.Parallel()
-	db := &mockRetDB2{}
-	s := New(db, 30, 7, 90)
-	assert.NotNil(t, s)
-	assert.Equal(t, 30, s.metricsRetentionDays)
-	assert.Equal(t, 7, s.flowsRetentionDays)
-	assert.Equal(t, 90, s.alertsRetentionDays)
+	New(db, Config{AlertsDays: 90, HealthHistoryDays: 30, CaptureDays: 7}).prune(context.Background())
+	assert.True(t, captureCalled, "a failing prune must not stop the others")
 }
 
 // ── Start and Stop ───────────────────────────────────────────────────────────
 
 func TestScheduler_Coverage_StartStop(t *testing.T) {
 	t.Parallel()
-	db := &mockRetDB2{
-		pruneMetricsFn: func(ctx context.Context, olderThan time.Time) (int64, error) {
-			return 0, nil
-		},
-		pruneFlowsFn: func(ctx context.Context, olderThan time.Time) (int64, error) {
-			return 0, nil
-		},
-		pruneAlertsFn: func(ctx context.Context, olderThan time.Time) (int64, error) {
-			return 0, nil
-		},
-	}
-
-	s := New(db, 30, 7, 90)
+	s := New(&mockRetDB2{}, Config{AlertsDays: 90})
 	ctx, cancel := context.WithCancel(context.Background())
 	s.Start(ctx)
-
 	time.Sleep(50 * time.Millisecond)
-
 	cancel()
 	s.Stop()
+}
+
+func (m *mockRetDB2) PruneHealthScoreHistory(ctx context.Context, olderThan time.Time) (int64, error) {
+	if m.pruneHealthFn != nil {
+		return m.pruneHealthFn(ctx, olderThan)
+	}
+	return 0, nil
+}
+
+func (m *mockRetDB2) PruneCaptureSessions(ctx context.Context, olderThan time.Time) (int64, error) {
+	if m.pruneCaptureFn != nil {
+		return m.pruneCaptureFn(ctx, olderThan)
+	}
+	return 0, nil
+}
+
+func (m *mockRetDB2) GetMetricBaselines(ctx context.Context, since time.Time) ([]database.MetricBaseline, error) {
+	return nil, nil
+}
+
+func (m *mockRetDB2) UpdateDeviceStatuses(ctx context.Context, ids []int64, statuses []string) ([]int64, error) {
+	return nil, nil
 }

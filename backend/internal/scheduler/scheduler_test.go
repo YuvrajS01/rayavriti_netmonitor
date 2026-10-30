@@ -257,11 +257,9 @@ func (m *mockDB) GetDashboard(ctx context.Context, id int64) (*models.Dashboard,
 func (m *mockDB) SaveDashboard(ctx context.Context, d *models.Dashboard) (*models.Dashboard, error) {
 	return nil, nil
 }
-func (m *mockDB) DeleteDashboard(ctx context.Context, id int64) error                  { return nil }
-func (m *mockDB) PruneMetrics(ctx context.Context, olderThan time.Time) (int64, error) { return 0, nil }
-func (m *mockDB) PruneFlows(ctx context.Context, olderThan time.Time) (int64, error)   { return 0, nil }
-func (m *mockDB) PruneAlerts(ctx context.Context, olderThan time.Time) (int64, error)  { return 0, nil }
-func (m *mockDB) GetDashboardStats(ctx context.Context) (map[string]any, error)        { return nil, nil }
+func (m *mockDB) DeleteDashboard(ctx context.Context, id int64) error                 { return nil }
+func (m *mockDB) PruneAlerts(ctx context.Context, olderThan time.Time) (int64, error) { return 0, nil }
+func (m *mockDB) GetDashboardStats(ctx context.Context) (map[string]any, error)       { return nil, nil }
 func (m *mockDB) CreateRefreshToken(ctx context.Context, tokenHash string, userID int64, expiresAt time.Time) error {
 	return nil
 }
@@ -983,4 +981,25 @@ func TestResultPipeline_FullCollectResultAndDeviceStatusUpdate(t *testing.T) {
 
 	assert.Equal(t, int64(10), updatedStatusDeviceID)
 	assert.Equal(t, "up", updatedStatus)
+}
+
+func (m *mockDB) PruneHealthScoreHistory(ctx context.Context, olderThan time.Time) (int64, error) {
+	return 0, nil
+}
+
+func (m *mockDB) PruneCaptureSessions(ctx context.Context, olderThan time.Time) (int64, error) {
+	return 0, nil
+}
+
+func (m *mockDB) GetMetricBaselines(ctx context.Context, since time.Time) ([]database.MetricBaseline, error) {
+	return nil, nil
+}
+
+func (m *mockDB) UpdateDeviceStatuses(ctx context.Context, ids []int64, statuses []string) ([]int64, error) {
+	for i, id := range ids {
+		if err := m.UpdateDeviceStatus(ctx, id, statuses[i]); err != nil {
+			return nil, err
+		}
+	}
+	return ids, nil
 }

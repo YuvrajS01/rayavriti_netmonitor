@@ -13,6 +13,7 @@ import (
 	"github.com/rayavriti/netmonitor-backend/internal/collectors"
 	"github.com/rayavriti/netmonitor-backend/internal/database"
 	"github.com/rayavriti/netmonitor-backend/internal/engine"
+	"github.com/rayavriti/netmonitor-backend/internal/metrics"
 	"github.com/rayavriti/netmonitor-backend/internal/models"
 	"github.com/rayavriti/netmonitor-backend/internal/websocket"
 )
@@ -151,6 +152,7 @@ func (s *Scheduler) Start(ctx context.Context) {
 		s.dispatcher.Start(ctx)
 		s.pipeline.Start(ctx)
 
+		s.dispatcher.BeginInitialLoad()
 		devices, err := s.db.GetEnabledDevices(ctx)
 		if err != nil {
 			slog.Error("failed to fetch enabled devices on start", "error", err)
@@ -159,6 +161,8 @@ func (s *Scheduler) Start(ctx context.Context) {
 				s.scheduleDevice(d)
 			}
 		}
+
+		s.dispatcher.EndInitialLoad()
 
 		s.wg.Add(1)
 		go s.reconcileLoop(ctx)
@@ -172,21 +176,30 @@ func (s *Scheduler) Start(ctx context.Context) {
 }
 
 func (s *Scheduler) Stop() {
+	// Shutdown order: stop dispatching new jobs, let in-flight polls finish
+	// and deliver their results, then drain and flush the pipeline, and
+	// only then cancel the shared context (reconcile loop). Cancelling
+	// first turned in-flight polls into false "down" results and made the
+	// pipeline's final flush run on a dead context.
+	s.dispatcher.Stop()
+	s.pool.Stop()
+	s.pipeline.Stop()
 	if s.cancel != nil {
 		s.cancel()
 	}
-
-	// Shutdown order (M13 — previously pool.Stop ran while the
-	// dispatcher could still enqueue, and a stuck worker blocked
-	// forever): stop dispatcher first so no new jobs are enqueued,
-	// then stop the pipeline (flush with context.Background()), then
-	// stop the worker pool so in-flight jobs complete.
-	s.dispatcher.Stop()
-	s.pipeline.Stop()
-	s.pool.Stop()
 	s.wg.Wait()
 
 	slog.Info("async scheduler stopped")
+}
+
+// PoolMetrics returns a snapshot of worker-pool counters.
+func (s *Scheduler) PoolMetrics() WorkerPoolMetricsSnapshot {
+	return s.pool.Metrics()
+}
+
+// UnreachableCount returns how many scheduled devices are in backoff.
+func (s *Scheduler) UnreachableCount() int {
+	return s.dispatcher.UnreachableCount()
 }
 
 func (s *Scheduler) JobCount() int {
@@ -315,6 +328,14 @@ func (s *Scheduler) collectAndReturnResult(ctx context.Context, job PollJob) Pol
 
 	duration = time.Since(start)
 
+	// The pool cancelled the poll (shutdown), so the outcome says nothing
+	// about the device. Report it as an operational error, not "down".
+	if ctx.Err() != nil {
+		result.Error = ctx.Err()
+		result.FinishedAt = time.Now()
+		return result
+	}
+
 	if err != nil {
 		slog.Warn("collection failed", "deviceID", job.Device.ID, "device", job.Device.Name,
 			"protocol", job.Device.Protocol, "duration", duration, "error", err)
@@ -353,10 +374,17 @@ func (s *Scheduler) collectAndReturnResult(ctx context.Context, job PollJob) Pol
 }
 
 func (s *Scheduler) handlePollResult(pr PollResult) {
+	s.dispatcher.Done(pr.Device.ID)
+
 	// Skip operational errors that aren't real device failures
-	// (e.g., distributed lock contention, unknown protocol)
+	// (e.g., distributed lock contention, unknown protocol, shutdown)
 	if pr.Error != nil && pr.Status == "" {
 		return
+	}
+
+	metrics.PollsTotal.WithLabelValues(pr.Device.Protocol, pr.Status).Inc()
+	if !pr.FinishedAt.IsZero() {
+		metrics.PollDuration.WithLabelValues(pr.Device.Protocol).Observe(pr.FinishedAt.Sub(pr.StartedAt).Seconds())
 	}
 
 	if isDownResult(pr) {

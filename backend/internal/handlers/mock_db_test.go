@@ -720,20 +720,6 @@ func (m *mockDB) DeleteDashboard(ctx context.Context, id int64) error {
 	return nil
 }
 
-func (m *mockDB) PruneMetrics(ctx context.Context, olderThan time.Time) (int64, error) {
-	if m.pruneMetricsFn != nil {
-		return m.pruneMetricsFn(ctx, olderThan)
-	}
-	return 0, nil
-}
-
-func (m *mockDB) PruneFlows(ctx context.Context, olderThan time.Time) (int64, error) {
-	if m.pruneFlowsFn != nil {
-		return m.pruneFlowsFn(ctx, olderThan)
-	}
-	return 0, nil
-}
-
 func (m *mockDB) PruneAlerts(ctx context.Context, olderThan time.Time) (int64, error) {
 	if m.pruneAlertsFn != nil {
 		return m.pruneAlertsFn(ctx, olderThan)
@@ -771,3 +757,19 @@ func (m *mockDB) DeleteRefreshTokensByUser(ctx context.Context, userID int64) er
 	return nil
 }
 func (m *mockDB) CleanupExpiredRefreshTokens(ctx context.Context) (int64, error) { return 0, nil }
+
+func (m *mockDB) PruneHealthScoreHistory(ctx context.Context, olderThan time.Time) (int64, error) {
+	return 0, nil
+}
+
+func (m *mockDB) PruneCaptureSessions(ctx context.Context, olderThan time.Time) (int64, error) {
+	return 0, nil
+}
+
+func (m *mockDB) GetMetricBaselines(ctx context.Context, since time.Time) ([]database.MetricBaseline, error) {
+	return nil, nil
+}
+
+func (m *mockDB) UpdateDeviceStatuses(ctx context.Context, ids []int64, statuses []string) ([]int64, error) {
+	return nil, nil
+}

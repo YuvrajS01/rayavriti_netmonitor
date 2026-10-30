@@ -20,14 +20,18 @@ func setupTestDB(t *testing.T) (*Postgres, func()) {
 	ctx := context.Background()
 
 	req := testcontainers.ContainerRequest{
-		Image:        "postgres:16-alpine",
+		// Keep in step with docker-compose.yml: the schema requires TimescaleDB.
+		Image:        "timescale/timescaledb:2.28.2-pg16",
 		ExposedPorts: []string{"5432/tcp"},
 		Env: map[string]string{
 			"POSTGRES_USER":     "test",
 			"POSTGRES_PASSWORD": "test",
 			"POSTGRES_DB":       "netmonitor_test",
 		},
-		WaitingFor: wait.ForListeningPort("5432/tcp").WithStartupTimeout(60 * time.Second),
+		// The image restarts Postgres once after running init scripts, so
+		// wait for the second "ready" line rather than the first open port.
+		WaitingFor: wait.ForLog("database system is ready to accept connections").
+			WithOccurrence(2).WithStartupTimeout(90 * time.Second),
 	}
 	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: req,

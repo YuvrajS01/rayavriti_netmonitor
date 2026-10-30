@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"strconv"
 	"strings"
@@ -39,6 +40,10 @@ type AppConfig struct {
 	Version     string
 	CORSOrigins []string
 	PublicDir   string
+	// AdminAddr serves /metrics (and pprof when PprofEnabled) on a separate
+	// listener. Empty disables it. Keep it on loopback or a private network.
+	AdminAddr    string
+	PprofEnabled bool
 }
 
 type DatabaseConfig struct {
@@ -51,7 +56,10 @@ type DatabaseConfig struct {
 }
 
 type AuthConfig struct {
-	JWTSecret          string
+	JWTSecret string
+	// EncryptionKey protects stored credentials (remote fleet API keys).
+	// Optional: when empty, the legacy key derived from JWTSecret is used.
+	EncryptionKey      string
 	AdminUsername      string
 	AdminPassword      string
 	AccessTokenExpiry  time.Duration
@@ -59,17 +67,28 @@ type AuthConfig struct {
 }
 
 type CollectorConfig struct {
-	NetflowPort           int
-	MetricsRetentionDays  int
-	FlowRetentionDays     int
-	AlertsRetentionDays   int
-	PortDiscoveryEnabled  bool
-	CaptureEnabled        bool
-	CapturePayloadEnabled bool
-	CaptureMaxDurationSec int
-	CaptureMaxPackets     int
-	CaptureMaxBytes       int64
-	CollectorIntervalSec  int
+	NetflowPort          int
+	MetricsRetentionDays int
+	FlowRetentionDays    int
+	AlertsRetentionDays  int
+	// MetricsHourlyRetentionDays keeps the hourly rollup much longer than raw
+	// metrics; the daily rollup is kept forever.
+	MetricsHourlyRetentionDays int
+	LogRetentionDays           int
+	CaptureRetentionDays       int
+	// Self-monitoring tables (MON_* variables).
+	MonHTTPRetentionDays      int
+	MonDBRetentionDays        int
+	MonCollectorRetentionDays int
+	MonHealthRetentionDays    int
+	MonAlertRetentionDays     int
+	PortDiscoveryEnabled      bool
+	CaptureEnabled            bool
+	CapturePayloadEnabled     bool
+	CaptureMaxDurationSec     int
+	CaptureMaxPackets         int
+	CaptureMaxBytes           int64
+	CollectorIntervalSec      int
 
 	PollerWorkerCount       int
 	PollerMaxWorkerCount    int
@@ -164,11 +183,13 @@ func Load() (*Config, error) {
 
 	cfg := &Config{
 		App: AppConfig{
-			Port:        envInt("PORT", 3000),
-			AppEnv:      envStr("APP_ENV", envStr("NODE_ENV", "development")),
-			Version:     envStr("VERSION", BuildVersion),
-			CORSOrigins: envSliceDefault("CORS_ORIGINS", []string{"http://localhost:3000"}),
-			PublicDir:   envStr("PUBLIC_DIR", "/app/public"),
+			Port:         envInt("PORT", 3000),
+			AppEnv:       envStr("APP_ENV", envStr("NODE_ENV", "development")),
+			Version:      envStr("VERSION", BuildVersion),
+			CORSOrigins:  envSliceDefault("CORS_ORIGINS", []string{"http://localhost:3000"}),
+			PublicDir:    envStr("PUBLIC_DIR", "/app/public"),
+			AdminAddr:    envStr("ADMIN_ADDR", "127.0.0.1:9464"),
+			PprofEnabled: envBool("PPROF_ENABLED", false),
 		},
 		Database: DatabaseConfig{
 			DSN:               envStr("DATABASE_URL", envStr("DATABASE_DSN", "postgres://postgres:postgres@localhost:5432/netmonitor?sslmode=disable")),
@@ -186,23 +207,33 @@ func Load() (*Config, error) {
 		},
 		Auth: AuthConfig{
 			JWTSecret:          jwtSecret,
+			EncryptionKey:      os.Getenv("ENCRYPTION_KEY"),
 			AdminUsername:      envStr("ADMIN_USERNAME", "admin"),
 			AdminPassword:      envStr("ADMIN_PASSWORD", ""),
 			AccessTokenExpiry:  envDuration("ACCESS_TOKEN_EXPIRY", 15*time.Minute),
 			RefreshTokenExpiry: envDuration("REFRESH_TOKEN_EXPIRY", 7*24*time.Hour),
 		},
 		Collector: CollectorConfig{
-			NetflowPort:           envInt("NETFLOW_PORT", 2055),
-			MetricsRetentionDays:  envInt("METRICS_RETENTION_DAYS", 30),
-			FlowRetentionDays:     envInt("FLOW_RETENTION_DAYS", 7),
-			AlertsRetentionDays:   envInt("ALERTS_RETENTION_DAYS", 90),
-			PortDiscoveryEnabled:  envBool("PORT_DISCOVERY_ENABLED", true),
-			CaptureEnabled:        envBool("CAPTURE_ENABLED", false),
-			CapturePayloadEnabled: envBool("CAPTURE_PAYLOAD_ENABLED", false),
-			CaptureMaxDurationSec: envInt("CAPTURE_MAX_DURATION_SEC", 300),
-			CaptureMaxPackets:     envInt("CAPTURE_MAX_PACKETS", 10000),
-			CaptureMaxBytes:       int64(envInt("CAPTURE_MAX_BYTES", 10*1024*1024)),
-			CollectorIntervalSec:  envInt("COLLECTOR_INTERVAL_SEC", 60),
+			NetflowPort:          envInt("NETFLOW_PORT", 2055),
+			MetricsRetentionDays: envInt("METRICS_RETENTION_DAYS", 30),
+			// .env.example documents FLOWS_; FLOW_ was the historical name.
+			FlowRetentionDays:          envInt("FLOWS_RETENTION_DAYS", envInt("FLOW_RETENTION_DAYS", 7)),
+			AlertsRetentionDays:        envInt("ALERTS_RETENTION_DAYS", 90),
+			MetricsHourlyRetentionDays: envInt("METRICS_HOURLY_RETENTION_DAYS", 400),
+			LogRetentionDays:           envInt("LOG_RETENTION_DAYS", 14),
+			CaptureRetentionDays:       envInt("CAPTURE_RETENTION_DAYS", 7),
+			MonHTTPRetentionDays:       envInt("MON_HTTP_RETENTION_DAYS", 7),
+			MonDBRetentionDays:         envInt("MON_DB_RETENTION_DAYS", 3),
+			MonCollectorRetentionDays:  envInt("MON_COLLECTOR_RETENTION_DAYS", 14),
+			MonHealthRetentionDays:     envInt("MON_HEALTH_RETENTION_DAYS", 30),
+			MonAlertRetentionDays:      envInt("MON_ALERT_RETENTION_DAYS", 30),
+			PortDiscoveryEnabled:       envBool("PORT_DISCOVERY_ENABLED", true),
+			CaptureEnabled:             envBool("CAPTURE_ENABLED", false),
+			CapturePayloadEnabled:      envBool("CAPTURE_PAYLOAD_ENABLED", false),
+			CaptureMaxDurationSec:      envInt("CAPTURE_MAX_DURATION_SEC", 300),
+			CaptureMaxPackets:          envInt("CAPTURE_MAX_PACKETS", 10000),
+			CaptureMaxBytes:            int64(envInt("CAPTURE_MAX_BYTES", 10*1024*1024)),
+			CollectorIntervalSec:       envInt("COLLECTOR_INTERVAL_SEC", 60),
 
 			PollerWorkerCount:       envInt("POLLER_WORKER_COUNT", 0),
 			PollerMaxWorkerCount:    envInt("POLLER_MAX_WORKER_COUNT", 0),
@@ -275,7 +306,31 @@ func Load() (*Config, error) {
 		cfg.App.CORSOrigins = []string{"http://localhost:3000"}
 	}
 
+	if err := validateSecrets(cfg); err != nil {
+		return nil, err
+	}
 	return cfg, nil
+}
+
+// minSecretLen is the shortest JWT/encryption secret accepted in production.
+// The JWT secret is an HMAC key: a short one can be brute-forced offline from
+// any issued token, yielding forged admin tokens.
+const minSecretLen = 32
+
+func validateSecrets(cfg *Config) error {
+	short := func(name string) error {
+		return fmt.Errorf("%s must be at least %d characters (generate one with: openssl rand -base64 32)", name, minSecretLen)
+	}
+	if len(cfg.Auth.JWTSecret) < minSecretLen {
+		if cfg.App.AppEnv == "production" {
+			return short("JWT_SECRET")
+		}
+		slog.Warn("JWT_SECRET is shorter than recommended; production startup will refuse it", "min_length", minSecretLen)
+	}
+	if cfg.Auth.EncryptionKey != "" && len(cfg.Auth.EncryptionKey) < minSecretLen {
+		return short("ENCRYPTION_KEY")
+	}
+	return nil
 }
 
 func envStr(key, def string) string {
