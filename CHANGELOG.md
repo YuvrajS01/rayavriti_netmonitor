@@ -5,6 +5,22 @@ All notable changes to Rayavriti NetMonitor will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Flow ingest** (B13): NetFlow v5/v9, IPFIX and sFlow v5 are now received over UDP. Previously the only way flows arrived was the simulator. Enable it with `FLOW_INGEST_ENABLED=true`. NetFlow/IPFIX listens on `NETFLOW_ADDR` (default `:2055`) and sFlow on `SFLOW_ADDR` (default `:6343`); an empty address disables that listener.
+  - Decoding uses goflow2. v9/IPFIX template state is kept per exporter and observation domain.
+  - Flows are stamped with their end time and fall back to the receive time when the exporter's clock is implausible. Bytes and packets are scaled by the sampling rate, taken from the v5 header, v9/IPFIX options or data records, or the sFlow sample.
+  - New nullable `flows` columns: `exporter`, `device_id` (exporter IP matched to a device), `in_if`, `out_if`, `tcp_flags`, `tos` and `sampling_rate`. The flows API returns them.
+  - Records are batched with `COPY`. When the queue is full they are dropped, never blocking the UDP reader. Shutdown drains the queue and flushes.
+  - Prometheus metrics for datagrams, decoded flows, decode errors, drops, batch write latency and errors, and queue length.
+
+### Fixed
+- `GET /api/v1/flows` failed to scan `inet` addresses, and top talkers returned addresses with a `/32` suffix.
+
+### Removed
+- The unused `NetFlowCollector` (v5 only) and `FlowAnalyzer`. `NETFLOW_PORT` is still honoured when `NETFLOW_ADDR` is unset.
+
 ## [5.0.0] - 2026-10-30
 
 This release is Phase 1 of the v5 roadmap in `REVIEW_REPORT.md`: observability, storage lifecycle, ingestion throughput, complete API authorization, a new frontend platform and a new design system. It shipped as PRs #64–#72.

@@ -52,6 +52,7 @@ RUN mkdir -p /app/data/logs /app/data/backups /app/data/reports && \
 
 EXPOSE 3000
 EXPOSE 2055/udp
+EXPOSE 6343/udp
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD wget -qO- http://localhost:3000/readyz || exit 1
@@ -86,6 +87,7 @@ ENV CAPTURE_ENABLED=false
 EXPOSE 3000
 EXPOSE 5173
 EXPOSE 2055/udp
+EXPOSE 6343/udp
 
 CMD ["air", "-c", ".air.toml"]
 

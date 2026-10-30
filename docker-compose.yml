@@ -7,7 +7,7 @@
 #
 # NOTE: Uses host networking so the container can directly reach
 # local network devices for monitoring, SNMP, and packet capture.
-# All ports (3000, 2055/udp) are exposed directly on the host.
+# All ports (3000, 2055/udp, 6343/udp) are exposed directly on the host.
 #
 # On Windows or macOS, host networking is not supported. Use the
 # bridge-networking override instead:
@@ -66,9 +66,10 @@ services:
     stop_grace_period: 35s
     # Host networking is required for:
     #  - Monitoring local network devices (ping, SNMP, port scans)
-    #  - Receiving NetFlow/sFlow on UDP 2055
+    #  - Receiving NetFlow/IPFIX on UDP 2055 and sFlow on UDP 6343
+    #    (set FLOW_INGEST_ENABLED=true)
     #  - Packet capture on host interfaces
-    # Ports 3000 (HTTP) and 2055 (NetFlow UDP) are available on the host.
+    # Ports 3000 (HTTP), 2055 (NetFlow/IPFIX UDP) and 6343 (sFlow UDP) are available on the host.
     network_mode: host
     env_file: .env
     environment:
