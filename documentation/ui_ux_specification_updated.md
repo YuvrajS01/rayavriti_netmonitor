@@ -1,4 +1,4 @@
-# UI/UX Specification — Rayavriti NetMonitor v5 design system
+# UI/UX Specification — Rayavriti NetMonitor v5 design system (v5.1)
 
 This document describes the design system that ships in `client/`. It replaces the
 earlier lime / League Spartan / neon-glow specification, which no longer matches the
@@ -19,6 +19,7 @@ quickly. Every rule below follows from that.
 | Chart theme | `client/src/utils/chartConfig.tsx`, `client/src/utils/tokens.ts` |
 | Primitives | `client/src/components/ui/*` |
 | Contrast guarantees | `client/src/__tests__/contrast.test.ts` |
+| Navigation, sections, breadcrumbs, old URLs | `client/src/navigation.ts` |
 
 ---
 
@@ -222,6 +223,13 @@ The network topology canvas draws the same shapes as a badge on every node, in t
 | `RingGauge` | A 0–100 ring. `tone="health"` uses `healthBand` and shows the band. `tone="neutral"` is for other percentages |
 | `ThemeSwitcher` / `DensitySwitcher` | Native radio groups styled as segmented controls |
 | Toasts (`useToast`) | Rendered in a manual popover, so they stay above an open modal. They use the status shapes |
+| `PageHeader` | Title, subtitle, actions and the breadcrumb trail derived from `navigation.ts`. `current` appends a deeper label (a device name). `SectionHeader` is an alias |
+| `SectionNav` | Route-level tabs: each section is its own URL, so these are links in a `nav` landmark with `aria-current`, not ARIA tabs. `variant="side"` is the Settings side list. Use `Tabs` only for panels inside one URL |
+| `DataTable` + `useDataTable` + `DataTableToolbar` | The table for any list an operator works through. ARIA grid with a sticky header and `aria-sort`; per-column filters; search; column picker; group-by; row selection with a bulk-action bar; keyboard rows via `aria-activedescendant` (↑/↓, Home/End, PageUp/PageDown, Space selects, Enter opens); virtualised above 150 rows. Built-in views (with an optional predicate, e.g. Cameras) plus saved views in `localStorage` under `nm-table-views:<table>:<userId>`. The view id can be controlled (kept in `?view=`) |
+| `Popover` | A non-modal disclosure under its button (column picker). Esc returns focus to the button; an outside press closes it. Anything that needs focus containment is a `Dialog` |
+| `RelativeTime` | "5m ago" on one shared 15s clock, with the absolute time in `title` and `dateTime`. Use it for every age or "last seen" |
+| `TypeToConfirmDialog` | Destructive actions that are hard to undo (deleting a device, bulk deletes): the operator types a phrase (the device name, `delete 12`) before the solid danger button enables |
+| `Dialog` (additions) | `placement="top"` sits high on the screen (command palette); `hideHeader` keeps the title for assistive tech without drawing the header |
 
 ### Charts
 
@@ -238,18 +246,85 @@ All of these are `var()` references, so recharts follows the theme without re-re
 
 ## 8. Layout and navigation
 
+`navigation.ts` holds the information architecture. The sidebar, breadcrumbs, hub tabs, Settings side tabs and the command palette all read it, so add or rename a page there.
+
+**Groups and items (12 items in 4 groups).** Items and sections are filtered by permission. An item shows when any of its sections is allowed and links to the first allowed one.
+
+| Group | Item | Sections (route-level tabs) |
+|---|---|---|
+| Monitor | Overview `/` | |
+| | Alerts & incidents `/alerts` | Alerts `/alerts` · Incidents `/alerts/incidents` · Maintenance `/alerts/maintenance` |
+| | Topology `/topology` | Network `/topology` · Campus `/topology/campus` · Floor plans `/topology/floor-plans` |
+| | Wall display `/wall` | |
+| Inventory | Devices `/devices` (detail `/devices/:id`, sensor overview `/devices/sensors`) | Views, not pages: All, Needs attention, Cameras, Biometrics and saved views (`?view=`) |
+| | ISP links `/isp` | |
+| | Remote sites `/remote` | |
+| Analyze | Flows & capture `/flows` | Flows `/flows` · Packet capture `/flows/capture` |
+| | Logs `/logs` | |
+| | Reports `/reports` | Library `/reports/library` · Builder `/reports` · Scheduled `/reports/scheduled` |
+| | AI health `/ai-health` | |
+| Configure | Settings `/settings` | Side tabs: General, Users & roles, Contacts & escalation, Locations, Templates, Discovery & import (Discovery · Bulk import), Status page, Backup, System |
+
+**Old URLs.** Every v5.0 URL redirects (`LEGACY_REDIRECTS`), keeping `:id`, the query string and the hash: `/incidents[/:id]`, `/maintenance`, `/devices/topology`, `/campus` (`?view=floor` goes to floor plans), `/inventory/cameras` and `/inventory/biometrics` (to `/devices?view=…`), `/sensors`, `/capture`, `/reports/builder` (`?tab=generated` goes to Library), `/discovery`, `/import` and `/service-templates`.
+
 - **Header.** The fixed header (`z-header`) holds:
-  - the navigation toggle, an `IconButton` with `aria-expanded` and `aria-controls`;
-  - the page title;
-  - search, a `role="search"` form with a labelled input;
+  - the navigation toggle, an `IconButton` with `aria-expanded` and `aria-controls`. On desktop it collapses the sidebar to a 64px icon rail, remembered in `localStorage` as `nm-nav-rail`. On narrow screens it opens the drawer;
+  - the current group and page;
+  - search, a `role="search"` form whose input opens the command palette with the text typed so far (a search `IconButton` does the same on mobile);
   - a live/paused indicator using `StatusDot`;
   - the alerts link, whose accessible name includes the active count;
   - the account menu, which holds the theme switch, Settings and Sign out. It closes on Esc (returning focus to its button) and on an outside press.
-- **Sidebar.** Its group toggles expose `aria-expanded` and `aria-controls`. Collapsed groups are `inert`. The active link has `aria-current="page"`, set by `NavLink`, plus an accent bar.
-- **Mobile.** On narrow screens the sidebar becomes a drawer with a scrim. Esc or a tap on the scrim closes it. The bottom nav sits on `z-sticky`, below drawers and dialogs.
+- **Sidebar.** Group toggles expose `aria-expanded` and `aria-controls`. Collapsed groups are `inert`. The active item has `aria-current="page"` plus an accent bar. It is computed from `navigation.ts`, so a hub stays current on its nested routes. In the rail, groups become labelled `role="group"` blocks, labels stay as visually hidden text and the alerts count becomes a solid badge.
+- **Breadcrumbs.** `PageHeader` shows Group › Item › Section › Subpage, ending at the current page (`aria-current="page"`, not a link). The group is a heading, not a link.
+- **Hub tabs.** Hubs render `SectionNav` above the page. Settings uses the side variant beside its content.
+- **Mobile.** On narrow screens the sidebar becomes a drawer with a scrim. Esc or a tap on the scrim closes it. The bottom nav (Overview, Alerts, Devices, Topology) sits on `z-sticky`, below drawers and dialogs.
 - **Main content.** `<main id="main-content" tabIndex={-1}>` receives focus on every route change after the first, so screen readers announce the new page. A skip link targets it.
 
----
+### 8.1 Command palette
+
+Ctrl+K / ⌘K anywhere, or the header search, opens it in a top-placed `Dialog`. It is a WAI-ARIA combobox (`aria-activedescendant`, `aria-controls`) over a listbox with labelled groups:
+
+- Recent: the last five picks per user.
+- Pages: every item and section the user may open.
+- Actions: acknowledge all critical alerts, toggle theme, open wall mode.
+- Devices, Locations and Alerts from `GET /api/v1/search` (at least 2 characters, debounced).
+
+↑/↓ move, Enter runs, Esc closes. If the server has no search endpoint the palette says so, and pages and actions keep working.
+
+### 8.2 Devices and device detail
+
+The Devices page is a `DataTable` by default. A card view, remembered per browser, shows the same filtered rows. Status sorts worst first. Group by location, status or protocol; group headers show the worst status. Bulk actions are "open in new tabs" (first 10) and delete behind `TypeToConfirmDialog`. The quick-look modal stays as a row action and links to the full page.
+
+`/devices/:id` has deep-linkable tabs (`?tab=`):
+
+| Tab | Content |
+|---|---|
+| Overview | Tiles, and a response-time chart from `GET /metrics/history` with a min–max band and squares on buckets with failed polls. On servers without history it plots the last 50 polls and says so |
+| Interfaces | SNMP interface counters and rates; an empty state otherwise |
+| Alerts | This device's alerts, with acknowledge and resolve |
+| Ports | Port inventory and scan |
+| Dependencies | Upstream path and downstream devices |
+| Settings | Edit form; delete by typing the device name |
+
+### 8.3 Alerts workbench
+
+A `DataTable` over the selected status (Active / Acknowledged / Resolved tabs). The filter bar lives in the URL (`q`, `severity`, `assignee=me|none`), plus group-by.
+
+- Acknowledge and resolve update the cache optimistically and roll back with a toast on failure.
+- Selection plus bulk acknowledge/resolve, with an optional note, uses `POST /alerts/bulk`.
+- A drawer per alert holds the assignee picker and the notes thread.
+- `alert:updated` patches rows in place. New criticals get `.alert-new-pulse`.
+
+Keyboard shortcuts are ignored while typing or with a dialog open: `j`/`k` move, `x` selects, `a` acknowledges, `r` resolves (the selection, else the current alert), `n` opens notes, `Enter` opens the alert, `Esc` clears the selection and `?` lists the shortcuts.
+
+### 8.4 NOC wall mode
+
+`/wall` renders without the app shell. `html[data-wall]` sets a 1.5× root size. It shows status counts, a worst-first device grid (healthy devices past the tile budget collapse to "+N more up"), an alert board, a locations view, a strip of the newest active alerts and a large clock.
+
+- **Data age.** A `StatusPill` shows how old the newest data is. It turns warning past 2× the median poll interval or when the WebSocket drops, and down past 4×. A reconnect banner (`role="alert"`) shows while the socket is down, and queries poll every 30s meanwhile.
+- **New critical.** An optional chime (WebAudio) and border flash (`.wall-flash`, three pulses) fire for a critical alert that is new since the screen loaded. Both are off by default and remembered (`nm-wall-chime`, `nm-wall-flash`).
+- **Rotation.** `?rotate=overview,alerts,topology&interval=30` (10s minimum) with a pause control. `?view=` picks a single view.
+- **Theme.** Dark by default; `?theme=light` or the in-page toggle (`nm-wall-theme`) switch it. The user's own preference is restored on exit.
 
 ## 9. Motion
 
@@ -260,6 +335,7 @@ All of these are `var()` references, so recharts follows the theme without re-re
 | Gauge fill on first paint (600ms) | Hover lifts on tiles that aren't interactive |
 | Skeleton shimmer, only while loading | Decorative motion that repeats |
 | `.alert-new-pulse`: three 1s pulses for a critical alert that **arrived after page load** | Pulsing every critical row forever |
+| `.wall-flash`: three 1s border pulses on the wall for a new critical (opt-in) | Marquee or auto-scrolling tickers |
 
 `@media (prefers-reduced-motion: reduce)` collapses CSS animation and transitions. JavaScript-driven motion checks `useReducedMotion()`:
 - `AnimatedCounter` jumps straight to the value.
@@ -282,12 +358,11 @@ All of these are `var()` references, so recharts follows the theme without re-re
 
 ---
 
-## 11. Phase 2 (not in this release)
+## 11. Phase 2 status
 
-These items come from the design review and are deliberately deferred:
-- the navigation restructure to about 12 items in 4 groups;
-- NOC/wall mode with a 1.5× root size;
-- a ⌘K command palette;
-- a shared DataTable with sort, filter, virtualisation and bulk actions;
-- `/devices/:id` detail routes;
-- customisable dashboards.
+Shipped in v5.1: the navigation restructure, NOC wall mode, the command palette, the shared DataTable, and `/devices/:id`.
+
+Still deferred:
+- customisable dashboards (drag/resize grid, per-role defaults);
+- a server-side device filter for alerts (the device page filters the newest 200 open alerts client-side);
+- device pause/resume (no endpoint yet, so the Devices bulk bar offers open and delete only).

@@ -6,33 +6,35 @@ import (
 )
 
 type Device struct {
-	ID                 int64     `json:"id"`
-	Name               string    `json:"name"`
-	IPAddress          string    `json:"ipAddress"`
-	Protocol           string    `json:"protocol"`
-	Port               int       `json:"port"`
-	Enabled            bool      `json:"enabled"`
-	Status             string    `json:"status"`
-	Priority           int       `json:"priority"`
-	Tags               []string  `json:"tags"`
-	SNMPCommunity      string    `json:"snmpCommunity,omitempty"`
-	SNMPVersion        string    `json:"snmpVersion,omitempty"`
-	SNMPPort           int       `json:"snmpPort,omitempty"`
-	HTTPPath           string    `json:"httpPath,omitempty"`
-	HTTPExpectedStatus int       `json:"httpExpectedStatus,omitempty"`
-	Interval           int       `json:"interval"`
-	CreatedAt          time.Time `json:"createdAt"`
-	UpdatedAt          time.Time `json:"updatedAt"`
-	LocationID         *int64    `json:"locationId,omitempty"`
-	ParentDeviceID     *int64    `json:"parentDeviceId,omitempty"`
-	DependencyPort     string    `json:"dependencyPort,omitempty"`
-	RackPosition       string    `json:"rackPosition,omitempty"`
-	AssetTag           string    `json:"assetTag,omitempty"`
-	MACAddress         string    `json:"macAddress,omitempty"`
-	SerialNumber       string    `json:"serialNumber,omitempty"`
-	Manufacturer       string    `json:"manufacturer,omitempty"`
-	Model              string    `json:"model,omitempty"`
-	DeviceCategory     string    `json:"deviceCategory,omitempty"`
+	ID            int64    `json:"id"`
+	Name          string   `json:"name"`
+	IPAddress     string   `json:"ipAddress"`
+	Protocol      string   `json:"protocol"`
+	Port          int      `json:"port"`
+	Enabled       bool     `json:"enabled"`
+	Status        string   `json:"status"`
+	Priority      int      `json:"priority"`
+	Tags          []string `json:"tags"`
+	SNMPCommunity string   `json:"snmpCommunity,omitempty"`
+	SNMPVersion   string   `json:"snmpVersion,omitempty"`
+	SNMPPort      int      `json:"snmpPort,omitempty"`
+	// SNMPv3 holds USM credentials, used when SNMPVersion is "3".
+	SNMPv3             *SNMPv3Config `json:"snmpV3,omitempty"`
+	HTTPPath           string        `json:"httpPath,omitempty"`
+	HTTPExpectedStatus int           `json:"httpExpectedStatus,omitempty"`
+	Interval           int           `json:"interval"`
+	CreatedAt          time.Time     `json:"createdAt"`
+	UpdatedAt          time.Time     `json:"updatedAt"`
+	LocationID         *int64        `json:"locationId,omitempty"`
+	ParentDeviceID     *int64        `json:"parentDeviceId,omitempty"`
+	DependencyPort     string        `json:"dependencyPort,omitempty"`
+	RackPosition       string        `json:"rackPosition,omitempty"`
+	AssetTag           string        `json:"assetTag,omitempty"`
+	MACAddress         string        `json:"macAddress,omitempty"`
+	SerialNumber       string        `json:"serialNumber,omitempty"`
+	Manufacturer       string        `json:"manufacturer,omitempty"`
+	Model              string        `json:"model,omitempty"`
+	DeviceCategory     string        `json:"deviceCategory,omitempty"`
 	// MonitorConfig holds non-secret profile options for specialized hardware
 	// (for example rtspPort for cameras or attendancePort for biometrics).
 	// Credentials must not be stored here; use the device's own access controls.
@@ -117,6 +119,17 @@ type Alert struct {
 	AcknowledgedBy *string    `json:"acknowledgedBy,omitempty"`
 	ResolvedBy     *string    `json:"resolvedBy,omitempty"`
 	RuleID         *int64     `json:"ruleId,omitempty"`
+	AssignedTo     *int64     `json:"assignedTo"`
+	AssignedToName *string    `json:"assignedToName"`
+}
+
+// AlertNote is an operator note on an alert.
+type AlertNote struct {
+	ID        int64     `json:"id"`
+	AlertID   int64     `json:"alertId"`
+	Text      string    `json:"text"`
+	Author    string    `json:"author"`
+	CreatedAt time.Time `json:"createdAt"`
 }
 
 type AlertCounts struct {
@@ -161,6 +174,16 @@ type Flow struct {
 	Bytes     int64     `json:"bytes"`
 	Packets   int64     `json:"packets"`
 	Duration  float64   `json:"duration"`
+
+	// Set by flow ingest (NetFlow/IPFIX/sFlow); nil for simulator flows.
+	// Bytes and Packets are already scaled by SamplingRate.
+	Exporter     *string `json:"exporter,omitempty"`
+	DeviceID     *int64  `json:"deviceId,omitempty"`
+	InIf         *int    `json:"inIf,omitempty"`
+	OutIf        *int    `json:"outIf,omitempty"`
+	TCPFlags     *int    `json:"tcpFlags,omitempty"`
+	ToS          *int    `json:"tos,omitempty"`
+	SamplingRate *int    `json:"samplingRate,omitempty"`
 }
 
 type FlowTimeseriesPoint struct {
@@ -487,3 +510,35 @@ const (
 	PermSystemLogs          = "system.logs"
 	PermRemoteManage        = "remote.manage"
 )
+
+// InterfaceSample is one poll of one network interface: throughput derived
+// from SNMP octet-counter deltas between consecutive polls.
+type InterfaceSample struct {
+	DeviceID    int64     `json:"deviceId"`
+	Time        time.Time `json:"time"`
+	IfIndex     int       `json:"ifIndex"`
+	Name        string    `json:"name"`
+	InBps       float64   `json:"inBps"`
+	OutBps      float64   `json:"outBps"`
+	Utilization *float64  `json:"utilization,omitempty"` // percent of speed, max of in/out
+	OperStatus  int       `json:"operStatus"`            // IF-MIB ifOperStatus (1 = up)
+	SpeedBps    int64     `json:"speedBps"`
+}
+
+// LLDPNeighbor is one LLDP-MIB remote system seen on a local port of a
+// polled device. RemoteDeviceID is set when the remote resolves to a
+// monitored device (by management address, then by system name).
+type LLDPNeighbor struct {
+	DeviceID        int64     `json:"deviceId"`
+	LocalPortNum    int       `json:"localPortNum"`
+	LocalPort       string    `json:"localPort"`
+	RemoteChassisID string    `json:"remoteChassisId"`
+	RemoteSysName   string    `json:"remoteSysName,omitempty"`
+	RemotePortID    string    `json:"remotePortId"`
+	RemotePortDesc  string    `json:"remotePortDesc,omitempty"`
+	RemoteMgmtIP    string    `json:"remoteMgmtIp,omitempty"`
+	RemoteDeviceID  *int64    `json:"remoteDeviceId,omitempty"`
+	RemoteDevice    string    `json:"remoteDeviceName,omitempty"`
+	FirstSeen       time.Time `json:"firstSeen"`
+	LastSeen        time.Time `json:"lastSeen"`
+}

@@ -309,3 +309,11 @@ func (m *mockRetDB) GetMetricBaselines(ctx context.Context, since time.Time) ([]
 func (m *mockRetDB) UpdateDeviceStatuses(ctx context.Context, ids []int64, statuses []string) ([]int64, error) {
 	return nil, nil
 }
+
+func (m *mockRetDB) RecordInterfaceSamples(ctx context.Context, samples []models.InterfaceSample) error {
+	return nil
+}
+
+func (m *mockRetDB) ReplaceDeviceNeighbors(ctx context.Context, deviceID int64, neighbors []models.LLDPNeighbor) error {
+	return nil
+}

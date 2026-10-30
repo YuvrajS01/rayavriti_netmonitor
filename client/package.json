@@ -1,7 +1,7 @@
 {
   "name": "client",
   "private": true,
-  "version": "5.0.1",
+  "version": "5.1.0",
   "type": "module",
   "scripts": {
     "dev": "node scripts/subset-icons.mjs && vite",
@@ -18,6 +18,7 @@
     "@fontsource-variable/instrument-sans": "^5.2.8",
     "@fontsource-variable/jetbrains-mono": "^5.2.8",
     "@tanstack/react-query": "^5.105.0",
+    "@tanstack/react-virtual": "^3.14.24",
     "axios": "^1.15.2",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",

@@ -1,302 +1,351 @@
-import { useState, useMemo } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { getAlerts, getAlertCounts, getGroupedAlerts, acknowledgeAlert, resolveAlert } from '../api/client';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { getAlerts, getAlertCounts, ALERT_LIST_LIMIT } from '../api/alerts';
+import { getDevices } from '../api/devices';
 import { queryKeys } from '../api/queryKeys';
-import type { Alert, AlertCounts } from '../api/types';
-import type { AlertGroup } from '../api/alerts';
+import type { Alert, AlertBulkAction, AlertCounts } from '../api/types';
 import SectionHeader from '../components/ui/SectionHeader';
-import StatCard from '../components/ui/StatCard';
-import LoadingState from '../components/ui/LoadingState';
 import ErrorState from '../components/ui/ErrorState';
 import EmptyState from '../components/ui/EmptyState';
 import Button from '../components/ui/Button';
-import { Tabs, TabPanel } from '../components/ui/Tabs';
-import { StatusPill, StatusShapeIcon } from '../components/ui/Status';
+import IconButton from '../components/ui/IconButton';
+import Dialog from '../components/ui/Dialog';
+import RelativeTime from '../components/ui/RelativeTime';
+import { Tabs } from '../components/ui/Tabs';
+import { StatusPill } from '../components/ui/Status';
+import { DataTable } from '../components/ui/DataTable';
+import { useDataTable, type RowId } from '../components/ui/useDataTable';
+import type { Column, GroupOption } from '../components/ui/dataTableModel';
+import AlertDrawer from '../components/AlertDrawer';
 import { useTabParam, useTabsId } from '../hooks/useTabParam';
-import { STATUS_META, lifecycleMeta, severityMeta, type Status } from '../utils/status';
+import { useAlertActions } from '../hooks/useAlertActions';
+import { useResourceList } from '../hooks/useResources';
+import { lifecycleMeta, severityMeta } from '../utils/status';
+import { hasPermission } from '../navigation';
+import { useSessionUser } from '../store/session';
 
 const TAB_IDS = ['active', 'acknowledged', 'resolved'] as const;
 type AlertTab = (typeof TAB_IDS)[number];
 
 const EMPTY_COUNTS: AlertCounts = { active: 0, acknowledged: 0, resolved: 0 };
 const EMPTY_ALERTS: Alert[] = [];
-const EMPTY_GROUPS: AlertGroup[] = [];
+const SEVERITY_RANK: Record<string, number> = { critical: 0, warning: 1, info: 2 };
 
-const SEVERITY_SECTIONS: { severity: Alert['severity']; label: string; status: Status }[] = [
-  { severity: 'critical', label: 'Critical', status: 'down' },
-  { severity: 'warning', label: 'Warning', status: 'warning' },
-  { severity: 'info', label: 'Information', status: 'info' },
+interface AlertRow extends Alert {
+  location: string;
+}
+
+const SHORTCUTS: Array<[string, string]> = [
+  ['j / ↓', 'Next alert'],
+  ['k / ↑', 'Previous alert'],
+  ['x / Space', 'Select or deselect'],
+  ['a', 'Acknowledge (selection, or the current alert)'],
+  ['r', 'Resolve (selection, or the current alert)'],
+  ['n', 'Notes and assignee for the current alert'],
+  ['Enter', 'Open the current alert'],
+  ['Esc', 'Clear the selection'],
+  ['?', 'Show these shortcuts'],
 ];
 
+const GROUPS: GroupOption<AlertRow>[] = [
+  { id: 'device', label: 'Device', key: (a) => a.deviceName || `Device ${a.deviceId}` },
+  { id: 'location', label: 'Location', key: (a) => a.location || 'Unassigned' },
+  { id: 'rule', label: 'Alert type', key: (a) => a.message.split(':')[0] ?? a.message },
+];
+
+function isTyping(target: EventTarget | null): boolean {
+  const el = target as HTMLElement | null;
+  if (!el) return false;
+  return el.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName);
+}
+
 export default function Alerts() {
-  const queryClient = useQueryClient();
-  const [currentTab, setCurrentTab] = useTabParam<AlertTab>(TAB_IDS);
+  const user = useSessionUser();
+  const [params, setParams] = useSearchParams();
+  const [tab, setTab] = useTabParam<AlertTab>(TAB_IDS);
   const tabsId = useTabsId();
-  const [actionError, setActionError] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<'grouped' | 'list'>('grouped');
+  const { act, bulkAct, pending } = useAlertActions();
+  const canAck = hasPermission(user, 'alerts.acknowledge');
+  const canResolve = hasPermission(user, 'alerts.resolve');
 
-  // All three are invalidated by alert WebSocket events (useLiveQueryBridge),
-  // so the list stays live without a full-page reload after each action.
+  const severity = params.get('severity') ?? '';
+  const assignee = params.get('assignee') ?? '';
+  const q = params.get('q') ?? '';
+  const setParam = useCallback((key: string, value: string) => {
+    setParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (value) next.set(key, value);
+      else next.delete(key);
+      return next;
+    }, { replace: true });
+  }, [setParams]);
+
+  // Kept live by useLiveQueryBridge: alert:updated patches rows in place,
+  // alert:triggered/resolved refetch.
   const alertsQuery = useQuery({
-    queryKey: queryKeys.alerts.list(currentTab, 300),
-    queryFn: ({ signal }) => getAlerts(currentTab, 300, { signal }),
+    queryKey: queryKeys.alerts.list(tab, ALERT_LIST_LIMIT),
+    queryFn: ({ signal }) => getAlerts(tab, ALERT_LIST_LIMIT, { signal }),
   });
-  const countsQuery = useQuery({
-    queryKey: queryKeys.alerts.counts(),
-    queryFn: ({ signal }) => getAlertCounts({ signal }),
+  const countsQuery = useQuery({ queryKey: queryKeys.alerts.counts(), queryFn: ({ signal }) => getAlertCounts({ signal }) });
+  const devicesQuery = useQuery({ queryKey: queryKeys.devices.list(), queryFn: ({ signal }) => getDevices({ signal }), enabled: hasPermission(user, 'devices.read') });
+  const locationsQuery = useResourceList('/locations', { enabled: hasPermission(user, 'locations.read') });
+  const counts = countsQuery.data?.data ?? EMPTY_COUNTS;
+  const alerts = alertsQuery.data?.data ?? EMPTY_ALERTS;
+
+  const rows = useMemo<AlertRow[]>(() => {
+    const locName = new Map((locationsQuery.data ?? []).map((l) => [Number(l.id), String(l.name)]));
+    const deviceLoc = new Map((devicesQuery.data?.data ?? []).map((d) => [d.id, d.locationId != null ? locName.get(d.locationId) ?? '' : '']));
+    return alerts
+      .filter((a) => !severity || a.severity === severity)
+      .filter((a) => !assignee || (assignee === 'me' ? a.assignedTo === user?.id : assignee === 'none' ? a.assignedTo == null : true))
+      .map((a) => ({ ...a, location: deviceLoc.get(a.deviceId) ?? '' }));
+  }, [alerts, severity, assignee, user?.id, devicesQuery.data, locationsQuery.data]);
+
+  // Active alerts present when the page loaded; a critical that arrives
+  // later gets the one-off "new" pulse.
+  const [baseline, setBaseline] = useState<Set<number> | null>(null);
+  if (baseline === null && tab === 'active' && alertsQuery.isSuccess) setBaseline(new Set(alerts.map((a) => a.id)));
+  const isNew = useCallback((a: Alert) => a.severity === 'critical' && a.status === 'active' && baseline !== null && !baseline.has(a.id), [baseline]);
+
+  const [drawer, setDrawer] = useState<{ id: number; note: boolean } | null>(null);
+  const [activeId, setActiveId] = useState<RowId | null>(null);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [bulkConfirm, setBulkConfirm] = useState<{ action: AlertBulkAction; ids: number[] } | null>(null);
+  const [bulkNote, setBulkNote] = useState('');
+
+  const columns = useMemo<Column<AlertRow>[]>(() => [
+    {
+      id: 'severity', header: 'Severity', width: '120px', searchable: false,
+      value: (a) => SEVERITY_RANK[a.severity] ?? 3,
+      cell: (a) => <StatusPill status={severityMeta(a.severity)} />,
+    },
+    {
+      id: 'message', header: 'Alert', width: 'minmax(220px,3fr)', hideable: false,
+      value: (a) => a.message,
+      cell: (a) => (
+        <span className="flex min-w-0 items-center gap-2">
+          <button type="button" tabIndex={-1} onClick={(e) => { e.stopPropagation(); setActiveId(a.id); setDrawer({ id: a.id, note: false }); }} className="truncate text-left font-medium text-fg hover:underline">{a.message}</button>
+          {isNew(a) && <span className="shrink-0 text-xs font-medium text-fg-muted">New</span>}
+        </span>
+      ),
+    },
+    {
+      id: 'device', header: 'Device', width: 'minmax(140px,1.5fr)',
+      value: (a) => a.deviceName || `Device ${a.deviceId}`,
+      cell: (a) => <Link to={`/devices/${a.deviceId}`} tabIndex={-1} onClick={(e) => e.stopPropagation()} className="text-fg-muted hover:text-fg hover:underline">{a.deviceName || `Device ${a.deviceId}`}</Link>,
+    },
+    { id: 'location', header: 'Location', width: 'minmax(120px,1fr)', value: (a) => a.location },
+    { id: 'status', header: 'Status', width: '136px', searchable: false, value: (a) => a.status, cell: (a) => <StatusPill status={lifecycleMeta(a.status)} /> },
+    { id: 'assignee', header: 'Assignee', width: 'minmax(110px,1fr)', value: (a) => a.assignedToName ?? '', cell: (a) => a.assignedToName ? <span>{a.assignedToName}</span> : <span className="text-fg-subtle">—</span> },
+    { id: 'age', header: 'Raised', width: '104px', searchable: false, value: (a) => new Date(a.createdAt).getTime(), cell: (a) => <RelativeTime value={a.createdAt} className="text-fg-muted" /> },
+    {
+      id: 'actions', header: 'Actions', width: '136px', hideable: false,
+      cell: (a) => (
+        <span className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+          {a.status === 'active' && canAck && <IconButton icon="check" size="sm" tabIndex={-1} label={`Acknowledge ${a.message}`} onClick={() => act(a.id, 'acknowledge')} />}
+          {a.status !== 'resolved' && canResolve && <IconButton icon="done_all" size="sm" tabIndex={-1} label={`Resolve ${a.message}`} onClick={() => act(a.id, 'resolve')} />}
+          <IconButton icon="sticky_note_2" size="sm" tabIndex={-1} label={`Notes for ${a.message}`} onClick={() => { setActiveId(a.id); setDrawer({ id: a.id, note: true }); }} />
+        </span>
+      ),
+    },
+  ], [act, canAck, canResolve, isNew, setActiveId, setDrawer]);
+
+  const table = useDataTable({
+    data: rows,
+    columns,
+    getRowId: (a) => a.id,
+    views: [{ id: 'all', label: 'Newest first', state: { sort: { id: 'age', desc: true } }, builtIn: true }],
+    storageKey: user ? `alerts:${user.id}` : undefined,
+    groups: GROUPS,
   });
-  const groupedQuery = useQuery({
-    queryKey: queryKeys.alerts.grouped(currentTab),
-    queryFn: ({ signal }) => getGroupedAlerts(currentTab, { signal }),
-  });
+  // The text filter lives in ?q= (device pages link here with it).
+  if (table.state.query !== q) table.setState({ query: q });
 
-  const alerts = alertsQuery.data?.data || EMPTY_ALERTS;
-  const grouped = groupedQuery.data?.data || EMPTY_GROUPS;
-  const counts = countsQuery.data?.data || EMPTY_COUNTS;
-  const queries = [alertsQuery, countsQuery, groupedQuery];
-  const loading = queries.some((q) => q.isPending);
-  const error = actionError ?? (queries.some((q) => q.isError) ? 'Failed to load alerts. Please try again.' : null);
+  const visible = table.rows;
+  const active = visible.find((a) => a.id === activeId);
 
-  // Active alerts present when the page first loaded. A critical alert that
-  // arrives later (via the live bridge) gets the one-off "new" pulse.
-  const [baselineIds, setBaselineIds] = useState<Set<number> | null>(null);
-  if (baselineIds === null && currentTab === 'active' && alertsQuery.isSuccess) {
-    setBaselineIds(new Set(alerts.map((a) => a.id)));
-  }
-  const isNewCritical = (alert: Alert) =>
-    alert.severity === 'critical' && alert.status === 'active' && baselineIds !== null && !baselineIds.has(alert.id);
+  /** Selection if any, else the current row; only alerts the action applies to. */
+  const targets = useCallback((action: AlertBulkAction): Alert[] => {
+    const base = table.selectedRows.length ? table.selectedRows : active ? [active] : [];
+    return base.filter((a) => (action === 'acknowledge' ? a.status === 'active' : a.status !== 'resolved'));
+  }, [table.selectedRows, active]);
 
-  const retry = () => {
-    setActionError(null);
-    void queryClient.invalidateQueries({ queryKey: queryKeys.alerts.all });
-  };
+  const run = useCallback((action: AlertBulkAction) => {
+    if ((action === 'acknowledge' && !canAck) || (action === 'resolve' && !canResolve)) return;
+    const list = targets(action);
+    if (list.length === 0) return;
+    if (list.length === 1 && !table.selectedRows.length) act(list[0]!.id, action);
+    else setBulkConfirm({ action, ids: list.map((a) => a.id) });
+  }, [targets, act, canAck, canResolve, table.selectedRows.length, setBulkConfirm]);
 
-  const onActionSettled = () => queryClient.invalidateQueries({ queryKey: queryKeys.alerts.all });
+  // Keyboard triage. Ignored while typing or while a dialog is open.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.metaKey || event.ctrlKey || event.altKey || isTyping(event.target)) return;
+      if (document.querySelector('dialog[open]')) return;
+      const index = active ? visible.indexOf(active) : -1;
+      const move = (delta: number) => {
+        const next = visible[Math.min(visible.length - 1, Math.max(0, index + delta))];
+        if (next) setActiveId(next.id);
+      };
+      switch (event.key) {
+        case 'j': move(1); break;
+        case 'k': move(-1); break;
+        case 'x': if (active) table.toggleRow(active); break;
+        case 'a': run('acknowledge'); break;
+        case 'r': run('resolve'); break;
+        case 'n': if (active) setDrawer({ id: active.id, note: true }); break;
+        case '?': setHelpOpen(true); break;
+        case 'Escape': if (table.selectedRows.length) table.clearSelection(); else return; break;
+        default: return;
+      }
+      event.preventDefault();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [active, visible, run, table]);
 
-  const ackMutation = useMutation({
-    mutationFn: (id: number) => acknowledgeAlert(id),
-    onMutate: () => setActionError(null),
-    onError: () => setActionError('Failed to acknowledge alert. Please try again.'),
-    onSettled: onActionSettled,
-  });
-
-  const resolveMutation = useMutation({
-    mutationFn: (id: number) => resolveAlert(id),
-    onMutate: () => setActionError(null),
-    onError: () => setActionError('Failed to resolve alert. Please try again.'),
-    onSettled: onActionSettled,
-  });
-
-  const handleAck = (id: number) => ackMutation.mutate(id);
-  const handleResolve = (id: number) => resolveMutation.mutate(id);
-
-  const bySeverity = useMemo(() => {
-    const map: Record<Alert['severity'], Alert[]> = { critical: [], warning: [], info: [] };
-    for (const alert of alerts) (map[alert.severity] ?? map.info).push(alert);
-    return map;
-  }, [alerts]);
-
-  const itemProps = { onAck: handleAck, onResolve: handleResolve, isNew: isNewCritical };
+  const drawerAlert = drawer ? alerts.find((a) => a.id === drawer.id) ?? null : null;
+  const filtered = Boolean(severity || assignee || q);
 
   return (
     <div>
       <SectionHeader
         title="Alerts"
-        subtitle="Monitor and respond to network alerts across all devices."
+        subtitle="Live alert workbench. Select with x, acknowledge with a, resolve with r."
+        action={<Button variant="secondary" icon="keyboard" onClick={() => setHelpOpen(true)}>Shortcuts</Button>}
       />
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <StatCard label="Active" value={counts.active} color={counts.active > 0 ? 'text-error' : 'text-fg'} icon="notifications_active" />
-        <StatCard label="Acknowledged" value={counts.acknowledged} icon="check_circle" />
-        <StatCard label="Resolved" value={counts.resolved} icon="done_all" />
+      <Tabs
+        label="Alert status"
+        idBase={tabsId}
+        value={tab}
+        onChange={(next) => { setTab(next); table.clearSelection(); setActiveId(null); }}
+        className="mb-4"
+        items={[
+          { id: 'active', label: 'Active', badge: counts.active },
+          { id: 'acknowledged', label: 'Acknowledged', badge: counts.acknowledged },
+          { id: 'resolved', label: 'Resolved', badge: counts.resolved },
+        ]}
+      />
+
+      <div role="search" aria-label="Filter alerts" className="mb-3 flex flex-wrap items-end gap-2">
+        <label className="relative min-w-56 flex-1">
+          <span className="sr-only">Search alert, device or location</span>
+          <span className="material-symbols-outlined pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-fg-subtle" aria-hidden="true">search</span>
+          <input
+            type="search"
+            value={q}
+            onChange={(e) => setParam('q', e.target.value)}
+            placeholder="Search alert, device or location"
+            className="h-control w-full rounded-md border border-line bg-surface-1 pl-9 pr-3 text-sm text-fg placeholder:text-fg-subtle outline-none focus:border-primary"
+          />
+        </label>
+        <label className="flex items-center gap-2 text-xs text-fg-muted">
+          Severity
+          <select value={severity} onChange={(e) => setParam('severity', e.target.value)} className="h-control rounded-md border border-line bg-surface-1 px-3 text-sm text-fg outline-none focus:border-primary">
+            <option value="">Any</option>
+            <option value="critical">Critical</option>
+            <option value="warning">Warning</option>
+            <option value="info">Info</option>
+          </select>
+        </label>
+        <label className="flex items-center gap-2 text-xs text-fg-muted">
+          Assignee
+          <select value={assignee} onChange={(e) => setParam('assignee', e.target.value)} className="h-control rounded-md border border-line bg-surface-1 px-3 text-sm text-fg outline-none focus:border-primary">
+            <option value="">Anyone</option>
+            <option value="me">Assigned to me</option>
+            <option value="none">Unassigned</option>
+          </select>
+        </label>
+        <label className="flex items-center gap-2 text-xs text-fg-muted">
+          Group by
+          <select value={table.state.groupBy ?? ''} onChange={(e) => table.setState({ groupBy: e.target.value || null })} className="h-control rounded-md border border-line bg-surface-1 px-3 text-sm text-fg outline-none focus:border-primary">
+            <option value="">None</option>
+            {GROUPS.map((g) => <option key={g.id} value={g.id}>{g.label}</option>)}
+          </select>
+        </label>
+        {filtered && <Button variant="ghost" icon="filter_alt_off" onClick={() => setParams({}, { replace: true })}>Clear filters</Button>}
       </div>
 
-      {alerts.length > 0 && (
-        <section aria-labelledby="severity-mix-heading" className="bg-surface-1 rounded-lg border border-line p-5 mb-6">
-          <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <h2 id="severity-mix-heading" className="text-sm font-semibold">Severity mix</h2>
-            <p className="text-xs text-fg-muted">{alerts.length} alerts in this view</p>
-          </div>
-          <div className="flex h-3 gap-0.5 rounded-full overflow-hidden mt-4 bg-inset" aria-hidden="true">
-            {SEVERITY_SECTIONS.map(({ severity, status }) =>
-              bySeverity[severity].length > 0 ? (
-                <i key={severity} className={STATUS_META[status].bg} style={{ width: `${(bySeverity[severity].length / alerts.length) * 100}%` }} />
-              ) : null,
-            )}
-          </div>
-          <ul className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-xs">
-            {SEVERITY_SECTIONS.map(({ severity, label, status }) => (
-              <li key={severity} className="inline-flex items-center gap-1.5">
-                <span className={STATUS_META[status].text}><StatusShapeIcon shape={STATUS_META[status].shape} /></span>
-                <span className="text-fg-muted">{label}</span>
-                <span className="font-semibold tabular-nums text-fg">{bySeverity[severity].length}</span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      <div className="flex flex-wrap items-end justify-between gap-4 mb-5">
-        <Tabs
-          label="Alert status"
-          idBase={tabsId}
-          value={currentTab}
-          onChange={setCurrentTab}
-          className="flex-1 min-w-0"
-          items={[
-            { id: 'active', label: 'Active', badge: counts.active },
-            { id: 'acknowledged', label: 'Acknowledged', badge: counts.acknowledged },
-            { id: 'resolved', label: 'Resolved', badge: counts.resolved },
-          ]}
+      {alertsQuery.isError ? (
+        <ErrorState message="Failed to load alerts. Please try again." onRetry={() => void alertsQuery.refetch()} />
+      ) : alertsQuery.isPending ? (
+        <div role="status" className="py-12 text-center text-sm text-fg-muted">Loading alerts…</div>
+      ) : (
+        <DataTable
+          table={table}
+          label={`${tab[0]!.toUpperCase()}${tab.slice(1)} alerts`}
+          rowLabel={(a) => a.message}
+          selectable={canAck || canResolve}
+          activeId={activeId}
+          onActiveIdChange={setActiveId}
+          onRowOpen={(a) => setDrawer({ id: a.id, note: false })}
+          rowClassName={(a) => `border-l-4 ${severityMeta(a.severity).borderL} ${isNew(a) ? 'alert-new-pulse' : ''}`}
+          maxHeight="calc(100dvh - 330px)"
+          empty={
+            filtered
+              ? <EmptyState icon="filter_alt_off" title="No alerts match" description="Change or clear the filters." />
+              : <EmptyState icon="notifications_off" title={`No ${tab} alerts`} description={tab === 'active' ? 'Everything is quiet right now.' : undefined} />
+          }
+          bulkActions={(selected) => (
+            <>
+              {canAck && <Button size="sm" variant="secondary" icon="check" disabled={pending || !selected.some((a) => a.status === 'active')} onClick={() => run('acknowledge')}>Acknowledge</Button>}
+              {canResolve && <Button size="sm" variant="primary-outline" icon="done_all" disabled={pending || !selected.some((a) => a.status !== 'resolved')} onClick={() => run('resolve')}>Resolve</Button>}
+            </>
+          )}
         />
-        {currentTab === 'active' && (
-          <div role="group" aria-label="View" className="flex gap-0.5 rounded-md border border-line bg-inset p-0.5">
-            {(['grouped', 'list'] as const).map((mode) => (
-              <button
-                key={mode}
-                type="button"
-                aria-pressed={viewMode === mode}
-                onClick={() => setViewMode(mode)}
-                className={`h-8 rounded-[6px] px-3 text-sm font-medium capitalize transition-colors ${
-                  viewMode === mode ? 'bg-surface-3 text-fg shadow-e1' : 'text-fg-muted hover:text-fg'
-                }`}
-              >
-                {mode}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <TabPanel idBase={tabsId} id={currentTab} value={currentTab}>
-        {loading && <LoadingState message="Loading alerts…" />}
-
-        {error && !loading && <ErrorState message={error} onRetry={retry} />}
-
-        {!loading && !error && currentTab === 'active' && viewMode === 'grouped' && (
-          <div className="space-y-3">
-            {grouped.length === 0 && <EmptyState icon="notifications_off" title="No active alerts" description="Everything is quiet right now." />}
-            {grouped.map((group) => (
-              <AlertGroupCard key={group.groupId} group={group} {...itemProps} />
-            ))}
-          </div>
-        )}
-
-        {!loading && !error && (currentTab !== 'active' || viewMode === 'list') && (
-          <div className="space-y-3">
-            {currentTab === 'active' &&
-              SEVERITY_SECTIONS.map(({ severity, label, status }) =>
-                bySeverity[severity].length > 0 ? (
-                  <section key={severity} aria-label={`${label} alerts`} className="space-y-3">
-                    <h2 className={`flex items-center gap-2 pt-3 text-sm font-semibold ${STATUS_META[status].text}`}>
-                      <StatusShapeIcon shape={STATUS_META[status].shape} />
-                      <span className="text-fg">{label}</span>
-                      <span className="text-fg-muted font-normal tabular-nums">{bySeverity[severity].length}</span>
-                      <span className="h-px flex-1 bg-line" />
-                    </h2>
-                    {bySeverity[severity].map((alert) => <AlertItem key={alert.id} alert={alert} {...itemProps} />)}
-                  </section>
-                ) : null,
-              )}
-
-            {currentTab !== 'active' && alerts.map((alert) => <AlertItem key={alert.id} alert={alert} {...itemProps} />)}
-
-            {alerts.length === 0 && <EmptyState icon="notifications_off" title={`No ${currentTab} alerts`} />}
-          </div>
-        )}
-      </TabPanel>
-    </div>
-  );
-}
-
-interface ItemHandlers {
-  onAck: (id: number) => void;
-  onResolve: (id: number) => void;
-  isNew: (alert: Alert) => boolean;
-}
-
-function AlertGroupCard({ group, onAck, onResolve, isNew }: { group: AlertGroup } & ItemHandlers) {
-  const [expanded, setExpanded] = useState(false);
-  const firstAlert = group.alerts[0];
-  if (!firstAlert) return null;
-
-  const meta = severityMeta(firstAlert.severity);
-  const panelId = `alert-group-${group.groupId}`;
-  const hasNew = group.alerts.some(isNew);
-
-  return (
-    <div className={`bg-surface-1 rounded-lg border border-line border-l-4 ${meta.borderL} overflow-hidden ${hasNew ? 'alert-new-pulse' : ''}`}>
-      <button
-        type="button"
-        onClick={() => setExpanded(!expanded)}
-        aria-expanded={expanded}
-        aria-controls={panelId}
-        className="w-full p-4 flex items-center justify-between gap-4 text-left hover:bg-surface-2 transition-colors"
-      >
-        <div className="flex items-center gap-4 min-w-0">
-          <div className={`${meta.chip} p-2.5 rounded-md`}>
-            <span className={`material-symbols-outlined ${meta.text}`} aria-hidden="true">{meta.icon}</span>
-          </div>
-          <div className="min-w-0">
-            <div className="flex items-center gap-3 flex-wrap">
-              <h3 className="font-semibold text-fg truncate">{firstAlert.message.split(':')[0]}</h3>
-              <StatusPill status={meta} />
-            </div>
-            <p className="text-sm text-fg-muted">{group.count} device{group.count !== 1 ? 's' : ''} affected</p>
-          </div>
-        </div>
-        <span className={`material-symbols-outlined text-fg-muted transition-transform ${expanded ? 'rotate-180' : ''}`} aria-hidden="true">
-          expand_more
-        </span>
-      </button>
-      {expanded && (
-        <div id={panelId} className="border-t border-line p-4 space-y-3 bg-inset">
-          {group.alerts.map((alert) => (
-            <AlertItem key={alert.id} alert={alert} onAck={onAck} onResolve={onResolve} isNew={isNew} />
-          ))}
-        </div>
       )}
+      {alerts.length >= ALERT_LIST_LIMIT && (
+        <p className="mt-1 text-xs text-fg-muted">Showing the newest {ALERT_LIST_LIMIT} {tab} alerts (the server's page limit).</p>
+      )}
+
+      {drawerAlert && (
+        <AlertDrawer
+          alert={drawerAlert}
+          onClose={() => setDrawer(null)}
+          canAssign={canAck}
+          canNote={canAck}
+          focusNote={drawer?.note}
+        />
+      )}
+
+      <Dialog
+        open={bulkConfirm != null}
+        onClose={() => setBulkConfirm(null)}
+        size="sm"
+        title={`${bulkConfirm?.action === 'resolve' ? 'Resolve' : 'Acknowledge'} ${bulkConfirm?.ids.length ?? 0} alerts?`}
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setBulkConfirm(null)}>Cancel</Button>
+            <Button
+              onClick={() => {
+                if (!bulkConfirm) return;
+                void bulkAct(bulkConfirm.ids, bulkConfirm.action, bulkNote.trim() || undefined).then(() => table.clearSelection(), () => {});
+                setBulkConfirm(null);
+                setBulkNote('');
+              }}
+            >
+              {bulkConfirm?.action === 'resolve' ? 'Resolve' : 'Acknowledge'}
+            </Button>
+          </>
+        }
+      >
+        <label htmlFor="bulk-note" className="mb-1.5 block text-sm text-fg-muted">Note (optional, added to each alert)</label>
+        <textarea id="bulk-note" value={bulkNote} onChange={(e) => setBulkNote(e.target.value)} maxLength={2000} rows={3} className="w-full rounded-md border border-line bg-inset px-3 py-2 text-sm text-fg outline-none focus:border-primary" />
+      </Dialog>
+
+      <Dialog open={helpOpen} onClose={() => setHelpOpen(false)} size="sm" title="Keyboard shortcuts" description="Work when focus isn't in a text field.">
+        <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-sm">
+          {SHORTCUTS.map(([keys, what]) => (
+            <div key={keys} className="contents">
+              <dt><kbd className="rounded-sm border border-line-strong bg-surface-2 px-1.5 py-0.5 font-mono text-xs">{keys}</kbd></dt>
+              <dd className="text-fg-muted">{what}</dd>
+            </div>
+          ))}
+        </dl>
+      </Dialog>
     </div>
-  );
-}
-
-function AlertItem({ alert, onAck, onResolve, isNew }: { alert: Alert } & ItemHandlers) {
-  const deviceName = alert.deviceName || `Device ${alert.deviceId}`;
-  const meta = severityMeta(alert.severity);
-
-  return (
-    <article
-      className={`bg-surface-1 rounded-lg border border-line border-l-4 ${meta.borderL} p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 ${isNew(alert) ? 'alert-new-pulse' : ''}`}
-    >
-      <div className="flex items-start gap-4 min-w-0">
-        <div className={`${meta.chip} p-2.5 rounded-md shrink-0`}>
-          <span className={`material-symbols-outlined ${meta.text}`} aria-hidden="true">{meta.icon}</span>
-        </div>
-        <div className="min-w-0">
-          <div className="flex items-center gap-3 mb-1 flex-wrap">
-            <h3 className="font-semibold text-fg">{alert.message}</h3>
-            <StatusPill status={meta} />
-            {isNew(alert) && <span className="text-xs font-medium text-fg-muted">New</span>}
-          </div>
-          <p className="text-sm text-fg-muted">{deviceName}</p>
-          <p className="text-xs font-mono text-fg-subtle mt-1.5 flex flex-wrap items-center gap-2">
-            <time dateTime={alert.createdAt}>{new Date(alert.createdAt).toLocaleString()}</time>
-            <StatusPill status={lifecycleMeta(alert.status)} />
-          </p>
-        </div>
-      </div>
-      <div className="flex items-center gap-3 shrink-0">
-        {alert.status === 'active' && (
-          <Button variant="secondary" icon="check" onClick={() => onAck(alert.id)} aria-label={`Acknowledge alert: ${alert.message}`}>
-            Acknowledge
-          </Button>
-        )}
-        {alert.status === 'acknowledged' && (
-          <Button variant="primary-outline" icon="done_all" onClick={() => onResolve(alert.id)} aria-label={`Resolve alert: ${alert.message}`}>
-            Resolve
-          </Button>
-        )}
-      </div>
-    </article>
   );
 }

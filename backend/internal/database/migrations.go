@@ -1197,4 +1197,65 @@ var migrations = []Migration{
 	SELECT add_continuous_aggregate_policy('metrics_daily',
 		start_offset => INTERVAL '7 days', end_offset => INTERVAL '1 day',
 		schedule_interval => INTERVAL '6 hours', if_not_exists => TRUE);`},
+	// v5.1 alerts workbench: assignee and operator notes.
+	{Version: 48, SQL: `ALTER TABLE alerts ADD COLUMN IF NOT EXISTS assigned_to BIGINT REFERENCES users(id) ON DELETE SET NULL;
+	CREATE INDEX IF NOT EXISTS idx_alerts_assigned_to ON alerts(assigned_to) WHERE assigned_to IS NOT NULL;
+	CREATE TABLE IF NOT EXISTS alert_notes (
+		id         BIGSERIAL PRIMARY KEY,
+		alert_id   BIGINT NOT NULL REFERENCES alerts(id) ON DELETE CASCADE,
+		author     TEXT NOT NULL,
+		text       TEXT NOT NULL CHECK (char_length(text) BETWEEN 1 AND 2000),
+		created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+	);
+	CREATE INDEX IF NOT EXISTS idx_alert_notes_alert ON alert_notes(alert_id, created_at);`},
+	// v5.2 interface throughput (B4): one narrow row per interface per poll,
+	// instead of SNMP interface blobs inside metrics.details.
+	{Version: 49, SQL: `CREATE TABLE IF NOT EXISTS interface_metrics (
+		time        TIMESTAMPTZ      NOT NULL,
+		device_id   BIGINT           NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+		if_index    INTEGER          NOT NULL,
+		if_name     TEXT             NOT NULL,
+		in_bps      DOUBLE PRECISION NOT NULL,
+		out_bps     DOUBLE PRECISION NOT NULL,
+		utilization REAL,
+		oper_status SMALLINT         NOT NULL,
+		speed_bps   BIGINT           NOT NULL
+	);
+	SELECT create_hypertable('interface_metrics', 'time', chunk_time_interval => INTERVAL '1 day', if_not_exists => TRUE);
+	CREATE INDEX IF NOT EXISTS idx_interface_metrics_dev_if ON interface_metrics (device_id, if_index, time DESC);
+	ALTER TABLE interface_metrics SET (
+		timescaledb.compress,
+		timescaledb.compress_segmentby = 'device_id, if_index',
+		timescaledb.compress_orderby = 'time DESC');
+	SELECT add_compression_policy('interface_metrics', compress_after => INTERVAL '3 days', if_not_exists => TRUE);`},
+	// v5.2: SNMPv3 USM credentials (security name, level, auth/priv
+	// protocols and passphrases), used when snmp_version is '3'.
+	{Version: 50, SQL: `ALTER TABLE devices ADD COLUMN IF NOT EXISTS snmp_v3 JSONB;`},
+	// v5.2 flow ingest (B13): exporter metadata for NetFlow/IPFIX/sFlow
+	// records. flows is a compressed hypertable, so columns are added one
+	// per statement, nullable and without defaults (no rewrite of
+	// compressed chunks). device_id has no FK: deletes cascading into
+	// compressed chunks are expensive and flows age out via retention.
+	{Version: 51, SQL: `ALTER TABLE flows ADD COLUMN IF NOT EXISTS exporter INET;
+	ALTER TABLE flows ADD COLUMN IF NOT EXISTS device_id BIGINT;
+	ALTER TABLE flows ADD COLUMN IF NOT EXISTS in_if INT;
+	ALTER TABLE flows ADD COLUMN IF NOT EXISTS out_if INT;
+	ALTER TABLE flows ADD COLUMN IF NOT EXISTS tcp_flags SMALLINT;
+	ALTER TABLE flows ADD COLUMN IF NOT EXISTS tos SMALLINT;
+	ALTER TABLE flows ADD COLUMN IF NOT EXISTS sampling_rate INT;`},
+	// v5.2: LLDP neighbours reported by polled devices.
+	{Version: 52, SQL: `CREATE TABLE IF NOT EXISTS device_neighbors (
+		device_id         BIGINT      NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+		local_port_num    INTEGER     NOT NULL,
+		local_port        TEXT        NOT NULL,
+		remote_chassis_id TEXT        NOT NULL,
+		remote_port_id    TEXT        NOT NULL,
+		remote_sys_name   TEXT        NOT NULL DEFAULT '',
+		remote_port_desc  TEXT        NOT NULL DEFAULT '',
+		remote_mgmt_ip    TEXT        NOT NULL DEFAULT '',
+		first_seen        TIMESTAMPTZ NOT NULL,
+		last_seen         TIMESTAMPTZ NOT NULL,
+		PRIMARY KEY (device_id, local_port_num, remote_chassis_id, remote_port_id)
+	);
+	CREATE INDEX IF NOT EXISTS idx_device_neighbors_mgmt ON device_neighbors (remote_mgmt_ip) WHERE remote_mgmt_ip <> '';`},
 }

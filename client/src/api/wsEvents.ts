@@ -25,8 +25,11 @@ export interface AlertResolvedEvent {
   resolved_by: string;
 }
 
-/** `alert:updated` — reserved by the backend; no producer emits it yet. */
-export type AlertUpdatedEvent = Partial<Alert> & { id?: number };
+/**
+ * `alert:updated` — the full updated models.Alert, sent by the v5.1 backend
+ * after acknowledge, resolve, assign and bulk actions.
+ */
+export type AlertUpdatedEvent = Alert;
 
 /** `bootstrap` — sent once per connection by cmd/server/main.go bootstrapFn. */
 export interface BootstrapEvent {

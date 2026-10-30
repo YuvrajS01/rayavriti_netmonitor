@@ -232,3 +232,13 @@ export function unwrapGoResponse<T>(raw: unknown): T {
 export function wrap<T>(raw: unknown): { data: T; success: boolean } {
   return { data: unwrapGoResponse<T>(raw), success: true };
 }
+
+/**
+ * Like wrap(), but rejects a body that isn't a JSON object. Some servers
+ * answer unknown /api paths with the SPA's index.html (200, text/html);
+ * endpoints newer than the server must surface as errors, not as data.
+ */
+export function wrapJson<T>(raw: unknown): { data: T; success: boolean } {
+  if (raw === null || typeof raw !== 'object') throw new Error('Unexpected non-JSON response');
+  return wrap<T>(raw);
+}

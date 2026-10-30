@@ -37,6 +37,8 @@ export interface Device {
   locationId?: number;
   snmpCommunity?: string | null;
   snmpVersion?: string | null;
+  /** SNMPv3 USM credentials. Passphrases come back as "********". */
+  snmpV3?: SNMPv3Config | null;
   deviceCategory?: string;
   monitorConfig?: Record<string, string | number | boolean>;
   manufacturer?: string;
@@ -97,8 +99,80 @@ export interface Alert {
   deviceName?: string;
   groupId?: string;
   acknowledgedBy?: string;
+  acknowledgedAt?: string;
+  resolvedBy?: string;
   resolvedAt?: string;
   createdAt: string;
+  ruleId?: number;
+  /** v5.1: user the alert is assigned to (null = unassigned). */
+  assignedTo?: number | null;
+  assignedToName?: string | null;
+}
+
+/** GET /alerts/{id}/notes item (v5.1). */
+export interface AlertNote {
+  id: number;
+  alertId: number;
+  text: string;
+  author: string;
+  createdAt: string;
+}
+
+export type AlertBulkAction = 'acknowledge' | 'resolve';
+
+/** POST /alerts/bulk response (v5.1). */
+export interface AlertBulkResult {
+  updated: number[];
+  skipped: Array<{ id: number; reason: 'not_found' | 'forbidden' | 'invalid_state' }>;
+}
+
+/** GET /users/assignable item (v5.1). */
+export interface AssignableUser {
+  id: number;
+  username: string;
+  displayName: string;
+}
+
+/** One bucket of GET /metrics/history (v5.1). Response times in ms. */
+export interface HistoryPoint {
+  t: string;
+  avg: number | null;
+  min: number | null;
+  max: number | null;
+  samples: number;
+  down: number;
+}
+
+export interface DeviceHistory {
+  deviceId: number;
+  deviceName: string;
+  points: HistoryPoint[];
+}
+
+export type HistoryBucket = '1m' | '5m' | '15m' | '1h' | '1d';
+
+/** GET /search response (v5.1). */
+export interface SearchResults {
+  devices: Array<{ id: number; name: string; ipAddress: string; status: string; locationName?: string }>;
+  locations: Array<{ id: number; name: string; type: string; path?: string }>;
+  alerts: Array<{ id: number; message: string; severity: Alert['severity']; deviceName?: string; createdAt: string }>;
+}
+
+/** GET /devices/{id}/dependencies (backend campus.DeviceNode lists). */
+export interface DeviceDependencyNode {
+  deviceId: number;
+  name: string;
+  host: string;
+  status: string;
+  category?: string;
+  locationId?: number | null;
+  parentDeviceId?: number | null;
+  dependencyPort?: string;
+}
+
+export interface DeviceDependencies {
+  ancestors: DeviceDependencyNode[] | null;
+  descendants: DeviceDependencyNode[] | null;
 }
 
 export interface AlertCounts {
@@ -362,4 +436,47 @@ export interface HealthHistoryResponse {
   generatedAt: string;
   hours: number;
   points: HealthHistoryPoint[];
+}
+
+export type SNMPv3SecurityLevel = 'noAuthNoPriv' | 'authNoPriv' | 'authPriv';
+
+export interface SNMPv3Config {
+  securityName: string;
+  securityLevel: SNMPv3SecurityLevel;
+  authProtocol?: string;
+  authPassphrase?: string;
+  privProtocol?: string;
+  privPassphrase?: string;
+  contextName?: string;
+}
+
+/** Latest per-interface throughput from SNMP polls (GET /devices/:id/interfaces). */
+export interface InterfaceSample {
+  deviceId: number;
+  time: string;
+  ifIndex: number;
+  name: string;
+  inBps: number;
+  outBps: number;
+  /** Percent of line speed; null when the speed is unknown. */
+  utilization: number | null;
+  /** IF-MIB ifOperStatus: 1 up, 2 down, others unknown. */
+  operStatus: number;
+  speedBps: number;
+}
+
+/** An LLDP neighbour reported by a device (GET /devices/:id/neighbors). */
+export interface LLDPNeighbor {
+  deviceId: number;
+  localPortNum: number;
+  localPort: string;
+  remoteChassisId: string;
+  remoteSysName?: string;
+  remotePortId: string;
+  remotePortDesc?: string;
+  remoteMgmtIp?: string;
+  remoteDeviceId?: number;
+  remoteDeviceName?: string;
+  firstSeen: string;
+  lastSeen: string;
 }

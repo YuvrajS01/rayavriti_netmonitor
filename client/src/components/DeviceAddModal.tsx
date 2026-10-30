@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { addDevice } from '../api/client';
 import type { ResourceRow } from '../api/resources';
+import type { SNMPv3Config, SNMPv3SecurityLevel } from '../api/types';
 import { useResourceList } from '../hooks/useResources';
 import Button from './ui/Button';
 import Dialog from './ui/Dialog';
@@ -15,6 +16,8 @@ interface Props {
 }
 
 const EMPTY_LOCATIONS: ResourceRow[] = [];
+const SNMP_AUTH_PROTOCOLS = ['SHA256', 'SHA512', 'SHA384', 'SHA224', 'SHA', 'MD5'];
+const SNMP_PRIV_PROTOCOLS = ['AES', 'AES256', 'AES192', 'AES256C', 'AES192C', 'DES'];
 
 export default function DeviceAddModal({ open, onClose, onAdded, initialProtocol }: Props) {
   const { addToast } = useToast();
@@ -22,6 +25,7 @@ export default function DeviceAddModal({ open, onClose, onAdded, initialProtocol
   const [port, setPort] = useState(initialProtocol ? 80 : 443);
   const [snmpCommunity, setSnmpCommunity] = useState('public');
   const [snmpVersion, setSnmpVersion] = useState('2c');
+  const [securityLevel, setSecurityLevel] = useState<SNMPv3SecurityLevel>('authPriv');
   const [securityCategory, setSecurityCategory] = useState<'camera' | 'nvr' | 'biometric'>('camera');
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -37,6 +41,11 @@ export default function DeviceAddModal({ open, onClose, onAdded, initialProtocol
     if (protocol === 'port') {
       const p = Number(fd.get('port'));
       if (!p || p < 1 || p > 65535) newErrors.port = 'Valid port required (1-65535)';
+    }
+    if (protocol === 'snmp' && snmpVersion === '3') {
+      if (!asText(fd.get('securityName')).trim()) newErrors.securityName = 'User name is required';
+      if (securityLevel !== 'noAuthNoPriv' && asText(fd.get('authPassphrase')).length < 8) newErrors.authPassphrase = 'At least 8 characters';
+      if (securityLevel === 'authPriv' && asText(fd.get('privPassphrase')).length < 8) newErrors.privPassphrase = 'At least 8 characters';
     }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -73,8 +82,25 @@ export default function DeviceAddModal({ open, onClose, onAdded, initialProtocol
       const locVal = fd.get('locationId') as string;
       if (locVal) payload.locationId = Number(locVal);
       if (protocol === 'snmp') {
-        payload.snmpCommunity = snmpCommunity.trim() || 'public';
         payload.snmpVersion = snmpVersion;
+        if (snmpVersion === '3') {
+          const v3: SNMPv3Config = {
+            securityName: asText(fd.get('securityName')).trim(),
+            securityLevel,
+            contextName: asText(fd.get('contextName')).trim() || undefined,
+          };
+          if (securityLevel !== 'noAuthNoPriv') {
+            v3.authProtocol = asText(fd.get('authProtocol'));
+            v3.authPassphrase = asText(fd.get('authPassphrase'));
+          }
+          if (securityLevel === 'authPriv') {
+            v3.privProtocol = asText(fd.get('privProtocol'));
+            v3.privPassphrase = asText(fd.get('privPassphrase'));
+          }
+          payload.snmpV3 = v3;
+        } else {
+          payload.snmpCommunity = snmpCommunity.trim() || 'public';
+        }
       }
       await addDevice(payload);
       addToast('Device added successfully', 'success');
@@ -175,24 +201,83 @@ export default function DeviceAddModal({ open, onClose, onAdded, initialProtocol
           </div>
 
           {protocol === 'snmp' && (
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label htmlFor="device-snmp-community" className="block text-xs font-semibold text-fg-muted mb-1.5">SNMP community</label>
-                <input
-                  id="device-snmp-community"
-                  value={snmpCommunity}
-                  onChange={(e) => setSnmpCommunity(e.target.value)}
-                  placeholder="Community string"
-                  className={`${inputClass} w-full`}
-                />
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label htmlFor="device-snmp-version" className="block text-xs font-semibold text-fg-muted mb-1.5">SNMP version</label>
+                  <select id="device-snmp-version" value={snmpVersion} onChange={(e) => setSnmpVersion(e.target.value)} className={`${inputClass} w-full cursor-pointer`}>
+                    <option value="2c">v2c</option>
+                    <option value="3">v3</option>
+                    <option value="1">v1</option>
+                  </select>
+                </div>
+                {snmpVersion === '3' ? (
+                  <div>
+                    <label htmlFor="device-snmp-level" className="block text-xs font-semibold text-fg-muted mb-1.5">Security level</label>
+                    <select id="device-snmp-level" value={securityLevel} onChange={(e) => setSecurityLevel(e.target.value as SNMPv3SecurityLevel)} className={`${inputClass} w-full cursor-pointer`}>
+                      <option value="authPriv">Auth and privacy</option>
+                      <option value="authNoPriv">Auth, no privacy</option>
+                      <option value="noAuthNoPriv">No auth</option>
+                    </select>
+                  </div>
+                ) : (
+                  <div>
+                    <label htmlFor="device-snmp-community" className="block text-xs font-semibold text-fg-muted mb-1.5">SNMP community</label>
+                    <input
+                      id="device-snmp-community"
+                      value={snmpCommunity}
+                      onChange={(e) => setSnmpCommunity(e.target.value)}
+                      placeholder="Community string"
+                      className={`${inputClass} w-full border-line`}
+                    />
+                  </div>
+                )}
               </div>
-              <div>
-                <label htmlFor="device-snmp-version" className="block text-xs font-semibold text-fg-muted mb-1.5">SNMP version</label>
-                <select id="device-snmp-version" value={snmpVersion} onChange={(e) => setSnmpVersion(e.target.value)} className={`${inputClass} w-full cursor-pointer`}>
-                  <option value="2c">v2c</option>
-                  <option value="1">v1</option>
-                </select>
-              </div>
+              {snmpVersion === '3' && (
+                <>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label htmlFor="device-snmp-user" className="block text-xs font-semibold text-fg-muted mb-1.5">User name *</label>
+                      <input id="device-snmp-user" name="securityName" maxLength={32} autoComplete="off" aria-invalid={errors.securityName ? true : undefined} aria-describedby={errors.securityName ? 'device-snmp-user-error' : undefined} className={`${inputClass} w-full ${borderClass('securityName')}`} />
+                      {errors.securityName && <p id="device-snmp-user-error" className="text-error text-xs mt-1">{errors.securityName}</p>}
+                    </div>
+                    <div>
+                      <label htmlFor="device-snmp-context" className="block text-xs font-semibold text-fg-muted mb-1.5">Context name</label>
+                      <input id="device-snmp-context" name="contextName" placeholder="Optional" autoComplete="off" className={`${inputClass} w-full border-line`} />
+                    </div>
+                  </div>
+                  {securityLevel !== 'noAuthNoPriv' && (
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label htmlFor="device-snmp-auth-proto" className="block text-xs font-semibold text-fg-muted mb-1.5">Auth protocol</label>
+                        <select id="device-snmp-auth-proto" name="authProtocol" className={`${inputClass} w-full cursor-pointer border-line`}>
+                          {SNMP_AUTH_PROTOCOLS.map((p) => <option key={p} value={p}>{p.replace(/^SHA(\d+)$/, 'SHA-$1')}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label htmlFor="device-snmp-auth-pass" className="block text-xs font-semibold text-fg-muted mb-1.5">Auth passphrase *</label>
+                        <input id="device-snmp-auth-pass" name="authPassphrase" type="password" autoComplete="new-password" aria-invalid={errors.authPassphrase ? true : undefined} aria-describedby={errors.authPassphrase ? 'device-snmp-auth-pass-error' : undefined} className={`${inputClass} w-full ${borderClass('authPassphrase')}`} />
+                        {errors.authPassphrase && <p id="device-snmp-auth-pass-error" className="text-error text-xs mt-1">{errors.authPassphrase}</p>}
+                      </div>
+                    </div>
+                  )}
+                  {securityLevel === 'authPriv' && (
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label htmlFor="device-snmp-priv-proto" className="block text-xs font-semibold text-fg-muted mb-1.5">Privacy protocol</label>
+                        <select id="device-snmp-priv-proto" name="privProtocol" className={`${inputClass} w-full cursor-pointer border-line`}>
+                          {SNMP_PRIV_PROTOCOLS.map((p) => <option key={p} value={p}>{p.replace(/^AES(\d+)(C?)$/, 'AES-$1$2').replace(/^AES$/, 'AES-128')}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label htmlFor="device-snmp-priv-pass" className="block text-xs font-semibold text-fg-muted mb-1.5">Privacy passphrase *</label>
+                        <input id="device-snmp-priv-pass" name="privPassphrase" type="password" autoComplete="new-password" aria-invalid={errors.privPassphrase ? true : undefined} aria-describedby={errors.privPassphrase ? 'device-snmp-priv-pass-error' : undefined} className={`${inputClass} w-full ${borderClass('privPassphrase')}`} />
+                        {errors.privPassphrase && <p id="device-snmp-priv-pass-error" className="text-error text-xs mt-1">{errors.privPassphrase}</p>}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
             </div>
           )}
 

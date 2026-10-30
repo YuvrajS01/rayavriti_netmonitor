@@ -25,6 +25,21 @@ type Config struct {
 	Backup       BackupConfig
 	Remote       RemoteConfig
 	Telemetry    TelemetryConfig
+	FlowIngest   FlowIngestConfig
+}
+
+// FlowIngestConfig controls the NetFlow/IPFIX/sFlow UDP listeners.
+type FlowIngestConfig struct {
+	Enabled bool
+	// NetFlowAddr receives NetFlow v5/v9 and IPFIX; SFlowAddr receives
+	// sFlow v5. An empty address disables that listener.
+	NetFlowAddr   string
+	SFlowAddr     string
+	QueueSize     int
+	BatchSize     int
+	FlushInterval time.Duration
+	// DeviceRefresh is how often the exporter IP -> device map is reloaded.
+	DeviceRefresh time.Duration
 }
 
 type RedisConfig struct {
@@ -67,7 +82,6 @@ type AuthConfig struct {
 }
 
 type CollectorConfig struct {
-	NetflowPort          int
 	MetricsRetentionDays int
 	FlowRetentionDays    int
 	AlertsRetentionDays  int
@@ -214,7 +228,6 @@ func Load() (*Config, error) {
 			RefreshTokenExpiry: envDuration("REFRESH_TOKEN_EXPIRY", 7*24*time.Hour),
 		},
 		Collector: CollectorConfig{
-			NetflowPort:          envInt("NETFLOW_PORT", 2055),
 			MetricsRetentionDays: envInt("METRICS_RETENTION_DAYS", 30),
 			// .env.example documents FLOWS_; FLOW_ was the historical name.
 			FlowRetentionDays:          envInt("FLOWS_RETENTION_DAYS", envInt("FLOW_RETENTION_DAYS", 7)),
@@ -299,6 +312,15 @@ func Load() (*Config, error) {
 			SnapshotRetentionDays: envInt("REMOTE_SNAPSHOT_RETENTION_DAYS", 30),
 			HTTPTimeout:           time.Duration(envInt("REMOTE_HTTP_TIMEOUT", 10)) * time.Second,
 		},
+		FlowIngest: FlowIngestConfig{
+			Enabled:       envBool("FLOW_INGEST_ENABLED", false),
+			NetFlowAddr:   netflowAddr(),
+			SFlowAddr:     envStrAllowEmpty("SFLOW_ADDR", ":6343"),
+			QueueSize:     envInt("FLOW_INGEST_QUEUE_SIZE", 65536),
+			BatchSize:     envInt("FLOW_INGEST_BATCH_SIZE", 2000),
+			FlushInterval: envDuration("FLOW_INGEST_FLUSH_INTERVAL", 2*time.Second),
+			DeviceRefresh: envDuration("FLOW_INGEST_DEVICE_REFRESH", time.Minute),
+		},
 		Telemetry: TelemetryConfig{Endpoint: envStr("TELEMETRY_ENDPOINT", ""), SyncInterval: time.Duration(envInt("TELEMETRY_SYNC_INTERVAL", 21600)) * time.Second, GraceDays: envInt("TELEMETRY_GRACE_DAYS", 7)},
 	}
 
@@ -338,6 +360,25 @@ func envStr(key, def string) string {
 		return v
 	}
 	return def
+}
+
+// envStrAllowEmpty is envStr, except that a variable set to "" returns ""
+// (used where an empty value means "disabled").
+func envStrAllowEmpty(key, def string) string {
+	if v, ok := os.LookupEnv(key); ok {
+		return strings.TrimSpace(v)
+	}
+	return def
+}
+
+// netflowAddr reads NETFLOW_ADDR, falling back to the legacy NETFLOW_PORT.
+func netflowAddr() string {
+	if _, ok := os.LookupEnv("NETFLOW_ADDR"); !ok {
+		if p := envInt("NETFLOW_PORT", 0); p > 0 {
+			return fmt.Sprintf(":%d", p)
+		}
+	}
+	return envStrAllowEmpty("NETFLOW_ADDR", ":2055")
 }
 
 func envInt(key string, def int) int {

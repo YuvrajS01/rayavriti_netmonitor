@@ -32,10 +32,20 @@ const VIEW_TABS = [
 const EMPTY_LOCATIONS: ResourceRow[] = [];
 const EMPTY_DEVICES: Device[] = [];
 
-export default function Campus() {
+type CampusView = (typeof VIEWS)[number];
+
+/** A TabPanel when the views are tabbed, a plain wrapper when only one is shown. */
+function ViewPanel({ tabbed, idBase, view, children }: { tabbed: boolean; idBase: string; view: string; children: React.ReactNode }) {
+  if (!tabbed) return <div>{children}</div>;
+  return <TabPanel idBase={idBase} id={view} value={view}>{children}</TabPanel>;
+}
+
+/** `views` limits the in-page tabs: /topology/campus shows tree + map, /topology/floor-plans only the floor plan. */
+export default function Campus({ views = VIEWS }: { views?: readonly CampusView[] }) {
   const { addToast } = useToast();
   const [selected, setSelected] = useState<ResourceRow | null>(null);
-  const [view, setView] = useTabParam(VIEWS, 'view');
+  const [view, setView] = useTabParam(views, 'view');
+  const floorOnly = views.length === 1 && views[0] === 'floor';
   const tabsId = useTabsId();
 
   const locationsQuery = useResourceList('/locations');
@@ -164,8 +174,8 @@ export default function Campus() {
   return (
     <div className="space-y-6">
       <SectionHeader
-        title="Campus topology"
-        subtitle="Explore your campus network by location — buildings, floors, rooms, and the devices within."
+        title={floorOnly ? 'Floor plans' : 'Campus topology'}
+        subtitle={floorOnly ? 'Pick a building, floor or room to see its devices laid out.' : 'Explore your campus network by location — buildings, floors, rooms, and the devices within.'}
       />
 
       {/* Stats Row */}
@@ -176,9 +186,11 @@ export default function Campus() {
         <StatCard label="Down" value={stats.down} icon={statusMeta('down').icon} color={stats.down ? statusMeta('down').text : 'text-fg'} />
       </div>
 
-      <Tabs label="Campus views" idBase={tabsId} items={VIEW_TABS} value={view} onChange={setView} />
+      {views.length > 1 && (
+        <Tabs label="Campus views" idBase={tabsId} items={VIEW_TABS.filter((t) => views.includes(t.id))} value={view} onChange={setView} />
+      )}
 
-      <TabPanel idBase={tabsId} id={view} value={view}>
+      <ViewPanel tabbed={views.length > 1} idBase={tabsId} view={view}>
       {locations.length === 0 ? (
         <Card variant="low" className="p-8">
           <EmptyState
@@ -190,7 +202,21 @@ export default function Campus() {
       ) : view === 'map' ? (
         <CampusMap locations={enriched} selectedId={selected ? Number(selected.id) : null} onSelect={handleSelect} />
       ) : view === 'floor' ? (
-        <FloorPlanView location={selected} locations={locations} devices={devices} />
+        <div className="space-y-4">
+          <div className="max-w-sm">
+            <label htmlFor="floor-plan-location" className="mb-1.5 block text-xs text-fg-muted">Location</label>
+            <select
+              id="floor-plan-location"
+              value={selected ? String(selected.id) : ''}
+              onChange={(e) => setSelected(locations.find((l) => String(l.id) === e.target.value) ?? null)}
+              className="h-control w-full rounded-md border border-line bg-inset px-3 text-sm text-fg outline-none focus:border-primary"
+            >
+              <option value="">Choose a location…</option>
+              {locations.map((l) => <option key={String(l.id)} value={String(l.id)}>{String(l.name)}</option>)}
+            </select>
+          </div>
+          <FloorPlanView location={selected} locations={locations} devices={devices} />
+        </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
           {/* Left Panel — Tree */}
@@ -300,7 +326,7 @@ export default function Campus() {
           </Card>
         </div>
       )}
-      </TabPanel>
+      </ViewPanel>
     </div>
   );
 }

@@ -1003,3 +1003,11 @@ func (m *mockDB) UpdateDeviceStatuses(ctx context.Context, ids []int64, statuses
 	}
 	return ids, nil
 }
+
+func (m *mockDB) RecordInterfaceSamples(ctx context.Context, samples []models.InterfaceSample) error {
+	return nil
+}
+
+func (m *mockDB) ReplaceDeviceNeighbors(ctx context.Context, deviceID int64, neighbors []models.LLDPNeighbor) error {
+	return nil
+}

@@ -144,7 +144,7 @@ func (s *Server) Start() error {
 	authH := handlers.NewAuthHandler(s.db, s.cfg).WithLoginLimiter(auth.NewLoginLimiter(ctx, s.rdb))
 	device := handlers.NewDeviceHandler(s.db).WithAlertEngine(s.alertEng)
 	metric := handlers.NewMetricHandler(s.db)
-	alert := handlers.NewAlertHandler(s.db)
+	alert := handlers.NewAlertHandler(s.db).WithHub(s.hub)
 	flow := handlers.NewFlowHandler(s.db)
 	report := handlers.NewReportHandler(s.db)
 	insight := handlers.NewInsightHandler(s.db)
@@ -294,6 +294,11 @@ func (s *Server) Start() error {
 	locationGuard := handlers.LocationScopeGuard("id")
 	unscopedOnly := handlers.RequireUnscoped
 
+	var operatorH *handlers.OperatorHandler
+	if pp, ok := s.db.(database.PoolProvider); ok && pp.Pool() != nil {
+		operatorH = handlers.NewOperatorHandler(s.db, pp.Pool(), s.hub)
+	}
+
 	// Protected routes
 	r.Group(func(r chi.Router) {
 		r.Use(requireAuth)
@@ -379,6 +384,21 @@ func (s *Server) Start() error {
 		r.With(rbac.RequirePermission(models.PermAlertsResolve), alertGuard).Post("/api/v1/alerts/{id}/resolve", alert.Resolve)
 		r.With(rbac.RequirePermission(models.PermAlertsRead), unscopedOnly).Get("/api/v1/alert-stats", alert.AlertStats)
 		r.With(rbac.RequirePermission(models.PermAlertsRead)).Get("/api/v1/alerts/counts", alert.Counts)
+		// v5.1 operator workflow
+		if operatorH != nil {
+			r.With(rbac.RequirePermission(models.PermDevicesRead)).Get("/api/v1/metrics/history", operatorH.History)
+			r.With(rbac.RequireAnyPermission(models.PermAlertsAcknowledge, models.PermAlertsResolve)).Post("/api/v1/alerts/bulk", operatorH.Bulk)
+			r.With(rbac.RequirePermission(models.PermAlertsRead), alertGuard).Get("/api/v1/alerts/{id}/notes", operatorH.Notes)
+			r.With(rbac.RequirePermission(models.PermAlertsAcknowledge), alertGuard).Post("/api/v1/alerts/{id}/notes", operatorH.AddNote)
+			r.With(rbac.RequirePermission(models.PermAlertsAcknowledge), alertGuard).Put("/api/v1/alerts/{id}/assignee", operatorH.SetAssignee)
+			r.With(rbac.RequirePermission(models.PermAlertsRead)).Get("/api/v1/users/assignable", operatorH.AssignableUsers)
+			r.With(rbac.RequirePermission(models.PermDevicesRead)).Get("/api/v1/search", operatorH.Search)
+			ifaceH := handlers.NewInterfaceHandler(operatorH.Pool())
+			r.With(rbac.RequirePermission(models.PermDevicesRead), devGuard).Get("/api/v1/devices/{id}/interfaces", ifaceH.Latest)
+			r.With(rbac.RequirePermission(models.PermDevicesRead), devGuard).Get("/api/v1/devices/{id}/interfaces/{ifIndex}/history", ifaceH.History)
+			r.With(rbac.RequirePermission(models.PermDevicesRead), devGuard).Get("/api/v1/devices/{id}/neighbors", ifaceH.Neighbors)
+			r.With(rbac.RequirePermission(models.PermDevicesRead), unscopedOnly).Get("/api/v1/topology/links", ifaceH.Links)
+		}
 		r.With(rbac.RequirePermission(models.PermAlertsRead), unscopedOnly).Get("/api/v1/alerts/suppressed", resourceH.List("suppressed_alerts"))
 
 		// --- Insights (devices.read) ---
@@ -676,6 +696,13 @@ func (h spaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// staticDir regardless of how the URL path is encoded.
 	fsys := os.DirFS(h.staticDir)
 	name := strings.TrimPrefix(path.Clean("/"+r.URL.Path), "/")
+
+	// Unknown API paths get a JSON 404, not the app shell: a client probing
+	// for an endpoint must not mistake index.html for a successful reply.
+	if name == "api" || strings.HasPrefix(name, "api/") {
+		SendError(w, http.StatusNotFound, "not found")
+		return
+	}
 
 	// If file exists, serve it
 	if info, err := fs.Stat(fsys, name); err == nil && !info.IsDir() {

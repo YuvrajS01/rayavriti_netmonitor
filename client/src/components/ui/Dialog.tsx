@@ -15,8 +15,10 @@ interface DialogProps {
   /** Action row pinned to the bottom (buttons, right-aligned). */
   footer?: ReactNode;
   size?: DialogSize;
-  /** `drawer` slides in from the right edge (detail panels). */
-  placement?: 'center' | 'drawer';
+  /** `drawer` slides in from the right edge (detail panels); `top` sits high (command palette). */
+  placement?: 'center' | 'drawer' | 'top';
+  /** Keep the title for assistive tech but don't draw the header bar. */
+  hideHeader?: boolean;
   /** `alertdialog` for confirmations that interrupt the user. */
   role?: 'dialog' | 'alertdialog';
   /** Element to focus on open; defaults to the first focusable control in the body. */
@@ -61,6 +63,7 @@ export default function Dialog({
   headerActions,
   closeOnBackdrop = true,
   bodyClassName = 'px-6 py-5',
+  hideHeader = false,
 }: DialogProps) {
   const ref = useRef<HTMLDialogElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
@@ -107,7 +110,7 @@ export default function Dialog({
       role={role === 'alertdialog' ? 'alertdialog' : undefined}
       aria-modal="true"
       aria-labelledby={titleId}
-      aria-describedby={description ? descriptionId : undefined}
+      aria-describedby={description && !hideHeader ? descriptionId : undefined}
       onKeyDown={(event) => {
         // jsdom / browsers without native cancel: keep Esc working.
         if (event.key === 'Escape' && typeof ref.current?.showModal !== 'function') {
@@ -122,7 +125,9 @@ export default function Dialog({
       className={`bg-transparent p-0 text-fg backdrop:bg-scrim ${
         drawer
           ? 'm-0 ml-auto h-dvh max-h-dvh w-full max-w-lg'
-          : `m-auto w-[calc(100%-2rem)] ${SIZE[size]} max-h-[calc(100dvh-2rem)]`
+          : placement === 'top'
+            ? `mx-auto mt-[12vh] mb-auto w-[calc(100%-2rem)] ${SIZE[size]} max-h-[76dvh]`
+            : `m-auto w-[calc(100%-2rem)] ${SIZE[size]} max-h-[calc(100dvh-2rem)]`
       }`}
     >
       <div
@@ -130,6 +135,9 @@ export default function Dialog({
           drawer ? 'h-full border-y-0 border-r-0' : 'max-h-[calc(100dvh-2rem)] rounded-lg'
         }`}
       >
+        {hideHeader ? (
+          <h2 id={titleId} className="sr-only">{title}</h2>
+        ) : (
         <header className="flex items-start gap-3 border-b border-line px-6 py-4">
           <div className="min-w-0 flex-1">
             <h2 id={titleId} className="text-lg font-semibold text-fg truncate">{title}</h2>
@@ -138,6 +146,7 @@ export default function Dialog({
           {headerActions}
           <IconButton icon="close" label="Close dialog" onClick={() => onCloseRef.current()} className="-mr-2 -mt-1" />
         </header>
+        )}
         <div ref={bodyRef} className={`min-h-0 flex-1 overflow-y-auto ${bodyClassName}`}>
           {children}
         </div>

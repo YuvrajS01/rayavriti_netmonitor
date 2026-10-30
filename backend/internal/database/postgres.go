@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"math"
+	"net/netip"
 	"strings"
 	"time"
 
@@ -186,7 +187,7 @@ const deviceSelectCols = `
 	SELECT id,name,ip_address,protocol,port,enabled,status,priority,tags,
 	       COALESCE(snmp_community,''),COALESCE(snmp_version,''),COALESCE(snmp_port,0),COALESCE(http_path,''),COALESCE(http_expected_status,0),
 	       interval_sec,location_id,parent_device_id,COALESCE(dependency_port,''),COALESCE(rack_position,''),COALESCE(asset_tag,''),
-	       COALESCE(mac_address,''),COALESCE(serial_number,''),COALESCE(manufacturer,''),COALESCE(model,''),COALESCE(device_category,''),COALESCE(monitor_config,'{}'::jsonb),COALESCE(notes,''),created_at,updated_at
+	       COALESCE(mac_address,''),COALESCE(serial_number,''),COALESCE(manufacturer,''),COALESCE(model,''),COALESCE(device_category,''),COALESCE(monitor_config,'{}'::jsonb),COALESCE(notes,''),snmp_v3,created_at,updated_at
 		FROM devices`
 
 func (p *Postgres) GetDevices(ctx context.Context) ([]models.Device, error) {
@@ -221,15 +222,15 @@ func (p *Postgres) CreateDevice(ctx context.Context, d *models.Device) (*models.
 		INSERT INTO devices(name,ip_address,protocol,port,enabled,priority,tags,snmp_community,snmp_version,
 		                    snmp_port,http_path,http_expected_status,interval_sec,
 		                    location_id,parent_device_id,dependency_port,rack_position,asset_tag,mac_address,serial_number,manufacturer,
-		                    model,device_category,monitor_config,notes)
-		VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25)
+		                    model,device_category,monitor_config,notes,snmp_v3)
+		VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26)
 		RETURNING id`,
 		d.Name, d.IPAddress, d.Protocol, d.Port, d.Enabled, d.Priority, tags,
 		nullStr(d.SNMPCommunity), nullStr(d.SNMPVersion), nullInt(d.SNMPPort),
 		nullStr(d.HTTPPath), nullInt(d.HTTPExpectedStatus), d.Interval,
 		d.LocationID, d.ParentDeviceID, nullStr(d.DependencyPort), nullStr(d.RackPosition), nullStr(d.AssetTag),
 		nullStr(d.MACAddress), nullStr(d.SerialNumber), nullStr(d.Manufacturer), nullStr(d.Model),
-		nullStr(d.DeviceCategory), jsonConfig(d.MonitorConfig), nullStr(d.Notes),
+		nullStr(d.DeviceCategory), jsonConfig(d.MonitorConfig), nullStr(d.Notes), snmpV3JSON(d.SNMPv3),
 	).Scan(&id)
 	if err != nil {
 		return nil, err
@@ -244,14 +245,14 @@ func (p *Postgres) UpdateDevice(ctx context.Context, id int64, d *models.Device)
 		    snmp_community=$8,snmp_version=$9,snmp_port=$10,http_path=$11,
 		    http_expected_status=$12,interval_sec=$13,location_id=$14,
 		    parent_device_id=$15,dependency_port=$16,rack_position=$17,asset_tag=$18,mac_address=$19,serial_number=$20,manufacturer=$21,
-		    model=$22,device_category=$23,monitor_config=$24,notes=$25,updated_at=NOW()
-		WHERE id=$26`,
+		    model=$22,device_category=$23,monitor_config=$24,notes=$25,snmp_v3=$26,updated_at=NOW()
+		WHERE id=$27`,
 		d.Name, d.IPAddress, d.Protocol, d.Port, d.Enabled, d.Priority, tags,
 		nullStr(d.SNMPCommunity), nullStr(d.SNMPVersion), nullInt(d.SNMPPort),
 		nullStr(d.HTTPPath), nullInt(d.HTTPExpectedStatus), d.Interval,
 		d.LocationID, d.ParentDeviceID, nullStr(d.DependencyPort), nullStr(d.RackPosition), nullStr(d.AssetTag),
 		nullStr(d.MACAddress), nullStr(d.SerialNumber), nullStr(d.Manufacturer), nullStr(d.Model),
-		nullStr(d.DeviceCategory), jsonConfig(d.MonitorConfig), nullStr(d.Notes), id)
+		nullStr(d.DeviceCategory), jsonConfig(d.MonitorConfig), nullStr(d.Notes), snmpV3JSON(d.SNMPv3), id)
 	if err != nil {
 		return nil, err
 	}
@@ -267,13 +268,13 @@ func scanDevices(rows pgx.Rows) ([]models.Device, error) {
 	var out []models.Device
 	for rows.Next() {
 		var d models.Device
-		var tagsRaw, monitorConfigRaw []byte
+		var tagsRaw, monitorConfigRaw, snmpV3Raw []byte
 		err := rows.Scan(
 			&d.ID, &d.Name, &d.IPAddress, &d.Protocol, &d.Port, &d.Enabled, &d.Status, &d.Priority, &tagsRaw,
 			&d.SNMPCommunity, &d.SNMPVersion, &d.SNMPPort, &d.HTTPPath, &d.HTTPExpectedStatus,
 			&d.Interval, &d.LocationID, &d.ParentDeviceID, &d.DependencyPort, &d.RackPosition, &d.AssetTag,
 			&d.MACAddress, &d.SerialNumber, &d.Manufacturer, &d.Model, &d.DeviceCategory, &monitorConfigRaw, &d.Notes,
-			&d.CreatedAt, &d.UpdatedAt,
+			&snmpV3Raw, &d.CreatedAt, &d.UpdatedAt,
 		)
 		if err != nil {
 			return nil, err
@@ -290,9 +291,24 @@ func scanDevices(rows pgx.Rows) ([]models.Device, error) {
 		if d.MonitorConfig == nil {
 			d.MonitorConfig = map[string]any{}
 		}
+		if len(snmpV3Raw) > 0 {
+			var v3 models.SNMPv3Config
+			if json.Unmarshal(snmpV3Raw, &v3) == nil {
+				d.SNMPv3 = &v3
+			}
+		}
 		out = append(out, d)
 	}
 	return out, rows.Err()
+}
+
+// snmpV3JSON encodes USM credentials for the snmp_v3 column; nil stores NULL.
+func snmpV3JSON(c *models.SNMPv3Config) []byte {
+	if c == nil {
+		return nil
+	}
+	encoded, _ := json.Marshal(c)
+	return encoded
 }
 
 func jsonConfig(value map[string]any) []byte {
@@ -333,6 +349,51 @@ func (p *Postgres) UpdateDeviceStatuses(ctx context.Context, ids []int64, status
 		changed = append(changed, id)
 	}
 	return changed, rows.Err()
+}
+
+func (p *Postgres) RecordInterfaceSamples(ctx context.Context, samples []models.InterfaceSample) error {
+	if len(samples) == 0 {
+		return nil
+	}
+	_, err := p.pool.CopyFrom(ctx, pgx.Identifier{"interface_metrics"},
+		[]string{"time", "device_id", "if_index", "if_name", "in_bps", "out_bps", "utilization", "oper_status", "speed_bps"},
+		pgx.CopyFromSlice(len(samples), func(i int) ([]any, error) {
+			s := samples[i]
+			var util *float32
+			if s.Utilization != nil {
+				u := float32(*s.Utilization)
+				util = &u
+			}
+			return []any{s.Time, s.DeviceID, s.IfIndex, s.Name, s.InBps, s.OutBps, util, int16(s.OperStatus), s.SpeedBps}, nil //nolint:gosec // ifOperStatus is 1-7
+		}))
+	return err
+}
+
+func (p *Postgres) ReplaceDeviceNeighbors(ctx context.Context, deviceID int64, neighbors []models.LLDPNeighbor) error {
+	tx, err := p.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	now := time.Now()
+	for _, n := range neighbors {
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO device_neighbors (device_id, local_port_num, local_port, remote_chassis_id, remote_port_id,
+			                              remote_sys_name, remote_port_desc, remote_mgmt_ip, first_seen, last_seen)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$9)
+			ON CONFLICT (device_id, local_port_num, remote_chassis_id, remote_port_id) DO UPDATE SET
+			    local_port=EXCLUDED.local_port, remote_sys_name=EXCLUDED.remote_sys_name,
+			    remote_port_desc=EXCLUDED.remote_port_desc, remote_mgmt_ip=EXCLUDED.remote_mgmt_ip,
+			    last_seen=EXCLUDED.last_seen`,
+			deviceID, n.LocalPortNum, n.LocalPort, n.RemoteChassisID, n.RemotePortID,
+			n.RemoteSysName, n.RemotePortDesc, n.RemoteMgmtIP, now); err != nil {
+			return err
+		}
+	}
+	if _, err := tx.Exec(ctx, `DELETE FROM device_neighbors WHERE device_id=$1 AND last_seen < $2`, deviceID, now); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
 }
 
 // ── Metrics ───────────────────────────────────────────────────────────────────
@@ -557,8 +618,7 @@ func (p *Postgres) GetAlerts(ctx context.Context, status string, limit, offset i
 	if err := p.pool.QueryRow(ctx, countSQL, args...).Scan(&total); err != nil {
 		return nil, 0, err
 	}
-	listSQL := `SELECT id,COALESCE(device_id,0),COALESCE(device_name,''),severity,message,status,rule_id,
-	                   created_at,acknowledged_at,resolved_at,acknowledged_by,resolved_by ` +
+	listSQL := `SELECT ` + alertCols + ` ` +
 		base + ` ORDER BY created_at DESC, id DESC`
 	listSQL += fmt.Sprintf(` LIMIT $%d OFFSET $%d`, argN, argN+1)
 	args = append(args, limit, offset)
@@ -572,31 +632,18 @@ func (p *Postgres) GetAlerts(ctx context.Context, status string, limit, offset i
 }
 
 // buildAlertScopeCondition renders a scope filter as a WHERE condition against
-// the alerts table. Location and subnet scopes are resolved through the
-// devices table since alerts only carry device_id.
+// the alerts table. Alerts only carry device_id, so the device scope
+// condition (shared with device listing) is applied through devices.
 func buildAlertScopeCondition(scope *ScopeFilter, args *[]any, argN *int) (string, bool) {
-	subConds := []string{}
-	if len(scope.LocationIDs) > 0 {
-		*args = append(*args, scope.LocationIDs)
-		subConds = append(subConds, fmt.Sprintf("location_id = ANY($%d)", *argN))
-		*argN++
-	}
-	for _, cidr := range scope.SubnetCIDRs {
-		*args = append(*args, cidr)
-		subConds = append(subConds, fmt.Sprintf("ip_address <<= $%d", *argN))
-		*argN++
-	}
-	if len(subConds) == 0 {
-		return "FALSE", true
-	}
-	inner := "(" + strings.Join(subConds, " OR ") + ")"
-	return fmt.Sprintf("device_id IN (SELECT id FROM devices WHERE %s)", inner), true
+	cond, scopeArgs := scopeCondition(scope, *argN)
+	*args = append(*args, scopeArgs...)
+	*argN += len(scopeArgs)
+	return fmt.Sprintf("device_id IN (SELECT id FROM devices WHERE %s)", cond), true
 }
 
 func (p *Postgres) GetAlert(ctx context.Context, id int64) (*models.Alert, error) {
 	rows, err := p.pool.Query(ctx, `
-		SELECT id,COALESCE(device_id,0),COALESCE(device_name,''),severity,message,status,rule_id,
-		       created_at,acknowledged_at,resolved_at,acknowledged_by,resolved_by
+		SELECT `+alertCols+`
 		FROM alerts WHERE id=$1`, id)
 	if err != nil {
 		return nil, err
@@ -660,8 +707,7 @@ func (p *Postgres) DeleteAlert(ctx context.Context, id int64) error {
 
 func (p *Postgres) FindActiveAlertByRuleAndDevice(ctx context.Context, ruleID, deviceID int64) (*models.Alert, error) {
 	rows, err := p.pool.Query(ctx, `
-		SELECT id,COALESCE(device_id,0),COALESCE(device_name,''),severity,message,status,rule_id,
-		       created_at,acknowledged_at,resolved_at,acknowledged_by,resolved_by
+		SELECT `+alertCols+`
 		FROM alerts WHERE status='active' AND rule_id=$1 AND device_id=$2
 		LIMIT 1`, ruleID, deviceID)
 	if err != nil {
@@ -678,6 +724,11 @@ func (p *Postgres) FindActiveAlertByRuleAndDevice(ctx context.Context, ruleID, d
 	return &alerts[0], nil
 }
 
+// alertCols is the column list every alert query selects; scanAlerts reads it.
+const alertCols = `id,COALESCE(device_id,0),COALESCE(device_name,''),severity,message,status,rule_id,
+	created_at,acknowledged_at,resolved_at,acknowledged_by,resolved_by,assigned_to,
+	(SELECT COALESCE(NULLIF(u.display_name,''),u.username) FROM users u WHERE u.id = alerts.assigned_to)`
+
 func scanAlerts(rows pgx.Rows) ([]models.Alert, error) {
 	var out []models.Alert
 	for rows.Next() {
@@ -685,6 +736,7 @@ func scanAlerts(rows pgx.Rows) ([]models.Alert, error) {
 		err := rows.Scan(
 			&a.ID, &a.DeviceID, &a.DeviceName, &a.Severity, &a.Message, &a.Status, &a.RuleID,
 			&a.CreatedAt, &a.AcknowledgedAt, &a.ResolvedAt, &a.AcknowledgedBy, &a.ResolvedBy,
+			&a.AssignedTo, &a.AssignedToName,
 		)
 		if err != nil {
 			return nil, err
@@ -822,19 +874,62 @@ func (p *Postgres) RevokeAPIKey(ctx context.Context, id int64) error {
 
 // ── Flows ─────────────────────────────────────────────────────────────────────
 
+// flowColumns is the column list RecordFlows copies into flows.
+var flowColumns = []string{"src_ip", "dst_ip", "src_port", "dst_port", "protocol", "bytes", "packets", "duration", "created_at",
+	"exporter", "device_id", "in_if", "out_if", "tcp_flags", "tos", "sampling_rate"}
+
+// RecordFlows bulk-inserts flows with COPY. Empty IP strings are stored as
+// NULL; a malformed IP fails the whole batch.
 func (p *Postgres) RecordFlows(ctx context.Context, flows []models.Flow) error {
 	if len(flows) == 0 {
 		return nil
 	}
-	batch := &pgx.Batch{}
-	for _, f := range flows {
-		batch.Queue(`
-			INSERT INTO flows(src_ip,dst_ip,src_port,dst_port,protocol,bytes,packets,duration,created_at)
-			VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-			f.SrcIP, f.DstIP, f.SrcPort, f.DstPort, f.Protocol, f.Bytes, f.Packets, f.Duration, f.Timestamp)
+	now := time.Now()
+	_, err := p.pool.CopyFrom(ctx, pgx.Identifier{"flows"}, flowColumns,
+		pgx.CopyFromSlice(len(flows), func(i int) ([]any, error) {
+			f := flows[i]
+			src, err := flowAddr(f.SrcIP)
+			if err != nil {
+				return nil, err
+			}
+			dst, err := flowAddr(f.DstIP)
+			if err != nil {
+				return nil, err
+			}
+			var exporter any
+			if f.Exporter != nil {
+				if exporter, err = flowAddr(*f.Exporter); err != nil {
+					return nil, err
+				}
+			}
+			ts := f.Timestamp
+			if ts.IsZero() {
+				ts = now
+			}
+			return []any{src, dst, f.SrcPort, f.DstPort, f.Protocol, f.Bytes, f.Packets, f.Duration, ts,
+				exporter, f.DeviceID, f.InIf, f.OutIf, smallint(f.TCPFlags), smallint(f.ToS), f.SamplingRate}, nil
+		}))
+	return err
+}
+
+// flowAddr parses an IP for an INET column; "" becomes NULL.
+func flowAddr(s string) (any, error) {
+	if s == "" {
+		return nil, nil
 	}
-	br := p.pool.SendBatch(ctx, batch)
-	return br.Close()
+	a, err := netip.ParseAddr(s)
+	if err != nil {
+		return nil, fmt.Errorf("flow: invalid IP %q: %w", s, err)
+	}
+	return a, nil
+}
+
+func smallint(v *int) *int16 {
+	if v == nil {
+		return nil
+	}
+	n := int16(*v) //nolint:gosec // TCP flags and ToS are single bytes
+	return &n
 }
 
 func (p *Postgres) GetFlows(ctx context.Context, from, to time.Time, limit, offset int) ([]models.Flow, int, error) {
@@ -853,7 +948,8 @@ func (p *Postgres) GetFlows(ctx context.Context, from, to time.Time, limit, offs
 		return nil, 0, err
 	}
 	rows, err := p.pool.Query(ctx, `
-		SELECT id,src_ip,dst_ip,src_port,dst_port,protocol,bytes,packets,duration,created_at
+		SELECT id,COALESCE(host(src_ip),''),COALESCE(host(dst_ip),''),src_port,dst_port,protocol,bytes,packets,duration,created_at,
+		       host(exporter),device_id,in_if,out_if,tcp_flags,tos,sampling_rate
 		FROM flows WHERE created_at BETWEEN $1 AND $2
 		ORDER BY created_at DESC, id DESC LIMIT $3 OFFSET $4`, from, to, limit, offset)
 	if err != nil {
@@ -863,13 +959,24 @@ func (p *Postgres) GetFlows(ctx context.Context, from, to time.Time, limit, offs
 	var out []models.Flow
 	for rows.Next() {
 		var f models.Flow
+		var tcpFlags, tos *int16
 		if err := rows.Scan(&f.ID, &f.SrcIP, &f.DstIP, &f.SrcPort, &f.DstPort,
-			&f.Protocol, &f.Bytes, &f.Packets, &f.Duration, &f.Timestamp); err != nil {
+			&f.Protocol, &f.Bytes, &f.Packets, &f.Duration, &f.Timestamp,
+			&f.Exporter, &f.DeviceID, &f.InIf, &f.OutIf, &tcpFlags, &tos, &f.SamplingRate); err != nil {
 			return nil, 0, err
 		}
+		f.TCPFlags, f.ToS = widen(tcpFlags), widen(tos)
 		out = append(out, f)
 	}
 	return out, total, rows.Err()
+}
+
+func widen(v *int16) *int {
+	if v == nil {
+		return nil
+	}
+	n := int(*v)
+	return &n
 }
 
 func (p *Postgres) GetTopTalkers(ctx context.Context, from, to time.Time, n int) ([]models.IPCount, error) {
@@ -877,8 +984,8 @@ func (p *Postgres) GetTopTalkers(ctx context.Context, from, to time.Time, n int)
 		n = 10
 	}
 	rows, err := p.pool.Query(ctx, `
-		SELECT src_ip::text, SUM(bytes) AS total
-		FROM flows WHERE created_at BETWEEN $1 AND $2
+		SELECT host(src_ip), SUM(bytes) AS total
+		FROM flows WHERE created_at BETWEEN $1 AND $2 AND src_ip IS NOT NULL
 		GROUP BY src_ip ORDER BY total DESC LIMIT $3`, from, to, n)
 	if err != nil {
 		return nil, err

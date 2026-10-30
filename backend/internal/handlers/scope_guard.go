@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"strconv"
 
@@ -180,13 +181,70 @@ func canWriteDevices(r *http.Request) bool {
 	return rbac.IsUnscopedRole(claims.Role) || rbac.HasPermission(claims.Permissions, models.PermDevicesWrite)
 }
 
-// redactDeviceSecrets blanks SNMP communities for callers who can only read
+// redactDeviceSecrets blanks SNMP credentials for callers who can only read
 // devices: a community string is a credential for the device itself (S10).
+// Writers keep the community but never receive SNMPv3 passphrases.
 func redactDeviceSecrets(r *http.Request, devices []models.Device) {
-	if canWriteDevices(r) {
+	for i := range devices {
+		redactDevice(r, &devices[i])
+	}
+}
+
+func redactDevice(r *http.Request, d *models.Device) {
+	if d == nil {
 		return
 	}
-	for i := range devices {
-		devices[i].SNMPCommunity = ""
+	if !canWriteDevices(r) {
+		d.SNMPCommunity = ""
+		d.SNMPv3 = nil
+		return
+	}
+	if d.SNMPv3 != nil {
+		// Copy so the caller's (possibly shared) config keeps its secrets.
+		v3 := *d.SNMPv3
+		if v3.AuthPassphrase != "" {
+			v3.AuthPassphrase = secretPlaceholder
+		}
+		if v3.PrivPassphrase != "" {
+			v3.PrivPassphrase = secretPlaceholder
+		}
+		d.SNMPv3 = &v3
+	}
+}
+
+// mergeSNMPv3 resolves an incoming SNMPv3 block against the stored one: a
+// passphrase sent back as the mask placeholder keeps the stored value.
+func mergeSNMPv3(incoming, stored *models.SNMPv3Config) *models.SNMPv3Config {
+	if incoming == nil {
+		return nil
+	}
+	out := *incoming
+	if out.AuthPassphrase == secretPlaceholder {
+		out.AuthPassphrase = ""
+		if stored != nil {
+			out.AuthPassphrase = stored.AuthPassphrase
+		}
+	}
+	if out.PrivPassphrase == secretPlaceholder {
+		out.PrivPassphrase = ""
+		if stored != nil {
+			out.PrivPassphrase = stored.PrivPassphrase
+		}
+	}
+	return &out
+}
+
+// validateSNMPSettings checks the SNMP version and, for v3, its credentials.
+func validateSNMPSettings(d *models.Device) error {
+	switch d.SNMPVersion {
+	case "", "1", "2c":
+		return nil
+	case "3":
+		if d.SNMPv3 == nil {
+			return errors.New("snmpV3 credentials are required for SNMP version 3")
+		}
+		return d.SNMPv3.Validate()
+	default:
+		return errors.New("snmpVersion must be one of 1, 2c, 3")
 	}
 }

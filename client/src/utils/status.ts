@@ -190,3 +190,11 @@ export function healthBandStatusMeta(band: string): StatusMeta {
   const meta = healthBandMeta(band);
   return { ...STATUS_META[meta.status], label: meta.label };
 }
+
+/** Worst first: the order an operator wants to see problems in. */
+export const STATUS_SEVERITY_ORDER: readonly Status[] = ['down', 'warning', 'unknown', 'maintenance', 'info', 'up'];
+
+/** Position in STATUS_SEVERITY_ORDER (0 = down); for sorting worst-first. */
+export function statusRank(raw: string | null | undefined): number {
+  return STATUS_SEVERITY_ORDER.indexOf(normalizeStatus(raw));
+}
