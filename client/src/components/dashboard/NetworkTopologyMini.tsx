@@ -175,7 +175,7 @@ export default function NetworkTopologyMini() {
           <h3 id="topology-preview-heading" className="text-sm font-semibold text-fg">Topology preview</h3>
           <p className="text-xs text-fg-muted">Top {count} nodes</p>
         </div>
-        <button type="button" onClick={() => navigate('/devices/topology')} className="inline-flex items-center gap-1 rounded-sm text-xs font-semibold text-primary hover:underline">
+        <button type="button" onClick={() => navigate('/topology')} className="inline-flex items-center gap-1 rounded-sm text-xs font-semibold text-primary hover:underline">
           Open full map
           <span className="material-symbols-outlined text-[16px]" aria-hidden="true">arrow_forward</span>
         </button>
@@ -183,7 +183,7 @@ export default function NetworkTopologyMini() {
       <div ref={wrapRef} className="relative flex-1 min-h-[200px]">
         {count ? (
           // Decorative preview; the button above is the accessible way in.
-          <canvas ref={fgRef} aria-hidden="true" className="cursor-pointer rounded" onClick={() => navigate('/devices/topology')} style={{ width, height: 210 }} />
+          <canvas ref={fgRef} aria-hidden="true" className="cursor-pointer rounded" onClick={() => navigate('/topology')} style={{ width, height: 210 }} />
         ) : (
           <div className="h-[210px] grid place-items-center text-xs text-fg-muted">Building topology…</div>
         )}

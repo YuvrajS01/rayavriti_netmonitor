@@ -6,8 +6,6 @@ import SectionHeader from '../components/ui/SectionHeader';
 import { DensitySwitcher, ThemeSwitcher } from '../components/ui/ThemeSwitcher';
 import { useToast } from '../components/ui/useToast';
 
-const APP_VERSION = import.meta.env.VITE_APP_VERSION || __APP_VERSION__;
-
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="space-y-1.5">
@@ -31,8 +29,8 @@ export default function Settings() {
   return (
     <div>
       <SectionHeader
-        title="Settings"
-        subtitle="Appearance, your account and system information."
+        title="General"
+        subtitle="Appearance and your account."
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -78,26 +76,6 @@ export default function Settings() {
           </Button>
         </section>
 
-        <section aria-labelledby="system-heading" className="lg:col-span-12 bg-surface-1 rounded-lg p-6 border border-line">
-          <h2 id="system-heading" className="text-lg font-semibold mb-5 flex items-center gap-3">
-            <span className="material-symbols-outlined text-fg-muted" aria-hidden="true">info</span>
-            System information
-          </h2>
-          <dl className="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm">
-            <div>
-              <dt className="text-xs font-medium text-fg-muted mb-1">Version</dt>
-              <dd className="font-semibold tabular-nums">NetMonitor+ v{APP_VERSION}</dd>
-            </div>
-            <div>
-              <dt className="text-xs font-medium text-fg-muted mb-1">Backend</dt>
-              <dd className="font-semibold">Go + PostgreSQL + TimescaleDB</dd>
-            </div>
-            <div>
-              <dt className="text-xs font-medium text-fg-muted mb-1">Frontend</dt>
-              <dd className="font-semibold">React + TypeScript + Tailwind CSS</dd>
-            </div>
-          </dl>
-        </section>
       </div>
     </div>
   );

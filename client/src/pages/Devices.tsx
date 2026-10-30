@@ -111,7 +111,7 @@ export default function Devices() {
         subtitle="Manage and monitor all connected network devices."
         action={
           <div className="flex gap-2">
-            <Link to="/devices/topology" className="inline-flex min-h-control items-center gap-2 rounded-md border border-line bg-surface-2 px-4 text-sm font-medium text-fg hover:bg-surface-3 hover:border-line-strong">
+            <Link to="/topology" className="inline-flex min-h-control items-center gap-2 rounded-md border border-line bg-surface-2 px-4 text-sm font-medium text-fg hover:bg-surface-3 hover:border-line-strong">
               <span className="material-symbols-outlined text-[18px]" aria-hidden="true">hub</span>Topology
             </Link>
             <Button onClick={() => setShowForm(!showForm)} icon="add_circle">Add device</Button>

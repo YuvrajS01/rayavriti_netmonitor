@@ -153,7 +153,7 @@ export default function Incidents() {
             {filtered.map((inc) => {
               const sev = severityMeta(inc.severity);
               return (
-                <li key={inc.id} className="p-4 hover:bg-surface-2 transition-colors cursor-pointer" onClick={() => navigate(`/incidents/${inc.id}`)}>
+                <li key={inc.id} className="p-4 hover:bg-surface-2 transition-colors cursor-pointer" onClick={() => navigate(`/alerts/incidents/${inc.id}`)}>
                   <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
                     <div className="flex items-start gap-4 min-w-0">
                       <div className={`w-10 h-10 rounded-md flex items-center justify-center flex-shrink-0 ${sev.chip}`}>
@@ -162,7 +162,7 @@ export default function Incidents() {
                       <div className="min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <h3 className="font-semibold truncate">
-                            <Link to={`/incidents/${inc.id}`} onClick={(e) => e.stopPropagation()} className="hover:underline">{inc.title}</Link>
+                            <Link to={`/alerts/incidents/${inc.id}`} onClick={(e) => e.stopPropagation()} className="hover:underline">{inc.title}</Link>
                           </h3>
                           {inc.sla_breached && <StatusPill status="down">SLA breach</StatusPill>}
                         </div>
