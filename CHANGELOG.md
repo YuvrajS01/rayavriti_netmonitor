@@ -5,6 +5,86 @@ All notable changes to Rayavriti NetMonitor will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.0.0] - 2026-10-30
+
+This release is Phase 1 of the v5 roadmap in `REVIEW_REPORT.md`: observability, storage lifecycle, ingestion throughput, complete API authorization, a new frontend platform and a new design system. It shipped as PRs #64–#72.
+
+> **Upgrade notes (breaking)**
+> - **`JWT_SECRET`:** in production it must be at least 32 characters, or the server refuses to start. Generate one with `openssl rand -base64 32`.
+> - **Scoped users:** users with location or subnet scopes now get 403 on network-wide data (flows, packet capture, reports, raw metric queries, topology, root-cause). Out-of-scope devices, alerts and locations return 404. Existing `department` or `device` user scopes never matched anything; replace them with `location` or `subnet` scopes.
+> - **TimescaleDB:** it is now required; the plain-Postgres fallback never worked. Docker Compose pins `timescale/timescaledb:2.28.2-pg16`.
+> - **Retention:** it is now enforced by TimescaleDB policies, reconciled from config on every start. `FLOWS_RETENTION_DAYS` and the `MON_*_RETENTION_DAYS` settings are honoured for the first time, so check them before upgrading.
+> - **API keys:** they now expire (90 days by default, up to 365). Keys created before this release are not affected.
+> - **Sign-in:** the browser keeps the access token in memory only, and sessions are restored from the HttpOnly refresh cookie. Users sign in once after upgrading.
+
+### Added
+- **Prometheus metrics** (#64): served on a separate admin listener (`ADMIN_ADDR`, default `127.0.0.1:9464`). They cover:
+  - poll counts and latency by protocol, queue depths, dropped and in-flight-skipped polls
+  - pipeline batch timing, DB pool stats, WebSocket clients and drops
+  - notification outcomes, metric-buffer flushes and dead letters
+  - HTTP latency by route, and build info
+
+  `PPROF_ENABLED` adds pprof.
+- **Continuous aggregates and compression** (#65):
+  - `metrics_hourly` and `metrics_daily` rollups with real-time aggregation.
+  - Native compression for `metrics`, `flows` and `system_log_events`.
+  - Retention policies for 16 hypertables.
+  - New settings: `METRICS_HOURLY_RETENTION_DAYS`, `LOG_RETENTION_DAYS`, `CAPTURE_RETENTION_DAYS`.
+- **`ENCRYPTION_KEY`** (#67): an HKDF-derived key for stored remote-fleet credentials, separate from the JWT secret. Existing credentials are re-encrypted the first time they're read.
+- **Light theme, density setting, and theme control in Settings and the account menu** (#72).
+- **Database integration tests** (#65, #69): they run against TimescaleDB in CI. Before this release the suite had never run.
+
+### Changed
+- **Ingestion** (#66):
+  - Alert rules are cached in memory and invalidated when they change.
+  - Device statuses are written in one batched statement, and only when they changed.
+  - The Redis metric buffer now drains the whole backlog each tick (it was capped at about 50 metrics/s). Rows that permanently fail go to a dead-letter list.
+- **Scheduler and shutdown** (#64):
+  - A device isn't re-polled while its previous poll is still in flight.
+  - Startup polls are spread across each device's interval.
+  - Shutdown runs in a safe order: in-flight polls finish and queued notifications are delivered. Sending after stop can no longer panic.
+- **Queries now use the rollups** (#65), measured on 3 million rows:
+
+  | Query | Before | After |
+  |---|---|---|
+  | Latest metric per device | ~1,075 ms | ~4.5 ms |
+  | Dashboard stats | ~107 ms | ~20 ms |
+  | Availability report | ~3,165 ms | ~43 ms |
+  | Report time series | ~1,025 ms | ~58 ms |
+
+  Anomaly baselines now come from one aggregate query instead of one query per device.
+- **Frontend platform** (#68):
+  - TanStack Query, with cancellable requests and WebSocket events feeding the cache.
+  - A typed WebSocket contract and a hardened socket client.
+  - Cookie-first auth with token refresh coordinated across tabs.
+  - Each route has its own error boundary, and stale code chunks are recovered after a deploy.
+  - Redux, visx and framer-motion are removed. The icon font is a subset: 744 KB → 33 KB.
+- **Design system** (#72):
+  - New tokens with WCAG AA contrast in both themes, enforced by a test.
+  - One colour-blind-safe status system that pairs shapes with colours.
+  - 12px minimum text and sentence-case labels.
+  - Accessible `Dialog` (all 21 modals), `Tabs` (URL-synced) and `IconButton`.
+  - No hard-coded colours remain.
+
+### Security
+- **Scope enforcement on every route** (#67): guards on by-ID routes, filtered list endpoints, and a scoped WebSocket bootstrap. The scope SQL filter is fixed (it used AND instead of OR, compared mismatched types, and subnet scopes caused a SQL error).
+- **SSRF protection** (#67) now covers webhook, Slack and SMTP notifications, bulk import, discovery approval and service templates. Discovery sweeps are limited to IPv4 subnets of /16 or smaller.
+- **Restore** (#67): uploaded SQL is scanned before it runs, and psql meta-commands and `COPY … PROGRAM` are rejected. The database password is no longer passed on the command line. Backup dumps are written with mode 0600 and require admin to download or delete.
+- **Secrets** (#67):
+  - Telegram tokens, webhook headers and SNMP communities are masked.
+  - Saving a form that contains a masked value keeps the stored secret instead of overwriting it.
+  - Viewers no longer receive SNMP communities.
+- **Raw database errors** are no longer returned to clients (#67).
+- **Parent-bound child routes** (#67): routes such as `/users/{id}/scopes/{sid}` and `/devices/{id}/contacts/{cid}` now act on the right record.
+- **Cookie-authenticated writes** are rejected when they come from another origin (#67).
+- **The public status page** escapes all content and uses its own CSP. The app CSP now allows the font subsets it inlines (#71).
+
+### Fixed
+- **Maintenance windows** now actually suppress alerts (#69). Three separate bugs stopped them from ever matching.
+- **WebSocket auth** falls back to the access cookie when the subprotocol token is stale (#69).
+- **Moving a device** under a parent no longer clears its location (#67).
+- **Removed `logging.DBSink`**, which was unused and dropped concurrent log lines (#70).
+
 ## [4.5.1] - 2026-10-30
 
 Hardening and correctness release from the v5 review (`REVIEW_REPORT.md`, Phase 0). Closes remaining authorization and SSRF holes, makes several silently broken features actually work (SNMP down detection, maintenance/topology suppression, scheduled reports, live status events, Docker backups), and removes fabricated values from the dashboard.
