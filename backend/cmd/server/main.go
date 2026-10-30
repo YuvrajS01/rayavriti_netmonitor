@@ -91,6 +91,10 @@ func run() error {
 	}
 	logger.Info("Migrations complete")
 
+	if err := db.ApplyRetentionPolicies(context.Background(), retentionPolicies(cfg, logger)); err != nil {
+		return fmt.Errorf("apply retention policies: %w", err)
+	}
+
 	// 5. Seed defaults
 	adminPass := cfg.Auth.AdminPassword
 	if adminPass == "" {
@@ -239,10 +243,11 @@ func run() error {
 	logger.Info("Anomaly engine started")
 
 	// 11. Initialize retention scheduler
-	retSched := retention.New(db,
-		cfg.Collector.MetricsRetentionDays,
-		cfg.Collector.FlowRetentionDays,
-		cfg.Collector.AlertsRetentionDays)
+	retSched := retention.New(db, retention.Config{
+		AlertsDays:        cfg.Collector.AlertsRetentionDays,
+		HealthHistoryDays: cfg.Collector.MonHealthRetentionDays,
+		CaptureDays:       cfg.Collector.CaptureRetentionDays,
+	})
 	retSched.Start(context.Background())
 	logger.Info("Retention scheduler started")
 
@@ -321,6 +326,41 @@ func run() error {
 	_ = adminSrv.Shutdown(ctx)
 	logger.Info("Shutdown complete")
 	return nil
+}
+
+// minRawMetricsDays keeps raw metrics longer than the metrics_hourly refresh
+// window (3 days). If raw data were dropped inside that window, the next
+// refresh would see the hours as empty and erase their rollups.
+const minRawMetricsDays = 4
+
+// retentionPolicies maps config to TimescaleDB retention policies.
+func retentionPolicies(cfg *config.Config, logger *logging.Logger) []database.RetentionPolicy {
+	c := cfg.Collector
+	metricsDays := c.MetricsRetentionDays
+	if metricsDays > 0 && metricsDays < minRawMetricsDays {
+		logger.Warn("METRICS_RETENTION_DAYS is below the rollup refresh window; raising it",
+			"configured", metricsDays, "effective", minRawMetricsDays)
+		metricsDays = minRawMetricsDays
+	}
+	return []database.RetentionPolicy{
+		{Relation: "metrics", Days: metricsDays},
+		{Relation: "metrics_hourly", Days: c.MetricsHourlyRetentionDays},
+		{Relation: "isp_metrics", Days: metricsDays},
+		{Relation: "flows", Days: c.FlowRetentionDays},
+		{Relation: "system_log_events", Days: c.LogRetentionDays},
+		{Relation: "capture_packets", Days: c.CaptureRetentionDays},
+		{Relation: "alert_history", Days: c.AlertsRetentionDays},
+		{Relation: "notification_log", Days: c.AlertsRetentionDays},
+		{Relation: "suppressed_alerts", Days: c.AlertsRetentionDays},
+		{Relation: "remote_snapshots", Days: cfg.Remote.SnapshotRetentionDays},
+		{Relation: "monitoring_http_requests", Days: c.MonHTTPRetentionDays},
+		{Relation: "monitoring_db_queries", Days: c.MonDBRetentionDays},
+		{Relation: "monitoring_collector_runs", Days: c.MonCollectorRetentionDays},
+		{Relation: "monitoring_system_metrics", Days: c.MonHealthRetentionDays},
+		{Relation: "monitoring_alerts", Days: c.MonAlertRetentionDays},
+		{Relation: "monitoring_alert_activity", Days: c.MonAlertRetentionDays},
+		// incident_timeline and metrics_daily are kept indefinitely.
+	}
 }
 
 // registerRuntimeMetrics exposes state other components already track as

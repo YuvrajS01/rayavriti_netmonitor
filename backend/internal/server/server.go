@@ -222,7 +222,7 @@ func (s *Server) Start() error {
 			if err != nil {
 				s.logger.Error("remote monitoring unavailable", "error", err)
 			} else {
-				s.remoteCollector = remote.NewCollector(store, s.hub, s.cfg.Remote.HTTPTimeout, s.cfg.Remote.SnapshotRetentionDays)
+				s.remoteCollector = remote.NewCollector(store, s.hub, s.cfg.Remote.HTTPTimeout)
 				s.remoteCollector.Start(ctx)
 				remoteH = handlers.NewRemoteHandler(store, s.remoteCollector)
 			}

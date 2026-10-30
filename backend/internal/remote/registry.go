@@ -224,9 +224,5 @@ func (s *Store) Overview(ctx context.Context) (Overview, error) {
 	err := s.pool.QueryRow(ctx, `SELECT COUNT(*),COUNT(*) FILTER (WHERE status='online'),COUNT(*) FILTER (WHERE status='offline'),COUNT(*) FILTER (WHERE status='degraded'),COALESCE((SELECT SUM(alert_count) FROM (SELECT DISTINCT ON (instance_id) alert_count FROM remote_snapshots ORDER BY instance_id,timestamp DESC) latest),0) FROM remote_instances`).Scan(&v.TotalInstances, &v.Online, &v.Offline, &v.Degraded, &v.AlertCount)
 	return v, err
 }
-func (s *Store) PruneSnapshots(ctx context.Context, days int) error {
-	_, err := s.pool.Exec(ctx, "DELETE FROM remote_snapshots WHERE timestamp < NOW() - ($1 * INTERVAL '1 day')", days)
-	return err
-}
 func (s *Store) Due(ctx context.Context) ([]Instance, error) { return s.List(ctx) }
 func (s *Store) Now() time.Time                              { return time.Now() }

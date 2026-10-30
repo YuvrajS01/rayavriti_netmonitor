@@ -274,6 +274,9 @@ func (p *Postgres) GetReportTimeseries(ctx context.Context, from, to time.Time, 
 	}
 	bucketSec := int64(bucketMinutes) * 60
 
+	// Whole-hour buckets are served from the hourly rollup; finer buckets
+	// still need raw rows. Both align buckets to multiples of the bucket
+	// width since the epoch (UTC hour boundaries for whole hours).
 	query := `
 		SELECT to_timestamp(EXTRACT(EPOCH FROM timestamp)::bigint / $1 * $1) AS bucket,
 		       COUNT(*)::int,
@@ -282,12 +285,22 @@ func (p *Postgres) GetReportTimeseries(ctx context.Context, from, to time.Time, 
 		       COUNT(*) FILTER (WHERE status IN ('warning','degraded'))::int
 		FROM metrics
 		WHERE timestamp BETWEEN $2 AND $3`
+	if bucketMinutes%60 == 0 {
+		query = `
+		SELECT to_timestamp(EXTRACT(EPOCH FROM bucket)::bigint / $1 * $1) AS b,
+		       SUM(samples)::int,
+		       COALESCE(SUM(rt_sum) / NULLIF(SUM(rt_count), 0), 0),
+		       SUM(down_samples)::int,
+		       SUM(warning_samples)::int
+		FROM metrics_hourly
+		WHERE bucket >= date_trunc('hour', $2::timestamptz) AND bucket <= $3`
+	}
 	args := []any{bucketSec, from, to}
 	if deviceID != nil {
 		query += ` AND device_id=$4`
 		args = append(args, *deviceID)
 	}
-	query += ` GROUP BY bucket ORDER BY bucket ASC`
+	query += ` GROUP BY 1 ORDER BY 1 ASC`
 
 	rows, err := p.pool.Query(ctx, query, args...)
 	if err != nil {

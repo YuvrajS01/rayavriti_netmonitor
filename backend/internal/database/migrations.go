@@ -1135,4 +1135,66 @@ var migrations = []Migration{
 	{Version: 46, SQL: `UPDATE system_log_events
 	 SET attrs = attrs - 'request_body_preview' - 'query_params'
 	 WHERE attrs ?| ARRAY['request_body_preview', 'query_params'];`},
+	// B9: TimescaleDB lifecycle. Native compression for the high-volume
+	// hypertables, and hourly/daily continuous aggregates of metrics so
+	// dashboards, reports and baselines read rollups instead of raw rows.
+	// Aggregates keep sums and counts (not averages) so the daily rollup and
+	// any re-aggregation stay correctly weighted; read them as sum/count.
+	// Retention policies are applied at startup from config
+	// (Postgres.ApplyRetentionPolicies), not here.
+	{Version: 47, SQL: `ALTER TABLE metrics SET (
+		timescaledb.compress,
+		timescaledb.compress_segmentby = 'device_id',
+		timescaledb.compress_orderby = 'timestamp DESC');
+	SELECT add_compression_policy('metrics', compress_after => INTERVAL '7 days', if_not_exists => TRUE);
+
+	ALTER TABLE flows SET (timescaledb.compress, timescaledb.compress_orderby = 'created_at DESC');
+	SELECT add_compression_policy('flows', compress_after => INTERVAL '2 days', if_not_exists => TRUE);
+
+	ALTER TABLE system_log_events SET (
+		timescaledb.compress,
+		timescaledb.compress_segmentby = 'component',
+		timescaledb.compress_orderby = 'timestamp DESC');
+	SELECT add_compression_policy('system_log_events', compress_after => INTERVAL '3 days', if_not_exists => TRUE);
+
+	CREATE MATERIALIZED VIEW IF NOT EXISTS metrics_hourly
+	WITH (timescaledb.continuous, timescaledb.materialized_only = false) AS
+	SELECT device_id,
+	       time_bucket(INTERVAL '1 hour', timestamp) AS bucket,
+	       count(*)                                                AS samples,
+	       count(*) FILTER (WHERE status IN ('up', 'ok'))          AS up_samples,
+	       count(*) FILTER (WHERE status IN ('warning', 'degraded')) AS warning_samples,
+	       count(*) FILTER (WHERE status = 'down')                 AS down_samples,
+	       count(response_time)                                    AS rt_count,
+	       sum(response_time)                                      AS rt_sum,
+	       sum(response_time * response_time)                      AS rt_sumsq,
+	       min(response_time)                                      AS rt_min,
+	       max(response_time)                                      AS rt_max,
+	       count(packet_loss)  AS loss_count, sum(packet_loss)  AS loss_sum,
+	       count(cpu_usage)    AS cpu_count,  sum(cpu_usage)    AS cpu_sum,
+	       count(memory_usage) AS mem_count,  sum(memory_usage) AS mem_sum
+	FROM metrics
+	GROUP BY device_id, time_bucket(INTERVAL '1 hour', timestamp)
+	WITH NO DATA;
+	SELECT add_continuous_aggregate_policy('metrics_hourly',
+		start_offset => INTERVAL '3 days', end_offset => INTERVAL '1 hour',
+		schedule_interval => INTERVAL '30 minutes', if_not_exists => TRUE);
+
+	CREATE MATERIALIZED VIEW IF NOT EXISTS metrics_daily
+	WITH (timescaledb.continuous, timescaledb.materialized_only = false) AS
+	SELECT device_id,
+	       time_bucket(INTERVAL '1 day', bucket) AS bucket,
+	       sum(samples) AS samples, sum(up_samples) AS up_samples,
+	       sum(warning_samples) AS warning_samples, sum(down_samples) AS down_samples,
+	       sum(rt_count) AS rt_count, sum(rt_sum) AS rt_sum, sum(rt_sumsq) AS rt_sumsq,
+	       min(rt_min) AS rt_min, max(rt_max) AS rt_max,
+	       sum(loss_count) AS loss_count, sum(loss_sum) AS loss_sum,
+	       sum(cpu_count) AS cpu_count, sum(cpu_sum) AS cpu_sum,
+	       sum(mem_count) AS mem_count, sum(mem_sum) AS mem_sum
+	FROM metrics_hourly
+	GROUP BY device_id, time_bucket(INTERVAL '1 day', bucket)
+	WITH NO DATA;
+	SELECT add_continuous_aggregate_policy('metrics_daily',
+		start_offset => INTERVAL '7 days', end_offset => INTERVAL '1 day',
+		schedule_interval => INTERVAL '6 hours', if_not_exists => TRUE);`},
 }
