@@ -22,7 +22,7 @@ Hardening and correctness release from the v5 review (`REVIEW_REPORT.md`, Phase 
 - **Secrets persisted in logs** (`da20f41`, S3) — Request bodies are no longer logged; credential-like query parameters are masked; migration 46 scrubs previously stored bodies.
 - **WebSocket scope filter** (`7d14497`, S12) — Location-scoped users now receive their device, metric and alert events (the filter read the wrong key and type). Device→location lookups are cached; filter installation is race-free.
 - **Login throttling** (`7d14497`, S13) — `X-Forwarded-For` is only trusted from a loopback proxy; per-username limits are keyed by user+IP with a global cap; unknown usernames take the same time as wrong passwords.
-- **Dependencies** — `golang.org/x/text` 0.39.0 → 0.41.0 (GO-2026-6629, reachable via pgxpool) and `golang.org/x/crypto` 0.53.0 → 0.55.0 (CVE-2026-56854).
+- **Dependencies** — All `golang.org/x` modules refreshed, including `x/text` 0.43.0 (GO-2026-6629, reachable via pgxpool), `x/crypto` 0.58.0 (CVE-2026-56854) and `x/net` 0.62.0 (CVE-2026-78669, HTTP/2 SETTINGS DoS).
 - **SPA static serving** (`14f70a7`) — Files are served through `os.DirFS`, so requests can never resolve outside the static directory.
 - **HTTP check host steering** (`1d4500f`, S8) — `httpPath` can no longer change the request host; HTTP checks use the connect-time guard and don't follow redirects.
 
