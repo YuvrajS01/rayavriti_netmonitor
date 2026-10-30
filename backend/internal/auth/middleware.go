@@ -45,7 +45,7 @@ func RequireAuth(secret string, apiKeyLookup func(ctx context.Context, hash stri
 				sendUnauth(w, "missing or invalid authorization")
 				return
 			}
-			claims, err := ValidateToken(token, secret)
+			claims, err := ValidateAccessToken(token, secret)
 			if err != nil {
 				sendUnauth(w, "invalid token")
 				return

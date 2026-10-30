@@ -260,7 +260,10 @@ func (m *mockRetDB2) CreateRefreshToken(ctx context.Context, tokenHash string, u
 func (m *mockRetDB2) GetRefreshToken(ctx context.Context, tokenHash string) (*database.RefreshToken, error) {
 	return nil, nil
 }
-func (m *mockRetDB2) DeleteRefreshToken(ctx context.Context, tokenHash string) error    { return nil }
+func (m *mockRetDB2) DeleteRefreshToken(ctx context.Context, tokenHash string) error { return nil }
+func (m *mockRetDB2) ClaimRefreshToken(ctx context.Context, tokenHash string) (bool, error) {
+	return true, nil
+}
 func (m *mockRetDB2) DeleteRefreshTokensByUser(ctx context.Context, userID int64) error { return nil }
 func (m *mockRetDB2) CleanupExpiredRefreshTokens(ctx context.Context) (int64, error)    { return 0, nil }
 func (m *mockRetDB2) UpsertHealthScore(ctx context.Context, score *models.DeviceHealthScoreRow) error {

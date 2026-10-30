@@ -158,7 +158,7 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	claims, err := auth.ValidateToken(rt, h.cfg.Auth.JWTSecret)
+	claims, err := auth.ValidateRefreshToken(rt, h.cfg.Auth.JWTSecret)
 	if err != nil {
 		httputil.SendError(w, http.StatusUnauthorized, "invalid refresh token")
 		return
@@ -202,8 +202,19 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 		permissions = permissionsForRole(user.Role)
 	}
 
-	// Delete old token (rotation)
-	_ = h.db.DeleteRefreshToken(r.Context(), tokenHash)
+	// Rotation: atomically claim the old token. If another request already
+	// claimed it, this is a replay (or a concurrent refresh) — treat it like
+	// reuse and revoke the family rather than forking it.
+	claimed, err := h.db.ClaimRefreshToken(r.Context(), tokenHash)
+	if err != nil {
+		httputil.SendInternalError(w, err)
+		return
+	}
+	if !claimed {
+		_ = h.db.DeleteRefreshTokensByUser(r.Context(), user.ID)
+		httputil.SendError(w, http.StatusUnauthorized, "refresh token revoked")
+		return
+	}
 	// Issue new pair from current user state (not stale claims)
 	at, rt, err := auth.GenerateTokenPairWithPerms(user.ID, user.Username, user.Role, permissions,
 		h.cfg.Auth.JWTSecret, h.cfg.Auth.AccessTokenExpiry, h.cfg.Auth.RefreshTokenExpiry)

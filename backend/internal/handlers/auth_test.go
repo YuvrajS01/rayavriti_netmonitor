@@ -183,7 +183,7 @@ func TestRefresh_Valid(t *testing.T) {
 		},
 	}
 	h := NewAuthHandler(db, testConfig())
-	refreshToken, _, _ := auth.GenerateTokenPair(testUserID, testUsername, testUserRole, testJWTSecret, 15*time.Minute, 7*24*time.Hour)
+	_, refreshToken, _ := auth.GenerateTokenPair(testUserID, testUsername, testUserRole, testJWTSecret, 15*time.Minute, 7*24*time.Hour)
 	body, _ := json.Marshal(map[string]string{"refreshToken": refreshToken})
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest("POST", "/api/auth/refresh", strings.NewReader(string(body)))
@@ -411,5 +411,36 @@ func TestParseID(t *testing.T) {
 	_, err = parseID("abc")
 	if err == nil {
 		t.Fatal("expected error for non-numeric id")
+	}
+}
+
+func TestRefresh_LostClaimRevokesFamily(t *testing.T) {
+	revoked := false
+	db := &mockDB{
+		getRefreshTokenFn: func(ctx context.Context, tokenHash string) (*database.RefreshToken, error) {
+			return &database.RefreshToken{TokenHash: tokenHash, UserID: testUserID}, nil
+		},
+		getUserByIDFn: func(ctx context.Context, id int64) (*models.User, error) {
+			return &models.User{ID: id, Username: testUsername, Role: testUserRole, Enabled: true}, nil
+		},
+		claimRefreshTokenFn: func(ctx context.Context, tokenHash string) (bool, error) {
+			return false, nil // a concurrent request already rotated this token
+		},
+		deleteRefreshTokensByUserFn: func(ctx context.Context, userID int64) error {
+			revoked = true
+			return nil
+		},
+	}
+	h := NewAuthHandler(db, testConfig())
+	_, refreshToken, _ := auth.GenerateTokenPair(testUserID, testUsername, testUserRole, testJWTSecret, 15*time.Minute, 7*24*time.Hour)
+	body, _ := json.Marshal(map[string]string{"refreshToken": refreshToken})
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("POST", "/api/auth/refresh", strings.NewReader(string(body)))
+	h.Refresh(w, r)
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d: %s", w.Code, w.Body.String())
+	}
+	if !revoked {
+		t.Fatal("expected token family to be revoked")
 	}
 }

@@ -102,6 +102,8 @@ type mockDB struct {
 	pruneAlertsFn               func(ctx context.Context, olderThan time.Time) (int64, error)
 	getDashboardStatsFn         func(ctx context.Context) (map[string]any, error)
 	getRefreshTokenFn           func(ctx context.Context, tokenHash string) (*database.RefreshToken, error)
+	claimRefreshTokenFn         func(ctx context.Context, tokenHash string) (bool, error)
+	deleteRefreshTokensByUserFn func(ctx context.Context, userID int64) error
 }
 
 func (m *mockDB) Connect(ctx context.Context) error {
@@ -755,6 +757,17 @@ func (m *mockDB) GetRefreshToken(ctx context.Context, tokenHash string) (*databa
 	}
 	return nil, nil
 }
-func (m *mockDB) DeleteRefreshToken(ctx context.Context, tokenHash string) error    { return nil }
-func (m *mockDB) DeleteRefreshTokensByUser(ctx context.Context, userID int64) error { return nil }
-func (m *mockDB) CleanupExpiredRefreshTokens(ctx context.Context) (int64, error)    { return 0, nil }
+func (m *mockDB) DeleteRefreshToken(ctx context.Context, tokenHash string) error { return nil }
+func (m *mockDB) ClaimRefreshToken(ctx context.Context, tokenHash string) (bool, error) {
+	if m.claimRefreshTokenFn != nil {
+		return m.claimRefreshTokenFn(ctx, tokenHash)
+	}
+	return true, nil
+}
+func (m *mockDB) DeleteRefreshTokensByUser(ctx context.Context, userID int64) error {
+	if m.deleteRefreshTokensByUserFn != nil {
+		return m.deleteRefreshTokensByUserFn(ctx, userID)
+	}
+	return nil
+}
+func (m *mockDB) CleanupExpiredRefreshTokens(ctx context.Context) (int64, error) { return 0, nil }

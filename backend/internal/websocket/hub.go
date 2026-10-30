@@ -299,7 +299,7 @@ func (h *Hub) ServeWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	claims, err := auth.ValidateToken(token, h.jwtSecret)
+	claims, err := auth.ValidateAccessToken(token, h.jwtSecret)
 	if err != nil {
 		http.Error(w, "invalid token", http.StatusUnauthorized)
 		return

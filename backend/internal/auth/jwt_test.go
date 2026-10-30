@@ -166,3 +166,33 @@ func joinJWT(parts []string) string {
 	}
 	return result
 }
+
+func TestTypedValidation_RejectsWrongTokenType(t *testing.T) {
+	secret := "test-secret-that-is-at-least-32-characters"
+	at, rt, err := GenerateTokenPair(1, "alice", "viewer", secret, time.Minute, time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ValidateAccessToken(at, secret); err != nil {
+		t.Fatalf("access token rejected as access: %v", err)
+	}
+	if _, err := ValidateRefreshToken(rt, secret); err != nil {
+		t.Fatalf("refresh token rejected as refresh: %v", err)
+	}
+	if _, err := ValidateAccessToken(rt, secret); err == nil {
+		t.Fatal("refresh token must not be accepted as an access token")
+	}
+	if _, err := ValidateRefreshToken(at, secret); err == nil {
+		t.Fatal("access token must not be accepted as a refresh token")
+	}
+}
+
+func TestGenerateTokenPair_UniqueJTI(t *testing.T) {
+	secret := "test-secret-that-is-at-least-32-characters"
+	at, rt, _ := GenerateTokenPair(1, "alice", "viewer", secret, time.Minute, time.Hour)
+	a, _ := ValidateToken(at, secret)
+	r, _ := ValidateToken(rt, secret)
+	if a.ID == "" || r.ID == "" || a.ID == r.ID {
+		t.Fatalf("expected distinct non-empty jti, got %q and %q", a.ID, r.ID)
+	}
+}
