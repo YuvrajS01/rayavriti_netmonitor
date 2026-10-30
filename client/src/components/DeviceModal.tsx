@@ -1,9 +1,12 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip, Legend } from 'recharts';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getDeviceMetrics, deleteDevice, getDevicePorts, scanDevicePorts, getHealthScore, getDevices } from '../api/client';
-import { listResources, type ResourceRow } from '../api/resources';
-import { v1 } from '../api/http';
+import { updateDevice } from '../api/devices';
+import { queryKeys } from '../api/queryKeys';
+import { useResourceList } from '../hooks/useResources';
 import { useSocket } from '../hooks/useSocket';
+import type { ResourceRow } from '../api/resources';
 import type { Device, Metric, MetricMessagePayload, PortScanResult, TrafficInterfaceSample } from '../api/types';
 import ConfirmDialog from './ConfirmDialog';
 import { formatMbps } from '../utils/formatters';
@@ -22,7 +25,7 @@ function parseMetricMessage(details?: Record<string, unknown> | null): MetricMes
   if (!details) return null;
   try {
     if (typeof details === 'object' && details !== null && 'interfaces' in details) {
-      return details as unknown as MetricMessagePayload;
+      return details;
     }
     return null;
   } catch {
@@ -39,8 +42,9 @@ function buildTrafficData(metrics: Metric[]): TrafficPoint[] {
   for (let i = 1; i < metrics.length; i += 1) {
     const prev = metrics[i - 1];
     const curr = metrics[i];
-    const prevPayload = parseMetricMessage(prev.details as Record<string, unknown> | null);
-    const currPayload = parseMetricMessage(curr.details as Record<string, unknown> | null);
+    if (!prev || !curr) continue;
+    const prevPayload = parseMetricMessage(prev.details);
+    const currPayload = parseMetricMessage(curr.details);
     if (!prevPayload?.interfaces?.length || !currPayload?.interfaces?.length) continue;
 
     const seconds = (new Date(curr.timestamp || curr.createdAt).getTime() - new Date(prev.timestamp || prev.createdAt).getTime()) / 1000;
@@ -62,20 +66,50 @@ function buildTrafficData(metrics: Metric[]): TrafficPoint[] {
   return points.slice(-50);
 }
 
+const METRIC_HISTORY = 50;
+const EMPTY_METRICS: Metric[] = [];
+const EMPTY_PORTS: PortScanResult[] = [];
+const EMPTY_LOCATIONS: ResourceRow[] = [];
+const EMPTY_DEVICES: Device[] = [];
+
 export default function DeviceModal({ device, onClose, onDeleted }: { device: Device; onClose: () => void; onDeleted: () => void }) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const previousFocus = useRef<HTMLElement | null>(null);
-  const [metrics, setMetrics] = useState<Metric[]>([]);
-  const [ports, setPorts] = useState<PortScanResult[]>([]);
-  const [locations, setLocations] = useState<ResourceRow[]>([]);
+  const queryClient = useQueryClient();
   const [locationId, setLocationId] = useState<string>(device.locationId != null ? String(device.locationId) : '');
-  const [allDevices, setAllDevices] = useState<Device[]>([]);
   const [parentDeviceId, setParentDeviceId] = useState<string>(device.parentDeviceId != null ? String(device.parentDeviceId) : '');
   const [dependencyPort, setDependencyPort] = useState<string>(device.dependencyPort || '');
-  const [loading, setLoading] = useState(true);
   const [scanning, setScanning] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [healthScore, setHealthScore] = useState<number | null>(null);
+
+  const metricsKey = queryKeys.devices.metrics(device.id, METRIC_HISTORY);
+  // Oldest-first history; live samples are appended to this cache entry below.
+  const metricsQuery = useQuery({
+    queryKey: metricsKey,
+    queryFn: ({ signal }) => getDeviceMetrics(device.id, METRIC_HISTORY, { signal }).then((r) => [...(r.data || [])].reverse()),
+  });
+  const portsKey = queryKeys.devices.ports(device.id);
+  const portsQuery = useQuery({
+    queryKey: portsKey,
+    queryFn: ({ signal }) => getDevicePorts(device.id, { signal }).then((r) => r.data || []),
+  });
+  const locationsQuery = useResourceList('/locations');
+  const devicesQuery = useQuery({
+    queryKey: queryKeys.devices.list(),
+    queryFn: ({ signal }) => getDevices({ signal }),
+  });
+  const healthQuery = useQuery({
+    queryKey: queryKeys.devices.health(device.id),
+    queryFn: ({ signal }) => getHealthScore(device.id, { signal }),
+    retry: false,
+  });
+
+  const loading = metricsQuery.isPending || portsQuery.isPending;
+  const metrics = metricsQuery.data || EMPTY_METRICS;
+  const ports = portsQuery.data || EMPTY_PORTS;
+  const locations = locationsQuery.data || EMPTY_LOCATIONS;
+  const allDevices = devicesQuery.data?.data || EMPTY_DEVICES;
+  const healthScore = healthQuery.data?.data?.score ?? null;
 
   useEffect(() => {
     previousFocus.current = document.activeElement as HTMLElement;
@@ -90,9 +124,9 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
       const focusable = dialogRef.current.querySelectorAll<HTMLElement>(
         'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
       );
-      if (focusable.length === 0) return;
       const first = focusable[0];
       const last = focusable[focusable.length - 1];
+      if (!first || !last) return;
       if (e.shiftKey && document.activeElement === first) {
         e.preventDefault();
         last.focus();
@@ -109,45 +143,14 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
     };
   }, [onClose]);
 
-  const loadData = useCallback(async () => {
-    try {
-      const [metricRes, portRes, locRes, devRes, healthRes] = await Promise.all([
-        getDeviceMetrics(device.id, 50),
-        getDevicePorts(device.id),
-        listResources('/locations'),
-        getDevices(),
-        getHealthScore(device.id).catch(() => null),
-      ]);
-      setMetrics((metricRes.data || []).reverse());
-      setPorts(portRes.data || []);
-      setLocations(locRes.data || []);
-      setAllDevices(devRes.data || []);
-      setHealthScore(healthRes?.data?.score ?? null);
-    } catch {
-      // ignore
-    } finally {
-      setLoading(false);
-    }
-  }, [device.id]);
-
-  useEffect(() => {
-    void Promise.resolve().then(loadData);
-  }, [loadData]);
-
   useSocket({
-    onMetricUpdate: (metric: Record<string, unknown>) => {
-      const m = metric as unknown as Metric;
-      if (m.deviceId === device.id) {
-        setMetrics((prev) => {
-          const updated = [...prev, m as Metric];
-          if (updated.length > 50) updated.shift();
-          return updated;
-        });
-      }
+    onMetricUpdate: (m) => {
+      if (m.deviceId !== device.id) return;
+      queryClient.setQueryData<Metric[]>(metricsKey, (prev) => (prev ? [...prev, m].slice(-METRIC_HISTORY) : prev));
     }
   });
 
-  const handleDelete = async () => {
+  const handleDelete = () => {
     setShowDeleteConfirm(true);
   };
 
@@ -161,7 +164,7 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
     setScanning(true);
     try {
       const res = await scanDevicePorts(device.id);
-      setPorts(res.data.results.map((result) => ({
+      queryClient.setQueryData<PortScanResult[]>(portsKey, res.data.results.map((result) => ({
         ...result,
         deviceId: device.id,
       })));
@@ -171,11 +174,12 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
   };
 
   const persistDependencyFields = async (locId: string, parentId: string, port: string) => {
-    await v1.put(`/devices/${device.id}`, {
+    await updateDevice(device.id, {
       locationId: locId ? Number(locId) : null,
       parentDeviceId: parentId ? Number(parentId) : null,
       dependencyPort: port,
     });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.devices.list() });
   };
 
   const handleLocationChange = async (newLocId: string) => {
@@ -215,7 +219,7 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
   }));
 
   const latestMetric = metrics[metrics.length - 1];
-  const latestPayload = parseMetricMessage(latestMetric?.details as Record<string, unknown> | null);
+  const latestPayload = parseMetricMessage(latestMetric?.details);
   const trafficData = buildTrafficData(metrics);
   const latestTraffic = trafficData[trafficData.length - 1];
   const supportsTraffic = device.protocol === 'snmp';

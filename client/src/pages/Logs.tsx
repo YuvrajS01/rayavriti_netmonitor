@@ -1,4 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '../api/queryKeys';
+import { useDebouncedValue } from '../hooks/useDebouncedValue';
 import SectionHeader from '../components/ui/SectionHeader';
 import Button from '../components/ui/Button';
 import Card from '../components/ui/Card';
@@ -10,6 +13,8 @@ const LEVELS = ['', 'trace', 'debug', 'info', 'warn', 'error'];
 const COMPONENTS = ['', 'http', 'db', 'audit', 'collector', 'collector.snmp', 'websocket', 'scheduler'];
 
 const defaultStats: LogStats = { total: 0, byLevel: {}, byComponent: {}, errors: 0, slowRequests: 0, slowQueries: 0 };
+const EMPTY_EVENTS: LogEvent[] = [];
+const EMPTY_SESSIONS: VerboseSession[] = [];
 
 function dateTimeLocalHoursAgo(hours: number) {
   const d = new Date(Date.now() - hours * 60 * 60 * 1000);
@@ -34,100 +39,95 @@ function levelClass(level: string) {
 
 export default function Logs() {
   const { addToast } = useToast();
-  const [events, setEvents] = useState<LogEvent[]>([]);
-  const [stats, setStats] = useState<LogStats>(defaultStats);
-  const [sessions, setSessions] = useState<VerboseSession[]>([]);
+  const queryClient = useQueryClient();
   const [selected, setSelected] = useState<LogEvent | null>(null);
-  const [fetchSeq, setFetchSeq] = useState(1);
-  const [doneSeq, setDoneSeq] = useState(0);
-  const loading = fetchSeq !== doneSeq;
   const [autoRefresh, setAutoRefresh] = useState(false);
   const [filters, setFilters] = useState({ from: dateTimeLocalHoursAgo(6), to: '', level: '', component: '', q: '', request_id: '', device_id: '' });
   const [verbose, setVerbose] = useState({ level: 'debug' as 'debug' | 'trace', component: 'collector', deviceIds: '', userIds: '', durationMinutes: 30, reason: '' });
 
+  // Free-text inputs would otherwise fire a request per keystroke.
+  const debouncedFilters = useDebouncedValue(filters, 300);
+
   const query = useMemo<LogFilters>(() => ({
-    from: toIsoLocal(filters.from),
-    to: toIsoLocal(filters.to),
-    level: filters.level,
-    component: filters.component,
-    q: filters.q,
-    request_id: filters.request_id,
-    device_id: filters.device_id,
+    from: toIsoLocal(debouncedFilters.from),
+    to: toIsoLocal(debouncedFilters.to),
+    level: debouncedFilters.level,
+    component: debouncedFilters.component,
+    q: debouncedFilters.q,
+    request_id: debouncedFilters.request_id,
+    device_id: debouncedFilters.device_id,
     limit: 200,
-  }), [filters]);
+  }), [debouncedFilters]);
 
-  const fetchRef = useRef(0);
+  // refetchInterval pauses automatically while the tab is hidden.
+  const refetchInterval = autoRefresh ? 10_000 : false;
+  const logsQuery = useQuery({
+    queryKey: queryKeys.logs.events(query),
+    queryFn: ({ signal }) => getLogs(query, { signal }),
+    refetchInterval,
+    placeholderData: keepPreviousData,
+  });
+  const statsQuery = useQuery({
+    queryKey: queryKeys.logs.stats(query),
+    queryFn: ({ signal }) => getLogStats(query, { signal }),
+    refetchInterval,
+    placeholderData: keepPreviousData,
+  });
+  const sessionsQuery = useQuery({
+    queryKey: queryKeys.logs.verboseSessions(),
+    queryFn: ({ signal }) => getVerboseSessions({ signal }),
+    refetchInterval,
+  });
 
-  const load = useCallback(async (fetchId: number) => {
-    try {
-      const [logsRes, statsRes, sessionsRes] = await Promise.all([
-        getLogs(query),
-        getLogStats(query),
-        getVerboseSessions(),
-      ]);
-      if (fetchRef.current !== fetchId) return;
-      setEvents(logsRes.data);
-      setStats(statsRes.data || defaultStats);
-      setSessions(sessionsRes.data.sessions || []);
-    } catch {
-      if (fetchRef.current !== fetchId) return;
-      addToast('Unable to load logs', 'error');
-    } finally {
-      if (fetchRef.current === fetchId) setDoneSeq(fetchId);
-    }
-  }, [query, addToast]);
+  const events = logsQuery.data?.data ?? EMPTY_EVENTS;
+  const stats = statsQuery.data?.data || defaultStats;
+  const sessions = sessionsQuery.data?.data.sessions || EMPTY_SESSIONS;
+  // Background (auto-refresh) fetches keep the table on screen; a filter
+  // change shows the loader until its first result arrives.
+  const loading = logsQuery.isPending || (logsQuery.isFetching && logsQuery.isPlaceholderData);
 
+  const loadFailedAt = logsQuery.errorUpdatedAt;
   useEffect(() => {
-    fetchRef.current += 1;
-    setFetchSeq(fetchRef.current);
-    const id = fetchRef.current;
-    void load(id);
-    return () => { fetchRef.current += 1; };
-  }, [load]);
+    if (loadFailedAt) addToast('Unable to load logs', 'error');
+  }, [loadFailedAt, addToast]);
 
-  useEffect(() => {
-    if (!autoRefresh) return;
-    const id = window.setInterval(() => {
-      fetchRef.current += 1;
-      setFetchSeq(fetchRef.current);
-      void load(fetchRef.current);
-    }, 10_000);
-    return () => window.clearInterval(id);
-  }, [autoRefresh, load]);
+  const refreshLogs = () => queryClient.invalidateQueries({ queryKey: queryKeys.logs.all });
 
-  const createSession = async () => {
+  const createSessionMutation = useMutation({
+    mutationFn: (body: Parameters<typeof createVerboseSession>[0]) => createVerboseSession(body),
+    onSuccess: () => {
+      setVerbose((v) => ({ ...v, reason: '' }));
+      addToast('Verbose logging enabled', 'success');
+      return refreshLogs();
+    },
+    onError: () => addToast('Unable to enable verbose logging', 'error'),
+  });
+
+  const stopSessionMutation = useMutation({
+    mutationFn: (id: number) => stopVerboseSession(id),
+    onSuccess: () => {
+      addToast('Verbose session stopped', 'success');
+      return refreshLogs();
+    },
+    onError: () => addToast('Unable to stop verbose session', 'error'),
+  });
+
+  const createSession = () => {
     if (!verbose.reason.trim()) {
       addToast('Reason is required', 'error');
       return;
     }
-    try {
-      await createVerboseSession({
-        level: verbose.level,
-        components: verbose.component ? [verbose.component] : [],
-        deviceIds: verbose.deviceIds.split(',').map((v) => Number(v.trim())).filter(Boolean),
-        userIds: verbose.userIds.split(',').map((v) => v.trim()).filter(Boolean),
-        reason: verbose.reason.trim(),
-        durationMinutes: verbose.durationMinutes,
-      });
-      setVerbose((v) => ({ ...v, reason: '' }));
-      addToast('Verbose logging enabled', 'success');
-      fetchRef.current += 1;
-      await load(fetchRef.current);
-    } catch {
-      addToast('Unable to enable verbose logging', 'error');
-    }
+    createSessionMutation.mutate({
+      level: verbose.level,
+      components: verbose.component ? [verbose.component] : [],
+      deviceIds: verbose.deviceIds.split(',').map((v) => Number(v.trim())).filter(Boolean),
+      userIds: verbose.userIds.split(',').map((v) => v.trim()).filter(Boolean),
+      reason: verbose.reason.trim(),
+      durationMinutes: verbose.durationMinutes,
+    });
   };
 
-  const stopSession = async (id: number) => {
-    try {
-      await stopVerboseSession(id);
-      addToast('Verbose session stopped', 'success');
-      fetchRef.current += 1;
-      await load(fetchRef.current);
-    } catch {
-      addToast('Unable to stop verbose session', 'error');
-    }
-  };
+  const stopSession = (id: number) => stopSessionMutation.mutate(id);
 
   return (
     <div className="space-y-6">

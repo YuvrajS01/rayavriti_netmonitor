@@ -1,14 +1,18 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import SectionHeader from '../components/ui/SectionHeader';
 import Card from '../components/ui/Card';
 import EmptyState from '../components/ui/EmptyState';
 import LocationTree from '../components/LocationTree';
-import { listResources, type ResourceRow } from '../api/resources';
+import type { ResourceRow } from '../api/resources';
 import { getDevices } from '../api/client';
+import { queryKeys } from '../api/queryKeys';
+import { useResourceList } from '../hooks/useResources';
 import type { Device } from '../api/types';
 import { useToast } from '../components/ui/useToast';
 import CampusMap from '../components/CampusMap';
 import FloorPlanView from '../components/FloorPlanView';
+import { asText } from '../utils/formatters';
 
 const statusColors: Record<string, string> = {
   up: 'bg-success',
@@ -19,50 +23,48 @@ const statusColors: Record<string, string> = {
   unknown: 'bg-outline',
 };
 
+type StatusCounts = { up: number; down: number; warning: number; maintenance: number; unknown: number };
+
+const EMPTY_LOCATIONS: ResourceRow[] = [];
+const EMPTY_DEVICES: Device[] = [];
+
 export default function Campus() {
   const { addToast } = useToast();
-  const [locations, setLocations] = useState<ResourceRow[]>([]);
-  const [devices, setDevices] = useState<Device[]>([]);
   const [selected, setSelected] = useState<ResourceRow | null>(null);
-  const [loading, setLoading] = useState(true);
   const [view, setView] = useState<'tree' | 'map' | 'floor'>('tree');
 
+  const locationsQuery = useResourceList('/locations');
+  // Device status is kept live by useLiveQueryBridge.
+  const devicesQuery = useQuery({
+    queryKey: queryKeys.devices.list(),
+    queryFn: ({ signal }) => getDevices({ signal }),
+  });
+  const locations = locationsQuery.data ?? EMPTY_LOCATIONS;
+  const devices = devicesQuery.data?.data ?? EMPTY_DEVICES;
+  const loading = locationsQuery.isPending || devicesQuery.isPending;
+
+  const failedAt = Math.max(locationsQuery.errorUpdatedAt, devicesQuery.errorUpdatedAt);
   useEffect(() => {
-    (async () => {
-      setLoading(true);
-      try {
-        const [locRes, devRes] = await Promise.all([
-          listResources('/locations'),
-          getDevices(),
-        ]);
-        setLocations(locRes.data || []);
-        setDevices(devRes.data || []);
-      } catch {
-        addToast('Failed to load campus data', 'error');
-        setLocations([]);
-        setDevices([]);
-      }
-      setLoading(false);
-    })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (failedAt) addToast('Failed to load campus data', 'error');
+  }, [failedAt, addToast]);
 
   // Enrich locations with device counts and status aggregated recursively from
   // the whole subtree (rack → floor → building → campus), matching the backend
   // GetTreeWithStatus semantic.
   const enriched = useMemo(() => {
-    const empty = { up: 0, down: 0, warning: 0, maintenance: 0, unknown: 0 };
+    const empty: StatusCounts = { up: 0, down: 0, warning: 0, maintenance: 0, unknown: 0 };
     const idToLoc = new Map<number, ResourceRow>();
     for (const loc of locations) idToLoc.set(Number(loc.id), loc);
 
     // Direct (own) counts per location.
-    const own: Record<number, Record<string, number>> = {};
+    const own: Record<number, StatusCounts> = {};
     for (const loc of locations) own[Number(loc.id)] = { ...empty };
     for (const d of devices) {
       if (d.locationId == null) continue;
-      if (!own[d.locationId]) continue;
-      const key = d.status in own[d.locationId] ? d.status : 'unknown';
-      own[d.locationId][key]++;
+      const counts = own[d.locationId];
+      if (!counts) continue;
+      const key: keyof StatusCounts = d.status in counts ? d.status : 'unknown';
+      counts[key]++;
     }
 
     // Child index for upward aggregation.
@@ -77,8 +79,8 @@ export default function Campus() {
     }
 
     // Post-order: each node's totals include all descendants.
-    const subtotal = new Map<number, Record<string, number>>();
-    const aggregate = (locId: number): Record<string, number> => {
+    const subtotal = new Map<number, StatusCounts>();
+    const aggregate = (locId: number): StatusCounts => {
       const st = { ...(own[locId] || empty) };
       for (const cid of kids.get(locId) || []) {
         const cs = aggregate(cid);
@@ -197,7 +199,7 @@ export default function Campus() {
       ) : view === 'map' ? (
         <CampusMap locations={enriched} selectedId={selected ? Number(selected.id) : null} onSelect={handleSelect} />
       ) : view === 'floor' ? (
-        <FloorPlanView location={selected} locations={locations as ResourceRow[]} devices={devices} />
+        <FloorPlanView location={selected} locations={locations} devices={devices} />
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
           {/* Left Panel — Tree */}
@@ -225,16 +227,16 @@ export default function Campus() {
                     <div>
                       <h2 className="font-headline font-semibold text-xl">{String(selected.name)}</h2>
                       <p className="text-xs text-on-surface-variant uppercase tracking-wide mt-1">
-                        {String(selected.type)} {selected.code ? `· ${selected.code}` : ''}
+                        {asText(selected.type)} {selected.code ? `· ${asText(selected.code)}` : ''}
                       </p>
                       {selected.description ? (
-                        <p className="text-sm text-on-surface-variant mt-2">{String(selected.description)}</p>
+                        <p className="text-sm text-on-surface-variant mt-2">{asText(selected.description)}</p>
                       ) : null}
                     </div>
                     {/* Status badges */}
                     <div className="flex items-center gap-2 shrink-0">
                       {(() => {
-                        const st = (selected as ResourceRow & { status?: Record<string, number> }).status;
+                        const st = (selected as ResourceRow & { status?: StatusCounts }).status;
                         if (!st) return null;
                         return (
                           <>

@@ -1,4 +1,4 @@
-import { v1, wrap } from './http';
+import { v1, wrap, type RequestOptions } from './http';
 import type { DashboardStats, SystemInfo } from './types';
 
 const SYSTEM_INFO_FALLBACK: SystemInfo = {
@@ -9,13 +9,13 @@ const SYSTEM_INFO_FALLBACK: SystemInfo = {
   loadAvg: [0, 0, 0],
 };
 
-export const getSystemInfo = () =>
-  v1.get('/system/info').then((r) => {
+export const getSystemInfo = ({ signal }: RequestOptions = {}) =>
+  v1.get<unknown>('/system/info', { signal }).then((r) => {
     const raw = r.data;
     const body = raw as Record<string, unknown>;
     const data = body?.data !== undefined ? body.data : body;
     return { data: (data as SystemInfo) || SYSTEM_INFO_FALLBACK, success: true };
   }).catch(() => ({ data: SYSTEM_INFO_FALLBACK, success: false }));
 
-export const getStats = () =>
-  v1.get('/system/stats').then((r) => wrap<DashboardStats>(r.data));
+export const getStats = ({ signal }: RequestOptions = {}) =>
+  v1.get('/system/stats', { signal }).then((r) => wrap<DashboardStats>(r.data));

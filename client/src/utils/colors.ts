@@ -1,10 +1,12 @@
+const UNKNOWN_STATUS_HEX = '#707070';
+
 const STATUS_COLORS: Record<string, string> = {
   up: '#6ec96e',
   ok: '#6ec96e',
   warning: '#cca040',
   degraded: '#cca040',
   down: '#d85050',
-  unknown: '#707070',
+  unknown: UNKNOWN_STATUS_HEX,
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -19,7 +21,7 @@ const STATUS_LABELS: Record<string, string> = {
 export type StatusKey = 'up' | 'ok' | 'warning' | 'degraded' | 'down' | 'unknown';
 
 export function statusHexColor(status: string): string {
-  return STATUS_COLORS[status] ?? STATUS_COLORS.unknown;
+  return STATUS_COLORS[status] ?? UNKNOWN_STATUS_HEX;
 }
 
 export function statusLabel(status: string): string {

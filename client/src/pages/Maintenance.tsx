@@ -1,6 +1,6 @@
-import { useState, useEffect, useMemo } from 'react';
-import { listResources, createResource, updateResource, type ResourceRow } from '../api/resources';
-import { v1 } from '../api/http';
+import { useState, useMemo } from 'react';
+import type { ResourceRow } from '../api/resources';
+import { useResourceList, useResourceMutations } from '../hooks/useResources';
 import SectionHeader from '../components/ui/SectionHeader';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
@@ -9,6 +9,7 @@ import EmptyState from '../components/ui/EmptyState';
 import ConfirmDialog from '../components/ConfirmDialog';
 import { useToast } from '../components/ui/useToast';
 import GanttTimeline from '../components/charts/GanttTimeline';
+import { asText } from '../utils/formatters';
 
 interface MaintenanceWindow extends ResourceRow {
   id: number;
@@ -37,44 +38,24 @@ function nowInRange(start: string | null, end: string | null): boolean {
   return now >= new Date(start).getTime() && now <= new Date(end).getTime();
 }
 
+const EMPTY_WINDOWS: MaintenanceWindow[] = [];
+
 export default function Maintenance() {
   const { addToast } = useToast();
-  const [windows, setWindows] = useState<MaintenanceWindow[]>([]);
-  const [loading, setLoading] = useState(true);
+  const windowsQuery = useResourceList<MaintenanceWindow>('/maintenance');
+  const windows = windowsQuery.data ?? EMPTY_WINDOWS;
+  const loading = windowsQuery.isPending;
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<MaintenanceWindow | null>(null);
   const [form, setForm] = useState<Record<string, unknown>>({});
-  const [submitting, setSubmitting] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<MaintenanceWindow | null>(null);
-
-  const load = async () => {
-    setLoading(true);
-    const res = await listResources('/maintenance');
-    setWindows((res.data || []) as MaintenanceWindow[]);
-    setLoading(false);
-  };
-
-  useEffect(() => {
-    let active = true;
-    (async () => {
-      setLoading(true);
-      try {
-        const res = await listResources('/maintenance');
-        if (active) setWindows((res.data || []) as MaintenanceWindow[]);
-      } catch {
-        if (active) setWindows([]);
-      }
-      if (active) setLoading(false);
-    })();
-    return () => { active = false; };
-  }, []);
 
   const filtered = useMemo(() => {
     const needle = search.trim().toLowerCase();
     return windows.filter((w) => {
-      const matchSearch = !needle || (w.name as string)?.toLowerCase().includes(needle) || (w.scope_value as string)?.toLowerCase().includes(needle);
+      const matchSearch = !needle || w.name?.toLowerCase().includes(needle) || w.scope_value?.toLowerCase().includes(needle);
       const matchType = typeFilter === 'all' || w.schedule_type === typeFilter;
       return matchSearch && matchType;
     });
@@ -94,35 +75,29 @@ export default function Maintenance() {
   };
   const openEdit = (w: MaintenanceWindow) => { setEditing(w); setForm({ ...w }); setShowForm(true); };
 
-  const handleSubmit = async () => {
-    setSubmitting(true);
-    try {
-      if (editing) {
-        await updateResource('/maintenance', editing.id, form);
-        addToast('Window updated', 'success');
-      } else {
-        await createResource('/maintenance', form);
-        addToast('Window created', 'success');
-      }
-      setShowForm(false);
-      await load();
-    } catch (err) {
-      addToast(err instanceof Error ? err.message : 'Save failed', 'error');
-    } finally {
-      setSubmitting(false);
-    }
+  const { save, remove } = useResourceMutations('/maintenance');
+  const submitting = save.isPending;
+
+  const handleSubmit = () => {
+    const updating = editing != null;
+    save.mutate({ id: editing?.id, body: form }, {
+      onSuccess: () => {
+        addToast(updating ? 'Window updated' : 'Window created', 'success');
+        setShowForm(false);
+      },
+      onError: (err) => addToast(err instanceof Error ? err.message : 'Save failed', 'error'),
+    });
   };
 
-  const handleDelete = async () => {
+  const handleDelete = () => {
     if (!deleteTarget) return;
-    try {
-      await v1.delete(`/maintenance/${deleteTarget.id}`);
-      addToast('Window deleted', 'success');
-      setDeleteTarget(null);
-      await load();
-    } catch (err) {
-      addToast(err instanceof Error ? err.message : 'Delete failed', 'error');
-    }
+    remove.mutate(deleteTarget.id, {
+      onSuccess: () => {
+        addToast('Window deleted', 'success');
+        setDeleteTarget(null);
+      },
+      onError: (err) => addToast(err instanceof Error ? err.message : 'Delete failed', 'error'),
+    });
   };
 
   return (
@@ -224,19 +199,19 @@ export default function Maintenance() {
             <div className="p-6 space-y-4 flex-1 min-h-0 overflow-y-auto">
               <div>
                 <label className="text-[10px] text-on-surface-variant uppercase tracking-wide block mb-1">Name</label>
-                <input value={String(form.name ?? '')} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary outline-none" placeholder="e.g. Sunday Lab Shutdown" />
+                <input value={asText(form.name)} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary outline-none" placeholder="e.g. Sunday Lab Shutdown" />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-[10px] text-on-surface-variant uppercase tracking-wide block mb-1">Schedule Type</label>
-                  <select value={String(form.schedule_type ?? 'one_time')} onChange={(e) => setForm({ ...form, schedule_type: e.target.value })} className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary">
+                  <select value={asText(form.schedule_type, 'one_time')} onChange={(e) => setForm({ ...form, schedule_type: e.target.value })} className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary">
                     <option value="one_time">One-time</option>
                     <option value="recurring">Recurring</option>
                   </select>
                 </div>
                 <div>
                   <label className="text-[10px] text-on-surface-variant uppercase tracking-wide block mb-1">Scope</label>
-                  <select value={String(form.scope_type ?? 'global')} onChange={(e) => setForm({ ...form, scope_type: e.target.value })} className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary">
+                  <select value={asText(form.scope_type, 'global')} onChange={(e) => setForm({ ...form, scope_type: e.target.value })} className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary">
                     <option value="global">Global</option>
                     <option value="device">Device</option>
                     <option value="location">Location</option>
@@ -246,17 +221,17 @@ export default function Maintenance() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-[10px] text-on-surface-variant uppercase tracking-wide block mb-1">Start</label>
-                  <input type="datetime-local" value={String(form.start_time ?? '').slice(0, 16)} onChange={(e) => setForm({ ...form, start_time: e.target.value ? new Date(e.target.value).toISOString() : '' })} className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary" />
+                  <input type="datetime-local" value={asText(form.start_time).slice(0, 16)} onChange={(e) => setForm({ ...form, start_time: e.target.value ? new Date(e.target.value).toISOString() : '' })} className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary" />
                 </div>
                 <div>
                   <label className="text-[10px] text-on-surface-variant uppercase tracking-wide block mb-1">End</label>
-                  <input type="datetime-local" value={String(form.end_time ?? '').slice(0, 16)} onChange={(e) => setForm({ ...form, end_time: e.target.value ? new Date(e.target.value).toISOString() : '' })} className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary" />
+                  <input type="datetime-local" value={asText(form.end_time).slice(0, 16)} onChange={(e) => setForm({ ...form, end_time: e.target.value ? new Date(e.target.value).toISOString() : '' })} className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary" />
                 </div>
               </div>
               {form.schedule_type === 'recurring' && (
                 <div>
                   <label className="text-[10px] text-on-surface-variant uppercase tracking-wide block mb-1">Recurrence Rule (iCal)</label>
-                  <input value={String(form.recurrence_rule ?? '')} onChange={(e) => setForm({ ...form, recurrence_rule: e.target.value })} className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary outline-none" placeholder="FREQ=WEEKLY;BYDAY=SA" />
+                  <input value={asText(form.recurrence_rule)} onChange={(e) => setForm({ ...form, recurrence_rule: e.target.value })} className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary outline-none" placeholder="FREQ=WEEKLY;BYDAY=SA" />
                 </div>
               )}
               <div className="space-y-2">

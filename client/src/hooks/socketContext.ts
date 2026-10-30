@@ -1,29 +1,26 @@
 import { createContext, useContext } from 'react';
+import type { WsEventName, WsHandler } from '../api/wsEvents';
 
-export type EventName =
-  | 'metric:update'
-  | 'alert:triggered'
-  | 'alert:resolved'
-  | 'alert:updated'
-  | 'device:status'
-  | 'bootstrap'
-  | 'flow:update'
-  | 'capture:packet'
-  | 'packet:captured'
-  | 'capture:status';
-
-export type Handler = (data: Record<string, unknown>) => void;
+export type { WsEventName as EventName } from '../api/wsEvents';
 
 export interface SocketContextValue {
-  subscribe: (event: EventName, handler: Handler) => () => void;
-  emit: (event: string, data?: unknown) => void;
-  connected: boolean;
+  subscribe: <K extends WsEventName>(event: K, handler: WsHandler<K>) => () => void;
 }
 
 export const SocketContext = createContext<SocketContextValue | null>(null);
+
+/**
+ * Connection state lives in its own context so that subscribers (which only
+ * need the stable `subscribe`) do not re-render on every connect/disconnect.
+ */
+export const SocketStatusContext = createContext<boolean>(false);
 
 export function useSocketContext() {
   const ctx = useContext(SocketContext);
   if (!ctx) throw new Error('useSocketContext must be used within SocketProvider');
   return ctx;
+}
+
+export function useSocketConnected() {
+  return useContext(SocketStatusContext);
 }

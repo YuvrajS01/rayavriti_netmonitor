@@ -1,29 +1,42 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { getDevices, getLatestMetrics } from '../../api/client';
-import { useAsyncEffect } from '../../hooks/useAsyncEffect';
-import { useSocket } from '../../hooks/useSocket';
+import { queryKeys } from '../../api/queryKeys';
 import type { Device, Metric } from '../../api/types';
 
+const UNKNOWN_COLOR = '#8c8c8c';
 const COLOR: Record<string, string> = {
   up: '#9bc86e', ok: '#9bc86e',
   warning: '#ebc434', degraded: '#ebc434',
-  down: '#e86060', unknown: '#8c8c8c',
+  down: '#e86060', unknown: UNKNOWN_COLOR,
 };
-const colorFor = (s: string) => (COLOR[s as keyof typeof COLOR] ?? COLOR.unknown);
+const colorFor = (s: string) => COLOR[s] ?? UNKNOWN_COLOR;
 
 interface MiniNode { id: number; name: string; status: string; x: number; y: number; vx: number; vy: number; r: number; }
 interface MiniLink { source: MiniNode; target: MiniNode; }
+
+const MAX_NODES = 20;
 
 export default function NetworkTopologyMini() {
   const navigate = useNavigate();
   const fgRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
-  const devicesRef = useRef<Device[]>([]);
-  const metricsRef = useRef<Map<number, Metric>>(new Map());
   const sim = useRef<{ nodes: MiniNode[]; links: MiniLink[]; raf: number }>({ nodes: [], links: [], raf: 0 });
-  const [count, setCount] = useState(0);
   const [width, setWidth] = useState(420);
+
+  // Shared caches, kept live by useLiveQueryBridge.
+  const devicesQuery = useQuery({
+    queryKey: queryKeys.devices.list(),
+    queryFn: ({ signal }) => getDevices({ signal }),
+  });
+  const metricsQuery = useQuery({
+    queryKey: queryKeys.metrics.latest,
+    queryFn: ({ signal }) => getLatestMetrics({ signal }),
+  });
+  const devices = devicesQuery.data?.data;
+  const latestMetrics = metricsQuery.data?.data;
+  const count = Math.min(devices?.length ?? 0, MAX_NODES);
 
   useEffect(() => {
     const el = wrapRef.current;
@@ -36,11 +49,12 @@ export default function NetworkTopologyMini() {
     return () => ro.disconnect();
   }, []);
 
-  const rebuild = () => {
-    const top = devicesRef.current.slice(0, 20);
+  useEffect(() => {
+    const metricsById = new Map((latestMetrics || []).map((item: Metric) => [item.deviceId, item]));
+    const top = (devices || []).slice(0, MAX_NODES);
     const nodes: MiniNode[] = top.map((d, i) => {
       const angle = (Math.PI * 2 * i) / Math.max(top.length, 1);
-      return { id: d.id, name: d.name, status: metricsRef.current.get(d.id)?.status || d.status, x: 200 + Math.cos(angle) * 120, y: 100 + Math.sin(angle) * 80, vx: 0, vy: 0, r: 4 };
+      return { id: d.id, name: d.name, status: metricsById.get(d.id)?.status || d.status, x: 200 + Math.cos(angle) * 120, y: 100 + Math.sin(angle) * 80, vx: 0, vy: 0, r: 4 };
     });
     const nodeMap = new Map(nodes.map((n) => [n.id, n]));
     const links: MiniLink[] = [];
@@ -52,31 +66,16 @@ export default function NetworkTopologyMini() {
         /gateway|router|core|switch|firewall/i.test(d.deviceCategory || '') ||
         /gateway|router|core|firewall/i.test(d.name || '');
       const hub = top.find(isHub) ?? top[0];
-      const hubNode = nodeMap.get(hub.id)!;
-      for (const d of top) {
-        if (d.id !== hub.id) links.push({ source: hubNode, target: nodeMap.get(d.id)! });
+      const hubNode = hub && nodeMap.get(hub.id);
+      if (hub && hubNode) {
+        for (const d of top) {
+          if (d.id !== hub.id) links.push({ source: hubNode, target: nodeMap.get(d.id)! });
+        }
       }
     }
     sim.current.nodes = nodes;
     sim.current.links = links;
-    setCount(nodes.length);
-  };
-
-  useAsyncEffect(async (signal) => {
-    const [d, m] = await Promise.all([getDevices(), getLatestMetrics()]);
-    if (signal.aborted) return;
-    devicesRef.current = d.data || [];
-    metricsRef.current = new Map((m.data || []).map((item: Metric) => [item.deviceId, item]));
-    rebuild();
-  }, []);
-
-  useSocket({
-    onMetricUpdate: (metric) => {
-      const mm = metric as unknown as Metric;
-      metricsRef.current.set(mm.deviceId, mm);
-      rebuild();
-    },
-  });
+  }, [devices, latestMetrics]);
 
   useEffect(() => {
     const canvas = fgRef.current;
@@ -95,8 +94,10 @@ export default function NetworkTopologyMini() {
       const nodes = state.nodes;
       for (let i = 0; i < nodes.length; i++) {
         const a = nodes[i];
+        if (!a) continue;
         for (let j = i + 1; j < nodes.length; j++) {
           const b = nodes[j];
+          if (!b) continue;
           const dx = a.x - b.x, dy = a.y - b.y;
           const dist = Math.hypot(dx, dy) || 0.01;
           const force = 700 / (dist * dist);

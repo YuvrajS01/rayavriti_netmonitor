@@ -1,50 +1,15 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { v1, wrap } from '../api/http';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  addIncidentNote, getIncident, getIncidentDevices, getIncidentTimeline, runIncidentAction,
+  type Incident, type IncidentAction, type IncidentDevice, type IncidentTimelineEntry,
+} from '../api/incidents';
+import { queryKeys } from '../api/queryKeys';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import { useToast } from '../components/ui/useToast';
 import { severityTextColor, severityBgColor, statusTextColor, statusBgColor } from '../utils/colors';
-
-interface Incident {
-  id: number;
-  title: string;
-  description: string;
-  severity: string;
-  status: string;
-  source: string;
-  assigned_to: number | null;
-  location_id: number | null;
-  impact_description: string;
-  affected_device_count: number;
-  started_at: string;
-  acknowledged_at: string | null;
-  resolved_at: string | null;
-  closed_at: string | null;
-  duration_seconds: number | null;
-  sla_breached: boolean;
-  root_cause: string | null;
-  resolution: string | null;
-  created_by: number | null;
-}
-
-interface TimelineEntry {
-  id: number;
-  incidentId: number;
-  entryType: string;
-  oldValue: string | null;
-  newValue: string | null;
-  message: string;
-  author: string;
-  createdAt: string;
-}
-
-interface IncidentDevice {
-  id: number;
-  name: string;
-  ip: string;
-  status: string;
-}
 
 function formatDuration(sec: number | null): string {
   if (sec == null) return '-';
@@ -81,85 +46,71 @@ function timelineIcon(type: string): string {
 }
 
 const STATUS_FLOW = ['open', 'acknowledged', 'resolved', 'closed'];
+const EMPTY_TIMELINE: IncidentTimelineEntry[] = [];
+const EMPTY_DEVICES: IncidentDevice[] = [];
 
 export default function IncidentDetail() {
-  const { id } = useParams<{ id: string }>();
+  const { id = '' } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { addToast } = useToast();
-  const [incident, setIncident] = useState<Incident | null>(null);
-  const [timeline, setTimeline] = useState<TimelineEntry[]>([]);
-  const [devices, setDevices] = useState<IncidentDevice[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [noteText, setNoteText] = useState('');
-  const [submitting, setSubmitting] = useState(false);
   const [resolveForm, setResolveForm] = useState({ resolution: '', rootCause: '', rootCauseCategory: '' });
   const [showResolve, setShowResolve] = useState(false);
 
-  useEffect(() => {
-    let active = true;
-    (async () => {
-      if (!id) return;
-      setLoading(true);
-      try {
-        const [incRes, tlRes, devRes] = await Promise.all([
-          v1.get(`/incidents/${id}`),
-          v1.get(`/incidents/${id}/timeline`).catch(() => ({ data: { data: [] } })),
-          v1.get(`/incidents/${id}/devices`).catch(() => ({ data: { data: [] } })),
-        ]);
-        if (active) setIncident(wrap<Incident>(incRes.data).data);
-        if (active) setTimeline(wrap<TimelineEntry[]>(tlRes.data).data || []);
-        if (active) setDevices(wrap<IncidentDevice[]>(devRes.data).data || []);
-      } catch {
-        if (active) {
-          setIncident(null);
-          setTimeline([]);
-          setDevices([]);
-        }
-      }
-      if (active) setLoading(false);
-    })();
-    return () => { active = false; };
-  }, [id]);
+  const incidentQuery = useQuery({
+    queryKey: queryKeys.incidents.detail(id),
+    queryFn: ({ signal }) => getIncident(id, { signal }),
+    enabled: Boolean(id),
+  });
+  // Timeline and devices are secondary: a failure renders them empty.
+  const timelineQuery = useQuery({
+    queryKey: queryKeys.incidents.timeline(id),
+    queryFn: ({ signal }) => getIncidentTimeline(id, { signal }),
+    enabled: Boolean(id),
+  });
+  const devicesQuery = useQuery({
+    queryKey: queryKeys.incidents.devices(id),
+    queryFn: ({ signal }) => getIncidentDevices(id, { signal }),
+    enabled: Boolean(id),
+  });
 
-  const load = async () => {
-    if (!id) return;
-    const [incRes, tlRes, devRes] = await Promise.all([
-      v1.get(`/incidents/${id}`),
-      v1.get(`/incidents/${id}/timeline`).catch(() => ({ data: { data: [] } })),
-      v1.get(`/incidents/${id}/devices`).catch(() => ({ data: { data: [] } })),
-    ]);
-    setIncident(wrap<Incident>(incRes.data).data);
-    setTimeline(wrap<TimelineEntry[]>(tlRes.data).data || []);
-    setDevices(wrap<IncidentDevice[]>(devRes.data).data || []);
-  };
+  const loading = Boolean(id) && incidentQuery.isPending;
+  const incident: Incident | null = incidentQuery.data?.data ?? null;
+  const timeline = timelineQuery.data?.data || EMPTY_TIMELINE;
+  const devices = devicesQuery.data?.data || EMPTY_DEVICES;
 
-  const handleAction = async (action: string, body?: Record<string, unknown>) => {
-    setSubmitting(true);
-    try {
-      await v1.post(`/incidents/${id}/${action}`, body || {});
+  const refreshIncident = () => queryClient.invalidateQueries({ queryKey: queryKeys.incidents.all });
+
+  const actionMutation = useMutation({
+    mutationFn: ({ action, body }: { action: IncidentAction; body?: Record<string, unknown> }) => runIncidentAction(id, action, body),
+    onSuccess: (_res, { action }) => {
       addToast(`Incident ${action}`, 'success');
       if (action === 'resolve') setShowResolve(false);
-      await load();
-    } catch (err) {
-      addToast(err instanceof Error ? err.message : 'Action failed', 'error');
-    } finally {
-      setSubmitting(false);
-    }
-  };
+      return refreshIncident();
+    },
+    onError: (err) => addToast(err instanceof Error ? err.message : 'Action failed', 'error'),
+  });
 
-  const handleAddNote = async () => {
-    if (!noteText.trim()) return;
-    setSubmitting(true);
-    try {
-      await v1.post(`/incidents/${id}/note`, { message: noteText.trim() });
+  const noteMutation = useMutation({
+    mutationFn: (message: string) => addIncidentNote(id, message),
+    onSuccess: () => {
       setNoteText('');
       addToast('Note added', 'success');
-      await load();
-    } catch (err) {
-      addToast(err instanceof Error ? err.message : 'Failed', 'error');
-    } finally {
-      setSubmitting(false);
-    }
+      return refreshIncident();
+    },
+    onError: (err) => addToast(err instanceof Error ? err.message : 'Failed', 'error'),
+  });
+
+  const submitting = actionMutation.isPending || noteMutation.isPending;
+
+  const handleAction = (action: IncidentAction, body?: Record<string, unknown>) => {
+    actionMutation.mutate({ action, body });
+  };
+
+  const handleAddNote = () => {
+    if (!noteText.trim()) return;
+    noteMutation.mutate(noteText.trim());
   };
 
   if (loading) {

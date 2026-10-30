@@ -1,9 +1,11 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import {
   BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, Legend,
   RadarChart, PolarGrid, PolarAngleAxis, Radar,
 } from 'recharts';
 import { getLatestMetrics } from '../api/client';
+import { queryKeys } from '../api/queryKeys';
 import type { Metric } from '../api/types';
 import { statusTextColor, statusBorderColor } from '../utils/colors';
 import { sensorIconForProtocol } from '../utils/icons';
@@ -49,24 +51,15 @@ function buildAvgResponseRadar(metrics: Metric[], protocols: string[]): RadarPoi
 }
 
 export default function Sensors() {
-  const [metrics, setMetrics] = useState<Metric[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    try {
-      setError(null);
-      const res = await getLatestMetrics();
-      setMetrics((res.data || []).slice(0, 120));
-    } catch {
-      setError('Failed to load sensor data. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { load(); }, [load]);
+  // Shared with Devices/Dashboard and kept live by useLiveQueryBridge.
+  const metricsQuery = useQuery({
+    queryKey: queryKeys.metrics.latest,
+    queryFn: ({ signal }) => getLatestMetrics({ signal }),
+  });
+  const metrics = useMemo<Metric[]>(() => (metricsQuery.data?.data || []).slice(0, 120), [metricsQuery.data]);
+  const loading = metricsQuery.isPending;
+  const error = metricsQuery.isError ? 'Failed to load sensor data. Please try again.' : null;
+  const load = () => { void metricsQuery.refetch(); };
 
   const total = metrics.length;
   const healthy = useMemo(() => metrics.filter((m) => m.status === 'up' || m.status === 'ok').length, [metrics]);

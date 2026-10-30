@@ -38,3 +38,14 @@ export function formatMetricDetails(details: Record<string, unknown> | undefined
   }
   return JSON.stringify(details);
 }
+
+/**
+ * Renders a loosely typed (API row / form state) value as text. Strings,
+ * numbers and booleans are stringified; null, undefined and objects yield
+ * the fallback instead of "undefined" or "[object Object]".
+ */
+export function asText(value: unknown, fallback = ''): string {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') return String(value);
+  return fallback;
+}

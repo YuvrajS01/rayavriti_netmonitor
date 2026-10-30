@@ -1,27 +1,20 @@
-import { useSelector, useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
-import { clearCredentials } from '../store/authSlice';
 import { logout } from '../api/client';
-import type { RootState } from '../store';
+import { useSessionUser } from '../store/session';
 import SectionHeader from '../components/ui/SectionHeader';
 import { useToast } from '../components/ui/useToast';
 
 const APP_VERSION = import.meta.env.VITE_APP_VERSION || __APP_VERSION__;
 
 export default function Settings() {
-  const user = useSelector((s: RootState) => s.auth.user);
-  const dispatch = useDispatch();
+  const user = useSessionUser();
   const navigate = useNavigate();
   const { addToast } = useToast();
 
   const handleLogout = async () => {
-    try {
-      await logout();
-    } catch {
-      addToast('Logout failed. Your session may still be active.', 'error');
-    }
-    dispatch(clearCredentials());
-    navigate('/login');
+    const confirmed = await logout();
+    if (!confirmed) addToast('Logout failed. Your session may still be active.', 'error');
+    await navigate('/login');
   };
 
   return (

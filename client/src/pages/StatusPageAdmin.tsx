@@ -1,5 +1,7 @@
-import { useState, useEffect, useMemo } from 'react';
-import { v1, wrap } from '../api/http';
+import { useState, useMemo } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { createStatusService, deleteStatusService, getStatusIncidents, getStatusServices, updateStatusService, type StatusIncident, type StatusService } from '../api/statusPage';
+import { queryKeys } from '../api/queryKeys';
 import SectionHeader from '../components/ui/SectionHeader';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
@@ -7,74 +9,28 @@ import StatCard from '../components/ui/StatCard';
 import EmptyState from '../components/ui/EmptyState';
 import ConfirmDialog from '../components/ConfirmDialog';
 import { useToast } from '../components/ui/useToast';
+import { asText } from '../utils/formatters';
 
-interface StatusService {
-  id: number;
-  name: string;
-  description: string;
-  group_name: string;
-  aggregation: string;
-  display_order: number;
-  show_response_time: boolean;
-  show_uptime: boolean;
-  enabled: boolean;
-}
-
-interface StatusIncident {
-  id: number;
-  title: string;
-  message: string;
-  severity: string;
-  status: string;
-  started_at: string;
-  resolved_at: string | null;
-}
+const EMPTY_SERVICES: StatusService[] = [];
+const EMPTY_INCIDENTS: StatusIncident[] = [];
 
 export default function StatusPageAdmin() {
   const { addToast } = useToast();
-  const [services, setServices] = useState<StatusService[]>([]);
-  const [incidents, setIncidents] = useState<StatusIncident[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [tab, setTab] = useState<'services' | 'incidents'>('services');
   const [search, setSearch] = useState('');
   const [showServiceForm, setShowServiceForm] = useState(false);
   const [editingService, setEditingService] = useState<StatusService | null>(null);
   const [serviceForm, setServiceForm] = useState<Record<string, unknown>>({});
-  const [submitting, setSubmitting] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<StatusService | null>(null);
 
-  const load = async () => {
-    setLoading(true);
-    const [svcRes, incRes] = await Promise.all([
-      v1.get('/status-page/services'),
-      v1.get('/status-page/incidents'),
-    ]);
-    setServices(wrap<StatusService[]>(svcRes.data).data || []);
-    setIncidents(wrap<StatusIncident[]>(incRes.data).data || []);
-    setLoading(false);
-  };
+  const servicesQuery = useQuery({ queryKey: queryKeys.statusPage.services(), queryFn: ({ signal }) => getStatusServices({ signal }) });
+  const incidentsQuery = useQuery({ queryKey: queryKeys.statusPage.incidents(), queryFn: ({ signal }) => getStatusIncidents({ signal }) });
+  const loading = servicesQuery.isPending || incidentsQuery.isPending;
+  const services = servicesQuery.data?.data || EMPTY_SERVICES;
+  const incidents = incidentsQuery.data?.data || EMPTY_INCIDENTS;
 
-  useEffect(() => {
-    let active = true;
-    (async () => {
-      setLoading(true);
-      try {
-        const [svcRes, incRes] = await Promise.all([
-          v1.get('/status-page/services'),
-          v1.get('/status-page/incidents'),
-        ]);
-        if (active) setServices(wrap<StatusService[]>(svcRes.data).data || []);
-        if (active) setIncidents(wrap<StatusIncident[]>(incRes.data).data || []);
-      } catch {
-        if (active) {
-          setServices([]);
-          setIncidents([]);
-        }
-      }
-      if (active) setLoading(false);
-    })();
-    return () => { active = false; };
-  }, []);
+  const refresh = () => queryClient.invalidateQueries({ queryKey: queryKeys.statusPage.all });
 
   const filteredServices = useMemo(() => {
     const needle = search.trim().toLowerCase();
@@ -100,35 +56,32 @@ export default function StatusPageAdmin() {
   };
   const openEditService = (s: StatusService) => { setEditingService(s); setServiceForm({ ...s }); setShowServiceForm(true); };
 
-  const handleServiceSubmit = async () => {
-    setSubmitting(true);
-    try {
-      if (editingService) {
-        await v1.put(`/status-page/services/${editingService.id}`, serviceForm);
-        addToast('Service updated', 'success');
-      } else {
-        await v1.post('/status-page/services', serviceForm);
-        addToast('Service created', 'success');
-      }
+  const saveMutation = useMutation({
+    mutationFn: ({ target, body }: { target: StatusService | null; body: Record<string, unknown> }) =>
+      target ? updateStatusService(target.id, body) : createStatusService(body),
+    onSuccess: (_res, { target }) => {
+      addToast(target ? 'Service updated' : 'Service created', 'success');
       setShowServiceForm(false);
-      await load();
-    } catch (err) {
-      addToast(err instanceof Error ? err.message : 'Save failed', 'error');
-    } finally {
-      setSubmitting(false);
-    }
-  };
+      return refresh();
+    },
+    onError: (err) => addToast(err instanceof Error ? err.message : 'Save failed', 'error'),
+  });
+  const submitting = saveMutation.isPending;
 
-  const handleDeleteService = async () => {
-    if (!deleteTarget) return;
-    try {
-      await v1.delete(`/status-page/services/${deleteTarget.id}`);
+  const deleteMutation = useMutation({
+    mutationFn: (service: StatusService) => deleteStatusService(service.id),
+    onSuccess: () => {
       addToast('Service deleted', 'success');
       setDeleteTarget(null);
-      await load();
-    } catch (err) {
-      addToast(err instanceof Error ? err.message : 'Delete failed', 'error');
-    }
+      return refresh();
+    },
+    onError: (err) => addToast(err instanceof Error ? err.message : 'Delete failed', 'error'),
+  });
+
+  const handleServiceSubmit = () => saveMutation.mutate({ target: editingService, body: serviceForm });
+
+  const handleDeleteService = () => {
+    if (deleteTarget) deleteMutation.mutate(deleteTarget);
   };
 
   return (
@@ -236,12 +189,12 @@ export default function StatusPageAdmin() {
               ].map(({ key, label }) => (
                 <div key={key}>
                   <label className="text-[10px] text-on-surface-variant uppercase tracking-wide block mb-1">{label}</label>
-                  <input value={String(serviceForm[key] ?? '')} onChange={(e) => setServiceForm({ ...serviceForm, [key]: e.target.value })} className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary outline-none" />
+                  <input value={asText(serviceForm[key])} onChange={(e) => setServiceForm({ ...serviceForm, [key]: e.target.value })} className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary outline-none" />
                 </div>
               ))}
               <div>
                 <label className="text-[10px] text-on-surface-variant uppercase tracking-wide block mb-1">Aggregation</label>
-                <select value={String(serviceForm.aggregation ?? 'any_down')} onChange={(e) => setServiceForm({ ...serviceForm, aggregation: e.target.value })} className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary">
+                <select value={asText(serviceForm.aggregation, 'any_down')} onChange={(e) => setServiceForm({ ...serviceForm, aggregation: e.target.value })} className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary">
                   <option value="any_down">Any Down</option>
                   <option value="all_down">All Down</option>
                   <option value="worst">Worst Status</option>

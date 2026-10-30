@@ -1,103 +1,93 @@
-import { lazy, Suspense, useEffect, useState, useRef } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { Suspense, useEffect } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import ErrorBoundary from './components/ErrorBoundary';
-import { Provider, useSelector, useDispatch } from 'react-redux';
-import { store, type RootState } from './store';
+import PageLoader from './components/ui/PageLoader';
+import { lazyWithRetry } from './utils/lazyWithRetry';
 import { SocketProvider } from './hooks/useSocket';
-import { clearCredentials, setPermissions } from './store/authSlice';
-import { v1 } from './api/http';
+import { setMaintenanceHandler } from './api/http';
+import { restoreSession } from './api/auth';
+import { useIsAuthenticated, useSessionStatus } from './store/session';
 import { ToastProvider } from './components/ui/Toast';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { queryClient } from './api/queryClient';
+import { useLiveQueryBridge } from './hooks/useLiveQueryBridge';
 
 import Layout from './components/Layout';
 
-const Login = lazy(() => import('./pages/Login'));
-const Dashboard = lazy(() => import('./pages/Dashboard'));
-const Devices = lazy(() => import('./pages/Devices'));
-const NetworkTopology = lazy(() => import('./pages/NetworkTopology'));
-const Sensors = lazy(() => import('./pages/Sensors'));
-const FlowAnalysis = lazy(() => import('./pages/FlowAnalysis'));
-const PacketCapture = lazy(() => import('./pages/PacketCapture'));
-const AIHealth = lazy(() => import('./pages/AIHealth'));
-const Alerts = lazy(() => import('./pages/Alerts'));
-const Reports = lazy(() => import('./pages/Reports'));
-const Logs = lazy(() => import('./pages/Logs'));
-const Settings = lazy(() => import('./pages/Settings'));
-const Campus = lazy(() => import('./pages/Campus'));
-const LocationManager = lazy(() => import('./pages/LocationManager'));
-const Incidents = lazy(() => import('./pages/Incidents'));
-const IncidentDetail = lazy(() => import('./pages/IncidentDetail'));
-const Contacts = lazy(() => import('./pages/Contacts'));
-const StatusPageAdmin = lazy(() => import('./pages/StatusPageAdmin'));
-const Maintenance = lazy(() => import('./pages/Maintenance'));
-const UserManagement = lazy(() => import('./pages/UserManagement'));
-const ReportBuilder = lazy(() => import('./pages/ReportBuilder'));
-const Discovery = lazy(() => import('./pages/Discovery'));
-const ServiceTemplates = lazy(() => import('./pages/ServiceTemplates'));
-const BulkImport = lazy(() => import('./pages/BulkImport'));
-const ISP = lazy(() => import('./pages/ISP'));
-const BackupPage = lazy(() => import('./pages/Backup'));
-const RemoteMonitoring = lazy(() => import('./pages/RemoteMonitoring'));
-const SystemMaintenance = lazy(() => import('./pages/SystemMaintenance'));
-const SecurityInventory = lazy(() => import('./pages/SecurityInventory'));
-const NotFound = lazy(() => import('./pages/NotFound'));
+const Login = lazyWithRetry(() => import('./pages/Login'));
+const Dashboard = lazyWithRetry(() => import('./pages/Dashboard'));
+const Devices = lazyWithRetry(() => import('./pages/Devices'));
+const NetworkTopology = lazyWithRetry(() => import('./pages/NetworkTopology'));
+const Sensors = lazyWithRetry(() => import('./pages/Sensors'));
+const FlowAnalysis = lazyWithRetry(() => import('./pages/FlowAnalysis'));
+const PacketCapture = lazyWithRetry(() => import('./pages/PacketCapture'));
+const AIHealth = lazyWithRetry(() => import('./pages/AIHealth'));
+const Alerts = lazyWithRetry(() => import('./pages/Alerts'));
+const Reports = lazyWithRetry(() => import('./pages/Reports'));
+const Logs = lazyWithRetry(() => import('./pages/Logs'));
+const Settings = lazyWithRetry(() => import('./pages/Settings'));
+const Campus = lazyWithRetry(() => import('./pages/Campus'));
+const LocationManager = lazyWithRetry(() => import('./pages/LocationManager'));
+const Incidents = lazyWithRetry(() => import('./pages/Incidents'));
+const IncidentDetail = lazyWithRetry(() => import('./pages/IncidentDetail'));
+const Contacts = lazyWithRetry(() => import('./pages/Contacts'));
+const StatusPageAdmin = lazyWithRetry(() => import('./pages/StatusPageAdmin'));
+const Maintenance = lazyWithRetry(() => import('./pages/Maintenance'));
+const UserManagement = lazyWithRetry(() => import('./pages/UserManagement'));
+const ReportBuilder = lazyWithRetry(() => import('./pages/ReportBuilder'));
+const Discovery = lazyWithRetry(() => import('./pages/Discovery'));
+const ServiceTemplates = lazyWithRetry(() => import('./pages/ServiceTemplates'));
+const BulkImport = lazyWithRetry(() => import('./pages/BulkImport'));
+const ISP = lazyWithRetry(() => import('./pages/ISP'));
+const BackupPage = lazyWithRetry(() => import('./pages/Backup'));
+const RemoteMonitoring = lazyWithRetry(() => import('./pages/RemoteMonitoring'));
+const SystemMaintenance = lazyWithRetry(() => import('./pages/SystemMaintenance'));
+const SecurityInventory = lazyWithRetry(() => import('./pages/SecurityInventory'));
+const NotFound = lazyWithRetry(() => import('./pages/NotFound'));
 
-function PageLoader() {
+function FullScreenStatus({ message, children }: { message: string; children?: React.ReactNode }) {
   return (
-    <div className="flex items-center justify-center min-h-[60vh]">
+    <div className="flex items-center justify-center min-h-screen bg-background">
       <div className="flex flex-col items-center gap-3">
         <span className="material-symbols-outlined text-3xl text-primary animate-pulse">hourglass_top</span>
-        <p className="text-xs text-on-surface-variant uppercase tracking-wide">Loading...</p>
+        <p className="text-xs text-on-surface-variant uppercase tracking-wide">{message}</p>
+        {children}
       </div>
     </div>
   );
 }
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const isAuth = useSelector((s: RootState) => s.auth.isAuthenticated);
-  const dispatch = useDispatch();
-  const sessionCheckedRef = useRef(false);
-  const [checking, setChecking] = useState(true);
+  const status = useSessionStatus();
 
-  useEffect(() => {
-    if (!isAuth || sessionCheckedRef.current) {
-      setChecking(false);
-      return;
-    }
-    v1.get('/auth/me')
-      .then(() => {
-        sessionCheckedRef.current = true;
-        return v1.get('/auth/permissions').catch(() => null);
-      })
-      .then((res: { data: unknown } | null) => {
-        if (!res) return;
-        const perms = (res.data as { data?: { permissions?: string[] } })?.data?.permissions;
-        if (perms) dispatch(setPermissions(perms));
-      })
-      .catch(() => {
-        sessionCheckedRef.current = true;
-        dispatch(clearCredentials());
-      })
-      .finally(() => setChecking(false));
-  }, [isAuth, dispatch]);
-
-  if (!isAuth) return <Navigate to="/login" replace />;
-  if (checking) {
+  if (status === 'restoring') return <FullScreenStatus message="Verifying session..." />;
+  if (status === 'unreachable') {
     return (
-      <Layout>
-        <div className="flex items-center justify-center min-h-[60vh]">
-          <div className="flex flex-col items-center gap-3">
-            <span className="material-symbols-outlined text-3xl text-primary animate-pulse">hourglass_top</span>
-            <p className="text-xs text-on-surface-variant uppercase tracking-wide">Verifying session...</p>
-          </div>
-        </div>
-      </Layout>
+      <FullScreenStatus message="Unable to reach the server">
+        <button
+          onClick={() => void restoreSession()}
+          className="mt-2 text-xs text-on-surface-variant hover:text-primary transition-colors underline"
+        >
+          Retry
+        </button>
+      </FullScreenStatus>
     );
   }
+  if (status !== 'authenticated') return <Navigate to="/login" replace />;
   return <Layout>{children}</Layout>;
 }
 
+/** Routes maintenance-mode redirects from the HTTP layer through the router. */
+function MaintenanceRedirect() {
+  const navigate = useNavigate();
+  useEffect(() => {
+    setMaintenanceHandler(() => { void navigate('/system-maintenance'); });
+  }, [navigate]);
+  return null;
+}
+
 function AppRoutes() {
-  const isAuth = useSelector((s: RootState) => s.auth.isAuthenticated);
+  const isAuth = useIsAuthenticated();
 
   return (
     <Suspense fallback={<PageLoader />}>
@@ -138,18 +128,25 @@ function AppRoutes() {
   );
 }
 
+function LiveQueryBridge() {
+  useLiveQueryBridge();
+  return null;
+}
+
 export default function App() {
   return (
-    <Provider store={store}>
+    <QueryClientProvider client={queryClient}>
       <ErrorBoundary>
         <SocketProvider>
+          <LiveQueryBridge />
           <ToastProvider>
             <BrowserRouter>
+              <MaintenanceRedirect />
               <AppRoutes />
             </BrowserRouter>
           </ToastProvider>
         </SocketProvider>
       </ErrorBoundary>
-    </Provider>
+    </QueryClientProvider>
   );
 }

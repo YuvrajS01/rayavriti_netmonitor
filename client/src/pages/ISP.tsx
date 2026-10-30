@@ -1,7 +1,7 @@
-import { useState, useMemo, useRef } from 'react';
-import { v1, wrap } from '../api/http';
-import { useSocket } from '../hooks/useSocket';
-import { useAsyncEffect } from '../hooks/useAsyncEffect';
+import { useState, useMemo, Suspense } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { createISPLink, deleteISPLink, getISPComparison, getISPLinks, updateISPLink, type ISPCompareLink, type ISPComparison, type ISPLink } from '../api/isp';
+import { queryKeys } from '../api/queryKeys';
 import SectionHeader from '../components/ui/SectionHeader';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
@@ -9,81 +9,42 @@ import StatCard from '../components/ui/StatCard';
 import EmptyState from '../components/ui/EmptyState';
 import ConfirmDialog from '../components/ConfirmDialog';
 import { useToast } from '../components/ui/useToast';
-import ISPLinkModal, { type ISPLink } from '../components/ISPLinkModal';
+import { lazyWithRetry } from '../utils/lazyWithRetry';
+import { asText } from '../utils/formatters';
 
-interface ISPComparison {
-  links: ISPCompareLink[];
-  compared_at: string;
-}
+// The only recharts user on this page; load it (and vendor-charts) on demand.
+const ISPLinkModal = lazyWithRetry(() => import('../components/ISPLinkModal'));
 
-interface ISPCompareLink {
-  id: number;
-  name: string;
-  provider: string;
-  bandwidthMbps: number;
-  gatewayIp: string;
-  slaUptime: number;
-  avgLatencyMs: number;
-  avgJitterMs: number;
-  avgPacketLoss: number;
-  avgDownload: number;
-  avgUpload: number;
-  uptimePercent: number;
-  totalProbes: number;
-  status: string;
-}
+const ISP_POLL_MS = 15_000;
+const EMPTY_LINKS: ISPLink[] = [];
 
 export default function ISP() {
   const { addToast } = useToast();
-  const [links, setLinks] = useState<ISPLink[]>([]);
-  const [comparison, setComparison] = useState<ISPComparison | null>(null);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<ISPLink | null>(null);
   const [form, setForm] = useState<Record<string, unknown>>({});
-  const [submitting, setSubmitting] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<ISPLink | null>(null);
   const [selectedLink, setSelectedLink] = useState<ISPLink | null>(null);
 
-  useAsyncEffect(async (signal) => {
-    setLoading(true);
-    try {
-      const [linksRes, compRes] = await Promise.all([
-        v1.get('/isp-links'),
-        v1.get('/isp-links/comparison').catch(() => ({ data: null })),
-      ]);
-      if (!signal.aborted) setLinks(wrap<ISPLink[]>(linksRes.data).data || []);
-      if (!signal.aborted && compRes.data) setComparison(wrap<ISPComparison>(compRes.data).data);
-    } catch {
-      if (!signal.aborted) {
-        setLinks([]);
-        setComparison(null);
-      }
-    }
-    if (!signal.aborted) setLoading(false);
-  }, []);
-
-  const load = async () => {
-    const [linksRes, compRes] = await Promise.all([
-      v1.get('/isp-links'),
-      v1.get('/isp-links/comparison').catch(() => ({ data: null })),
-    ]);
-    setLinks(wrap<ISPLink[]>(linksRes.data).data || []);
-    if (compRes.data) setComparison(wrap<ISPComparison>(compRes.data).data);
-  };
-
-  const lastRefresh = useRef(0);
-  useSocket({
-    onMetricUpdate: () => {
-      const now = Date.now();
-      if (now - lastRefresh.current > 15_000) { lastRefresh.current = now; load(); }
-    },
-    onDeviceStatus: () => {
-      const now = Date.now();
-      if (now - lastRefresh.current > 15_000) { lastRefresh.current = now; load(); }
-    },
+  // Probe results change continuously; poll at the cadence the old
+  // socket-throttled refresh used (paused in background tabs).
+  const linksQuery = useQuery({
+    queryKey: queryKeys.isp.links(),
+    queryFn: ({ signal }) => getISPLinks({ signal }),
+    refetchInterval: ISP_POLL_MS,
   });
+  const comparisonQuery = useQuery({
+    queryKey: queryKeys.isp.comparison(),
+    queryFn: ({ signal }) => getISPComparison({ signal }),
+    refetchInterval: ISP_POLL_MS,
+  });
+  const loading = linksQuery.isPending;
+  const links = linksQuery.data?.data || EMPTY_LINKS;
+  const comparison: ISPComparison | null = comparisonQuery.data?.data ?? null;
+
+  const refresh = () => queryClient.invalidateQueries({ queryKey: queryKeys.isp.all });
 
   const filtered = useMemo(() => {
     const needle = search.trim().toLowerCase();
@@ -106,35 +67,32 @@ export default function ISP() {
   const openCreate = () => { setEditing(null); setForm({ name: '', provider: '', gateway_ip: '', bandwidth_mbps: 100, sla_uptime_percent: 99.5, monitoring_interval_seconds: 10, enabled: true }); setShowForm(true); };
   const openEdit = (l: ISPLink) => { setEditing(l); setForm({ ...l }); setShowForm(true); };
 
-  const handleSubmit = async () => {
-    setSubmitting(true);
-    try {
-      if (editing) {
-        await v1.put(`/isp-links/${editing.id}`, form);
-        addToast('Link updated', 'success');
-      } else {
-        await v1.post('/isp-links', form);
-        addToast('Link created', 'success');
-      }
+  const saveMutation = useMutation({
+    mutationFn: ({ target, body }: { target: ISPLink | null; body: Record<string, unknown> }) =>
+      target ? updateISPLink(target.id, body) : createISPLink(body),
+    onSuccess: (_res, { target }) => {
+      addToast(target ? 'Link updated' : 'Link created', 'success');
       setShowForm(false);
-      await load();
-    } catch (err) {
-      addToast(err instanceof Error ? err.message : 'Save failed', 'error');
-    } finally {
-      setSubmitting(false);
-    }
-  };
+      return refresh();
+    },
+    onError: (err) => addToast(err instanceof Error ? err.message : 'Save failed', 'error'),
+  });
+  const submitting = saveMutation.isPending;
 
-  const handleDelete = async () => {
-    if (!deleteTarget) return;
-    try {
-      await v1.delete(`/isp-links/${deleteTarget.id}`);
+  const deleteMutation = useMutation({
+    mutationFn: (link: ISPLink) => deleteISPLink(link.id),
+    onSuccess: () => {
       addToast('Link deleted', 'success');
       setDeleteTarget(null);
-      await load();
-    } catch (err) {
-      addToast(err instanceof Error ? err.message : 'Delete failed', 'error');
-    }
+      return refresh();
+    },
+    onError: (err) => addToast(err instanceof Error ? err.message : 'Delete failed', 'error'),
+  });
+
+  const handleSubmit = () => saveMutation.mutate({ target: editing, body: form });
+
+  const handleDelete = () => {
+    if (deleteTarget) deleteMutation.mutate(deleteTarget);
   };
 
   return (
@@ -238,7 +196,7 @@ export default function ISP() {
               ] as const).map(({ key, label, type }) => (
                 <div key={key}>
                   <label className="text-[10px] text-on-surface-variant uppercase tracking-wide block mb-1">{label}</label>
-                  <input type={type} value={String(form[key] ?? '')} onChange={(e) => setForm({ ...form, [key]: type === 'number' ? Number(e.target.value) : e.target.value })} className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary outline-none" />
+                  <input type={type} value={asText(form[key])} onChange={(e) => setForm({ ...form, [key]: type === 'number' ? Number(e.target.value) : e.target.value })} className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary outline-none" />
                 </div>
               ))}
               <div className="flex items-center gap-3">
@@ -257,7 +215,7 @@ export default function ISP() {
 
       <ConfirmDialog open={!!deleteTarget} title="Delete ISP Link" message={`Delete "${deleteTarget?.name}"? Monitoring data will be lost.`} confirmLabel="Delete" danger onConfirm={handleDelete} onCancel={() => setDeleteTarget(null)} />
 
-      {selectedLink && <ISPLinkModal link={selectedLink} onClose={() => setSelectedLink(null)} />}
+      {selectedLink && <Suspense fallback={null}><ISPLinkModal link={selectedLink} onClose={() => setSelectedLink(null)} /></Suspense>}
     </div>
   );
 }

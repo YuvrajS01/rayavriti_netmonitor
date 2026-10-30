@@ -1,5 +1,7 @@
-import { useState, useEffect, useMemo } from 'react';
-import { v1, wrap } from '../api/http';
+import { useState, useMemo } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { createRole, createUser, deleteRole, deleteUser, getRoles, getUsers, updateRole, updateUser, type ManagedUser, type Role } from '../api/users';
+import { queryKeys } from '../api/queryKeys';
 import SectionHeader from '../components/ui/SectionHeader';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
@@ -7,28 +9,10 @@ import StatCard from '../components/ui/StatCard';
 import EmptyState from '../components/ui/EmptyState';
 import ConfirmDialog from '../components/ConfirmDialog';
 import { useToast } from '../components/ui/useToast';
+import { asText } from '../utils/formatters';
 
-interface User {
-  id: number;
-  username: string;
-  role: string;
-  display_name: string;
-  email: string;
-  phone: string;
-  enabled: boolean;
-  last_login_at: string | null;
-  created_at: string;
-  role_id: number;
-}
-
-interface Role {
-  id: number;
-  name: string;
-  display_name: string;
-  description: string;
-  permissions: string[];
-  is_system: boolean;
-}
+const EMPTY_USERS: ManagedUser[] = [];
+const EMPTY_ROLES: Role[] = [];
 
 const PERMISSION_GROUPS = [
   {
@@ -119,56 +103,36 @@ function timeAgo(ts: string | null): string {
 
 export default function UserManagement() {
   const { addToast } = useToast();
-  const [users, setUsers] = useState<User[]>([]);
-  const [roles, setRoles] = useState<Role[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [tab, setTab] = useState<'users' | 'roles'>('users');
-  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [editingUser, setEditingUser] = useState<ManagedUser | null>(null);
   const [userForm, setUserForm] = useState<Record<string, unknown>>({});
   const [showUserForm, setShowUserForm] = useState(false);
   const [userCreateForm, setUserCreateForm] = useState({ username: '', password: '', role: 'viewer', display_name: '', email: '', phone: '' });
-  const [deleteUserTarget, setDeleteUserTarget] = useState<User | null>(null);
+  const [deleteUserTarget, setDeleteUserTarget] = useState<ManagedUser | null>(null);
   const [editingRole, setEditingRole] = useState<Role | null>(null);
   const [showRoleForm, setShowRoleForm] = useState(false);
   const [roleForm, setRoleForm] = useState({ name: '', display_name: '', description: '', permissions: [] as string[] });
-  const [submitting, setSubmitting] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Role | null>(null);
 
-  const loadData = async () => {
-    setLoading(true);
-    const [usersRes, rolesRes] = await Promise.all([
-      v1.get('/users'),
-      v1.get('/roles'),
-    ]);
-    setUsers(wrap<User[]>(usersRes.data).data || []);
-    setRoles(wrap<Role[]>(rolesRes.data).data || []);
-    setLoading(false);
-  };
+  const usersQuery = useQuery({ queryKey: queryKeys.users.list(), queryFn: ({ signal }) => getUsers({ signal }) });
+  const rolesQuery = useQuery({ queryKey: queryKeys.users.roles(), queryFn: ({ signal }) => getRoles({ signal }) });
+  const loading = usersQuery.isPending || rolesQuery.isPending;
+  const users = usersQuery.data?.data || EMPTY_USERS;
+  const roles = rolesQuery.data?.data || EMPTY_ROLES;
 
-  useEffect(() => {
-    let active = true;
-    (async () => {
-      setLoading(true);
-      try {
-        const [usersRes, rolesRes] = await Promise.all([
-          v1.get('/users'),
-          v1.get('/roles'),
-        ]);
-        if (active) {
-          setUsers(wrap<User[]>(usersRes.data).data || []);
-          setRoles(wrap<Role[]>(rolesRes.data).data || []);
-        }
-      } catch {
-        if (active) {
-          setUsers([]);
-          setRoles([]);
-        }
-      }
-      if (active) setLoading(false);
-    })();
-    return () => { active = false; };
-  }, []);
+  // Wraps an admin action with the shared submitting flag, toast and refresh.
+  const adminMutation = useMutation({
+    mutationFn: ({ run }: { run: () => Promise<unknown>; done: string; fail: string; after?: () => void }) => run(),
+    onSuccess: (_res, { done, after }) => {
+      addToast(done, 'success');
+      after?.();
+      return queryClient.invalidateQueries({ queryKey: queryKeys.users.all });
+    },
+    onError: (err, { fail }) => addToast(err instanceof Error ? err.message : fail, 'error'),
+  });
+  const submitting = adminMutation.isPending;
 
   const filteredUsers = useMemo(() => {
     const needle = search.trim().toLowerCase();
@@ -187,24 +151,15 @@ export default function UserManagement() {
     customRoles: roles.filter((r) => !r.is_system).length,
   }), [users, roles]);
 
-  const openEditUser = (u: User) => {
+  const openEditUser = (u: ManagedUser) => {
     setEditingUser(u);
     setUserForm({ role: u.role, display_name: u.display_name, email: u.email, phone: u.phone, enabled: u.enabled });
   };
 
-  const handleUserUpdate = async () => {
+  const handleUserUpdate = () => {
     if (!editingUser) return;
-    setSubmitting(true);
-    try {
-      await v1.put(`/users/${editingUser.id}`, userForm);
-      addToast('User updated', 'success');
-      setEditingUser(null);
-      await loadData();
-    } catch (err) {
-      addToast(err instanceof Error ? err.message : 'Update failed', 'error');
-    } finally {
-      setSubmitting(false);
-    }
+    const target = editingUser;
+    adminMutation.mutate({ run: () => updateUser(target.id, userForm), done: 'User updated', fail: 'Update failed', after: () => setEditingUser(null) });
   };
 
   const openCreateRole = () => {
@@ -240,76 +195,55 @@ export default function UserManagement() {
     });
   };
 
-  const handleRoleSubmit = async () => {
-    setSubmitting(true);
-    try {
-      if (editingRole) {
-        await v1.put(`/roles/${editingRole.id}`, {
-          display_name: roleForm.display_name,
-          description: roleForm.description,
-          permissions: roleForm.permissions,
-        });
-        addToast('Role updated', 'success');
-      } else {
-        await v1.post('/roles', {
-          name: roleForm.name,
-          display_name: roleForm.display_name,
-          description: roleForm.description,
-          permissions: roleForm.permissions,
-          is_system: false,
-        });
-        addToast('Role created', 'success');
-      }
-      setShowRoleForm(false);
-      await loadData();
-    } catch (err) {
-      addToast(err instanceof Error ? err.message : 'Save failed', 'error');
-    } finally {
-      setSubmitting(false);
-    }
+  const handleRoleSubmit = () => {
+    const role = editingRole;
+    adminMutation.mutate({
+      run: () => role
+        ? updateRole(role.id, {
+            display_name: roleForm.display_name,
+            description: roleForm.description,
+            permissions: roleForm.permissions,
+          })
+        : createRole({
+            name: roleForm.name,
+            display_name: roleForm.display_name,
+            description: roleForm.description,
+            permissions: roleForm.permissions,
+            is_system: false,
+          }),
+      done: role ? 'Role updated' : 'Role created',
+      fail: 'Save failed',
+      after: () => setShowRoleForm(false),
+    });
   };
 
-  const handleDeleteRole = async () => {
+  const handleDeleteRole = () => {
     if (!deleteTarget) return;
-    try {
-      await v1.delete(`/roles/${deleteTarget.id}`);
-      addToast('Role deleted', 'success');
-      setDeleteTarget(null);
-      await loadData();
-    } catch (err) {
-      addToast(err instanceof Error ? err.message : 'Delete failed', 'error');
-    }
+    const role = deleteTarget;
+    adminMutation.mutate({ run: () => deleteRole(role.id), done: 'Role deleted', fail: 'Delete failed', after: () => setDeleteTarget(null) });
   };
 
-  const handleCreateUser = async () => {
+  const handleCreateUser = () => {
     if (!userCreateForm.username || !userCreateForm.password) {
       addToast('Username and password are required', 'error');
       return;
     }
-    setSubmitting(true);
-    try {
-      await v1.post('/users', userCreateForm);
-      addToast('User created', 'success');
-      setShowUserForm(false);
-      setUserCreateForm({ username: '', password: '', role: 'viewer', display_name: '', email: '', phone: '' });
-      await loadData();
-    } catch (err) {
-      addToast(err instanceof Error ? err.message : 'Create failed', 'error');
-    } finally {
-      setSubmitting(false);
-    }
+    const body = userCreateForm;
+    adminMutation.mutate({
+      run: () => createUser(body),
+      done: 'User created',
+      fail: 'Create failed',
+      after: () => {
+        setShowUserForm(false);
+        setUserCreateForm({ username: '', password: '', role: 'viewer', display_name: '', email: '', phone: '' });
+      },
+    });
   };
 
-  const handleDeleteUser = async () => {
+  const handleDeleteUser = () => {
     if (!deleteUserTarget) return;
-    try {
-      await v1.delete(`/users/${deleteUserTarget.id}`);
-      addToast('User deleted', 'success');
-      setDeleteUserTarget(null);
-      await loadData();
-    } catch (err) {
-      addToast(err instanceof Error ? err.message : 'Delete failed', 'error');
-    }
+    const user = deleteUserTarget;
+    adminMutation.mutate({ run: () => deleteUser(user.id), done: 'User deleted', fail: 'Delete failed', after: () => setDeleteUserTarget(null) });
   };
 
   return (
@@ -448,19 +382,19 @@ export default function UserManagement() {
             <div className="p-6 space-y-4 flex-1 min-h-0 overflow-y-auto">
               <div>
                 <label className="text-[10px] text-on-surface-variant uppercase tracking-wide block mb-1">Role</label>
-                <select value={String(userForm.role ?? '')} onChange={(e) => setUserForm({ ...userForm, role: e.target.value })} className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary">
+                <select value={asText(userForm.role)} onChange={(e) => setUserForm({ ...userForm, role: e.target.value })} className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary">
                   {roles.length > 0
                     ? roles.map((r) => <option key={r.id} value={r.name}>{r.display_name || r.name}</option>)
-                    : <option value={String(userForm.role ?? 'viewer')}>{String(userForm.role ?? 'Viewer')}</option>}
+                    : <option value={asText(userForm.role, 'viewer')}>{asText(userForm.role, 'Viewer')}</option>}
                 </select>
               </div>
               <div>
                 <label className="text-[10px] text-on-surface-variant uppercase tracking-wide block mb-1">Display Name</label>
-                <input value={String(userForm.display_name ?? '')} onChange={(e) => setUserForm({ ...userForm, display_name: e.target.value })} className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary outline-none" />
+                <input value={asText(userForm.display_name)} onChange={(e) => setUserForm({ ...userForm, display_name: e.target.value })} className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary outline-none" />
               </div>
               <div>
                 <label className="text-[10px] text-on-surface-variant uppercase tracking-wide block mb-1">Email</label>
-                <input value={String(userForm.email ?? '')} onChange={(e) => setUserForm({ ...userForm, email: e.target.value })} className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary outline-none" />
+                <input value={asText(userForm.email)} onChange={(e) => setUserForm({ ...userForm, email: e.target.value })} className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary outline-none" />
               </div>
               <div className="flex items-center gap-3">
                 <input type="checkbox" checked={!!userForm.enabled} onChange={(e) => setUserForm({ ...userForm, enabled: e.target.checked })} className="accent-primary" id="user_enabled" />

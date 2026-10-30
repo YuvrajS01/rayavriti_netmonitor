@@ -1,166 +1,186 @@
-import { useEffect, useRef, useCallback, useState } from 'react';
-import { useSelector } from 'react-redux';
-import { getToken } from '../api/client';
-import { SocketContext, type EventName, type Handler } from './socketContext';
+import { useEffect, useRef, useCallback, useMemo, useState } from 'react';
+import { getFreshAccessToken } from '../api/http';
+import { useIsAuthenticated } from '../store/session';
+import { SocketContext, SocketStatusContext } from './socketContext';
 import { resolveWebSocketUrl } from './socketUrl';
-import type { RootState } from '../store';
+import { BATCH_WINDOW_MS, reconnectDelay } from './socketBackoff';
+import { parseWsMessage, type WsEventName, type WsHandler, type WsMessage } from '../api/wsEvents';
 
-const RECONNECT_BASE_DELAY = 1000;
-const RECONNECT_MAX_DELAY = 30000;
 const PING_INTERVAL = 30000;
+const BATCHED_EVENTS: ReadonlySet<WsEventName> = new Set<WsEventName>(['metric:update']);
+
+type AnyHandler = (data: unknown) => void;
 
 export function SocketProvider({ children }: { children: React.ReactNode }) {
-  const wsRef = useRef<WebSocket | null>(null);
-  const handlersRef = useRef<Map<EventName, Set<Handler>>>(new Map());
-  const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pingTimer = useRef<ReturnType<typeof setInterval> | null>(null);
-  const reconnectAttempts = useRef(0);
-  const isCleanClose = useRef(false);
+  const handlersRef = useRef<Map<WsEventName, Set<AnyHandler>>>(new Map());
   const [connected, setConnected] = useState(false);
-  const isAuthenticated = useSelector((s: RootState) => s.auth.isAuthenticated);
+  const isAuthenticated = useIsAuthenticated();
 
-  const clearTimers = useCallback(() => {
-    if (reconnectTimer.current) {
-      clearTimeout(reconnectTimer.current);
-      reconnectTimer.current = null;
-    }
-    if (pingTimer.current) {
-      clearInterval(pingTimer.current);
-      pingTimer.current = null;
+  const dispatch = useCallback((msg: WsMessage) => {
+    const handlers = handlersRef.current.get(msg.type);
+    if (!handlers) return;
+    for (const handler of [...handlers]) {
+      handler(msg.data);
     }
   }, []);
 
-  const connectRef = useRef<() => void>(() => {});
+  useEffect(() => {
+    if (!isAuthenticated) return;
 
-  const connect = useCallback(() => {
-    if (!isAuthenticated) {
-      isCleanClose.current = true;
-      clearTimers();
-      if (wsRef.current) {
-        wsRef.current.close(1000, 'not authenticated');
-        wsRef.current = null;
+    // All connection state is local to this effect run, so a socket from a
+    // previous run (StrictMode double-mount, logout/login) can never touch
+    // the live one. The `ws !== socket` guards cover sockets superseded
+    // within the same run.
+    let disposed = false;
+    let ws: WebSocket | null = null;
+    let attempts = 0;
+    let connecting = false;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let pingTimer: ReturnType<typeof setInterval> | null = null;
+    let flushTimer: ReturnType<typeof setTimeout> | null = null;
+    let queue: WsMessage[] = [];
+
+    const flush = () => {
+      if (flushTimer) {
+        clearTimeout(flushTimer);
+        flushTimer = null;
       }
-      return;
-    }
-
-    const token = getToken();
-
-    const url = resolveWebSocketUrl();
-    // Always pass the access token as a subprotocol. The backend's
-    // extractToken reads it from Sec-WebSocket-Protocol (and falls back to
-    // the cookie), so this authenticates reliably over HTTP or HTTPS,
-    // same-origin or proxied — without depending on the Secure/SameSite
-    // access cookie being present.
-    const ws = token ? new WebSocket(url, [token]) : new WebSocket(url);
-    wsRef.current = ws;
-
-    ws.onopen = () => {
-      reconnectAttempts.current = 0;
-      isCleanClose.current = false;
-      setConnected(true);
-
-      if (pingTimer.current) clearInterval(pingTimer.current);
-      pingTimer.current = setInterval(() => {
-        if (ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({ type: 'ping' }));
-        }
-      }, PING_INTERVAL);
+      const batch = queue;
+      queue = [];
+      // Delivered in one synchronous pass so React batches the resulting
+      // state updates into a single render.
+      for (const msg of batch) dispatch(msg);
     };
 
-    ws.onmessage = (event) => {
-      try {
-        const msg = JSON.parse(event.data) as { type: string; data: Record<string, unknown> };
-        if (!msg.type || msg.type === 'ping' || msg.type === 'pong') return;
-
-        const handlers = handlersRef.current.get(msg.type as EventName);
-        if (handlers) {
-          for (const handler of handlers) {
-            handler(msg.data);
-          }
-        }
-      } catch {
-        // Non-JSON message — ignore
+    const stopPing = () => {
+      if (pingTimer) {
+        clearInterval(pingTimer);
+        pingTimer = null;
       }
     };
 
-    ws.onclose = (event) => {
-      clearTimers();
-      wsRef.current = null;
-      setConnected(false);
-
-      if (isCleanClose.current || (event.code >= 4001 && event.code <= 4003)) {
-        return;
-      }
-
-      const delay = Math.min(
-        RECONNECT_BASE_DELAY * Math.pow(2, reconnectAttempts.current),
-        RECONNECT_MAX_DELAY,
-      );
-      reconnectAttempts.current++;
-
-      reconnectTimer.current = setTimeout(() => {
-        connectRef.current();
+    const scheduleReconnect = () => {
+      if (disposed || reconnectTimer) return;
+      const delay = reconnectDelay(attempts);
+      attempts += 1;
+      reconnectTimer = setTimeout(() => {
+        reconnectTimer = null;
+        void connect();
       }, delay);
     };
 
-    ws.onerror = () => {
-      ws.close();
-    };
-  }, [clearTimers, isAuthenticated]);
+    async function connect() {
+      if (disposed || connecting) return;
+      connecting = true;
+      // The backend prefers a subprotocol token over the access cookie, so
+      // never offer a stale one: refresh first if it is about to expire.
+      // With no token the handshake falls back to the HttpOnly cookie.
+      const token = await getFreshAccessToken();
+      connecting = false;
+      if (disposed || ws) return;
+      const url = resolveWebSocketUrl();
+      const socket = token ? new WebSocket(url, [token]) : new WebSocket(url);
+      ws = socket;
 
-  useEffect(() => {
-    connectRef.current = connect;
-  }, [connect]);
+      socket.onopen = () => {
+        if (ws !== socket) return;
+        attempts = 0;
+        setConnected(true);
+        stopPing();
+        pingTimer = setInterval(() => {
+          if (socket.readyState === WebSocket.OPEN) {
+            socket.send(JSON.stringify({ type: 'ping' }));
+          }
+        }, PING_INTERVAL);
+      };
 
-  useEffect(() => {
-    connect();
+      socket.onmessage = (event: MessageEvent) => {
+        if (ws !== socket) return;
+        const msg = parseWsMessage(event.data);
+        if (!msg) return;
+        if (BATCHED_EVENTS.has(msg.type)) {
+          queue.push(msg);
+          if (!flushTimer) flushTimer = setTimeout(flush, BATCH_WINDOW_MS);
+          return;
+        }
+        // Deliver anything already buffered first to preserve ordering.
+        if (queue.length) flush();
+        dispatch(msg);
+      };
 
-    const handleBeforeUnload = () => {
-      isCleanClose.current = true;
-      clearTimers();
-      if (wsRef.current) {
-        wsRef.current.close(1000, 'beforeunload');
-        wsRef.current = null;
+      socket.onclose = () => {
+        if (ws !== socket) return;
+        ws = null;
+        stopPing();
+        flush();
+        setConnected(false);
+        scheduleReconnect();
+      };
+
+      socket.onerror = () => {
+        socket.close();
+      };
+    }
+
+    const reconnectNow = () => {
+      if (disposed) return;
+      if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+        reconnectTimer = null;
       }
+      attempts = 0;
+      void connect();
     };
-    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') reconnectNow();
+    };
+
+    window.addEventListener('online', reconnectNow);
+    document.addEventListener('visibilitychange', handleVisibility);
+    void connect();
 
     return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-      isCleanClose.current = true;
-      clearTimers();
-      if (wsRef.current) {
-        wsRef.current.close(1000, 'provider unmount');
-        wsRef.current = null;
-      }
+      disposed = true;
+      window.removeEventListener('online', reconnectNow);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      if (flushTimer) clearTimeout(flushTimer);
+      stopPing();
+      queue = [];
+      const socket = ws;
+      ws = null;
+      if (socket) socket.close(1000, 'provider unmount');
+      setConnected(false);
     };
-  }, [connect, clearTimers]);
+  }, [isAuthenticated, dispatch]);
 
-  const subscribe = useCallback((event: EventName, handler: Handler) => {
+  const subscribe = useCallback(<K extends WsEventName>(event: K, handler: WsHandler<K>) => {
     let handlers = handlersRef.current.get(event);
     if (!handlers) {
       handlers = new Set();
       handlersRef.current.set(event, handlers);
     }
-    handlers.add(handler);
+    const set = handlers;
+    const fn = handler as AnyHandler;
+    set.add(fn);
 
     return () => {
-      handlers!.delete(handler);
-      if (handlers!.size === 0) {
+      set.delete(fn);
+      if (set.size === 0 && handlersRef.current.get(event) === set) {
         handlersRef.current.delete(event);
       }
     };
   }, []);
 
-  const emit = useCallback((event: string, data?: unknown) => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({ type: event, data }));
-    }
-  }, []);
+  const value = useMemo(() => ({ subscribe }), [subscribe]);
 
   return (
-    <SocketContext.Provider value={{ subscribe, emit, connected }}>
-      {children}
+    <SocketContext.Provider value={value}>
+      <SocketStatusContext.Provider value={connected}>
+        {children}
+      </SocketStatusContext.Provider>
     </SocketContext.Provider>
   );
 }

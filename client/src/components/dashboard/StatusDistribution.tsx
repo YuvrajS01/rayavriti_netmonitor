@@ -15,7 +15,7 @@ function buildDonutData(metrics: Metric[]): DonutSlice[] {
   const byDevice = new Map<number, string>();
   for (const m of metrics) byDevice.set(m.deviceId, m.status);
 
-  const counts: Record<string, number> = { up: 0, warning: 0, down: 0, unknown: 0 };
+  const counts = { up: 0, warning: 0, down: 0, unknown: 0 };
   for (const [, status] of byDevice) {
     if (status === 'up' || status === 'ok') counts.up++;
     else if (status === 'warning' || status === 'degraded') counts.warning++;

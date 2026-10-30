@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
-import { v1, wrap } from '../api/http';
-import { useAsyncEffect } from '../hooks/useAsyncEffect';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { approveDiscoveryResult, getDiscoveryJobs, getDiscoveryResults, startDiscoveryScan, type DiscoveryJob, type DiscoveryResult } from '../api/discovery';
+import { queryKeys } from '../api/queryKeys';
 import SectionHeader from '../components/ui/SectionHeader';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
@@ -8,42 +9,8 @@ import StatCard from '../components/ui/StatCard';
 import EmptyState from '../components/ui/EmptyState';
 import { useToast } from '../components/ui/useToast';
 
-interface DiscoveryJob {
-  id: number;
-  subnet: string;
-  scanType: string;
-  status: string;
-  locationId: number | null;
-  initiatedBy: string;
-  totalIpsScanned: number;
-  devicesFound: number;
-  devicesNew: number;
-  devicesKnown: number;
-  completedAt: string | null;
-  errorMessage: string | null;
-}
-
-interface DiscoveryResult {
-  id: number;
-  jobId: number;
-  ipAddress: string;
-  macAddress: string;
-  hostname: string;
-  manufacturer: string;
-  guessedCategory: string;
-  guessedOs: string;
-  openPorts: string;
-  snmpReachable: boolean;
-  responseTimeMs: number;
-  status: string;
-  approvedDeviceId: number | null;
-  httpTitle: string;
-  sshBanner: string;
-  tlsCertCn: string;
-  snmpName: string;
-  snmpDescription: string;
-  snmpSysObjectId: string;
-}
+const EMPTY_JOBS: DiscoveryJob[] = [];
+const EMPTY_RESULTS: DiscoveryResult[] = [];
 
 function formatDate(ts: string | null): string {
   if (!ts) return 'Running...';
@@ -52,35 +19,24 @@ function formatDate(ts: string | null): string {
 
 export default function Discovery() {
   const { addToast } = useToast();
-  const [jobs, setJobs] = useState<DiscoveryJob[]>([]);
-  const [results, setResults] = useState<DiscoveryResult[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [selectedJob, setSelectedJob] = useState<DiscoveryJob | null>(null);
   const [showScanForm, setShowScanForm] = useState(false);
   const [scanForm, setScanForm] = useState({ subnet: '', scan_type: 'ping_only' });
-  const [submitting, setSubmitting] = useState(false);
 
-  const loadResults = async (jobId: number) => {
-    const res = await v1.get(`/discovery/jobs/${jobId}/results`);
-    setResults(wrap<DiscoveryResult[]>(res.data).data || []);
-  };
-
-  useAsyncEffect(async (signal) => {
-    setLoading(true);
-    try {
-      const res = await v1.get('/discovery/jobs');
-      if (!signal.aborted) setJobs(wrap<DiscoveryJob[]>(res.data).data || []);
-    } catch {
-      if (!signal.aborted) setJobs([]);
-    }
-    if (!signal.aborted) setLoading(false);
-  }, []);
-
-  const load = async () => {
-    const res = await v1.get('/discovery/jobs');
-    setJobs(wrap<DiscoveryJob[]>(res.data).data || []);
-  };
+  const jobsQuery = useQuery({
+    queryKey: queryKeys.discovery.jobs(),
+    queryFn: ({ signal }) => getDiscoveryJobs({ signal }),
+  });
+  const resultsQuery = useQuery({
+    queryKey: queryKeys.discovery.results(selectedJob?.id ?? 0),
+    queryFn: ({ signal }) => getDiscoveryResults(selectedJob?.id ?? 0, { signal }),
+    enabled: selectedJob != null,
+  });
+  const loading = jobsQuery.isPending;
+  const jobs = jobsQuery.data?.data || EMPTY_JOBS;
+  const results = resultsQuery.data?.data || EMPTY_RESULTS;
 
   const filtered = useMemo(() => {
     const needle = search.trim().toLowerCase();
@@ -94,35 +50,30 @@ export default function Discovery() {
     totalFound: jobs.reduce((s, j) => s + (j.devicesFound || 0), 0),
   }), [jobs]);
 
-  const handleScan = async () => {
-    setSubmitting(true);
-    try {
-      await v1.post('/discovery/scan', scanForm);
+  const scanMutation = useMutation({
+    mutationFn: (body: typeof scanForm) => startDiscoveryScan(body),
+    onSuccess: () => {
       addToast('Scan initiated', 'success');
       setShowScanForm(false);
       setScanForm({ subnet: '', scan_type: 'ping_only' });
-      await load();
-    } catch (err) {
-      addToast(err instanceof Error ? err.message : 'Scan failed', 'error');
-    } finally {
-      setSubmitting(false);
-    }
-  };
+      return queryClient.invalidateQueries({ queryKey: queryKeys.discovery.jobs() });
+    },
+    onError: (err) => addToast(err instanceof Error ? err.message : 'Scan failed', 'error'),
+  });
+  const submitting = scanMutation.isPending;
 
-  const openJob = async (job: DiscoveryJob) => {
-    setSelectedJob(job);
-    await loadResults(job.id);
-  };
-
-  const handleApprove = async (resultId: number) => {
-    try {
-      await v1.post(`/discovery/results/${resultId}/approve`);
+  const approveMutation = useMutation({
+    mutationFn: (resultId: number) => approveDiscoveryResult(resultId),
+    onSuccess: () => {
       addToast('Device approved', 'success');
-      if (selectedJob) await loadResults(selectedJob.id);
-    } catch (err) {
-      addToast(err instanceof Error ? err.message : 'Approve failed', 'error');
-    }
-  };
+      return queryClient.invalidateQueries({ queryKey: queryKeys.discovery.all });
+    },
+    onError: (err) => addToast(err instanceof Error ? err.message : 'Approve failed', 'error'),
+  });
+
+  const handleScan = () => scanMutation.mutate(scanForm);
+  const openJob = (job: DiscoveryJob) => setSelectedJob(job);
+  const handleApprove = (resultId: number) => approveMutation.mutate(resultId);
 
   return (
     <div className="space-y-8">
@@ -200,14 +151,14 @@ export default function Discovery() {
       </Card>
 
       {selectedJob && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pt-20 bg-black/60" onClick={() => { setSelectedJob(null); setResults([]); }}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pt-20 bg-black/60" onClick={() => setSelectedJob(null)}>
           <div className="bg-surface-container-low border border-outline-variant/30 rounded-lg w-full max-w-3xl overflow-hidden max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
             <div className="p-6 border-b border-outline-variant/20 flex items-center justify-between shrink-0">
               <div>
                 <h2 className="font-headline text-lg font-semibold font-data">{selectedJob.subnet}</h2>
                 <p className="text-xs text-on-surface-variant mt-0.5 capitalize">{selectedJob.status} · {results.length} results</p>
               </div>
-              <button onClick={() => { setSelectedJob(null); setResults([]); }} className="text-on-surface-variant hover:text-on-surface p-1"><span className="material-symbols-outlined">close</span></button>
+              <button onClick={() => setSelectedJob(null)} className="text-on-surface-variant hover:text-on-surface p-1"><span className="material-symbols-outlined">close</span></button>
             </div>
             <div className="p-6 overflow-y-auto flex-1">
               {results.length === 0 ? (

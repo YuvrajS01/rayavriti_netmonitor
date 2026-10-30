@@ -1,11 +1,13 @@
-import { useState, useEffect, useMemo, memo, type FormEvent } from 'react';
+import { useState, useEffect, useMemo, memo, Suspense, type FormEvent } from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
-import { useDispatch, useSelector } from 'react-redux';
-import { clearCredentials } from '../store/authSlice';
-import type { RootState } from '../store';
+import { useSessionUser } from '../store/session';
 import { logout, getAlertCounts } from '../api/client';
-import { useSocket, useSocketContext } from '../hooks/useSocket';
+import { useSocketConnected } from '../hooks/useSocket';
+import { useQuery } from '@tanstack/react-query';
+import { queryKeys } from '../api/queryKeys';
 import IconColor from '../assets/brand/Icon-color.svg';
+import ErrorBoundary from './ErrorBoundary';
+import PageLoader from './ui/PageLoader';
 
 interface NavItem {
   to: string;
@@ -106,11 +108,9 @@ const SidebarLink = memo(function SidebarLink({ to, label, icon, badge, end, onC
 export default function Layout({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const dispatch = useDispatch();
-  const user = useSelector((s: RootState) => s.auth.user);
-  const { connected } = useSocketContext();
+  const user = useSessionUser();
+  const connected = useSocketConnected();
   const [sidebarOpen, setSidebarOpen] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 1024);
-  const [activeAlertCount, setActiveAlertCount] = useState(0);
   const [command, setCommand] = useState('');
   const [accountOpen, setAccountOpen] = useState(false);
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({
@@ -160,28 +160,19 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       item.label.toLowerCase().includes(needle) || item.to.toLowerCase().includes(needle)
     );
     if (match) {
-      navigate(match.to);
+      void navigate(match.to);
     } else {
-      navigate(`/devices?search=${encodeURIComponent(query)}`);
+      void navigate(`/devices?search=${encodeURIComponent(query)}`);
     }
     setCommand('');
   };
 
-  const fetchAlertCount = () => {
-    getAlertCounts()
-      .then((res) => setActiveAlertCount(res.data?.active ?? 0))
-      .catch(() => {});
-  };
-
-  useEffect(() => {
-    fetchAlertCount();
-  }, []);
-
-  useSocket({
-    onAlertTriggered: () => fetchAlertCount(),
-    onAlertResolved: () => fetchAlertCount(),
-    onBootstrap: () => fetchAlertCount(),
+  // Invalidated by alert/bootstrap WebSocket events (useLiveQueryBridge).
+  const alertCountsQuery = useQuery({
+    queryKey: queryKeys.alerts.counts(),
+    queryFn: ({ signal }) => getAlertCounts({ signal }),
   });
+  const activeAlertCount = alertCountsQuery.data?.data?.active ?? 0;
 
   useEffect(() => {
     const main = document.getElementById('main-content');
@@ -198,9 +189,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   }, []);
 
   const handleLogout = async () => {
-    try { await logout(); } catch { /* ignore */ }
-    dispatch(clearCredentials());
-    navigate('/login');
+    await logout();
+    await navigate('/login');
   };
 
   return (
@@ -362,7 +352,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
         <main id="main-content" className={`min-h-[calc(100vh-64px)] flex-1 bg-surface p-4 pb-20 sm:p-6 lg:pb-6 ${sidebarOpen ? 'lg:ml-[260px]' : 'ml-0'}`}>
           <div key={location.pathname} className="page-enter">
-            {children}
+            {/* Keyed by pathname (via the parent): a crashed or still-loading
+                page stays inside the content area and navigating away resets it. */}
+            <ErrorBoundary scope="route">
+              <Suspense fallback={<PageLoader />}>
+                {children}
+              </Suspense>
+            </ErrorBoundary>
           </div>
         </main>
       </div>

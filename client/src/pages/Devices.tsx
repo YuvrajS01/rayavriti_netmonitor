@@ -1,18 +1,23 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useMemo, Suspense } from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { getDevices, getLatestMetrics, deleteDevice } from '../api/client';
-import { useSocket } from '../hooks/useSocket';
+import { queryKeys } from '../api/queryKeys';
 import type { Device, Metric } from '../api/types';
-import DeviceModal from '../components/DeviceModal';
 import DeviceAddModal from '../components/DeviceAddModal';
 import ConfirmDialog from '../components/ConfirmDialog';
 import StatCard from '../components/ui/StatCard';
 import Button from '../components/ui/Button';
 import SectionHeader from '../components/ui/SectionHeader';
+import ErrorState from '../components/ui/ErrorState';
 import { useToast } from '../components/ui/useToast';
 import { DevicesSkeleton } from '../components/dashboard/DevicesSkeleton';
 import { statusTextColor, statusBgColor } from '../utils/colors';
 import { iconForProtocol } from '../utils/icons';
+import { lazyWithRetry } from '../utils/lazyWithRetry';
+
+// Pulls in recharts; keep it out of the device list's initial chunk.
+const DeviceModal = lazyWithRetry(() => import('../components/DeviceModal'));
 
 function statusOf(device: Device, metricsMap: Map<number, Metric>): string {
   return metricsMap.get(device.id)?.status || device.status || 'unknown';
@@ -28,45 +33,50 @@ const STATUS_GROUP_HOVER_TEXT: Record<string, string> = {
 export default function Devices() {
   const { addToast } = useToast();
   const location = useLocation();
-  const [devices, setDevices] = useState<Device[]>([]);
-  const [metricsMap, setMetricsMap] = useState<Map<number, Metric>>(new Map());
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
+  const queryClient = useQueryClient();
+  const urlSearch = new URLSearchParams(location.search).get('search') || '';
+  const [search, setSearch] = useState(urlSearch);
+  const [syncedUrlSearch, setSyncedUrlSearch] = useState(urlSearch);
   const [statusFilter, setStatusFilter] = useState('all');
   const [showForm, setShowForm] = useState(false);
   const [selectedDevice, setSelectedDevice] = useState<Device | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Device | null>(null);
 
-  const load = useCallback(async () => {
-    const [dRes, mRes] = await Promise.all([getDevices(), getLatestMetrics()]);
-    setDevices(dRes.data || []);
-    setMetricsMap(new Map((mRes.data || []).map((m) => [m.deviceId, m])));
-    setLoading(false);
-  }, []);
+  // The header search navigates here with ?search=; adopt it when it changes.
+  if (urlSearch !== syncedUrlSearch) {
+    setSyncedUrlSearch(urlSearch);
+    setSearch(urlSearch);
+  }
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { load(); }, [load]);
+  // Live status/metric updates are written into these caches by useLiveQueryBridge.
+  const devicesQuery = useQuery({
+    queryKey: queryKeys.devices.list(),
+    queryFn: ({ signal }) => getDevices({ signal }),
+  });
+  const metricsQuery = useQuery({
+    queryKey: queryKeys.metrics.latest,
+    queryFn: ({ signal }) => getLatestMetrics({ signal }),
+  });
 
-  useEffect(() => {
-    const query = new URLSearchParams(location.search).get('search') || '';
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setSearch(query);
-  }, [location.search]);
+  const devices = useMemo(() => devicesQuery.data?.data || [], [devicesQuery.data]);
+  const metricsMap = useMemo(
+    () => new Map((metricsQuery.data?.data || []).map((m) => [m.deviceId, m])),
+    [metricsQuery.data],
+  );
 
-  useSocket({
-    onMetricUpdate: (metric) => {
-      const m = metric as unknown as Metric;
-      setMetricsMap((prev) => {
-        const next = new Map(prev);
-        next.set(m.deviceId, m);
-        return next;
-      });
+  const refreshDevices = () => queryClient.invalidateQueries({ queryKey: queryKeys.devices.all });
+
+  const deleteMutation = useMutation({
+    mutationFn: (device: Device) => deleteDevice(device.id),
+    onSuccess: (_res, device) => {
+      queryClient.setQueryData<{ data: Device[]; success: boolean }>(queryKeys.devices.list(), (prev) =>
+        prev ? { ...prev, data: prev.data.filter((d) => d.id !== device.id) } : prev,
+      );
+      addToast(`Deleted "${device.name}"`, 'success');
+      setDeleteTarget(null);
+      void refreshDevices();
     },
-    onDeviceStatus: ({ deviceId, status }) => {
-      setDevices((prev) => prev.map((d) =>
-        d.id === deviceId ? { ...d, status } : d
-      ));
-    },
+    onError: () => addToast('Failed to delete device', 'error'),
   });
 
   const filtered = useMemo(() => devices.filter((d) => {
@@ -85,13 +95,8 @@ export default function Devices() {
     setDeleteTarget(device);
   };
 
-  const confirmDelete = async () => {
-    if (!deleteTarget) return;
-    await deleteDevice(deleteTarget.id);
-    setDevices((prev) => prev.filter((d) => d.id !== deleteTarget.id));
-    addToast(`Deleted "${deleteTarget.name}"`, 'success');
-    setDeleteTarget(null);
-    load().catch(() => {});
+  const confirmDelete = () => {
+    if (deleteTarget) deleteMutation.mutate(deleteTarget);
   };
 
   // Stats
@@ -102,8 +107,10 @@ export default function Devices() {
 
   return (
     <div>
-      {loading ? (
+      {devicesQuery.isPending ? (
         <DevicesSkeleton />
+      ) : devicesQuery.isError ? (
+        <ErrorState message="Failed to load devices. Please try again." onRetry={() => void devicesQuery.refetch()} />
       ) : (
       <>
       {/* Header */}
@@ -194,19 +201,21 @@ export default function Devices() {
         </div>
       </div>
       {selectedDevice && (
+        <Suspense fallback={null}>
         <DeviceModal 
           device={selectedDevice} 
           onClose={() => setSelectedDevice(null)} 
           onDeleted={() => {
             setSelectedDevice(null);
-            load();
+            void refreshDevices();
           }}
         />
+        </Suspense>
       )}
       <DeviceAddModal
         open={showForm}
         onClose={() => setShowForm(false)}
-        onAdded={() => load().catch(() => {})}
+        onAdded={() => void refreshDevices()}
       />
       <ConfirmDialog
         open={!!deleteTarget}

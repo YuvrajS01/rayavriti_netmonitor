@@ -1,21 +1,24 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { getDevices, getLatestMetrics } from '../api/client';
 import { getTopologyTree, type TopologyNode } from '../api/resources';
-import { useSocket } from '../hooks/useSocket';
+import { queryKeys } from '../api/queryKeys';
 import type { Device, Metric } from '../api/types';
 import SectionHeader from '../components/ui/SectionHeader';
 import Card from '../components/ui/Card';
 
+const UNKNOWN_COLOR = '#8c8c8c';
 const COLOR: Record<string, string> = {
   up: '#9bc86e', ok: '#9bc86e',
   warning: '#ebc434', degraded: '#ebc434',
-  down: '#e86060', unknown: '#8c8c8c',
+  down: '#e86060', unknown: UNKNOWN_COLOR,
 };
-const STATUS_KEYS = Object.keys(COLOR) as (keyof typeof COLOR)[];
-const colorFor = (s: string) => (STATUS_KEYS.includes(s as keyof typeof COLOR) ? COLOR[s as keyof typeof COLOR] : COLOR.unknown);
+const colorFor = (s: string) => (Object.hasOwn(COLOR, s) ? COLOR[s] : undefined) ?? UNKNOWN_COLOR;
 
-const CATEGORY_SHAPES: Record<string, (ctx: CanvasRenderingContext2D, x: number, y: number, r: number) => void> = {
+type ShapeFn = (ctx: CanvasRenderingContext2D, x: number, y: number, r: number) => void;
+
+const CATEGORY_SHAPES = {
   router: (ctx, x, y, r) => {
     // Circle with crosshair
     ctx.beginPath(); ctx.arc(x, y, r, 0, 2 * Math.PI); ctx.fill(); ctx.stroke();
@@ -40,7 +43,7 @@ const CATEGORY_SHAPES: Record<string, (ctx: CanvasRenderingContext2D, x: number,
   default: (ctx, x, y, r) => {
     ctx.beginPath(); ctx.arc(x, y, r, 0, 2 * Math.PI); ctx.fill(); ctx.stroke();
   },
-};
+} satisfies Record<string, ShapeFn>;
 
 function getCategoryShape(category: string | undefined) {
   if (!category) return CATEGORY_SHAPES.default;
@@ -74,12 +77,31 @@ function flattenTree(nodes: TopologyNode[]): Array<{ parentId: number; childId: 
   return edges;
 }
 
+const EMPTY_DEVICES: Device[] = [];
+
 export default function NetworkTopology() {
   const fgRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
-  const [devices, setDevices] = useState<Device[]>([]);
-  const [metricsMap, setMetricsMap] = useState<Map<number, Metric>>(new Map());
-  const [topoEdges, setTopoEdges] = useState<Array<{ parentId: number; childId: number; port?: string }>>([]);
+  // Devices and latest metrics are kept live by useLiveQueryBridge.
+  const devicesQuery = useQuery({
+    queryKey: queryKeys.devices.list(),
+    queryFn: ({ signal }) => getDevices({ signal }),
+  });
+  const metricsQuery = useQuery({
+    queryKey: queryKeys.metrics.latest,
+    queryFn: ({ signal }) => getLatestMetrics({ signal }),
+  });
+  // The dependency tree is optional; without it links are inferred.
+  const treeQuery = useQuery({
+    queryKey: queryKeys.topology.tree,
+    queryFn: ({ signal }) => getTopologyTree({ signal }),
+  });
+  const devices = devicesQuery.data?.data || EMPTY_DEVICES;
+  const metricsMap = useMemo(
+    () => new Map((metricsQuery.data?.data || []).map((item: Metric) => [item.deviceId, item])),
+    [metricsQuery.data],
+  );
+  const topoEdges = useMemo(() => flattenTree(treeQuery.data?.data || []), [treeQuery.data]);
   const [selected, setSelected] = useState<Device | null>(null);
   const [hovered, setHovered] = useState<{ node: SimNode } | null>(null);
   const [filters, setFilters] = useState({ status: 'all', protocol: 'all', category: 'all' });
@@ -87,38 +109,6 @@ export default function NetworkTopology() {
   const [size, setSize] = useState({ w: 900, h: 560 });
   const metricsRef = useRef(metricsMap);
   useEffect(() => { metricsRef.current = metricsMap; }, [metricsMap]);
-
-  // Fetch data on mount
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const [d, m, t] = await Promise.all([
-          getDevices(),
-          getLatestMetrics(),
-          getTopologyTree().catch(() => ({ data: [] as TopologyNode[] })),
-        ]);
-        if (cancelled) return;
-        setDevices(d.data || []);
-        setMetricsMap(new Map((m.data || []).map((item: Metric) => [item.deviceId, item])));
-        const treeData = t.data || [];
-        setTopoEdges(flattenTree(treeData));
-      } catch {
-        if (!cancelled) setDevices([]);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, []);
-
-  useSocket({
-    onMetricUpdate: (metric) => {
-      const mm = metric as unknown as Metric;
-      setMetricsMap((prev) => new Map(prev).set(mm.deviceId, mm));
-    },
-    onDeviceStatus: ({ deviceId, status }) => {
-      setDevices((prev) => prev.map((d) => (d.id === deviceId ? { ...d, status } : d)));
-    },
-  });
 
   const nodeById = useMemo(() => new Map(devices.map((d) => [d.id, d])), [devices]);
   const protocols = useMemo(() => Array.from(new Set(devices.map((d) => d.protocol))).sort(), [devices]);
@@ -168,7 +158,7 @@ export default function NetworkTopology() {
         /gateway|router|core|firewall/i.test(d.name || '');
       const hub = visible.list.find(isHub) ?? visible.list[0];
       for (const d of visible.list) {
-        if (d.id !== hub.id && !supplementedIds.has(d.id)) inferred++;
+        if (d.id !== hub?.id && !supplementedIds.has(d.id)) inferred++;
       }
     }
     return topoEdges.length + inferred;
@@ -216,10 +206,12 @@ export default function NetworkTopology() {
         /gateway|router|core|switch|firewall/i.test(d.deviceCategory || '') ||
         /gateway|router|core|firewall/i.test(d.name || '');
       const hub = visible.list.find(isHub) ?? visible.list[0];
-      const hubNode = nodeMap.get(hub.id)!;
-      for (const d of visible.list) {
-        if (d.id !== hub.id && !linkedIds.has(d.id) && nodeMap.has(hub.id)) {
-          links.push({ source: hubNode, target: nodeMap.get(d.id)! });
+      const hubNode = hub && nodeMap.get(hub.id);
+      if (hub && hubNode) {
+        for (const d of visible.list) {
+          if (d.id !== hub.id && !linkedIds.has(d.id)) {
+            links.push({ source: hubNode, target: nodeMap.get(d.id)! });
+          }
         }
       }
     }
@@ -254,10 +246,12 @@ export default function NetworkTopology() {
       // forces
       for (let i = 0; i < nodes.length; i++) {
         const a = nodes[i];
+        if (!a) continue;
         if (a.fx != null) { a.x = a.fx; a.y = a.fy!; a.vx = 0; a.vy = 0; continue; }
         // repulsion
         for (let j = i + 1; j < nodes.length; j++) {
           const b = nodes[j];
+          if (!b) continue;
           let dx = a.x - b.x, dy = a.y - b.y;
           let dist = Math.hypot(dx, dy) || 0.01;
           if (dist < 1) { dx = Math.random(); dy = Math.random(); dist = 1; }

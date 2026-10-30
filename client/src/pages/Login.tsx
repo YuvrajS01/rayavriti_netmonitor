@@ -1,7 +1,5 @@
 import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useDispatch } from 'react-redux';
-import { setCredentials } from '../store/authSlice';
 import { login } from '../api/client';
 import LockupColor from '../assets/brand/Lockup-color.svg';
 import IconColor from '../assets/brand/Icon-color.svg';
@@ -12,20 +10,14 @@ export default function Login() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
-  const dispatch = useDispatch();
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
     try {
-      const result = await login(username.trim(), password);
-      const u = result.data.user;
-      dispatch(setCredentials({
-        token: result.data.token,
-        user: { id: u.id, username: u.username, role: u.role, permissions: u.permissions },
-      }));
-      navigate('/');
+      await login(username.trim(), password);
+      await navigate('/');
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error || 'Login failed';
       setError(msg);

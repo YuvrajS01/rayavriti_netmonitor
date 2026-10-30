@@ -1,5 +1,6 @@
 import { useMemo, useState, useCallback } from 'react';
 import type { ResourceRow } from '../api/resources';
+import { asText } from '../utils/formatters';
 
 interface LocationTreeProps {
   locations: ResourceRow[];
@@ -52,8 +53,8 @@ function buildNodes(flat: ResourceRow[]): TreeNode[] {
 }
 
 function matchesSearch(node: TreeNode, needle: string): boolean {
-  const name = String(node.name ?? '').toLowerCase();
-  const code = String(node.code ?? '').toLowerCase();
+  const name = asText(node.name).toLowerCase();
+  const code = asText(node.code).toLowerCase();
   if (name.includes(needle) || code.includes(needle)) return true;
   return node._children.some((c) => matchesSearch(c, needle));
 }
@@ -173,7 +174,7 @@ function TreeItem({
           </span>
           {node.code ? (
             <span className="text-[10px] text-on-surface-variant uppercase tracking-wide">
-              {String(node.code)}
+              {asText(node.code)}
             </span>
           ) : null}
         </div>
@@ -240,8 +241,8 @@ export default function LocationTree({
     const ids = new Set<number>();
     if (!needle) return ids;
     function collect(node: TreeNode): boolean {
-      const nameMatch = String(node.name ?? '').toLowerCase().includes(needle);
-      const codeMatch = String(node.code ?? '').toLowerCase().includes(needle);
+      const nameMatch = asText(node.name).toLowerCase().includes(needle);
+      const codeMatch = asText(node.code).toLowerCase().includes(needle);
       let childMatch = false;
       for (const c of node._children) {
         if (collect(c)) childMatch = true;

@@ -19,7 +19,7 @@ export default function Sparkline({ data, width = 92, height = 28, color = 'var(
       const y = height - 3 - ((value - min) / range) * (height - 7);
       return `${x.toFixed(1)},${y.toFixed(1)}`;
     });
-    return { line: points.join(' '), area: `0,${height} ${points.join(' ')} ${width},${height}`, trend: values.at(-1)! - values[0] };
+    return { line: points.join(' '), area: `0,${height} ${points.join(' ')} ${width},${height}`, trend: (values.at(-1) ?? 0) - (values[0] ?? 0) };
   }, [data, height, width]);
   if (!data.length) return null;
   return <div className={`inline-flex items-center gap-1 ${className ?? ''}`} aria-label={`Trend ${trend >= 0 ? 'up' : 'down'}`}>
