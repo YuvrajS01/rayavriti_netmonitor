@@ -194,9 +194,14 @@ type Database interface {
 	DeleteDashboard(ctx context.Context, id int64) error
 
 	// Retention
-	PruneMetrics(ctx context.Context, olderThan time.Time) (int64, error)
-	PruneFlows(ctx context.Context, olderThan time.Time) (int64, error)
+	// Hypertables (metrics, flows, logs, …) are pruned by TimescaleDB
+	// retention policies (ApplyRetentionPolicies); these cover plain tables.
 	PruneAlerts(ctx context.Context, olderThan time.Time) (int64, error)
+	// GetMetricBaselines returns per-device mean/stddev of each numeric
+	// metric field since the given time, computed in one aggregate query.
+	GetMetricBaselines(ctx context.Context, since time.Time) ([]MetricBaseline, error)
+	PruneHealthScoreHistory(ctx context.Context, olderThan time.Time) (int64, error)
+	PruneCaptureSessions(ctx context.Context, olderThan time.Time) (int64, error)
 
 	// Health Scores
 	UpsertHealthScore(ctx context.Context, score *models.DeviceHealthScoreRow) error
@@ -217,4 +222,14 @@ type Database interface {
 
 	// RBAC
 	GetRolePermissions(ctx context.Context, roleID int64) ([]string, error)
+}
+
+// MetricBaseline is the population mean and standard deviation of one metric
+// field for one device over a window.
+type MetricBaseline struct {
+	DeviceID int64
+	Field    string
+	Mean     float64
+	StdDev   float64
+	Count    int
 }

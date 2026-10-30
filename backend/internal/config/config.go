@@ -63,17 +63,28 @@ type AuthConfig struct {
 }
 
 type CollectorConfig struct {
-	NetflowPort           int
-	MetricsRetentionDays  int
-	FlowRetentionDays     int
-	AlertsRetentionDays   int
-	PortDiscoveryEnabled  bool
-	CaptureEnabled        bool
-	CapturePayloadEnabled bool
-	CaptureMaxDurationSec int
-	CaptureMaxPackets     int
-	CaptureMaxBytes       int64
-	CollectorIntervalSec  int
+	NetflowPort          int
+	MetricsRetentionDays int
+	FlowRetentionDays    int
+	AlertsRetentionDays  int
+	// MetricsHourlyRetentionDays keeps the hourly rollup much longer than raw
+	// metrics; the daily rollup is kept forever.
+	MetricsHourlyRetentionDays int
+	LogRetentionDays           int
+	CaptureRetentionDays       int
+	// Self-monitoring tables (MON_* variables).
+	MonHTTPRetentionDays      int
+	MonDBRetentionDays        int
+	MonCollectorRetentionDays int
+	MonHealthRetentionDays    int
+	MonAlertRetentionDays     int
+	PortDiscoveryEnabled      bool
+	CaptureEnabled            bool
+	CapturePayloadEnabled     bool
+	CaptureMaxDurationSec     int
+	CaptureMaxPackets         int
+	CaptureMaxBytes           int64
+	CollectorIntervalSec      int
 
 	PollerWorkerCount       int
 	PollerMaxWorkerCount    int
@@ -198,17 +209,26 @@ func Load() (*Config, error) {
 			RefreshTokenExpiry: envDuration("REFRESH_TOKEN_EXPIRY", 7*24*time.Hour),
 		},
 		Collector: CollectorConfig{
-			NetflowPort:           envInt("NETFLOW_PORT", 2055),
-			MetricsRetentionDays:  envInt("METRICS_RETENTION_DAYS", 30),
-			FlowRetentionDays:     envInt("FLOW_RETENTION_DAYS", 7),
-			AlertsRetentionDays:   envInt("ALERTS_RETENTION_DAYS", 90),
-			PortDiscoveryEnabled:  envBool("PORT_DISCOVERY_ENABLED", true),
-			CaptureEnabled:        envBool("CAPTURE_ENABLED", false),
-			CapturePayloadEnabled: envBool("CAPTURE_PAYLOAD_ENABLED", false),
-			CaptureMaxDurationSec: envInt("CAPTURE_MAX_DURATION_SEC", 300),
-			CaptureMaxPackets:     envInt("CAPTURE_MAX_PACKETS", 10000),
-			CaptureMaxBytes:       int64(envInt("CAPTURE_MAX_BYTES", 10*1024*1024)),
-			CollectorIntervalSec:  envInt("COLLECTOR_INTERVAL_SEC", 60),
+			NetflowPort:          envInt("NETFLOW_PORT", 2055),
+			MetricsRetentionDays: envInt("METRICS_RETENTION_DAYS", 30),
+			// .env.example documents FLOWS_; FLOW_ was the historical name.
+			FlowRetentionDays:          envInt("FLOWS_RETENTION_DAYS", envInt("FLOW_RETENTION_DAYS", 7)),
+			AlertsRetentionDays:        envInt("ALERTS_RETENTION_DAYS", 90),
+			MetricsHourlyRetentionDays: envInt("METRICS_HOURLY_RETENTION_DAYS", 400),
+			LogRetentionDays:           envInt("LOG_RETENTION_DAYS", 14),
+			CaptureRetentionDays:       envInt("CAPTURE_RETENTION_DAYS", 7),
+			MonHTTPRetentionDays:       envInt("MON_HTTP_RETENTION_DAYS", 7),
+			MonDBRetentionDays:         envInt("MON_DB_RETENTION_DAYS", 3),
+			MonCollectorRetentionDays:  envInt("MON_COLLECTOR_RETENTION_DAYS", 14),
+			MonHealthRetentionDays:     envInt("MON_HEALTH_RETENTION_DAYS", 30),
+			MonAlertRetentionDays:      envInt("MON_ALERT_RETENTION_DAYS", 30),
+			PortDiscoveryEnabled:       envBool("PORT_DISCOVERY_ENABLED", true),
+			CaptureEnabled:             envBool("CAPTURE_ENABLED", false),
+			CapturePayloadEnabled:      envBool("CAPTURE_PAYLOAD_ENABLED", false),
+			CaptureMaxDurationSec:      envInt("CAPTURE_MAX_DURATION_SEC", 300),
+			CaptureMaxPackets:          envInt("CAPTURE_MAX_PACKETS", 10000),
+			CaptureMaxBytes:            int64(envInt("CAPTURE_MAX_BYTES", 10*1024*1024)),
+			CollectorIntervalSec:       envInt("COLLECTOR_INTERVAL_SEC", 60),
 
 			PollerWorkerCount:       envInt("POLLER_WORKER_COUNT", 0),
 			PollerMaxWorkerCount:    envInt("POLLER_MAX_WORKER_COUNT", 0),

@@ -97,16 +97,26 @@ func (p *Postgres) RunMigrations(ctx context.Context) error {
 	// already have schema_migrations from before C7). This is idempotent.
 	_, _ = p.pool.Exec(ctx, `ALTER TABLE schema_migrations ADD COLUMN IF NOT EXISTS checksum TEXT`)
 
-	// Acquire a session-level advisory lock so only one instance runs
-	// migrations at a time (C8). This prevents a TOCTOU race where two
-	// instances both pass the EXISTS check and apply the same migration
-	// concurrently. The lock is automatically released when the session
-	// (connection) returns to the pool.
-	if _, err := p.pool.Exec(ctx, `SELECT pg_advisory_lock(727280)`); err != nil {
+	// TimescaleDB is required: the schema uses hypertables from V5 onward,
+	// and continuous aggregates/compression/retention depend on it.
+	if _, err := p.pool.Exec(ctx, `CREATE EXTENSION IF NOT EXISTS timescaledb`); err != nil {
+		return fmt.Errorf("TimescaleDB extension is required (use the timescale/timescaledb image or install the extension): %w", err)
+	}
+
+	// Session-level advisory lock so only one instance runs migrations at a
+	// time (C8). Lock and unlock must run on the same connection (B20): via
+	// the pool they could land on different connections, leaving the lock
+	// held by an idle pooled connection and blocking other instances.
+	lockConn, err := p.pool.Acquire(ctx)
+	if err != nil {
+		return fmt.Errorf("acquire connection for migration lock: %w", err)
+	}
+	defer lockConn.Release()
+	if _, err := lockConn.Exec(ctx, `SELECT pg_advisory_lock(727280)`); err != nil {
 		return fmt.Errorf("acquire migration advisory lock: %w", err)
 	}
 	defer func() {
-		_, _ = p.pool.Exec(ctx, `SELECT pg_advisory_unlock(727280)`)
+		_, _ = lockConn.Exec(context.WithoutCancel(ctx), `SELECT pg_advisory_unlock(727280)`)
 	}()
 
 	// Validate strict version ordering (C7 — positional indexing is gone;
@@ -151,18 +161,9 @@ func (p *Postgres) RunMigrations(ctx context.Context) error {
 			return fmt.Errorf("begin tx for migration %d: %w", version, err)
 		}
 		if _, err := tx.Exec(ctx, m.SQL); err != nil {
+			// Never record a failed migration as applied: the transaction
+			// rolled back every statement in it.
 			_ = tx.Rollback(ctx)
-			// TimescaleDB hypertable errors are non-fatal if the table
-			// is already partitioned.
-			if strings.Contains(err.Error(), "already a hypertable") {
-				// Record the version (with checksum) so we don't retry.
-				if _, err := p.pool.Exec(ctx,
-					`INSERT INTO schema_migrations(version, checksum) VALUES($1, $2) ON CONFLICT DO NOTHING`,
-					version, m.Checksum()); err != nil {
-					return fmt.Errorf("record migration %d (hypertable skip): %w", version, err)
-				}
-				continue
-			}
 			return fmt.Errorf("migration %d: %w\nSQL: %s", version, err, m.SQL)
 		}
 		// Record the version with its checksum (C7).
@@ -347,14 +348,22 @@ func (p *Postgres) RecordMetricsBatch(ctx context.Context, metrics []*models.Met
 }
 
 func (p *Postgres) GetLatestMetrics(ctx context.Context) ([]models.Metric, error) {
+	// One index probe per device on (device_id, timestamp DESC), limited to
+	// recent chunks. DISTINCT ON over all of metrics scanned every chunk, so
+	// its cost grew with total history (B17). Devices with no poll in the
+	// last 7 days are stale and omitted.
 	rows, err := p.pool.Query(ctx, `
-		SELECT DISTINCT ON (m.device_id)
-		    m.id, m.device_id, m.timestamp, m.status, m.response_time, m.packet_loss,
-		    m.cpu_usage, m.memory_usage, m.bandwidth, m.custom_value, m.details,
-		    d.protocol, d.name
-		FROM metrics m
-		INNER JOIN devices d ON d.id = m.device_id
-		ORDER BY m.device_id, m.timestamp DESC`)
+		SELECT m.id, m.device_id, m.timestamp, m.status, m.response_time, m.packet_loss,
+		       m.cpu_usage, m.memory_usage, m.bandwidth, m.custom_value, m.details,
+		       d.protocol, d.name
+		FROM devices d
+		CROSS JOIN LATERAL (
+		    SELECT * FROM metrics m
+		    WHERE m.device_id = d.id AND m.timestamp > NOW() - INTERVAL '7 days'
+		    ORDER BY m.timestamp DESC
+		    LIMIT 1
+		) m
+		ORDER BY d.id`)
 	if err != nil {
 		return nil, err
 	}
@@ -951,69 +960,81 @@ func scanDashboards(rows pgx.Rows) ([]models.Dashboard, error) {
 
 // ── Retention ─────────────────────────────────────────────────────────────────
 
-func (p *Postgres) PruneMetrics(ctx context.Context, olderThan time.Time) (int64, error) {
-	dur := time.Since(olderThan)
-	if dur < 0 {
-		return 0, nil
+// baselineFields lists the metric columns that get anomaly baselines.
+var baselineFields = []string{"response_time", "packet_loss", "cpu_usage", "memory_usage", "bandwidth"}
+
+// GetMetricBaselines aggregates the window in one pass in the database
+// instead of shipping every raw row (including details JSONB) to Go for each
+// device (B18).
+func (p *Postgres) GetMetricBaselines(ctx context.Context, since time.Time) ([]MetricBaseline, error) {
+	var cols strings.Builder
+	for _, f := range baselineFields {
+		fmt.Fprintf(&cols, ", count(%[1]s), COALESCE(avg(%[1]s), 0), COALESCE(stddev_pop(%[1]s), 0)", f)
 	}
-	if p.hasTimescaleDB {
-		t, err := p.pool.Exec(ctx,
-			`SELECT drop_chunks('metrics', older_than => $1::interval)`,
-			dur.String())
-		if err == nil {
-			return t.RowsAffected(), nil
+	rows, err := p.pool.Query(ctx, `
+		SELECT m.device_id`+cols.String()+`
+		FROM metrics m
+		JOIN devices d ON d.id = m.device_id AND d.enabled
+		WHERE m.timestamp > $1
+		GROUP BY m.device_id`, since) //nolint:gosec // columns come from the constant baselineFields list
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []MetricBaseline
+	n := len(baselineFields)
+	counts := make([]int, n)
+	means := make([]float64, n)
+	stddevs := make([]float64, n)
+	dest := make([]any, 0, 1+3*n)
+	var deviceID int64
+	dest = append(dest, &deviceID)
+	for i := range baselineFields {
+		dest = append(dest, &counts[i], &means[i], &stddevs[i])
+	}
+	for rows.Next() {
+		if err := rows.Scan(dest...); err != nil {
+			return nil, err
+		}
+		for i, f := range baselineFields {
+			if counts[i] > 0 {
+				out = append(out, MetricBaseline{DeviceID: deviceID, Field: f, Mean: means[i], StdDev: stddevs[i], Count: counts[i]})
+			}
 		}
 	}
-	// Batch the DELETE to avoid a single massive transaction that locks
-	// rows and spikes WAL (M35 — previously one unbounded DELETE).
-	var total int64
-	const batchSize = 10000
-	for {
-		t, err := p.pool.Exec(ctx,
-			`DELETE FROM metrics WHERE ctid IN (SELECT ctid FROM metrics WHERE timestamp < $1 LIMIT $2)`,
-			olderThan, batchSize)
-		if err != nil {
-			return total, err
-		}
-		n := t.RowsAffected()
-		total += n
-		if n < batchSize {
-			break
-		}
-	}
-	return total, nil
+	return out, rows.Err()
 }
 
-func (p *Postgres) PruneFlows(ctx context.Context, olderThan time.Time) (int64, error) {
-	dur := time.Since(olderThan)
-	if dur < 0 {
-		return 0, nil
-	}
-	if p.hasTimescaleDB {
-		t, err := p.pool.Exec(ctx,
-			`SELECT drop_chunks('flows', older_than => $1::interval)`,
-			dur.String())
-		if err == nil {
-			return t.RowsAffected(), nil
-		}
-	}
-	// Batch the DELETE to avoid a single massive transaction (M35).
+// pruneBatched deletes rows older than cutoff from a plain table in batches
+// so one sweep never holds a huge transaction (M35).
+func (p *Postgres) pruneBatched(ctx context.Context, query string, cutoff time.Time) (int64, error) {
 	var total int64
 	const batchSize = 10000
 	for {
-		t, err := p.pool.Exec(ctx,
-			`DELETE FROM flows WHERE ctid IN (SELECT ctid FROM flows WHERE created_at < $1 LIMIT $2)`,
-			olderThan, batchSize)
+		t, err := p.pool.Exec(ctx, query, cutoff, batchSize)
 		if err != nil {
 			return total, err
 		}
 		n := t.RowsAffected()
 		total += n
 		if n < batchSize {
-			break
+			return total, nil
 		}
 	}
-	return total, nil
+}
+
+func (p *Postgres) PruneHealthScoreHistory(ctx context.Context, olderThan time.Time) (int64, error) {
+	return p.pruneBatched(ctx,
+		`DELETE FROM health_score_history WHERE id IN (SELECT id FROM health_score_history WHERE computed_at < $1 LIMIT $2)`,
+		olderThan)
+}
+
+// PruneCaptureSessions deletes finished capture sessions; their packets go
+// with them via ON DELETE CASCADE.
+func (p *Postgres) PruneCaptureSessions(ctx context.Context, olderThan time.Time) (int64, error) {
+	return p.pruneBatched(ctx,
+		`DELETE FROM capture_sessions WHERE id IN (SELECT id FROM capture_sessions WHERE status <> 'running' AND started_at < $1 LIMIT $2)`,
+		olderThan)
 }
 
 func (p *Postgres) PruneAlerts(ctx context.Context, olderThan time.Time) (int64, error) {
@@ -1034,8 +1055,8 @@ func (p *Postgres) GetDashboardStats(ctx context.Context) (map[string]any, error
 			(SELECT COUNT(*) FROM devices WHERE status='up'),
 			(SELECT COUNT(*) FROM devices WHERE status='down'),
 			(SELECT COUNT(*) FROM alerts WHERE status='active'),
-			(SELECT COUNT(*) FROM metrics WHERE timestamp > $1),
-			(SELECT AVG(response_time) FROM metrics WHERE timestamp > $1)
+			(SELECT COALESCE(SUM(samples), 0) FROM metrics_hourly WHERE bucket >= date_trunc('hour', $1::timestamptz)),
+			(SELECT SUM(rt_sum) / NULLIF(SUM(rt_count), 0) FROM metrics_hourly WHERE bucket >= date_trunc('hour', $1::timestamptz))
 	`, since).Scan(&totalDevices, &onlineDevices, &offlineDevices, &activeAlerts, &totalMetrics24h, &avgRT)
 	if err != nil {
 		return nil, fmt.Errorf("dashboard_stats query failed: %w", err)

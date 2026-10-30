@@ -11,9 +11,7 @@ import (
 )
 
 type mockRetDB struct {
-	pruneMetricsFn func(ctx context.Context, olderThan time.Time) (int64, error)
-	pruneFlowsFn   func(ctx context.Context, olderThan time.Time) (int64, error)
-	pruneAlertsFn  func(ctx context.Context, olderThan time.Time) (int64, error)
+	pruneAlertsFn func(ctx context.Context, olderThan time.Time) (int64, error)
 }
 
 func (m *mockRetDB) Connect(ctx context.Context) error                       { return nil }
@@ -218,18 +216,6 @@ func (m *mockRetDB) SaveDashboard(ctx context.Context, d *models.Dashboard) (*mo
 	return nil, nil
 }
 func (m *mockRetDB) DeleteDashboard(ctx context.Context, id int64) error { return nil }
-func (m *mockRetDB) PruneMetrics(ctx context.Context, olderThan time.Time) (int64, error) {
-	if m.pruneMetricsFn != nil {
-		return m.pruneMetricsFn(ctx, olderThan)
-	}
-	return 0, nil
-}
-func (m *mockRetDB) PruneFlows(ctx context.Context, olderThan time.Time) (int64, error) {
-	if m.pruneFlowsFn != nil {
-		return m.pruneFlowsFn(ctx, olderThan)
-	}
-	return 0, nil
-}
 func (m *mockRetDB) PruneAlerts(ctx context.Context, olderThan time.Time) (int64, error) {
 	if m.pruneAlertsFn != nil {
 		return m.pruneAlertsFn(ctx, olderThan)
@@ -286,14 +272,14 @@ func (m *mockRetDB) GetRolePermissions(ctx context.Context, roleID int64) ([]str
 func TestNew(t *testing.T) {
 	t.Parallel()
 	db := &mockRetDB{}
-	s := New(db, 30, 7, 90)
+	s := New(db, Config{AlertsDays: 90})
 	require.NotNil(t, s)
 }
 
 func TestScheduler_StartStop(t *testing.T) {
 	t.Parallel()
 	db := &mockRetDB{}
-	s := New(db, 30, 7, 90)
+	s := New(db, Config{AlertsDays: 90})
 	ctx, cancel := context.WithCancel(context.Background())
 	s.Start(ctx)
 	time.Sleep(10 * time.Millisecond)
@@ -304,6 +290,18 @@ func TestScheduler_StartStop(t *testing.T) {
 func TestScheduler_Stop_BeforeStart(t *testing.T) {
 	t.Parallel()
 	db := &mockRetDB{}
-	s := New(db, 30, 7, 90)
+	s := New(db, Config{AlertsDays: 90})
 	s.Stop()
+}
+
+func (m *mockRetDB) PruneHealthScoreHistory(ctx context.Context, olderThan time.Time) (int64, error) {
+	return 0, nil
+}
+
+func (m *mockRetDB) PruneCaptureSessions(ctx context.Context, olderThan time.Time) (int64, error) {
+	return 0, nil
+}
+
+func (m *mockRetDB) GetMetricBaselines(ctx context.Context, since time.Time) ([]database.MetricBaseline, error) {
+	return nil, nil
 }

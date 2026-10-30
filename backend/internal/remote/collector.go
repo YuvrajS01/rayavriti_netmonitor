@@ -35,18 +35,17 @@ type Collector struct {
 	store         *Store
 	hub           *websocket.Hub
 	timeout       time.Duration
-	retentionDays int
 	cancel        context.CancelFunc
 	wg            sync.WaitGroup
 	maxConcurrent int
 }
 
-func NewCollector(store *Store, hub *websocket.Hub, timeout time.Duration, retentionDays int, maxConcurrent ...int) *Collector {
+func NewCollector(store *Store, hub *websocket.Hub, timeout time.Duration, maxConcurrent ...int) *Collector {
 	cc := 10
 	if len(maxConcurrent) > 0 && maxConcurrent[0] > 0 {
 		cc = maxConcurrent[0]
 	}
-	return &Collector{store: store, hub: hub, timeout: timeout, retentionDays: retentionDays, maxConcurrent: cc}
+	return &Collector{store: store, hub: hub, timeout: timeout, maxConcurrent: cc}
 }
 func (c *Collector) Start(ctx context.Context) {
 	if c == nil {
@@ -96,10 +95,7 @@ func (c *Collector) poll(ctx context.Context) {
 		}(instance)
 	}
 	wg.Wait()
-
-	if c.retentionDays > 0 {
-		_ = c.store.PruneSnapshots(ctx, c.retentionDays)
-	}
+	// remote_snapshots retention is a TimescaleDB policy (see main).
 }
 func (c *Collector) client(skip bool) *http.Client {
 	if skip {

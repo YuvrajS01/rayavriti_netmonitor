@@ -2,12 +2,11 @@ package engine
 
 import (
 	"context"
-	"math"
+	"log/slog"
 	"sync"
 	"time"
 
 	"github.com/rayavriti/netmonitor-backend/internal/database"
-	"github.com/rayavriti/netmonitor-backend/internal/models"
 )
 
 type BaselineCache struct {
@@ -65,89 +64,30 @@ func (c *BaselineCache) Prune(activeDeviceIDs map[int64]bool) {
 	}
 }
 
+// minBaselineSamples is the fewest observations a baseline needs to be used.
+const minBaselineSamples = 10
+
+// RefreshBaselines recomputes 24h baselines for every enabled device with a
+// single aggregate query (B18: previously one full-row query per device).
 func (c *BaselineCache) RefreshBaselines(ctx context.Context, db database.Database) {
-	devices, err := db.GetEnabledDevices(ctx)
+	baselines, err := db.GetMetricBaselines(ctx, time.Now().Add(-24*time.Hour))
 	if err != nil {
+		slog.Warn("baseline refresh failed", "error", err)
 		return
 	}
-
-	activeIDs := make(map[int64]bool, len(devices))
-	since := time.Now().Add(-24 * time.Hour)
-	fields := []string{"response_time", "packet_loss", "cpu_usage", "memory_usage", "bandwidth"}
-
-	for i := range devices {
-		activeIDs[devices[i].ID] = true
-		metrics, err := db.GetMetricsSince(ctx, devices[i].ID, since)
-		if err != nil || len(metrics) < 10 {
+	activeIDs := make(map[int64]bool)
+	for _, b := range baselines {
+		activeIDs[b.DeviceID] = true
+		if b.Count < minBaselineSamples {
 			continue
 		}
-		// Cap the number of rows processed to avoid memory spikes on
-		// devices with very high polling frequency.
-		if len(metrics) > 5000 {
-			metrics = metrics[len(metrics)-5000:]
+		stddev := b.StdDev
+		if stddev < 1e-9 {
+			stddev = 1e-9
 		}
-		for _, field := range fields {
-			floats := extractField(metrics, field)
-			if len(floats) < 10 {
-				continue
-			}
-			mean, stddev := computeStats(floats)
-			c.Set(devices[i].ID, field, AnomalyBaseline{
-				Mean:        mean,
-				StdDev:      stddev,
-				SampleCount: len(floats),
-			})
-		}
+		c.Set(b.DeviceID, b.Field, AnomalyBaseline{Mean: b.Mean, StdDev: stddev, SampleCount: b.Count})
 	}
-
-	// Remove cache entries for devices that no longer exist.
+	// Remove cache entries for devices that no longer exist or stopped
+	// reporting.
 	c.Prune(activeIDs)
-}
-
-func extractField(metrics []models.Metric, field string) []float64 {
-	var out []float64
-	for _, m := range metrics {
-		var val *float64
-		switch field {
-		case "response_time":
-			val = m.ResponseTime
-		case "packet_loss":
-			val = m.PacketLoss
-		case "cpu_usage":
-			val = m.CPUUsage
-		case "memory_usage":
-			val = m.MemoryUsage
-		case "bandwidth":
-			val = m.Bandwidth
-		}
-		if val != nil {
-			out = append(out, *val)
-		}
-	}
-	return out
-}
-
-func computeStats(values []float64) (mean, stddev float64) {
-	n := float64(len(values))
-	if n == 0 {
-		return 0, 0
-	}
-	sum := 0.0
-	for _, v := range values {
-		sum += v
-	}
-	mean = sum / n
-
-	sumSq := 0.0
-	for _, v := range values {
-		diff := v - mean
-		sumSq += diff * diff
-	}
-	variance := sumSq / n
-	stddev = math.Sqrt(variance)
-
-	if stddev < 1e-9 {
-		stddev = 1e-9
-	}
-	return mean, stddev
 }

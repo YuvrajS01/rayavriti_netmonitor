@@ -131,12 +131,16 @@ func (g *Generator) Generate(ctx context.Context, req GenerateRequest) (*Generat
 }
 
 func (g *Generator) generateAvailability(ctx context.Context, req GenerateRequest) (*GenerateResult, error) {
+	// Read the hourly rollup rather than every raw poll in the period. A
+	// device is available when it answered, including "warning"/"degraded"
+	// (reachable but slow); only "down" counts against uptime.
 	rows, err := g.pool.Query(ctx,
 		`SELECT d.id, d.name, d.ip_address,
-		 COUNT(m.id) as total,
-		 COUNT(m.id) FILTER (WHERE m.status = 'up') as up
+		 COALESCE(SUM(h.samples), 0)::bigint AS total,
+		 COALESCE(SUM(h.up_samples + h.warning_samples), 0)::bigint AS up
 		 FROM devices d
-		 LEFT JOIN metrics m ON m.device_id = d.id AND m.timestamp BETWEEN $1 AND $2
+		 LEFT JOIN metrics_hourly h ON h.device_id = d.id
+		      AND h.bucket >= date_trunc('hour', $1::timestamptz) AND h.bucket < $2
 		 GROUP BY d.id, d.name, d.ip_address
 		 ORDER BY d.name`, req.PeriodFrom, req.PeriodTo)
 	if err != nil {
@@ -383,13 +387,15 @@ func (g *Generator) generateTopOffenders(ctx context.Context, req GenerateReques
 
 func (g *Generator) generatePerformance(ctx context.Context, req GenerateRequest) (*GenerateResult, error) {
 	rows, err := g.pool.Query(ctx,
-		`SELECT to_char(date_trunc('hour', timestamp), 'YYYY-MM-DD"T"HH24:00:00TZH:TZM') AS bucket,
+		`SELECT to_char(bucket, 'YYYY-MM-DD"T"HH24:00:00TZH:TZM'),
 		 COUNT(DISTINCT device_id)::int,
-		 COALESCE(AVG(response_time), 0), COALESCE(AVG(packet_loss), 0),
-		 COALESCE(AVG(cpu_usage), 0), COALESCE(AVG(memory_usage), 0)
-		 FROM metrics
-		 WHERE timestamp BETWEEN $1 AND $2
-		 GROUP BY date_trunc('hour', timestamp) ORDER BY date_trunc('hour', timestamp)`, req.PeriodFrom, req.PeriodTo)
+		 COALESCE(SUM(rt_sum) / NULLIF(SUM(rt_count), 0), 0),
+		 COALESCE(SUM(loss_sum) / NULLIF(SUM(loss_count), 0), 0),
+		 COALESCE(SUM(cpu_sum) / NULLIF(SUM(cpu_count), 0), 0),
+		 COALESCE(SUM(mem_sum) / NULLIF(SUM(mem_count), 0), 0)
+		 FROM metrics_hourly
+		 WHERE bucket >= date_trunc('hour', $1::timestamptz) AND bucket < $2
+		 GROUP BY bucket ORDER BY bucket`, req.PeriodFrom, req.PeriodTo)
 	if err != nil {
 		return nil, fmt.Errorf("query performance: %w", err)
 	}
