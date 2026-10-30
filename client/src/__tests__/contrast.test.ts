@@ -68,9 +68,11 @@ describe.each([
     expect(contrastRatio(color(fg), color(bg))).toBeGreaterThanOrEqual(min);
   });
 
-  // Tinted chips: status text on a 12% wash of itself over a card.
-  it.each(STATUSES)('%s text on its own 12% chip ≥ 4.5:1', (status) => {
-    const chip = mix(color(status), color('surface-1'), 0.12);
+  // Tinted chips (StatusPill): status text on a 12% wash of itself, over a
+  // card or a nested panel.
+  const chipCases = STATUSES.flatMap((status) => ['surface-1', 'surface-2'].map((surface) => [status, surface] as const));
+  it.each(chipCases)('%s chip text over %s ≥ 4.5:1', (status, surface) => {
+    const chip = mix(color(status), color(surface), 0.12);
     expect(contrastRatio(color(status), chip)).toBeGreaterThanOrEqual(4.5);
   });
 

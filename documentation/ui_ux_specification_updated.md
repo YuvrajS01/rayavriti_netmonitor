@@ -63,7 +63,7 @@ Tokens are Tailwind v4 `@theme` variables. The dark values sit in `@theme`. `:ro
 |---|---|---|---|
 | `canvas` | `#0B0F0D` | `#F5F7F6` | Page background, header, sidebar |
 | `surface-1` | `#121815` | `#FFFFFF` | Cards, panels, dialogs |
-| `surface-2` | `#19211D` | `#EEF2F0` | Hover, nested panels, tooltips, selected rows |
+| `surface-2` | `#19211D` | `#F1F4F2` | Hover, nested panels, tooltips, selected rows |
 | `surface-3` | `#212A25` | `#E2E8E5` | Pressed or selected controls, chips, gauge tracks |
 | `inset` | `#0B0F0D` | `#F5F7F6` | Inputs and recessed wells inside cards |
 | `line` | `#2E3832` | `#D3DBD7` | Structural borders and dividers. Always solid, never alpha |
@@ -85,12 +85,12 @@ Tokens are Tailwind v4 `@theme` variables. The dark values sit in `@theme`. `:ro
 
 | Status | Dark | Light | Shape | Icon | Label |
 |---|---|---|---|---|---|
-| up | `#2DD4BF` | `#0F7A45` | ● circle | `check_circle` | Up |
-| warning | `#F5B83D` | `#945600` | ▲ triangle | `warning` | Warning |
-| down | `#F4626A` | `#C02A26` | ■ square | `dangerous` | Down |
+| up | `#2DD4BF` | `#0B6E3D` | ● circle | `check_circle` | Up |
+| warning | `#F5B83D` | `#8A4F00` | ▲ triangle | `warning` | Warning |
+| down | `#F4626A` | `#B42622` | ■ square | `dangerous` | Down |
 | unknown | `#9AA4B2` | `#5B6472` | ? (ring) | `help` | Unknown |
-| maintenance | `#A78BFA` | `#6D4FD8` | ‖ pause | `pause_circle` | Maintenance |
-| info | `#60A5FA` | `#1D63C9` | – dash | `info` | Info |
+| maintenance | `#A78BFA` | `#6046C8` | ‖ pause | `pause_circle` | Maintenance |
+| info | `#60A5FA` | `#1A58B4` | – dash | `info` | Info |
 
 - **Text on a solid status fill.** `on-status` is `#0B0F0D` in dark and `#FFFFFF` in light.
 - **Feedback aliases.** `success` maps to up, `error` to down, `warning` and `info` to themselves. These are for form errors, toasts and destructive buttons.
@@ -128,7 +128,7 @@ A series coloured by status (for example up and down counts) uses `statusColorVa
 | Every status colour as text on those surfaces | 4.5:1 |
 | `primary` on surfaces | 4.5:1 |
 | `on-primary` on `primary`, and `on-status` on every status fill (solid danger button, solid pills) | 4.5:1 |
-| Status text on its own 12% chip wash | 4.5:1 |
+| Status text on its own 12% chip wash over `surface-1` and `surface-2` | 4.5:1 |
 | `focus` ring and chart slots on `surface-1` | 3:1 |
 
 Current values:
@@ -138,12 +138,12 @@ Current values:
 | `fg` on `surface-1` | 15.02 | 17.65 |
 | `fg-muted` on `surface-1` | 7.93 | 7.55 |
 | `fg-subtle` on `surface-1` | 5.08 | 5.40 |
-| `fg-subtle` on `surface-2` | 4.65 | 4.78 |
+| `fg-subtle` on `surface-2` | 4.65 | 4.87 |
 | `primary` on `surface-1` | 13.37 | 8.56 |
-| `on-status` on `status-down` (danger button) | 6.25 | 5.83 |
-| `status-down` on `surface-1` | 5.83 | 5.83 |
-| `status-up` on its 12% chip | 7.67 | 4.56 |
-| `status-down` on its 12% chip | 5.04 | 4.80 |
+| `on-status` on `status-down` (danger button) | 6.25 | 6.48 |
+| `status-down` on `surface-1` | 5.83 | 6.48 |
+| `status-up` on its 12% chip | 7.67 | 5.32 |
+| `status-down` on its 12% chip | 5.04 | 5.32 |
 | chart slots on `surface-1` (minimum) | 4.82 | 4.31 |
 
 For comparison, v4 had axis and caption text at 2.73:1, error chips at about 3.5:1 and the danger button at 3.48:1.
