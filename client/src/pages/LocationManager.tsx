@@ -1,14 +1,15 @@
-import { useEffect, useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import SectionHeader from '../components/ui/SectionHeader';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import EmptyState from '../components/ui/EmptyState';
 import LocationTree from '../components/LocationTree';
-import { listResources, createResource, updateResource, type ResourceRow } from '../api/resources';
-import { v1 } from '../api/http';
+import type { ResourceRow } from '../api/resources';
 import { getDevices } from '../api/client';
+import { queryKeys } from '../api/queryKeys';
+import { useResourceList, useResourceMutations } from '../hooks/useResources';
 import { useToast } from '../components/ui/useToast';
-import type { Device } from '../api/types';
 
 const locationTypes = ['campus', 'building', 'floor', 'room', 'rack', 'zone'] as const;
 
@@ -22,41 +23,30 @@ const emptyForm = {
   enabled: false,
 };
 
+const EMPTY_LOCATIONS: ResourceRow[] = [];
+
 export default function LocationManager() {
   const { addToast } = useToast();
-  const [locations, setLocations] = useState<ResourceRow[]>([]);
   const [selected, setSelected] = useState<ResourceRow | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [isCreating, setIsCreating] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [devices, setDevices] = useState<Device[]>([]);
 
-  const loadData = async () => {
-    setLoading(true);
-    try {
-      const res = await listResources('/locations');
-      setLocations(res.data || []);
-    } catch {
-      setLocations([]);
-    }
-    setLoading(false);
-  };
+  const locationsQuery = useResourceList('/locations');
+  const locations = locationsQuery.data ?? EMPTY_LOCATIONS;
+  const loading = locationsQuery.isPending;
+  const { save, remove } = useResourceMutations('/locations');
+  const saving = save.isPending;
 
-  useEffect(() => {
-    let active = true;
-    (async () => {
-      setLoading(true);
-      try {
-        const res = await listResources('/locations');
-        if (active) setLocations(res.data || []);
-      } catch {
-        if (active) setLocations([]);
-      }
-      if (active) setLoading(false);
-    })();
-    return () => { active = false; };
-  }, []);
+  const selectedId = selected ? Number(selected.id) : null;
+  const devicesQuery = useQuery({
+    queryKey: queryKeys.devices.list(),
+    queryFn: ({ signal }) => getDevices({ signal }),
+    enabled: selectedId != null,
+  });
+  const devices = useMemo(
+    () => (selectedId == null ? [] : (devicesQuery.data?.data || []).filter((d) => d.locationId === selectedId)),
+    [devicesQuery.data, selectedId],
+  );
 
   const handleSelect = useCallback((loc: ResourceRow) => {
     setSelected(loc);
@@ -70,10 +60,6 @@ export default function LocationManager() {
       floor_number: loc.floor_number != null ? String(loc.floor_number) : '',
       enabled: loc.enabled !== false,
     });
-    getDevices().then((res) => {
-      const all = res.data || [];
-      setDevices(all.filter((d) => d.locationId === Number(loc.id)));
-    }).catch(() => setDevices([]));
   }, []);
 
   const handleNew = useCallback(() => {
@@ -82,53 +68,45 @@ export default function LocationManager() {
     setForm({ ...emptyForm, parent_id: '' });
   }, []);
 
-  const handleSave = async () => {
+  const handleSave = () => {
     if (!form.name.trim()) {
       addToast('Name is required', 'error');
       return;
     }
-    setSaving(true);
-    try {
-      const payload: Record<string, unknown> = {
-        name: form.name.trim(),
-        type: form.type,
-        code: form.code.trim() || null,
-        parent_id: form.parent_id ? Number(form.parent_id) : null,
-        description: form.description.trim(),
-        floor_number: form.floor_number ? Number(form.floor_number) : null,
-        enabled: form.enabled,
-      };
-
-      if (isCreating) {
-        await createResource('/locations', payload);
-        addToast('Location created', 'success');
-      } else if (selected) {
-        await updateResource('/locations', Number(selected.id), payload);
-        addToast('Location updated', 'success');
-      }
-      await loadData();
-      if (isCreating) {
-        setIsCreating(false);
-        setForm(emptyForm);
-      }
-    } catch (err) {
-      addToast(err instanceof Error ? err.message : 'Save failed', 'error');
-    }
-    setSaving(false);
+    const payload: Record<string, unknown> = {
+      name: form.name.trim(),
+      type: form.type,
+      code: form.code.trim() || null,
+      parent_id: form.parent_id ? Number(form.parent_id) : null,
+      description: form.description.trim(),
+      floor_number: form.floor_number ? Number(form.floor_number) : null,
+      enabled: form.enabled,
+    };
+    if (!isCreating && !selected) return;
+    const creating = isCreating;
+    save.mutate({ id: creating ? undefined : Number(selected?.id), body: payload }, {
+      onSuccess: () => {
+        addToast(creating ? 'Location created' : 'Location updated', 'success');
+        if (creating) {
+          setIsCreating(false);
+          setForm(emptyForm);
+        }
+      },
+      onError: (err) => addToast(err instanceof Error ? err.message : 'Save failed', 'error'),
+    });
   };
 
-  const handleDelete = async () => {
+  const handleDelete = () => {
     if (!selected) return;
     if (!window.confirm(`Delete "${selected.name}"? Children will be moved to its parent.`)) return;
-    try {
-      await v1.delete(`/locations/${selected.id}`);
-      addToast('Location deleted', 'success');
-      setSelected(null);
-      setForm(emptyForm);
-      await loadData();
-    } catch (err) {
-      addToast(err instanceof Error ? err.message : 'Delete failed', 'error');
-    }
+    remove.mutate(Number(selected.id), {
+      onSuccess: () => {
+        addToast('Location deleted', 'success');
+        setSelected(null);
+        setForm(emptyForm);
+      },
+      onError: (err) => addToast(err instanceof Error ? err.message : 'Delete failed', 'error'),
+    });
   };
 
   // Parent options (exclude self and descendants for editing).
@@ -325,7 +303,6 @@ export default function LocationManager() {
                     setIsCreating(false);
                     setSelected(null);
                     setForm(emptyForm);
-                    setDevices([]);
                   }}
                 >
                   Cancel

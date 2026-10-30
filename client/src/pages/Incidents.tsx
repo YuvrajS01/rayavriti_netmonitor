@@ -1,8 +1,8 @@
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { v1, wrap } from '../api/http';
-import { useSocket } from '../hooks/useSocket';
-import { useAsyncEffect } from '../hooks/useAsyncEffect';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { createIncident, getIncidentStats, getIncidents, runIncidentAction, type Incident, type IncidentAction, type IncidentStats } from '../api/incidents';
+import { queryKeys } from '../api/queryKeys';
 import SectionHeader from '../components/ui/SectionHeader';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
@@ -12,38 +12,7 @@ import { useToast } from '../components/ui/useToast';
 import { severityIcon, severityTextColor, severityBgColor, statusTextColor } from '../utils/colors';
 import GanttTimeline from '../components/charts/GanttTimeline';
 
-interface Incident {
-  id: number;
-  title: string;
-  description: string;
-  severity: string;
-  status: string;
-  source: string;
-  assigned_to: number | null;
-  location_id: number | null;
-  impact_description: string;
-  affected_device_count: number;
-  started_at: string;
-  acknowledged_at: string | null;
-  resolved_at: string | null;
-  closed_at: string | null;
-  duration_seconds: number | null;
-  sla_breached: boolean;
-  root_cause: string | null;
-  resolution: string | null;
-}
-
-interface IncidentStats {
-  open: number;
-  acknowledged: number;
-  resolved: number;
-  closed: number;
-  sla_breached: number;
-  total: number;
-  avg_duration_seconds: number | null;
-  avg_response_seconds: number | null;
-}
-
+const EMPTY_INCIDENTS: Incident[] = [];
 const SEVERITIES = ['critical', 'major', 'minor', 'info'] as const;
 const STATUSES = ['open', 'acknowledged', 'resolved', 'closed'] as const;
 
@@ -68,56 +37,27 @@ function timeAgo(ts: string | null): string {
 export default function Incidents() {
   const navigate = useNavigate();
   const { addToast } = useToast();
-  const [incidents, setIncidents] = useState<Incident[]>([]);
-  const [stats, setStats] = useState<IncidentStats | null>(null);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [severityFilter, setSeverityFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [showCreate, setShowCreate] = useState(false);
   const [createForm, setCreateForm] = useState({ title: '', description: '', severity: 'minor', impact_description: '' });
-  const [submitting, setSubmitting] = useState(false);
 
-  const load = async () => {
-    setLoading(true);
-    const [listRes, statsRes] = await Promise.all([
-      v1.get('/incidents'),
-      v1.get('/incidents/stats').catch(() => ({ data: null })),
-    ]);
-    setIncidents(wrap<Incident[]>(listRes.data).data || []);
-    if (statsRes.data) setStats(wrap<IncidentStats>(statsRes.data).data);
-    setLoading(false);
-  };
-
-  useAsyncEffect(async (signal) => {
-    setLoading(true);
-    try {
-      const [listRes, statsRes] = await Promise.all([
-        v1.get('/incidents'),
-        v1.get('/incidents/stats').catch(() => ({ data: null })),
-      ]);
-      if (!signal.aborted) setIncidents(wrap<Incident[]>(listRes.data).data || []);
-      if (!signal.aborted && statsRes.data) setStats(wrap<IncidentStats>(statsRes.data).data);
-    } catch {
-      if (!signal.aborted) {
-        setIncidents([]);
-        setStats(null);
-      }
-    }
-    if (!signal.aborted) setLoading(false);
-  }, []);
-
-  const lastRefresh = useRef(0);
-  useSocket({
-    onAlertTriggered: () => {
-      const now = Date.now();
-      if (now - lastRefresh.current > 10_000) { lastRefresh.current = now; load(); }
-    },
-    onAlertResolved: () => {
-      const now = Date.now();
-      if (now - lastRefresh.current > 10_000) { lastRefresh.current = now; load(); }
-    },
+  // Invalidated on alert WebSocket events by useLiveQueryBridge.
+  const incidentsQuery = useQuery({
+    queryKey: queryKeys.incidents.list(),
+    queryFn: ({ signal }) => getIncidents({ signal }),
   });
+  const statsQuery = useQuery({
+    queryKey: queryKeys.incidents.stats(),
+    queryFn: ({ signal }) => getIncidentStats({ signal }),
+  });
+  const loading = incidentsQuery.isPending;
+  const incidents = incidentsQuery.data?.data || EMPTY_INCIDENTS;
+  const stats: IncidentStats | null = statsQuery.data?.data ?? null;
+
+  const refresh = () => queryClient.invalidateQueries({ queryKey: queryKeys.incidents.all });
 
   const filtered = useMemo(() => {
     const needle = search.trim().toLowerCase();
@@ -129,50 +69,32 @@ export default function Incidents() {
     });
   }, [incidents, search, severityFilter, statusFilter]);
 
-  const handleCreate = async () => {
-    setSubmitting(true);
-    try {
-      await v1.post('/incidents', createForm);
+  const createMutation = useMutation({
+    mutationFn: (body: typeof createForm) => createIncident(body),
+    onSuccess: () => {
       addToast('Incident created', 'success');
       setShowCreate(false);
       setCreateForm({ title: '', description: '', severity: 'minor', impact_description: '' });
-      await load();
-    } catch (err) {
-      addToast(err instanceof Error ? err.message : 'Create failed', 'error');
-    } finally {
-      setSubmitting(false);
-    }
-  };
+      return refresh();
+    },
+    onError: (err) => addToast(err instanceof Error ? err.message : 'Create failed', 'error'),
+  });
+  const submitting = createMutation.isPending;
 
-  const handleAcknowledge = async (id: number) => {
-    try {
-      await v1.post(`/incidents/${id}/acknowledge`);
-      addToast('Incident acknowledged', 'success');
-      await load();
-    } catch (err) {
-      addToast(err instanceof Error ? err.message : 'Failed', 'error');
-    }
-  };
+  const actionMutation = useMutation({
+    mutationFn: ({ id, action, body }: { id: number; action: IncidentAction; body?: Record<string, unknown>; done: string }) =>
+      runIncidentAction(id, action, body),
+    onSuccess: (_res, { done }) => {
+      addToast(done, 'success');
+      return refresh();
+    },
+    onError: (err) => addToast(err instanceof Error ? err.message : 'Failed', 'error'),
+  });
 
-  const handleResolve = async (id: number) => {
-    try {
-      await v1.post(`/incidents/${id}/resolve`, { resolution: 'Resolved via dashboard' });
-      addToast('Incident resolved', 'success');
-      await load();
-    } catch (err) {
-      addToast(err instanceof Error ? err.message : 'Failed', 'error');
-    }
-  };
-
-  const handleClose = async (id: number) => {
-    try {
-      await v1.post(`/incidents/${id}/close`);
-      addToast('Incident closed', 'success');
-      await load();
-    } catch (err) {
-      addToast(err instanceof Error ? err.message : 'Failed', 'error');
-    }
-  };
+  const handleCreate = () => createMutation.mutate(createForm);
+  const handleAcknowledge = (id: number) => actionMutation.mutate({ id, action: 'acknowledge', done: 'Incident acknowledged' });
+  const handleResolve = (id: number) => actionMutation.mutate({ id, action: 'resolve', body: { resolution: 'Resolved via dashboard' }, done: 'Incident resolved' });
+  const handleClose = (id: number) => actionMutation.mutate({ id, action: 'close', done: 'Incident closed' });
 
   return (
     <div className="space-y-8">

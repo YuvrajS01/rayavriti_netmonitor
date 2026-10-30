@@ -1,56 +1,29 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef } from 'react';
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip, Legend } from 'recharts';
-import { v1, wrap } from '../api/http';
+import { useQuery } from '@tanstack/react-query';
+import { getISPLinkSLA, getISPLinkTimeseries, type ISPLink } from '../api/isp';
+import { queryKeys } from '../api/queryKeys';
 import { TOOLTIP_STYLE } from '../utils/chartConfig';
 import { formatMbps } from '../utils/formatters';
-
-export interface ISPLink {
-  id: number;
-  name: string;
-  provider: string;
-  circuit_id: string;
-  bandwidth_mbps: number;
-  gateway_ip: string;
-  sla_uptime_percent: number;
-  cost_monthly: number;
-  monitoring_interval_seconds: number;
-  enabled: boolean;
-}
-
-interface ISPSLA {
-  linkId: number;
-  name: string;
-  provider: string;
-  slaTarget: number | null;
-  actualUptime: number;
-  slaCompliant: boolean;
-  slaGap: number | null;
-  avgLatencyMs: number;
-  avgJitterMs: number;
-  avgPacketLoss: number;
-  totalProbes: number;
-  latestStatus: string;
-}
-
-interface ISPTimeSeriesPoint {
-  timestamp: string;
-  latencyMs: number | null;
-  jitterMs: number | null;
-  packetLoss: number | null;
-  downloadMbps: number | null;
-  uploadMbps: number | null;
-  status: string;
-}
 
 export default function ISPLinkModal({ link, onClose }: { link: ISPLink; onClose: () => void }) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const previousFocus = useRef<HTMLElement | null>(null);
   const onCloseRef = useRef(onClose);
   useEffect(() => { onCloseRef.current = onClose; });
-  const [sla, setSLA] = useState<ISPSLA | null>(null);
-  const [timeSeries, setTimeSeries] = useState<ISPTimeSeriesPoint[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const slaQuery = useQuery({
+    queryKey: queryKeys.isp.sla(link.id),
+    queryFn: ({ signal }) => getISPLinkSLA(link.id, { signal }),
+  });
+  const timeseriesQuery = useQuery({
+    queryKey: queryKeys.isp.timeseries(link.id),
+    queryFn: ({ signal }) => getISPLinkTimeseries(link.id, { signal }),
+  });
+  const loading = slaQuery.isPending || timeseriesQuery.isPending;
+  const failure = slaQuery.error ?? timeseriesQuery.error;
+  const error = failure ? (failure instanceof Error ? failure.message : 'Failed to load ISP data') : null;
+  const sla = slaQuery.data?.data ?? null;
+  const timeSeries = timeseriesQuery.data?.data || [];
 
   useEffect(() => {
     previousFocus.current = document.activeElement as HTMLElement;
@@ -72,23 +45,6 @@ export default function ISPLinkModal({ link, onClose }: { link: ISPLink; onClose
     document.addEventListener('keydown', handleKeyDown);
     return () => { document.removeEventListener('keydown', handleKeyDown); previousFocus.current?.focus(); };
   }, []);
-
-  const loadData = useCallback(async () => {
-    try {
-      const [slaRes, tsRes] = await Promise.all([
-        v1.get(`/isp-links/${link.id}/sla`),
-        v1.get(`/isp-links/${link.id}/metrics/timeseries`),
-      ]);
-      setSLA(wrap<ISPSLA>(slaRes.data).data);
-      setTimeSeries(wrap<ISPTimeSeriesPoint[]>(tsRes.data).data || []);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load ISP data');
-    } finally {
-      setLoading(false);
-    }
-  }, [link.id]);
-
-  useEffect(() => { void Promise.resolve().then(loadData); }, [loadData]);
 
   const chartData = timeSeries.map((p) => ({
     time: new Date(p.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
@@ -136,7 +92,7 @@ export default function ISPLinkModal({ link, onClose }: { link: ISPLink; onClose
             <div className="h-64 flex flex-col items-center justify-center text-error text-sm gap-2">
               <span className="material-symbols-outlined text-3xl">error</span>
               <p>{error}</p>
-              <button onClick={() => { setError(null); setLoading(true); loadData(); }} className="text-xs text-primary hover:underline">Retry</button>
+              <button onClick={() => { void slaQuery.refetch(); void timeseriesQuery.refetch(); }} className="text-xs text-primary hover:underline">Retry</button>
             </div>
           ) : (
             <>

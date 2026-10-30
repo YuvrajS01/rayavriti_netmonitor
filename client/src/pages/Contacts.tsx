@@ -1,5 +1,6 @@
-import { useState, useEffect, useMemo } from 'react';
-import { listResources, createResource, updateResource, type ResourceRow } from '../api/resources';
+import { useState, useMemo } from 'react';
+import type { ResourceRow } from '../api/resources';
+import { useResourceList, useResourceMutations } from '../hooks/useResources';
 import SectionHeader from '../components/ui/SectionHeader';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
@@ -39,37 +40,19 @@ const EMPTY_CONTACT = {
   preferred_channel: 'email', notification_enabled: true, enabled: true,
 };
 
+const EMPTY_CONTACTS: Contact[] = [];
+
 export default function Contacts() {
   const { addToast } = useToast();
-  const [contacts, setContacts] = useState<Contact[]>([]);
-  const [loading, setLoading] = useState(true);
+  const contactsQuery = useResourceList<Contact>('/contacts');
+  const contacts = contactsQuery.data ?? EMPTY_CONTACTS;
+  const loading = contactsQuery.isPending;
   const [search, setSearch] = useState('');
   const [channelFilter, setChannelFilter] = useState('all');
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Contact | null>(null);
   const [form, setForm] = useState<Record<string, unknown>>(EMPTY_CONTACT);
-  const [submitting, setSubmitting] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Contact | null>(null);
-
-  useEffect(() => {
-    let active = true;
-    (async () => {
-      setLoading(true);
-      try {
-        const res = await listResources('/contacts');
-        if (active) setContacts((res.data || []) as Contact[]);
-      } catch {
-        if (active) setContacts([]);
-      }
-      if (active) setLoading(false);
-    })();
-    return () => { active = false; };
-  }, []);
-
-  const load = async () => {
-    const res = await listResources('/contacts');
-    setContacts((res.data || []) as Contact[]);
-  };
 
   const filtered = useMemo(() => {
     const needle = search.trim().toLowerCase();
@@ -90,36 +73,29 @@ export default function Contacts() {
   const openCreate = () => { setEditing(null); setForm(EMPTY_CONTACT); setShowForm(true); };
   const openEdit = (c: Contact) => { setEditing(c); setForm({ ...c }); setShowForm(true); };
 
-  const handleSubmit = async () => {
-    setSubmitting(true);
-    try {
-      if (editing) {
-        await updateResource('/contacts', editing.id, form);
-        addToast('Contact updated', 'success');
-      } else {
-        await createResource('/contacts', form);
-        addToast('Contact created', 'success');
-      }
-      setShowForm(false);
-      await load();
-    } catch (err) {
-      addToast(err instanceof Error ? err.message : 'Save failed', 'error');
-    } finally {
-      setSubmitting(false);
-    }
+  const { save, remove } = useResourceMutations('/contacts');
+  const submitting = save.isPending;
+
+  const handleSubmit = () => {
+    const updating = editing != null;
+    save.mutate({ id: editing?.id, body: form }, {
+      onSuccess: () => {
+        addToast(updating ? 'Contact updated' : 'Contact created', 'success');
+        setShowForm(false);
+      },
+      onError: (err) => addToast(err instanceof Error ? err.message : 'Save failed', 'error'),
+    });
   };
 
-  const handleDelete = async () => {
+  const handleDelete = () => {
     if (!deleteTarget) return;
-    try {
-      const { v1 } = await import('../api/http');
-      await v1.delete(`/contacts/${deleteTarget.id}`);
-      addToast('Contact deleted', 'success');
-      setDeleteTarget(null);
-      await load();
-    } catch (err) {
-      addToast(err instanceof Error ? err.message : 'Delete failed', 'error');
-    }
+    remove.mutate(deleteTarget.id, {
+      onSuccess: () => {
+        addToast('Contact deleted', 'success');
+        setDeleteTarget(null);
+      },
+      onError: (err) => addToast(err instanceof Error ? err.message : 'Delete failed', 'error'),
+    });
   };
 
   return (

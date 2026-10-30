@@ -1,6 +1,6 @@
-import { useState, useEffect, useMemo } from 'react';
-import { listResources, createResource, updateResource, type ResourceRow } from '../api/resources';
-import { v1 } from '../api/http';
+import { useState, useMemo } from 'react';
+import type { ResourceRow } from '../api/resources';
+import { useResourceList, useResourceMutations } from '../hooks/useResources';
 import SectionHeader from '../components/ui/SectionHeader';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
@@ -37,39 +37,19 @@ function nowInRange(start: string | null, end: string | null): boolean {
   return now >= new Date(start).getTime() && now <= new Date(end).getTime();
 }
 
+const EMPTY_WINDOWS: MaintenanceWindow[] = [];
+
 export default function Maintenance() {
   const { addToast } = useToast();
-  const [windows, setWindows] = useState<MaintenanceWindow[]>([]);
-  const [loading, setLoading] = useState(true);
+  const windowsQuery = useResourceList<MaintenanceWindow>('/maintenance');
+  const windows = windowsQuery.data ?? EMPTY_WINDOWS;
+  const loading = windowsQuery.isPending;
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<MaintenanceWindow | null>(null);
   const [form, setForm] = useState<Record<string, unknown>>({});
-  const [submitting, setSubmitting] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<MaintenanceWindow | null>(null);
-
-  const load = async () => {
-    setLoading(true);
-    const res = await listResources('/maintenance');
-    setWindows((res.data || []) as MaintenanceWindow[]);
-    setLoading(false);
-  };
-
-  useEffect(() => {
-    let active = true;
-    (async () => {
-      setLoading(true);
-      try {
-        const res = await listResources('/maintenance');
-        if (active) setWindows((res.data || []) as MaintenanceWindow[]);
-      } catch {
-        if (active) setWindows([]);
-      }
-      if (active) setLoading(false);
-    })();
-    return () => { active = false; };
-  }, []);
 
   const filtered = useMemo(() => {
     const needle = search.trim().toLowerCase();
@@ -94,35 +74,29 @@ export default function Maintenance() {
   };
   const openEdit = (w: MaintenanceWindow) => { setEditing(w); setForm({ ...w }); setShowForm(true); };
 
-  const handleSubmit = async () => {
-    setSubmitting(true);
-    try {
-      if (editing) {
-        await updateResource('/maintenance', editing.id, form);
-        addToast('Window updated', 'success');
-      } else {
-        await createResource('/maintenance', form);
-        addToast('Window created', 'success');
-      }
-      setShowForm(false);
-      await load();
-    } catch (err) {
-      addToast(err instanceof Error ? err.message : 'Save failed', 'error');
-    } finally {
-      setSubmitting(false);
-    }
+  const { save, remove } = useResourceMutations('/maintenance');
+  const submitting = save.isPending;
+
+  const handleSubmit = () => {
+    const updating = editing != null;
+    save.mutate({ id: editing?.id, body: form }, {
+      onSuccess: () => {
+        addToast(updating ? 'Window updated' : 'Window created', 'success');
+        setShowForm(false);
+      },
+      onError: (err) => addToast(err instanceof Error ? err.message : 'Save failed', 'error'),
+    });
   };
 
-  const handleDelete = async () => {
+  const handleDelete = () => {
     if (!deleteTarget) return;
-    try {
-      await v1.delete(`/maintenance/${deleteTarget.id}`);
-      addToast('Window deleted', 'success');
-      setDeleteTarget(null);
-      await load();
-    } catch (err) {
-      addToast(err instanceof Error ? err.message : 'Delete failed', 'error');
-    }
+    remove.mutate(deleteTarget.id, {
+      onSuccess: () => {
+        addToast('Window deleted', 'success');
+        setDeleteTarget(null);
+      },
+      onError: (err) => addToast(err instanceof Error ? err.message : 'Delete failed', 'error'),
+    });
   };
 
   return (

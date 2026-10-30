@@ -1,5 +1,7 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { v1, wrap } from '../api/http';
+import { useState, useEffect, useRef } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { backupDownloadUrl, createBackup, deleteBackup, getBackupConfig, getBackups, restoreBackup, uploadBackup, type Backup, type BackupConfig } from '../api/backups';
+import { queryKeys } from '../api/queryKeys';
 import SectionHeader from '../components/ui/SectionHeader';
 import StatCard from '../components/ui/StatCard';
 import Button from '../components/ui/Button';
@@ -7,26 +9,11 @@ import EmptyState from '../components/ui/EmptyState';
 import ConfirmDialog from '../components/ConfirmDialog';
 import { useToast } from '../components/ui/useToast';
 
-interface Backup {
-  id: number;
-  filename: string;
-  size: number;
-  status: 'pending' | 'running' | 'completed' | 'failed';
-  type: 'manual' | 'scheduled';
-  createdAt: string;
-  completedAt?: string;
-  error?: string;
-  checksum?: string;
-  restoredAt?: string;
-  restoredBy?: string;
-}
+const EMPTY_BACKUPS: Backup[] = [];
 
-interface BackupConfig {
-  backupDir: string;
-  maxBackups: number;
-  retentionDays: number;
-  scheduleEnabled: boolean;
-  scheduleCron: string;
+function apiErrorMessage(err: unknown, fallback: string): string {
+  const axiosErr = err as { response?: { data?: { error?: { message?: string } } } };
+  return axiosErr?.response?.data?.error?.message || fallback;
 }
 
 function formatBytes(bytes: number): string {
@@ -66,129 +53,95 @@ function statusIcon(status: Backup['status']): string {
 
 export default function BackupPage() {
   const { addToast } = useToast();
-  const [backups, setBackups] = useState<Backup[]>([]);
-  const [config, setConfig] = useState<BackupConfig | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [creating, setCreating] = useState(false);
+  const queryClient = useQueryClient();
   const [confirmRestore, setConfirmRestore] = useState<Backup | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<Backup | null>(null);
-  const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const fetchBackups = useCallback(async () => {
-    try {
-      const res = await v1.get('/backups');
-      const result = wrap<Backup[]>(res.data);
-      setBackups(result.data);
-    } catch {
-      addToast('Failed to load backups', 'error');
-    }
-  }, [addToast]);
+  // Poll every 3s only while a backup is pending/running (and the tab is visible).
+  const backupsQuery = useQuery({
+    queryKey: queryKeys.backups.list(),
+    queryFn: ({ signal }) => getBackups({ signal }),
+    refetchInterval: (query) =>
+      query.state.data?.data?.some((b) => b.status === 'running' || b.status === 'pending') ? 3000 : false,
+  });
+  // The config endpoint may fail if the backup module isn't initialized.
+  const configQuery = useQuery({
+    queryKey: queryKeys.backups.config(),
+    queryFn: ({ signal }) => getBackupConfig({ signal }),
+    retry: false,
+  });
+  const loading = backupsQuery.isPending || configQuery.isPending;
+  const backups = backupsQuery.data?.data || EMPTY_BACKUPS;
+  const config: BackupConfig | null = configQuery.data?.data ?? null;
 
-  const fetchConfig = useCallback(async () => {
-    try {
-      const res = await v1.get('/backups/config');
-      const result = wrap<BackupConfig>(res.data);
-      setConfig(result.data);
-    } catch {
-      // Config endpoint may fail if backup module isn't initialized
-    }
-  }, []);
-
-  // Initial data load
+  const loadFailedAt = backupsQuery.errorUpdatedAt;
   useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      setLoading(true);
-      await Promise.all([fetchBackups(), fetchConfig()]);
-      if (!cancelled) setLoading(false);
-    }
-    load();
-    return () => { cancelled = true; };
-  }, [fetchBackups, fetchConfig]);
+    if (loadFailedAt) addToast('Failed to load backups', 'error');
+  }, [loadFailedAt, addToast]);
 
-  // Poll for running backups
-  useEffect(() => {
-    const hasRunning = backups.some(b => b.status === 'running' || b.status === 'pending');
-    if (hasRunning && !pollRef.current) {
-      pollRef.current = setInterval(fetchBackups, 3000);
-    } else if (!hasRunning && pollRef.current) {
-      clearInterval(pollRef.current);
-      pollRef.current = null;
-    }
-    return () => {
-      if (pollRef.current) {
-        clearInterval(pollRef.current);
-        pollRef.current = null;
-      }
-    };
-  }, [backups, fetchBackups]);
+  const refreshBackups = () => queryClient.invalidateQueries({ queryKey: queryKeys.backups.list() });
 
-  const handleCreateBackup = async () => {
-    setCreating(true);
-    try {
-      await v1.post('/backups');
+  const createMutation = useMutation({
+    mutationFn: () => createBackup(),
+    onSuccess: () => {
       addToast('Backup started', 'success');
-      await fetchBackups();
-    } catch (err: unknown) {
-      const axiosErr = err as { response?: { data?: { error?: { message?: string } } } };
-      addToast(axiosErr?.response?.data?.error?.message || 'Failed to create backup', 'error');
-    } finally {
-      setCreating(false);
-    }
-  };
+      return refreshBackups();
+    },
+    onError: (err) => addToast(apiErrorMessage(err, 'Failed to create backup'), 'error'),
+  });
+  const creating = createMutation.isPending;
 
-  const handleDownload = (backup: Backup) => {
-    const url = `/api/v1/backups/${backup.id}/download`;
-    window.open(url, '_blank');
-  };
-
-  const handleRestore = async () => {
-    if (!confirmRestore) return;
-    try {
-      await v1.post(`/backups/${confirmRestore.id}/restore`);
+  const restoreMutation = useMutation({
+    mutationFn: (backup: Backup) => restoreBackup(backup.id),
+    onSuccess: () => {
       addToast('Database restored successfully', 'success');
       setConfirmRestore(null);
-      await fetchBackups();
-    } catch (err: unknown) {
-      const axiosErr = err as { response?: { data?: { error?: { message?: string } } } };
-      addToast(axiosErr?.response?.data?.error?.message || 'Restore failed', 'error');
-    }
-  };
+      return refreshBackups();
+    },
+    onError: (err) => addToast(apiErrorMessage(err, 'Restore failed'), 'error'),
+  });
 
-  const handleDelete = async () => {
-    if (!confirmDelete) return;
-    try {
-      await v1.delete(`/backups/${confirmDelete.id}`);
+  const deleteMutation = useMutation({
+    mutationFn: (backup: Backup) => deleteBackup(backup.id),
+    onSuccess: () => {
       addToast('Backup deleted', 'success');
       setConfirmDelete(null);
-      await fetchBackups();
-    } catch (err: unknown) {
-      const axiosErr = err as { response?: { data?: { error?: { message?: string } } } };
-      addToast(axiosErr?.response?.data?.error?.message || 'Failed to delete backup', 'error');
-    }
+      return refreshBackups();
+    },
+    onError: (err) => addToast(apiErrorMessage(err, 'Failed to delete backup'), 'error'),
+  });
+
+  const uploadMutation = useMutation({
+    mutationFn: (file: File) => uploadBackup(file),
+    onSuccess: () => {
+      addToast('Upload and restore completed', 'success');
+      return refreshBackups();
+    },
+    onError: (err) => addToast(apiErrorMessage(err, 'Upload failed'), 'error'),
+    onSettled: () => {
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    },
+  });
+  const uploading = uploadMutation.isPending;
+
+  const handleCreateBackup = () => createMutation.mutate();
+
+  const handleDownload = (backup: Backup) => {
+    window.open(backupDownloadUrl(backup.id), '_blank', 'noopener,noreferrer');
   };
 
-  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleRestore = () => {
+    if (confirmRestore) restoreMutation.mutate(confirmRestore);
+  };
+
+  const handleDelete = () => {
+    if (confirmDelete) deleteMutation.mutate(confirmDelete);
+  };
+
+  const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
-    setUploading(true);
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-      await v1.post('/backups/upload', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
-      addToast('Upload and restore completed', 'success');
-      await fetchBackups();
-    } catch (err: unknown) {
-      const axiosErr = err as { response?: { data?: { error?: { message?: string } } } };
-      addToast(axiosErr?.response?.data?.error?.message || 'Upload failed', 'error');
-    } finally {
-      setUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    }
+    if (file) uploadMutation.mutate(file);
   };
 
   const totalBackups = backups.length;

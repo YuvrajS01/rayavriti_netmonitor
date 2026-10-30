@@ -1,89 +1,50 @@
 import { useState, useEffect } from 'react';
-import { v1, wrap } from '../api/http';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { applyServiceTemplate, getServiceTemplates, type ServiceTemplate } from '../api/serviceTemplates';
+import { queryKeys } from '../api/queryKeys';
 import SectionHeader from '../components/ui/SectionHeader';
 import Card from '../components/ui/Card';
 import EmptyState from '../components/ui/EmptyState';
 import { useToast } from '../components/ui/useToast';
 
-interface TemplateCheck {
-  type: string;
-  name: string;
-  enabled: boolean;
-  interval: number;
-}
-
-interface TemplateAlert {
-  name: string;
-  severity: string;
-  metricField: string;
-  operator: string;
-  value: string;
-}
-
-interface Template {
-  name: string;
-  description: string;
-  category: string;
-  deviceProtocol: string;
-  devicePort: number;
-  deviceCategory: string;
-  checks?: TemplateCheck[] | null;
-  alerts?: TemplateAlert[] | null;
-}
-
-interface ApplyResult {
-  deviceId: number;
-  deviceName: string;
-  sensorIds: number[];
-  ruleIds: number[];
-}
+const EMPTY_TEMPLATES: ServiceTemplate[] = [];
 
 export default function ServiceTemplates() {
   const { addToast } = useToast();
-  const [templates, setTemplates] = useState<Template[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [selected, setSelected] = useState<Template | null>(null);
+  const [selected, setSelected] = useState<ServiceTemplate | null>(null);
   const [applyForm, setApplyForm] = useState({ host: '', name: '', locationId: '' });
-  const [applying, setApplying] = useState(false);
 
+  const templatesQuery = useQuery({
+    queryKey: queryKeys.serviceTemplates.list,
+    queryFn: ({ signal }) => getServiceTemplates({ signal }),
+  });
+  const loading = templatesQuery.isPending;
+  const templates = templatesQuery.data?.data || EMPTY_TEMPLATES;
+
+  const loadFailedAt = templatesQuery.errorUpdatedAt;
   useEffect(() => {
-    let active = true;
-    (async () => {
-      setLoading(true);
-      try {
-        const res = await v1.get('/service-templates');
-        if (active) {
-          const data = wrap<Template[]>(res.data).data;
-          setTemplates(Array.isArray(data) ? data.map((template) => ({
-            ...template,
-            checks: Array.isArray(template.checks) ? template.checks : [],
-            alerts: Array.isArray(template.alerts) ? template.alerts : [],
-          })) : []);
-        }
-      } catch {
-        if (active) addToast('Failed to load templates', 'error');
-      }
-      if (active) setLoading(false);
-    })();
-    return () => { active = false; };
-  }, [addToast]);
+    if (loadFailedAt) addToast('Failed to load templates', 'error');
+  }, [loadFailedAt, addToast]);
 
-  const handleApply = async () => {
-    if (!selected || !applyForm.host) return;
-    setApplying(true);
-    try {
-      const body: Record<string, string | number | boolean> = { template: selected.name, host: applyForm.host };
-      if (applyForm.name) body.name = applyForm.name;
-      if (applyForm.locationId) body.locationId = parseInt(applyForm.locationId);
-      const res = await v1.post('/service-templates/apply', body);
-      const result = wrap<ApplyResult>(res.data).data;
+  const applyMutation = useMutation({
+    mutationFn: (body: Record<string, string | number | boolean>) => applyServiceTemplate(body),
+    onSuccess: ({ data: result }) => {
       addToast(`Created device "${result?.deviceName}" with ${result?.sensorIds?.length || 0} sensors and ${result?.ruleIds?.length || 0} alert rules`, 'success');
       setSelected(null);
       setApplyForm({ host: '', name: '', locationId: '' });
-    } catch (err: unknown) {
+    },
+    onError: (err: unknown) => {
       addToast((err as { response?: { data?: { error?: string } } })?.response?.data?.error || 'Failed to apply template', 'error');
-    }
-    setApplying(false);
+    },
+  });
+  const applying = applyMutation.isPending;
+
+  const handleApply = () => {
+    if (!selected || !applyForm.host) return;
+    const body: Record<string, string | number | boolean> = { template: selected.name, host: applyForm.host };
+    if (applyForm.name) body.name = applyForm.name;
+    if (applyForm.locationId) body.locationId = parseInt(applyForm.locationId);
+    applyMutation.mutate(body);
   };
 
   const categories = [...new Set(templates.map((t) => t.category))].sort();
