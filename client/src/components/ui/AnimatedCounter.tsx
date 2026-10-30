@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 
 export type CounterFormat = 'number' | 'percent' | 'bytes' | 'ms';
 
@@ -24,10 +25,16 @@ function formatValue(value: number, format: CounterFormat, decimals: number) {
 }
 
 export default function AnimatedCounter({ value, format = 'number', duration = 650, className, decimals = 0 }: Props) {
+  const reducedMotion = useReducedMotion();
   const [display, setDisplay] = useState(value);
   const previous = useRef(value);
 
   useEffect(() => {
+    // Reduced motion: no rAF tween; the render below shows `value` directly.
+    if (reducedMotion) {
+      previous.current = value;
+      return;
+    }
     const start = previous.current;
     const startAt = performance.now();
     let frame = 0;
@@ -40,7 +47,7 @@ export default function AnimatedCounter({ value, format = 'number', duration = 6
     };
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
-  }, [value, duration]);
+  }, [value, duration, reducedMotion]);
 
-  return <span className={className}>{formatValue(display, format, decimals)}</span>;
+  return <span className={className}>{formatValue(reducedMotion ? value : display, format, decimals)}</span>;
 }

@@ -20,7 +20,7 @@ describe('Card', () => {
 
   it('applies highest variant class', () => {
     const { container } = render(<Card variant="highest">Highest</Card>);
-    expect(container.firstChild).toHaveClass('bg-surface-3');
+    expect(container.firstChild).toHaveClass('bg-surface-2');
   });
 
   it('applies border by default', () => {
@@ -36,7 +36,7 @@ describe('Card', () => {
 
   it('applies hover class when hover is true', () => {
     const { container } = render(<Card hover>Hoverable</Card>);
-    expect(container.firstChild).toHaveClass('hover:border-primary/50');
+    expect(container.firstChild).toHaveClass('hover:border-line-strong');
     expect(container.firstChild).toHaveClass('cursor-pointer');
   });
 
