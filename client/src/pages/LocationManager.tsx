@@ -10,6 +10,7 @@ import { getDevices } from '../api/client';
 import { queryKeys } from '../api/queryKeys';
 import { useResourceList, useResourceMutations } from '../hooks/useResources';
 import { useToast } from '../components/ui/useToast';
+import { asText } from '../utils/formatters';
 
 const locationTypes = ['campus', 'building', 'floor', 'room', 'rack', 'zone'] as const;
 
@@ -52,12 +53,12 @@ export default function LocationManager() {
     setSelected(loc);
     setIsCreating(false);
     setForm({
-      name: String(loc.name ?? ''),
-      type: String(loc.type ?? 'building'),
-      code: String(loc.code ?? ''),
-      parent_id: loc.parent_id != null ? String(loc.parent_id) : '',
-      description: String(loc.description ?? ''),
-      floor_number: loc.floor_number != null ? String(loc.floor_number) : '',
+      name: asText(loc.name),
+      type: asText(loc.type, 'building'),
+      code: asText(loc.code),
+      parent_id: loc.parent_id != null ? asText(loc.parent_id) : '',
+      description: asText(loc.description),
+      floor_number: loc.floor_number != null ? asText(loc.floor_number) : '',
       enabled: loc.enabled !== false,
     });
   }, []);
@@ -98,7 +99,7 @@ export default function LocationManager() {
 
   const handleDelete = () => {
     if (!selected) return;
-    if (!window.confirm(`Delete "${selected.name}"? Children will be moved to its parent.`)) return;
+    if (!window.confirm(`Delete "${asText(selected.name)}"? Children will be moved to its parent.`)) return;
     remove.mutate(Number(selected.id), {
       onSuccess: () => {
         addToast('Location deleted', 'success');

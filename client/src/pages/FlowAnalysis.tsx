@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   AreaChart, Area, XAxis, YAxis, ResponsiveContainer, Tooltip, Legend,
@@ -17,7 +17,7 @@ const EMPTY_TALKERS: TopTalker[] = [];
 const EMPTY_PROTOCOLS: ProtocolBreakdown[] = [];
 const EMPTY_FLOWS: FlowRecord[] = [];
 import { PROTOCOL_COLORS, CHART_COLORS, TOOLTIP_STYLE, AXIS_TICK_STYLE, LEGEND_STYLE } from '../utils/chartConfig';
-import { formatBytes, formatNumber } from '../utils/formatters';
+import { asText, formatBytes, formatNumber } from '../utils/formatters';
 import StatCard from '../components/ui/StatCard';
 import LoadingState from '../components/ui/LoadingState';
 import ErrorState from '../components/ui/ErrorState';
@@ -130,14 +130,14 @@ export default function FlowAnalysis() {
                     tick={AXIS_TICK_STYLE}
                     tickLine={false}
                     axisLine={false}
-                    tickFormatter={(v) => new Date(v).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    tickFormatter={(v: string) => new Date(v).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     interval="preserveStartEnd"
                   />
                   <YAxis
                     tick={AXIS_TICK_STYLE}
                     tickLine={false}
                     axisLine={false}
-                    tickFormatter={(v) => formatBytes(v)}
+                    tickFormatter={(v: number) => formatBytes(v)}
                     width={60}
                   />
                   <Tooltip
@@ -146,7 +146,7 @@ export default function FlowAnalysis() {
                       name === 'totalBytes' ? formatBytes(Number(value ?? 0)) : formatNumber(Number(value ?? 0)),
                       name === 'totalBytes' ? 'Bytes' : 'Packets'
                     ]}
-                    labelFormatter={(l) => new Date(l).toLocaleString()}
+                    labelFormatter={(l: ReactNode) => new Date(asText(l)).toLocaleString()}
                   />
                   <Legend
                     wrapperStyle={LEGEND_STYLE}
@@ -171,7 +171,7 @@ export default function FlowAnalysis() {
               ) : (
                 <ResponsiveContainer width="100%" height={280}>
                   <BarChart data={topSources} layout="vertical" margin={{ top: 0, right: 8, left: 0, bottom: 0 }}>
-                    <XAxis type="number" tick={{ fill: '#77766d', fontSize: 9 }} tickLine={false} axisLine={false} tickFormatter={(v) => formatBytes(v)} />
+                    <XAxis type="number" tick={{ fill: '#77766d', fontSize: 9 }} tickLine={false} axisLine={false} tickFormatter={(v: number) => formatBytes(v)} />
                     <YAxis type="category" dataKey="ip" tick={{ fill: '#adaba1', fontSize: 10 }} tickLine={false} axisLine={false} width={110} />
                     <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: unknown) => [formatBytes(Number(v ?? 0)), 'Bytes']} />
                     <Bar dataKey="count" fill="#d9fd3a" radius={[0, 4, 4, 0]} barSize={16} />
@@ -190,7 +190,7 @@ export default function FlowAnalysis() {
               ) : (
                 <ResponsiveContainer width="100%" height={280}>
                   <BarChart data={topDestinations} layout="vertical" margin={{ top: 0, right: 8, left: 0, bottom: 0 }}>
-                    <XAxis type="number" tick={{ fill: '#77766d', fontSize: 9 }} tickLine={false} axisLine={false} tickFormatter={(v) => formatBytes(v)} />
+                    <XAxis type="number" tick={{ fill: '#77766d', fontSize: 9 }} tickLine={false} axisLine={false} tickFormatter={(v: number) => formatBytes(v)} />
                     <YAxis type="category" dataKey="ip" tick={{ fill: '#adaba1', fontSize: 10 }} tickLine={false} axisLine={false} width={110} />
                     <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: unknown) => [formatBytes(Number(v ?? 0)), 'Bytes']} />
                     <Bar dataKey="count" fill="#6bb8c9" radius={[0, 4, 4, 0]} barSize={16} />

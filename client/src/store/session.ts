@@ -37,7 +37,7 @@ function createSessionStore(initial: SessionState) {
 
   return {
     getState: () => state,
-    subscribe(listener: Listener) {
+    subscribe: (listener: Listener) => {
       listeners.add(listener);
       return () => { listeners.delete(listener); };
     },

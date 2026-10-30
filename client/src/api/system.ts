@@ -10,7 +10,7 @@ const SYSTEM_INFO_FALLBACK: SystemInfo = {
 };
 
 export const getSystemInfo = ({ signal }: RequestOptions = {}) =>
-  v1.get('/system/info', { signal }).then((r) => {
+  v1.get<unknown>('/system/info', { signal }).then((r) => {
     const raw = r.data;
     const body = raw as Record<string, unknown>;
     const data = body?.data !== undefined ? body.data : body;

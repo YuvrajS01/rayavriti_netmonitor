@@ -9,6 +9,7 @@ import StatCard from '../components/ui/StatCard';
 import EmptyState from '../components/ui/EmptyState';
 import ConfirmDialog from '../components/ConfirmDialog';
 import { useToast } from '../components/ui/useToast';
+import { asText } from '../utils/formatters';
 
 const EMPTY_USERS: ManagedUser[] = [];
 const EMPTY_ROLES: Role[] = [];
@@ -381,19 +382,19 @@ export default function UserManagement() {
             <div className="p-6 space-y-4 flex-1 min-h-0 overflow-y-auto">
               <div>
                 <label className="text-[10px] text-on-surface-variant uppercase tracking-wide block mb-1">Role</label>
-                <select value={String(userForm.role ?? '')} onChange={(e) => setUserForm({ ...userForm, role: e.target.value })} className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary">
+                <select value={asText(userForm.role)} onChange={(e) => setUserForm({ ...userForm, role: e.target.value })} className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary">
                   {roles.length > 0
                     ? roles.map((r) => <option key={r.id} value={r.name}>{r.display_name || r.name}</option>)
-                    : <option value={String(userForm.role ?? 'viewer')}>{String(userForm.role ?? 'Viewer')}</option>}
+                    : <option value={asText(userForm.role, 'viewer')}>{asText(userForm.role, 'Viewer')}</option>}
                 </select>
               </div>
               <div>
                 <label className="text-[10px] text-on-surface-variant uppercase tracking-wide block mb-1">Display Name</label>
-                <input value={String(userForm.display_name ?? '')} onChange={(e) => setUserForm({ ...userForm, display_name: e.target.value })} className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary outline-none" />
+                <input value={asText(userForm.display_name)} onChange={(e) => setUserForm({ ...userForm, display_name: e.target.value })} className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary outline-none" />
               </div>
               <div>
                 <label className="text-[10px] text-on-surface-variant uppercase tracking-wide block mb-1">Email</label>
-                <input value={String(userForm.email ?? '')} onChange={(e) => setUserForm({ ...userForm, email: e.target.value })} className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary outline-none" />
+                <input value={asText(userForm.email)} onChange={(e) => setUserForm({ ...userForm, email: e.target.value })} className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary outline-none" />
               </div>
               <div className="flex items-center gap-3">
                 <input type="checkbox" checked={!!userForm.enabled} onChange={(e) => setUserForm({ ...userForm, enabled: e.target.checked })} className="accent-primary" id="user_enabled" />

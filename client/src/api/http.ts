@@ -79,7 +79,7 @@ const REFRESH_LOCK = 'netmonitor-auth-refresh';
 
 async function performRefresh(): Promise<RefreshResult> {
   const run = async () => {
-    const { data } = await authClient.post('/auth/refresh', {});
+    const { data } = await authClient.post<unknown>('/auth/refresh', {});
     return extractSession(data);
   };
   // The backend rotates refresh tokens and treats concurrent reuse as theft

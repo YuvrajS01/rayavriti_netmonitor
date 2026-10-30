@@ -3,12 +3,12 @@ import type { InsightsResponse, HealthHistoryResponse } from './types';
 
 export const getInsights = ({ signal }: RequestOptions = {}) =>
   v1.get('/insights/current', { signal }).then((r) => ({
-    data: unwrapGoResponse(r.data) as InsightsResponse,
+    data: unwrapGoResponse<InsightsResponse>(r.data),
     success: true,
   }));
 
 export const getInsightsHistory = (hours = 12, { signal }: RequestOptions = {}) =>
   v1.get(`/insights/history?hours=${hours}`, { signal }).then((r) => ({
-    data: unwrapGoResponse(r.data) as HealthHistoryResponse,
+    data: unwrapGoResponse<HealthHistoryResponse>(r.data),
     success: true,
   }));

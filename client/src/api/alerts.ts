@@ -25,7 +25,7 @@ export const getGroupedAlerts = (status?: string, { signal }: RequestOptions = {
 };
 
 export const acknowledgeAlert = (id: number, { signal }: RequestOptions = {}) =>
-  v1.post(`/alerts/${id}/acknowledge`, undefined, { signal }).then((r) => r.data);
+  v1.post(`/alerts/${id}/acknowledge`, undefined, { signal }).then((r): unknown => r.data);
 
 export const resolveAlert = (id: number, { signal }: RequestOptions = {}) =>
-  v1.post(`/alerts/${id}/resolve`, undefined, { signal }).then((r) => r.data);
+  v1.post(`/alerts/${id}/resolve`, undefined, { signal }).then((r): unknown => r.data);

@@ -64,9 +64,9 @@ const params = (filters: LogFilters) =>
   Object.fromEntries(Object.entries(filters).filter(([, v]) => v !== undefined && v !== null && v !== ''));
 
 export const getLogs = (filters: LogFilters, { signal }: RequestOptions = {}) =>
-  v1.get('/system/logs', { params: params(filters), signal }).then((r) => ({
+  v1.get<{ meta?: { total?: number } }>('/system/logs', { params: params(filters), signal }).then((r) => ({
     data: wrap<{ events: LogEvent[] }>(r.data).data.events || [],
-    total: (r.data?.meta?.total as number) || 0,
+    total: r.data?.meta?.total || 0,
   }));
 
 export const getLogStats = (filters: LogFilters, { signal }: RequestOptions = {}) =>
@@ -89,6 +89,6 @@ export const stopVerboseSession = (id: number, { signal }: RequestOptions = {}) 
   v1.post(`/system/logging/verbose-sessions/${id}/stop`, {}, { signal }).then((r) => wrap<{ stopped: boolean }>(r.data));
 
 export const logsExportUrl = (filters: LogFilters) => {
-  const query = new URLSearchParams(params(filters) as Record<string, string>).toString();
+  const query = new URLSearchParams(params(filters)).toString();
   return `/api/v1/system/logs/export${query ? `?${query}` : ''}`;
 };

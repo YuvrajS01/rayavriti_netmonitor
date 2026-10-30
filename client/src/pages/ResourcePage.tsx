@@ -4,6 +4,7 @@ import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import { createResource, getResourceSummary, listResources, type ResourceRow, type ResourceSummary } from '../api/resources';
 import { useToast } from '../components/ui/useToast';
+import { asText } from '../utils/formatters';
 
 export interface ResourcePageConfig {
   title: string;
@@ -21,7 +22,7 @@ function formatKey(key: string) {
 function valueText(value: unknown) {
   if (value == null) return '-';
   if (typeof value === 'object') return JSON.stringify(value);
-  return String(value);
+  return asText(value, '-');
 }
 
 const summaryCards: Array<[keyof ResourceSummary, string, string]> = [
@@ -61,7 +62,7 @@ export default function ResourcePage({ config }: { config: ResourcePageConfig })
 
   useEffect(() => {
     let active = true;
-    (async () => {
+    void (async () => {
       setLoading(true);
       try {
         const [items, counts] = await Promise.all([

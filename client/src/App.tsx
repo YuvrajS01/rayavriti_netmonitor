@@ -81,7 +81,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 function MaintenanceRedirect() {
   const navigate = useNavigate();
   useEffect(() => {
-    setMaintenanceHandler(() => navigate('/system-maintenance'));
+    setMaintenanceHandler(() => { void navigate('/system-maintenance'); });
   }, [navigate]);
   return null;
 }

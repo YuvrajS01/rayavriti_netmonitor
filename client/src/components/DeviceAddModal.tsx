@@ -4,6 +4,7 @@ import type { ResourceRow } from '../api/resources';
 import { useResourceList } from '../hooks/useResources';
 import Button from './ui/Button';
 import { useToast } from './ui/useToast';
+import { asText } from '../utils/formatters';
 
 interface Props {
   open: boolean;
@@ -88,12 +89,12 @@ export default function DeviceAddModal({ open, onClose, onAdded, initialProtocol
       };
 	  if (protocol === 'camera' || protocol === 'biometric') {
 		const monitorConfig: Record<string, string | number> = {
-		  managementScheme: String(fd.get('managementScheme') || 'http'),
-		  managementPath: String(fd.get('managementPath') || '/'),
+		  managementScheme: asText(fd.get('managementScheme')) || 'http',
+		  managementPath: asText(fd.get('managementPath')) || '/',
 		};
 		if (protocol === 'camera') {
 		  monitorConfig.rtspPort = Number(fd.get('rtspPort') || 554);
-		  monitorConfig.rtspPath = String(fd.get('rtspPath') || '/');
+		  monitorConfig.rtspPath = asText(fd.get('rtspPath')) || '/';
 		} else {
 		  monitorConfig.attendancePort = Number(fd.get('attendancePort') || 4370);
 		}

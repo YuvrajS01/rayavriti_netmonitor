@@ -59,7 +59,7 @@ describe('http refresh interceptor', () => {
 
     const results = await Promise.all([v1.get('/a'), v1.get('/b'), v1.get('/c')]);
 
-    expect(results.map((r) => r.data)).toEqual(['/a', '/b', '/c']);
+    expect(results.map((r): unknown => r.data)).toEqual(['/a', '/b', '/c']);
     expect(auth.history.post).toHaveLength(1);
   });
 

@@ -9,6 +9,7 @@ import StatCard from '../components/ui/StatCard';
 import EmptyState from '../components/ui/EmptyState';
 import ConfirmDialog from '../components/ConfirmDialog';
 import { useToast } from '../components/ui/useToast';
+import { asText } from '../utils/formatters';
 
 const EMPTY_SERVICES: StatusService[] = [];
 const EMPTY_INCIDENTS: StatusIncident[] = [];
@@ -188,12 +189,12 @@ export default function StatusPageAdmin() {
               ].map(({ key, label }) => (
                 <div key={key}>
                   <label className="text-[10px] text-on-surface-variant uppercase tracking-wide block mb-1">{label}</label>
-                  <input value={String(serviceForm[key] ?? '')} onChange={(e) => setServiceForm({ ...serviceForm, [key]: e.target.value })} className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary outline-none" />
+                  <input value={asText(serviceForm[key])} onChange={(e) => setServiceForm({ ...serviceForm, [key]: e.target.value })} className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary outline-none" />
                 </div>
               ))}
               <div>
                 <label className="text-[10px] text-on-surface-variant uppercase tracking-wide block mb-1">Aggregation</label>
-                <select value={String(serviceForm.aggregation ?? 'any_down')} onChange={(e) => setServiceForm({ ...serviceForm, aggregation: e.target.value })} className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary">
+                <select value={asText(serviceForm.aggregation, 'any_down')} onChange={(e) => setServiceForm({ ...serviceForm, aggregation: e.target.value })} className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary">
                   <option value="any_down">Any Down</option>
                   <option value="all_down">All Down</option>
                   <option value="worst">Worst Status</option>

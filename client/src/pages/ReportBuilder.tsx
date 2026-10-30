@@ -13,6 +13,7 @@ import StatCard from '../components/ui/StatCard';
 import EmptyState from '../components/ui/EmptyState';
 import ConfirmDialog from '../components/ConfirmDialog';
 import { useToast } from '../components/ui/useToast';
+import { asText } from '../utils/formatters';
 
 const EMPTY_SCHEDULED: ScheduledReport[] = [];
 const EMPTY_GENERATED: GeneratedReport[] = [];
@@ -233,18 +234,18 @@ export default function ReportBuilder() {
             <div className="p-6 space-y-4 flex-1 min-h-0 overflow-y-auto">
               <div>
                 <label className="text-[10px] text-on-surface-variant uppercase tracking-wide block mb-1">Name</label>
-                <input value={String(form.name ?? '')} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary outline-none" placeholder="Weekly IT Report" />
+                <input value={asText(form.name)} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary outline-none" placeholder="Weekly IT Report" />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-[10px] text-on-surface-variant uppercase tracking-wide block mb-1">Report Type</label>
-                  <select value={String(form.report_type ?? 'availability')} onChange={(e) => setForm({ ...form, report_type: e.target.value })} className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary">
+                  <select value={asText(form.report_type, 'availability')} onChange={(e) => setForm({ ...form, report_type: e.target.value })} className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary">
                     {REPORT_TYPES.map((t) => <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}
                   </select>
                 </div>
                 <div>
                   <label className="text-[10px] text-on-surface-variant uppercase tracking-wide block mb-1">Format</label>
-                  <select value={String(form.format ?? 'html')} onChange={(e) => setForm({ ...form, format: e.target.value })} className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary">
+                  <select value={asText(form.format, 'html')} onChange={(e) => setForm({ ...form, format: e.target.value })} className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary">
                     {FORMATS.map((f) => <option key={f} value={f}>{f.toUpperCase()}</option>)}
                   </select>
                 </div>
@@ -252,11 +253,11 @@ export default function ReportBuilder() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-[10px] text-on-surface-variant uppercase tracking-wide block mb-1">Cron Schedule</label>
-                  <input value={String(form.schedule_cron ?? '')} onChange={(e) => setForm({ ...form, schedule_cron: e.target.value })} className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary outline-none" placeholder="0 9 * * *" />
+                  <input value={asText(form.schedule_cron)} onChange={(e) => setForm({ ...form, schedule_cron: e.target.value })} className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary outline-none" placeholder="0 9 * * *" />
                 </div>
                 <div>
                   <label className="text-[10px] text-on-surface-variant uppercase tracking-wide block mb-1">Lookback</label>
-                  <select value={String(form.lookback_period ?? '7d')} onChange={(e) => setForm({ ...form, lookback_period: e.target.value })} className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary">
+                  <select value={asText(form.lookback_period, '7d')} onChange={(e) => setForm({ ...form, lookback_period: e.target.value })} className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary">
                     <option value="1d">Last 24 hours</option>
                     <option value="7d">Last 7 days</option>
                     <option value="30d">Last 30 days</option>

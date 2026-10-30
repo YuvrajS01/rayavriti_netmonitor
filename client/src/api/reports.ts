@@ -76,10 +76,10 @@ export const createScheduledReport = (body: Record<string, unknown>, { signal }:
   v1.post('/reports/scheduled', body, { signal }).then((r) => wrap<ScheduledReport>(r.data));
 
 export const runScheduledReport = (id: number, { signal }: RequestOptions = {}) =>
-  v1.post(`/reports/scheduled/${id}/run`, undefined, { signal }).then((r) => r.data);
+  v1.post(`/reports/scheduled/${id}/run`, undefined, { signal }).then((r): unknown => r.data);
 
 export const deleteScheduledReport = (id: number, { signal }: RequestOptions = {}) =>
-  v1.delete(`/reports/scheduled/${id}`, { signal }).then((r) => r.data);
+  v1.delete(`/reports/scheduled/${id}`, { signal }).then((r): unknown => r.data);
 
 export const downloadGeneratedReport = (id: number, { signal }: RequestOptions = {}) =>
   v1.get(`/reports/generated/${id}/download`, { responseType: 'blob', signal }).then((r) => r.data as Blob);

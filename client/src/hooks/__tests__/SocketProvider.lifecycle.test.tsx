@@ -8,7 +8,7 @@ import { sessionStore } from '../../store/session';
 import { getFreshAccessToken } from '../../api/http';
 
 vi.mock('../../api/http', () => ({
-  getFreshAccessToken: vi.fn(async () => 'access-token'),
+  getFreshAccessToken: vi.fn(() => Promise.resolve<string | null>('access-token')),
 }));
 
 class MockWebSocket {

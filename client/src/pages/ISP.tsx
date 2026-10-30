@@ -10,6 +10,7 @@ import EmptyState from '../components/ui/EmptyState';
 import ConfirmDialog from '../components/ConfirmDialog';
 import { useToast } from '../components/ui/useToast';
 import { lazyWithRetry } from '../utils/lazyWithRetry';
+import { asText } from '../utils/formatters';
 
 // The only recharts user on this page; load it (and vendor-charts) on demand.
 const ISPLinkModal = lazyWithRetry(() => import('../components/ISPLinkModal'));
@@ -195,7 +196,7 @@ export default function ISP() {
               ] as const).map(({ key, label, type }) => (
                 <div key={key}>
                   <label className="text-[10px] text-on-surface-variant uppercase tracking-wide block mb-1">{label}</label>
-                  <input type={type} value={String(form[key] ?? '')} onChange={(e) => setForm({ ...form, [key]: type === 'number' ? Number(e.target.value) : e.target.value })} className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary outline-none" />
+                  <input type={type} value={asText(form[key])} onChange={(e) => setForm({ ...form, [key]: type === 'number' ? Number(e.target.value) : e.target.value })} className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary outline-none" />
                 </div>
               ))}
               <div className="flex items-center gap-3">

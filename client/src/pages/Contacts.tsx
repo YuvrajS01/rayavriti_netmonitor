@@ -8,6 +8,7 @@ import StatCard from '../components/ui/StatCard';
 import EmptyState from '../components/ui/EmptyState';
 import ConfirmDialog from '../components/ConfirmDialog';
 import { useToast } from '../components/ui/useToast';
+import { asText } from '../utils/formatters';
 
 interface Contact extends ResourceRow {
   id: number;
@@ -223,7 +224,7 @@ export default function Contacts() {
                 <div key={f}>
                   <label className="text-[10px] text-on-surface-variant uppercase tracking-wide block mb-1">{f.replace(/_/g, ' ')}</label>
                   <input
-                    value={String(form[f] ?? '')}
+                    value={asText(form[f])}
                     onChange={(e) => setForm({ ...form, [f]: e.target.value })}
                     className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface placeholder:text-outline focus:ring-1 focus:ring-primary outline-none"
                   />
@@ -232,7 +233,7 @@ export default function Contacts() {
               <div>
                 <label className="text-[10px] text-on-surface-variant uppercase tracking-wide block mb-1">Preferred Channel</label>
                 <select
-                  value={String(form.preferred_channel ?? 'email')}
+                  value={asText(form.preferred_channel, 'email')}
                   onChange={(e) => setForm({ ...form, preferred_channel: e.target.value })}
                   className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-2.5 text-sm text-on-surface outline-none focus:ring-1 focus:ring-primary"
                 >

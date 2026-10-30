@@ -160,9 +160,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       item.label.toLowerCase().includes(needle) || item.to.toLowerCase().includes(needle)
     );
     if (match) {
-      navigate(match.to);
+      void navigate(match.to);
     } else {
-      navigate(`/devices?search=${encodeURIComponent(query)}`);
+      void navigate(`/devices?search=${encodeURIComponent(query)}`);
     }
     setCommand('');
   };
@@ -190,7 +190,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   const handleLogout = async () => {
     await logout();
-    navigate('/login');
+    await navigate('/login');
   };
 
   return (

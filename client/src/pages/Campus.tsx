@@ -12,6 +12,7 @@ import type { Device } from '../api/types';
 import { useToast } from '../components/ui/useToast';
 import CampusMap from '../components/CampusMap';
 import FloorPlanView from '../components/FloorPlanView';
+import { asText } from '../utils/formatters';
 
 const statusColors: Record<string, string> = {
   up: 'bg-success',
@@ -62,7 +63,7 @@ export default function Campus() {
       if (d.locationId == null) continue;
       const counts = own[d.locationId];
       if (!counts) continue;
-      const key: keyof StatusCounts = d.status in counts ? (d.status as keyof StatusCounts) : 'unknown';
+      const key: keyof StatusCounts = d.status in counts ? d.status : 'unknown';
       counts[key]++;
     }
 
@@ -198,7 +199,7 @@ export default function Campus() {
       ) : view === 'map' ? (
         <CampusMap locations={enriched} selectedId={selected ? Number(selected.id) : null} onSelect={handleSelect} />
       ) : view === 'floor' ? (
-        <FloorPlanView location={selected} locations={locations as ResourceRow[]} devices={devices} />
+        <FloorPlanView location={selected} locations={locations} devices={devices} />
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
           {/* Left Panel — Tree */}
@@ -226,10 +227,10 @@ export default function Campus() {
                     <div>
                       <h2 className="font-headline font-semibold text-xl">{String(selected.name)}</h2>
                       <p className="text-xs text-on-surface-variant uppercase tracking-wide mt-1">
-                        {String(selected.type)} {selected.code ? `· ${selected.code}` : ''}
+                        {asText(selected.type)} {selected.code ? `· ${asText(selected.code)}` : ''}
                       </p>
                       {selected.description ? (
-                        <p className="text-sm text-on-surface-variant mt-2">{String(selected.description)}</p>
+                        <p className="text-sm text-on-surface-variant mt-2">{asText(selected.description)}</p>
                       ) : null}
                     </div>
                     {/* Status badges */}

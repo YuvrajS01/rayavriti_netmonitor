@@ -488,7 +488,7 @@ export default function PacketCapture() {
                       <td className="py-2.5">
                         {!isRunning && s.totalPackets > 0 && (
                           <button
-                            onClick={() => { setActiveSession(s); loadSessionPackets(s.id); }}
+                            onClick={() => { setActiveSession(s); void loadSessionPackets(s.id); }}
                             className="text-primary hover:text-on-surface/80 text-[10px] uppercase tracking-wider font-semibold"
                           >
                             View Packets

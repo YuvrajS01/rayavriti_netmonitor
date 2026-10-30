@@ -14,7 +14,7 @@ export default function Settings() {
   const handleLogout = async () => {
     const confirmed = await logout();
     if (!confirmed) addToast('Logout failed. Your session may still be active.', 'error');
-    navigate('/login');
+    await navigate('/login');
   };
 
   return (

@@ -25,7 +25,7 @@ function parseMetricMessage(details?: Record<string, unknown> | null): MetricMes
   if (!details) return null;
   try {
     if (typeof details === 'object' && details !== null && 'interfaces' in details) {
-      return details as unknown as MetricMessagePayload;
+      return details;
     }
     return null;
   } catch {
@@ -43,8 +43,8 @@ function buildTrafficData(metrics: Metric[]): TrafficPoint[] {
     const prev = metrics[i - 1];
     const curr = metrics[i];
     if (!prev || !curr) continue;
-    const prevPayload = parseMetricMessage(prev.details as Record<string, unknown> | null);
-    const currPayload = parseMetricMessage(curr.details as Record<string, unknown> | null);
+    const prevPayload = parseMetricMessage(prev.details);
+    const currPayload = parseMetricMessage(curr.details);
     if (!prevPayload?.interfaces?.length || !currPayload?.interfaces?.length) continue;
 
     const seconds = (new Date(curr.timestamp || curr.createdAt).getTime() - new Date(prev.timestamp || prev.createdAt).getTime()) / 1000;
@@ -150,7 +150,7 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
     }
   });
 
-  const handleDelete = async () => {
+  const handleDelete = () => {
     setShowDeleteConfirm(true);
   };
 
@@ -219,7 +219,7 @@ export default function DeviceModal({ device, onClose, onDeleted }: { device: De
   }));
 
   const latestMetric = metrics[metrics.length - 1];
-  const latestPayload = parseMetricMessage(latestMetric?.details as Record<string, unknown> | null);
+  const latestPayload = parseMetricMessage(latestMetric?.details);
   const trafficData = buildTrafficData(metrics);
   const latestTraffic = trafficData[trafficData.length - 1];
   const supportsTraffic = device.protocol === 'snmp';

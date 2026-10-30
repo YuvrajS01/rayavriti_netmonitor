@@ -11,7 +11,7 @@ export const updateDevice = (id: number, patch: Record<string, unknown>, { signa
   v1.put(`/devices/${id}`, patch, { signal }).then((r) => wrap<Device>(r.data));
 
 export const deleteDevice = (id: number, { signal }: RequestOptions = {}) =>
-  v1.delete(`/devices/${id}`, { signal }).then((r) => r.data);
+  v1.delete(`/devices/${id}`, { signal }).then((r): unknown => r.data);
 
 export const getLatestMetrics = ({ signal }: RequestOptions = {}) =>
   v1.get('/metrics/latest', { signal }).then((r) => wrap<Metric[]>(r.data));

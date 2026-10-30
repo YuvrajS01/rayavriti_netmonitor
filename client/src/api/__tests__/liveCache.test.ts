@@ -4,8 +4,8 @@ import { applyBootstrap, applyDeviceStatus, applyMetricUpdate } from '../liveCac
 import { queryKeys } from '../queryKeys';
 import type { Device, Metric } from '../types';
 
-const metric = (deviceId: number, timestamp: string, extra: Partial<Metric> = {}) =>
-  ({ id: 0, deviceId, status: 'up', responseTime: 1, value: null, protocol: 'icmp', deviceName: `d${deviceId}`, timestamp, createdAt: timestamp, ...extra }) as Metric;
+const metric = (deviceId: number, timestamp: string, extra: Partial<Metric> = {}): Metric =>
+  ({ id: 0, deviceId, status: 'up', responseTime: 1, value: null, protocol: 'icmp', deviceName: `d${deviceId}`, timestamp, createdAt: timestamp, ...extra });
 
 const device = (id: number, status: Device['status']) => ({ id, name: `d${id}`, status }) as Device;
 
