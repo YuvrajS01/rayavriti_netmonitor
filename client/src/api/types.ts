@@ -449,3 +449,34 @@ export interface SNMPv3Config {
   privPassphrase?: string;
   contextName?: string;
 }
+
+/** Latest per-interface throughput from SNMP polls (GET /devices/:id/interfaces). */
+export interface InterfaceSample {
+  deviceId: number;
+  time: string;
+  ifIndex: number;
+  name: string;
+  inBps: number;
+  outBps: number;
+  /** Percent of line speed; null when the speed is unknown. */
+  utilization: number | null;
+  /** IF-MIB ifOperStatus: 1 up, 2 down, others unknown. */
+  operStatus: number;
+  speedBps: number;
+}
+
+/** An LLDP neighbour reported by a device (GET /devices/:id/neighbors). */
+export interface LLDPNeighbor {
+  deviceId: number;
+  localPortNum: number;
+  localPort: string;
+  remoteChassisId: string;
+  remoteSysName?: string;
+  remotePortId: string;
+  remotePortDesc?: string;
+  remoteMgmtIp?: string;
+  remoteDeviceId?: number;
+  remoteDeviceName?: string;
+  firstSeen: string;
+  lastSeen: string;
+}

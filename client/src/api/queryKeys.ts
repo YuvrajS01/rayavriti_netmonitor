@@ -18,6 +18,8 @@ export const queryKeys = {
     health: (id: number) => [...queryKeys.devices.all, id, 'health'] as const,
     detail: (id: number) => [...queryKeys.devices.all, id, 'detail'] as const,
     dependencies: (id: number) => [...queryKeys.devices.all, id, 'dependencies'] as const,
+    interfaces: (id: number) => [...queryKeys.devices.all, id, 'interfaces'] as const,
+    neighbors: (id: number) => [...queryKeys.devices.all, id, 'neighbors'] as const,
   },
   metrics: {
     latest: ['metrics', 'latest'] as const,

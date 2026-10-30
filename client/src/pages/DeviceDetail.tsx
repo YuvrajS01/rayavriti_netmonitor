@@ -7,7 +7,7 @@ import { getAlerts, ALERT_LIST_LIMIT } from '../api/alerts';
 import { getHealthScore } from '../api/health';
 import { getMetricsHistory, historyWindow, HISTORY_RANGES } from '../api/history';
 import { queryKeys } from '../api/queryKeys';
-import type { Alert, Device, DeviceDependencyNode, DeviceHistory, Metric, MetricMessagePayload, PortScanResult } from '../api/types';
+import type { Alert, Device, DeviceDependencyNode, DeviceHistory, Metric, PortScanResult } from '../api/types';
 import SectionHeader from '../components/ui/SectionHeader';
 import Button from '../components/ui/Button';
 import EmptyState from '../components/ui/EmptyState';
@@ -23,7 +23,8 @@ import { useTabParam, useTabsId } from '../hooks/useTabParam';
 import { useAlertActions } from '../hooks/useAlertActions';
 import { useResourceList } from '../hooks/useResources';
 import { lazyWithRetry } from '../utils/lazyWithRetry';
-import { formatBytes } from '../utils/formatters';
+import { formatBps } from '../utils/formatters';
+import { getDeviceInterfaces, getDeviceNeighbors } from '../api/interfaces';
 import { lifecycleMeta, normalizeStatus, severityMeta } from '../utils/status';
 import { hasPermission } from '../navigation';
 import { useSessionUser } from '../store/session';
@@ -46,11 +47,6 @@ function Tile({ label, children }: { label: string; children: React.ReactNode })
       <div className="font-semibold tabular-nums text-fg">{children}</div>
     </div>
   );
-}
-
-function interfacesOf(metric: Metric | undefined): MetricMessagePayload['interfaces'] {
-  const details = metric?.details as MetricMessagePayload | undefined;
-  return Array.isArray(details?.interfaces) ? details.interfaces : undefined;
 }
 
 export default function DeviceDetail() {
@@ -266,63 +262,142 @@ function OverviewTab({ device, latest }: { device: Device; latest?: Metric }) {
 // ── Interfaces ────────────────────────────────────────────────────────────
 
 function InterfacesTab({ device }: { device: Device }) {
-  const recent = useQuery({
-    queryKey: queryKeys.devices.metrics(device.id, RECENT_SAMPLES),
-    queryFn: ({ signal }) => getDeviceMetrics(device.id, RECENT_SAMPLES, { signal }).then((r) => [...(r.data || [])].reverse()),
+  const [showDown, setShowDown] = useState(false);
+  const ifaces = useQuery({
+    queryKey: queryKeys.devices.interfaces(device.id),
+    queryFn: ({ signal }) => getDeviceInterfaces(device.id, { signal }),
+    refetchInterval: 30_000,
   });
-  if (recent.isPending) return <LoadingState message="Loading interfaces…" />;
-  if (recent.isError) return <ErrorState message="Failed to load recent polls." onRetry={() => void recent.refetch()} />;
+  if (ifaces.isPending) return <LoadingState message="Loading interfaces…" />;
+  if (ifaces.isError) return <ErrorState message="Failed to load interfaces." onRetry={() => void ifaces.refetch()} />;
 
-  const withIfaces = (recent.data ?? []).filter((m) => interfacesOf(m)?.length);
-  const last = withIfaces[withIfaces.length - 1];
-  const prev = withIfaces[withIfaces.length - 2];
-  const ifaces = interfacesOf(last) ?? [];
-  if (!ifaces.length) {
-    return (
-      <EmptyState
-        icon="settings_ethernet"
-        title="No interface data"
-        description={device.protocol === 'snmp' ? 'No SNMP poll has returned interface counters yet.' : 'Interface counters are collected for SNMP devices only.'}
-      />
-    );
-  }
-  const seconds = last && prev ? (new Date(last.timestamp).getTime() - new Date(prev.timestamp).getTime()) / 1000 : 0;
-  const prevByIndex = new Map((interfacesOf(prev) ?? []).map((i) => [i.index, i]));
-  const rate = (now: number, before: number | undefined) =>
-    seconds > 0 && before != null && now >= before ? `${(((now - before) * 8) / seconds / 1_000_000).toFixed(2)} Mbps` : '—';
-
+  // Access switches report many down ports; list them only on request.
+  const downCount = ifaces.data.filter((i) => i.operStatus !== 1).length;
+  const hideDown = !showDown && downCount < ifaces.data.length;
+  const rows = hideDown ? ifaces.data.filter((i) => i.operStatus === 1) : ifaces.data;
+  const newest = rows.reduce<string | undefined>((t, i) => (!t || i.time > t ? i.time : t), undefined);
   return (
-    <div className="overflow-x-auto rounded-lg border border-line bg-surface-1">
-      <table className="w-full text-left text-sm">
-        <caption className="sr-only">Interfaces reported by the last SNMP poll</caption>
-        <thead>
-          <tr className="border-b border-line-strong text-xs text-fg-muted">
-            <th scope="col" className="px-4 py-2.5 font-semibold">Interface</th>
-            <th scope="col" className="px-4 py-2.5 font-semibold">ifIndex</th>
-            <th scope="col" className="px-4 py-2.5 font-semibold">Status</th>
-            <th scope="col" className="px-4 py-2.5 text-right font-semibold">Speed</th>
-            <th scope="col" className="px-4 py-2.5 text-right font-semibold">In</th>
-            <th scope="col" className="px-4 py-2.5 text-right font-semibold">Out</th>
-          </tr>
-        </thead>
-        <tbody>
-          {ifaces.map((i) => {
-            const before = prevByIndex.get(i.index);
-            return (
-              <tr key={i.index} className="border-b border-line last:border-0">
-                <td className="px-4 py-2.5 font-medium">{i.name}</td>
-                <td className="px-4 py-2.5 font-mono text-fg-muted">{i.index}</td>
-                <td className="px-4 py-2.5">{i.operStatus === 1 ? <StatusPill status="up" /> : i.operStatus === 2 ? <StatusPill status="down" /> : <StatusPill status="unknown" />}</td>
-                <td className="px-4 py-2.5 text-right font-mono">{i.speed ? `${Math.round(i.speed / 1_000_000)} Mbps` : '—'}</td>
-                <td className="px-4 py-2.5 text-right font-mono" title={formatBytes(i.inOctets)}>{rate(i.inOctets, before?.inOctets)}</td>
-                <td className="px-4 py-2.5 text-right font-mono" title={formatBytes(i.outOctets)}>{rate(i.outOctets, before?.outOctets)}</td>
+    <div className="space-y-6">
+      {rows.length === 0 ? (
+        <EmptyState
+          icon="settings_ethernet"
+          title="No interface data"
+          description={device.protocol === 'snmp' ? 'No SNMP poll in the last hour has returned interface counters.' : 'Interface counters are collected for SNMP devices only.'}
+        />
+      ) : (
+        <div className="overflow-x-auto rounded-lg border border-line bg-surface-1">
+          <table className="w-full text-left text-sm">
+            <caption className="sr-only">Interface throughput from the latest SNMP polls</caption>
+            <thead>
+              <tr className="border-b border-line-strong text-xs text-fg-muted">
+                <th scope="col" className="px-4 py-2.5 font-semibold">Interface</th>
+                <th scope="col" className="px-4 py-2.5 font-semibold">ifIndex</th>
+                <th scope="col" className="px-4 py-2.5 font-semibold">Status</th>
+                <th scope="col" className="px-4 py-2.5 text-right font-semibold">Speed</th>
+                <th scope="col" className="px-4 py-2.5 text-right font-semibold">In</th>
+                <th scope="col" className="px-4 py-2.5 text-right font-semibold">Out</th>
+                <th scope="col" className="px-4 py-2.5 font-semibold">Utilisation</th>
               </tr>
-            );
-          })}
-        </tbody>
-      </table>
-      <p className="border-t border-line px-4 py-2 text-xs text-fg-muted">Rates are computed from the last two polls{last ? <> (<RelativeTime value={last.timestamp} />)</> : null}.</p>
+            </thead>
+            <tbody>
+              {rows.map((i) => (
+                <tr key={i.ifIndex} className="border-b border-line last:border-0">
+                  <td className="px-4 py-2.5 font-medium">{i.name}</td>
+                  <td className="px-4 py-2.5 font-mono text-fg-muted">{i.ifIndex}</td>
+                  <td className="px-4 py-2.5">{i.operStatus === 1 ? <StatusPill status="up" /> : i.operStatus === 2 ? <StatusPill status="down" /> : <StatusPill status="unknown" />}</td>
+                  <td className="px-4 py-2.5 text-right font-mono">{i.speedBps > 0 ? formatBps(i.speedBps) : '—'}</td>
+                  <td className="px-4 py-2.5 text-right font-mono">{formatBps(i.inBps)}</td>
+                  <td className="px-4 py-2.5 text-right font-mono">{formatBps(i.outBps)}</td>
+                  <td className="px-4 py-2.5"><UtilisationBar value={i.utilization} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line px-4 py-2 text-xs text-fg-muted">
+            <span>Rates from counter deltas between polls{newest && <> · updated <RelativeTime value={newest} /></>}</span>
+            {downCount > 0 && downCount < ifaces.data.length && (
+              <button type="button" className="text-primary underline" aria-pressed={showDown} onClick={() => setShowDown((v) => !v)}>
+                {showDown ? 'Hide' : 'Show'} {downCount} down {downCount === 1 ? 'interface' : 'interfaces'}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+      <NeighborsPanel device={device} />
     </div>
+  );
+}
+
+function UtilisationBar({ value }: { value: number | null }) {
+  if (value == null) return <span className="text-fg-muted">—</span>;
+  const pct = Math.min(100, Math.max(0, value));
+  const tone = pct >= 90 ? 'bg-error' : pct >= 70 ? 'bg-warning' : 'bg-primary';
+  return (
+    <div className="flex items-center gap-2">
+      <div className="h-1.5 w-24 overflow-hidden rounded-full bg-inset" role="meter" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(pct)} aria-label="Utilisation">
+        <div className={`h-full ${tone}`} style={{ width: `${pct}%` }} />
+      </div>
+      <span className="font-mono text-xs tabular-nums">{pct.toFixed(pct < 10 ? 1 : 0)}%</span>
+    </div>
+  );
+}
+
+function NeighborsPanel({ device }: { device: Device }) {
+  const neighbors = useQuery({
+    queryKey: queryKeys.devices.neighbors(device.id),
+    queryFn: ({ signal }) => getDeviceNeighbors(device.id, { signal }),
+    enabled: device.protocol === 'snmp',
+  });
+  if (device.protocol !== 'snmp') return null;
+  return (
+    <section aria-labelledby="lldp-heading" className="space-y-3">
+      <div>
+        <h3 id="lldp-heading" className="text-sm font-semibold text-fg">LLDP neighbours</h3>
+        <p className="text-xs text-fg-muted">Devices this one sees on its ports, refreshed every 10 minutes.</p>
+      </div>
+      {neighbors.isPending ? (
+        <LoadingState message="Loading neighbours…" />
+      ) : neighbors.isError ? (
+        <ErrorState message="Failed to load LLDP neighbours." onRetry={() => void neighbors.refetch()} />
+      ) : neighbors.data.length === 0 ? (
+        <EmptyState icon="hub" title="No neighbours" description="The device has not reported any LLDP neighbours. LLDP may be disabled on it or on its peers." />
+      ) : (
+        <div className="overflow-x-auto rounded-lg border border-line bg-surface-1">
+          <table className="w-full text-left text-sm">
+            <caption className="sr-only">LLDP neighbours</caption>
+            <thead>
+              <tr className="border-b border-line-strong text-xs text-fg-muted">
+                <th scope="col" className="px-4 py-2.5 font-semibold">Local port</th>
+                <th scope="col" className="px-4 py-2.5 font-semibold">Neighbour</th>
+                <th scope="col" className="px-4 py-2.5 font-semibold">Remote port</th>
+                <th scope="col" className="px-4 py-2.5 font-semibold">Management address</th>
+                <th scope="col" className="px-4 py-2.5 font-semibold">Last seen</th>
+              </tr>
+            </thead>
+            <tbody>
+              {neighbors.data.map((n) => (
+                <tr key={`${n.localPortNum}-${n.remoteChassisId}-${n.remotePortId}`} className="border-b border-line last:border-0">
+                  <td className="px-4 py-2.5 font-mono">{n.localPort}</td>
+                  <td className="px-4 py-2.5">
+                    {n.remoteDeviceId ? (
+                      <Link to={`/devices/${n.remoteDeviceId}`} className="font-medium text-primary underline">{n.remoteDeviceName}</Link>
+                    ) : (
+                      <span className="font-medium">{n.remoteSysName || n.remoteChassisId}</span>
+                    )}
+                    {(n.remoteDeviceId ? n.remoteSysName : n.remoteSysName && n.remoteChassisId) && (
+                      <span className="block font-mono text-xs text-fg-muted">{n.remoteDeviceId ? n.remoteSysName : n.remoteChassisId}</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-2.5 font-mono">{n.remotePortDesc || n.remotePortId}</td>
+                  <td className="px-4 py-2.5 font-mono text-fg-muted">{n.remoteMgmtIp || '—'}</td>
+                  <td className="px-4 py-2.5 text-fg-muted"><RelativeTime value={n.lastSeen} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
   );
 }
 
