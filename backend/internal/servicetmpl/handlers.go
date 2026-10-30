@@ -25,7 +25,7 @@ func (h *Handler) GetTemplate(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
 	tmpl, err := GetTemplate(name)
 	if err != nil {
-		httputil.SendError(w, http.StatusNotFound, err.Error())
+		httputil.SendStoreError(w, http.StatusNotFound, err)
 		return
 	}
 	httputil.SendOK(w, tmpl)
@@ -48,7 +48,7 @@ func (h *Handler) ApplyTemplate(w http.ResponseWriter, r *http.Request) {
 
 	result, err := h.svc.Apply(r.Context(), req)
 	if err != nil {
-		httputil.SendError(w, http.StatusBadRequest, err.Error())
+		httputil.SendStoreError(w, http.StatusBadRequest, err)
 		return
 	}
 	httputil.SendCreated(w, result)

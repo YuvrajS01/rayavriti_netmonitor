@@ -127,7 +127,7 @@ func (h *RoleHandler) Create(w http.ResponseWriter, r *http.Request) {
 		body.DisplayName = body.Name
 	}
 	if err := validatePermissions(body.Permissions); err != nil {
-		httputil.SendError(w, http.StatusBadRequest, err.Error())
+		httputil.SendStoreError(w, http.StatusBadRequest, err)
 		return
 	}
 	// Check for duplicate name
@@ -144,7 +144,7 @@ func (h *RoleHandler) Create(w http.ResponseWriter, r *http.Request) {
 		"permissions":  string(permJSON),
 	})
 	if err != nil {
-		httputil.SendError(w, http.StatusBadRequest, err.Error())
+		httputil.SendStoreError(w, http.StatusBadRequest, err)
 		return
 	}
 	httputil.SendCreated(w, item)
@@ -188,7 +188,7 @@ func (h *RoleHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 	if body.Permissions != nil {
 		if err := validatePermissions(body.Permissions); err != nil {
-			httputil.SendError(w, http.StatusBadRequest, err.Error())
+			httputil.SendStoreError(w, http.StatusBadRequest, err)
 			return
 		}
 		permJSON, _ := json.Marshal(body.Permissions)
@@ -200,7 +200,7 @@ func (h *RoleHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 	item, err := h.store.UpdateResource(r.Context(), "roles", id, patch)
 	if err != nil {
-		httputil.SendError(w, http.StatusBadRequest, err.Error())
+		httputil.SendStoreError(w, http.StatusBadRequest, err)
 		return
 	}
 	httputil.SendOK(w, item)
@@ -232,7 +232,7 @@ func (h *RoleHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.store.DeleteResource(r.Context(), "roles", id); err != nil {
-		httputil.SendError(w, http.StatusBadRequest, err.Error())
+		httputil.SendStoreError(w, http.StatusBadRequest, err)
 		return
 	}
 	httputil.SendOK(w, map[string]bool{"deleted": true})
@@ -318,7 +318,7 @@ func (h *UserScopeHandler) Create(w http.ResponseWriter, r *http.Request) {
 		"scope_value": body.ScopeValue,
 	})
 	if err != nil {
-		httputil.SendError(w, http.StatusBadRequest, err.Error())
+		httputil.SendStoreError(w, http.StatusBadRequest, err)
 		return
 	}
 	httputil.SendCreated(w, item)

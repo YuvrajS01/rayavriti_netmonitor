@@ -136,7 +136,7 @@ func (h *ResourceHandler) Create(resource string) http.HandlerFunc {
 		}
 		item, err := h.store.CreateResource(r.Context(), resource, body)
 		if err != nil {
-			httputil.SendError(w, http.StatusBadRequest, err.Error())
+			httputil.SendStoreError(w, http.StatusBadRequest, err)
 			return
 		}
 		httputil.SendCreated(w, item)
@@ -160,7 +160,7 @@ func (h *ResourceHandler) Update(resource string) http.HandlerFunc {
 		}
 		item, err := h.store.UpdateResource(r.Context(), resource, id, body)
 		if err != nil {
-			httputil.SendError(w, http.StatusBadRequest, err.Error())
+			httputil.SendStoreError(w, http.StatusBadRequest, err)
 			return
 		}
 		httputil.SendOK(w, item)
@@ -178,7 +178,7 @@ func (h *ResourceHandler) Delete(resource string) http.HandlerFunc {
 			return
 		}
 		if err := h.store.DeleteResource(r.Context(), resource, id); err != nil {
-			httputil.SendError(w, http.StatusBadRequest, err.Error())
+			httputil.SendStoreError(w, http.StatusBadRequest, err)
 			return
 		}
 		httputil.SendOK(w, map[string]bool{"deleted": true})
