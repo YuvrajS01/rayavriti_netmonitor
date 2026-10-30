@@ -3,6 +3,7 @@ package collectors
 import (
 	"fmt"
 	"net"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -89,9 +90,25 @@ func lldpNeighbors(deviceID int64, now time.Time, rem, loc, man map[string]map[s
 		}
 	}
 
+	// Visit rows newest timeMark first so the current entry for a remote
+	// wins, filling fields it lacks from older duplicates. Map order alone
+	// made the choice random.
+	idxs := make([]string, 0, len(rem))
+	for idx := range rem {
+		idxs = append(idxs, idx)
+	}
+	sort.Slice(idxs, func(i, j int) bool {
+		ti, tj := lldpTimeMark(idxs[i]), lldpTimeMark(idxs[j])
+		if ti != tj {
+			return ti > tj
+		}
+		return idxs[i] < idxs[j]
+	})
+
 	out := make([]models.LLDPNeighbor, 0, len(rem))
-	seen := map[string]bool{}
-	for idx, row := range rem {
+	pos := map[string]int{}
+	for _, idx := range idxs {
+		row := rem[idx]
 		parts := strings.Split(idx, ".")
 		if len(parts) != 3 {
 			continue
@@ -105,13 +122,6 @@ func lldpNeighbors(deviceID int64, now time.Time, rem, loc, man map[string]map[s
 		if chassis == "" {
 			continue
 		}
-		// A timeMark change can list the same remote twice; keep one.
-		dedupe := parts[1] + "|" + chassis + "|" + portID
-		if seen[dedupe] {
-			continue
-		}
-		seen[dedupe] = true
-
 		n := models.LLDPNeighbor{
 			DeviceID:        deviceID,
 			LocalPortNum:    localPort,
@@ -124,9 +134,31 @@ func lldpNeighbors(deviceID int64, now time.Time, rem, loc, man map[string]map[s
 			FirstSeen:       now,
 			LastSeen:        now,
 		}
+		key := parts[1] + "|" + chassis + "|" + portID
+		if i, dup := pos[key]; dup {
+			kept := &out[i]
+			if kept.RemoteSysName == "" {
+				kept.RemoteSysName = n.RemoteSysName
+			}
+			if kept.RemotePortDesc == "" {
+				kept.RemotePortDesc = n.RemotePortDesc
+			}
+			if kept.RemoteMgmtIP == "" {
+				kept.RemoteMgmtIP = n.RemoteMgmtIP
+			}
+			continue
+		}
+		pos[key] = len(out)
 		out = append(out, n)
 	}
 	return out
+}
+
+// lldpTimeMark returns the timeMark component of an lldpRemTable index.
+func lldpTimeMark(idx string) uint64 {
+	tm, _, _ := strings.Cut(idx, ".")
+	v, _ := strconv.ParseUint(tm, 10, 64)
+	return v
 }
 
 func lldpLocalPort(loc map[string]map[string]gosnmp.SnmpPDU, portNum string) string {
