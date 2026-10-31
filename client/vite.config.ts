@@ -16,6 +16,8 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
+    // Page tests render lazy routes; leave room above asyncUtilTimeout.
+    testTimeout: 15_000,
     css: true,
   },
   build: {
