@@ -108,6 +108,8 @@ function AppRoutes() {
         <Route element={<RequireAuth />}>
           {/* Monitor */}
           <Route index element={<Dashboard />} />
+          <Route path="dashboards" element={<Navigate to="/" replace />} />
+          <Route path="dashboards/:id" element={<Dashboard />} />
           <Route path="alerts" element={<SectionHub itemId="alerts" />}>
             <Route index element={<Alerts />} />
             <Route path="incidents" element={<Incidents />} />

@@ -428,11 +428,15 @@ func (s *Server) Start() error {
 		r.With(rbac.RequirePermission(models.PermDevicesWrite)).Delete("/api/v1/sensors/{id}", sensor.Delete)
 
 		// --- Dashboards (devices.read / devices.write) ---
+		// Dashboards are personal: anyone who can see devices manages their
+		// own. Ownership and sharing are enforced in the handler.
 		r.With(rbac.RequirePermission(models.PermDevicesRead)).Get("/api/v1/dashboards", dashboard.List)
+		r.With(rbac.RequirePermission(models.PermDevicesRead)).Delete("/api/v1/dashboards/default", dashboard.ClearDefault)
 		r.With(rbac.RequirePermission(models.PermDevicesRead)).Get("/api/v1/dashboards/{id}", dashboard.Get)
-		r.With(rbac.RequirePermission(models.PermDevicesWrite)).Post("/api/v1/dashboards", dashboard.Save)
-		r.With(rbac.RequirePermission(models.PermDevicesWrite)).Put("/api/v1/dashboards/{id}", dashboard.Save)
-		r.With(rbac.RequirePermission(models.PermDevicesWrite)).Delete("/api/v1/dashboards/{id}", dashboard.Delete)
+		r.With(rbac.RequirePermission(models.PermDevicesRead)).Post("/api/v1/dashboards", dashboard.Save)
+		r.With(rbac.RequirePermission(models.PermDevicesRead)).Put("/api/v1/dashboards/{id}", dashboard.Save)
+		r.With(rbac.RequirePermission(models.PermDevicesRead)).Delete("/api/v1/dashboards/{id}", dashboard.Delete)
+		r.With(rbac.RequirePermission(models.PermDevicesRead)).Put("/api/v1/dashboards/{id}/default", dashboard.SetDefault)
 
 		// --- Alert Rules (alert_rules.write) ---
 		r.With(rbac.RequirePermission(models.PermAlertRulesWrite)).Get("/api/v1/alert-rules", alertRule.List)

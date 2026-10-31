@@ -326,6 +326,21 @@ Keyboard shortcuts are ignored while typing or with a dialog open: `j`/`k` move,
 - **Rotation.** `?rotate=overview,alerts,topology&interval=30` (10s minimum) with a pause control. `?view=` picks a single view.
 - **Theme.** Dark by default; `?theme=light` or the in-page toggle (`nm-wall-theme`) switch it. The user's own preference is restored on exit.
 
+### 8.5 Dashboards
+
+`/` shows the user's default dashboard, else the built-in **Overview**. `/dashboards/:id` deep-links any dashboard the user can see, and `/dashboards/overview` the built-in one.
+
+- **Model.** A dashboard is a versioned layout of widgets in reading order on a 12-column grid (`components/dashboard/layout.ts`). Width uses presets (quarter, third, half, two thirds, full). Height is a step from compact to extra tall and sets a minimum; rows grow to fit. Medium screens use 6 columns and phones stack every widget.
+- **Built-in Overview.** `OVERVIEW_LAYOUT` in code, never stored. Users customise it by duplicating it ("Customise").
+- **Ownership.** Dashboards are private by default. Owners with device write access can share one read-only with everyone; others see "Shared by …" and "Duplicate to edit". Each user picks the dashboard that opens first ("Open this first").
+- **Widgets.** `widgets/catalog.ts` lists them (label, description, icon, category, default size, single-instance, settings). Components load lazily from `widgets/registry.ts`. Each fetches its own data through the shared hooks in `useDashboardData.ts`, using the app's query keys, so widgets share requests and an absent widget fetches nothing. Configurable widgets: device response history, interface throughput and device list. An unknown type renders "Unsupported widget"; each widget has its own error boundary.
+- **Editing.** Owners only, with explicit Save / Cancel.
+  - Widgets are inert while editing.
+  - Each has a toolbar: drag handle, width and height selects, settings, move earlier/later, remove.
+  - Moves are announced in a polite live region.
+  - Unsaved edits are kept per dashboard in `sessionStorage` (`nm-dashboard-draft:<id>`) and offered again on return; `beforeunload` warns on reload.
+  - Server validation messages appear in an alert above the grid.
+
 ## 9. Motion
 
 | Allowed | Not allowed |
@@ -362,7 +377,9 @@ Keyboard shortcuts are ignored while typing or with a dialog open: `j`/`k` move,
 
 Shipped in v5.1: the navigation restructure, NOC wall mode, the command palette, the shared DataTable, and `/devices/:id`.
 
+Shipped in v5.3 (in progress): customisable dashboards (§8.5).
+
 Still deferred:
-- customisable dashboards (drag/resize grid, per-role defaults);
+- per-role default dashboards (each user picks their own; there is no admin-assigned default yet);
 - a server-side device filter for alerts (the device page filters the newest 200 open alerts client-side);
 - device pause/resume (no endpoint yet, so the Devices bulk bar offers open and delete only).

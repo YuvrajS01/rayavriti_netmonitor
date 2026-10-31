@@ -14,7 +14,7 @@ interface Props {
 function ResponseTimeChartInner({ series, source, loading, onExpand }: Props) {
   const hasData = series.some((s) => s.points.some((p) => p.samples > 0));
   return (
-    <section aria-labelledby="response-time-heading" className="xl:col-span-2 bg-surface-1 rounded-lg p-5 border border-line">
+    <section aria-labelledby="response-time-heading" className="bg-surface-1 rounded-lg p-5 border border-line">
       <div className="flex justify-between items-start gap-3 mb-3">
         <div>
           <h3 id="response-time-heading" className="text-sm font-semibold text-fg">Response time, slowest devices</h3>

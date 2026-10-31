@@ -816,7 +816,7 @@ func TestDashboardSave_SetsUserID(t *testing.T) {
 		},
 	}
 	h := NewDashboardHandler(db)
-	body, _ := json.Marshal(map[string]any{"name": "New", "layout": []any{}})
+	body, _ := json.Marshal(map[string]any{"name": "New", "layout": map[string]any{"version": 1, "widgets": []any{}}})
 	w, req := authenticatedRequest("POST", "/api/v1/dashboards", string(body))
 	callWithAuth(h.Save, w, req)
 	if w.Code != http.StatusOK {

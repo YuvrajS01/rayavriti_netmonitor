@@ -200,6 +200,7 @@ type Database interface {
 	GetDashboard(ctx context.Context, id int64) (*models.Dashboard, error)
 	SaveDashboard(ctx context.Context, d *models.Dashboard) (*models.Dashboard, error)
 	DeleteDashboard(ctx context.Context, id int64) error
+	SetDefaultDashboard(ctx context.Context, userID int64, dashboardID *int64) error
 
 	// Retention
 	// Hypertables (metrics, flows, logs, …) are pruned by TimescaleDB

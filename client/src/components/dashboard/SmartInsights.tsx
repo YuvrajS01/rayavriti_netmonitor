@@ -12,7 +12,7 @@ function SmartInsightsInner({ insights }: Props) {
   const items = useMemo(() => dedupeInsights(insights?.health ?? []).slice(0, 4), [insights?.health]);
 
   return (
-    <section aria-labelledby="smart-insights-heading" className="xl:col-span-2 bg-surface-1 rounded-lg p-5 border border-line">
+    <section aria-labelledby="smart-insights-heading" className="bg-surface-1 rounded-lg p-5 border border-line">
       <div className="flex items-center justify-between gap-4 mb-4">
         <h3 id="smart-insights-heading" className="text-sm font-semibold text-fg">Smart insights</h3>
         <span className="text-xs text-fg-muted">

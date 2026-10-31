@@ -317,3 +317,7 @@ func (m *mockRetDB) RecordInterfaceSamples(ctx context.Context, samples []models
 func (m *mockRetDB) ReplaceDeviceNeighbors(ctx context.Context, deviceID int64, neighbors []models.LLDPNeighbor) error {
 	return nil
 }
+
+func (m *mockRetDB) SetDefaultDashboard(ctx context.Context, userID int64, dashboardID *int64) error {
+	return nil
+}

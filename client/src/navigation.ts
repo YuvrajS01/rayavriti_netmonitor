@@ -46,7 +46,7 @@ export const NAV_GROUPS: NavGroup[] = [
     id: 'monitor',
     label: 'Monitor',
     items: [
-      { id: 'overview', label: 'Overview', icon: 'dashboard', to: '/', end: true, keywords: 'dashboard home' },
+      { id: 'overview', label: 'Overview', icon: 'dashboard', to: '/', end: true, keywords: 'dashboard dashboards home', subpages: [{ to: '/dashboards', label: 'Dashboards' }] },
       {
         id: 'alerts',
         label: 'Alerts & incidents',

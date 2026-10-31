@@ -96,6 +96,7 @@ type mockDB struct {
 	getDashboardsFn             func(ctx context.Context, userID int64) ([]models.Dashboard, error)
 	getDashboardFn              func(ctx context.Context, id int64) (*models.Dashboard, error)
 	saveDashboardFn             func(ctx context.Context, d *models.Dashboard) (*models.Dashboard, error)
+	setDefaultDashboardFn       func(ctx context.Context, userID int64, dashboardID *int64) error
 	deleteDashboardFn           func(ctx context.Context, id int64) error
 	pruneMetricsFn              func(ctx context.Context, olderThan time.Time) (int64, error)
 	pruneFlowsFn                func(ctx context.Context, olderThan time.Time) (int64, error)
@@ -711,6 +712,13 @@ func (m *mockDB) SaveDashboard(ctx context.Context, d *models.Dashboard) (*model
 		return m.saveDashboardFn(ctx, d)
 	}
 	return nil, nil
+}
+
+func (m *mockDB) SetDefaultDashboard(ctx context.Context, userID int64, dashboardID *int64) error {
+	if m.setDefaultDashboardFn != nil {
+		return m.setDefaultDashboardFn(ctx, userID, dashboardID)
+	}
+	return nil
 }
 
 func (m *mockDB) DeleteDashboard(ctx context.Context, id int64) error {

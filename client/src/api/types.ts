@@ -480,3 +480,43 @@ export interface LLDPNeighbor {
   firstSeen: string;
   lastSeen: string;
 }
+
+/** One widget on a dashboard's 12-column grid (see components/dashboard/layout.ts). */
+export interface DashboardWidget {
+  id: string;
+  type: string;
+  /** Columns spanned on wide screens, 1–12. */
+  w: number;
+  /** Height step, 1–4 (a minimum height; rows grow to fit). */
+  h: number;
+  config?: Record<string, unknown>;
+}
+
+export interface DashboardLayout {
+  version: 1;
+  widgets: DashboardWidget[];
+}
+
+export interface Dashboard {
+  id: number;
+  userId: number;
+  name: string;
+  layout: DashboardLayout;
+  /** Shared dashboards are readable by every user; only the owner edits them. */
+  shared: boolean;
+  ownerName?: string;
+  /** Opens first for the current user. */
+  isDefault: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** One bucket of an interface's throughput (GET /devices/:id/interfaces/:ifIndex/history). */
+export interface InterfaceHistoryPoint {
+  t: string;
+  inBps: number;
+  outBps: number;
+  maxInBps: number;
+  maxOutBps: number;
+  maxUtilization: number | null;
+}

@@ -23,19 +23,33 @@ func NewInterfaceHandler(pool *pgxpool.Pool) *InterfaceHandler {
 	return &InterfaceHandler{pool: pool}
 }
 
+// maxInterfaceWindow bounds how far back Latest looks for interfaces.
+const maxInterfaceWindow = 7 * 24 * time.Hour
+
 // Latest returns the most recent sample of each interface seen in the last
-// hour, ordered by ifIndex.
+// hour (or `since`, a Go duration up to 7 days, e.g. "168h": pickers use it
+// to offer interfaces of a device that is briefly unreachable), ordered by
+// ifIndex.
 func (h *InterfaceHandler) Latest(w http.ResponseWriter, r *http.Request) {
 	id, ok := urlID(r, "id")
 	if !ok {
 		httputil.SendError(w, http.StatusBadRequest, "invalid id")
 		return
 	}
+	window := time.Hour
+	if v := r.URL.Query().Get("since"); v != "" {
+		d, err := time.ParseDuration(v)
+		if err != nil || d <= 0 || d > maxInterfaceWindow {
+			httputil.SendError(w, http.StatusBadRequest, "since must be a duration up to 168h")
+			return
+		}
+		window = d
+	}
 	rows, err := h.pool.Query(r.Context(), `
 		SELECT DISTINCT ON (if_index) time, device_id, if_index, if_name, in_bps, out_bps, utilization, oper_status, speed_bps
 		FROM interface_metrics
-		WHERE device_id = $1 AND time > NOW() - INTERVAL '1 hour'
-		ORDER BY if_index, time DESC`, id)
+		WHERE device_id = $1 AND time > $2
+		ORDER BY if_index, time DESC`, id, time.Now().Add(-window))
 	if err != nil {
 		httputil.SendInternalError(w, err)
 		return
