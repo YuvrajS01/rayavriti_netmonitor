@@ -100,9 +100,10 @@ describe('Dashboards', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Add widget' }));
     const catalog = await screen.findByRole('dialog', { name: 'Add a widget' });
     // Single-instance widgets already present can't be added twice; stat tiles can.
-    expect(within(catalog).getByRole('button', { name: /Latest metrics/ })).toBeDisabled();
-    expect(within(catalog).getByRole('button', { name: /Total devices/ })).toBeEnabled();
-    await userEvent.click(within(catalog).getByRole('button', { name: /Device response history/ }));
+    expect(within(catalog).getByRole('button', { name: 'Latest metrics' })).toBeDisabled();
+    expect(within(catalog).getByRole('button', { name: 'Latest metrics' })).toHaveAccessibleDescription('Already on this dashboard.');
+    expect(within(catalog).getByRole('button', { name: 'Total devices' })).toBeEnabled();
+    await userEvent.click(within(catalog).getByRole('button', { name: 'Device response history' }));
 
     const settings = await screen.findByRole('dialog', { name: 'Device response history settings' });
     await userEvent.click(within(settings).getByRole('button', { name: 'Apply' }));

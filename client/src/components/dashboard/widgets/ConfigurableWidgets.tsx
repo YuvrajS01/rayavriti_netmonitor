@@ -127,7 +127,7 @@ export function DeviceListWidget({ widget }: WidgetProps) {
   );
   const locationRow = locations.data?.find((l) => Number(l.id) === locationId);
   const locationName = locationId == null ? '' : typeof locationRow?.name === 'string' ? locationRow.name : `Location ${locationId}`;
-  const filters = [locationName, tag && `tag “${tag}”`, status === 'down' ? 'down only' : status === 'problems' ? 'not up' : ''].filter(Boolean).join(' · ');
+  const filters = [locationName, tag && `Tag “${tag}”`, status === 'down' ? 'Down only' : status === 'problems' ? 'Not up' : ''].filter(Boolean).join(' · ');
 
   return (
     <WidgetCard title={widgetTitle(widget.type, config)} subtitle={filters || 'All devices'} action={<span className="rounded-full bg-surface-3 px-2 py-0.5 text-xs font-semibold tabular-nums text-fg">{matching.length}</span>}>

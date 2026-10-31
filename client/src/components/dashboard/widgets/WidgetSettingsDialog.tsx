@@ -155,8 +155,9 @@ function InterfaceFields({ config, set }: FieldsProps) {
   const deviceId = typeof config.deviceId === 'number' ? config.deviceId : undefined;
   const snmp = (devices.data?.data ?? []).filter((d) => d.protocol === 'snmp');
   const ifaces = useQuery({
-    queryKey: queryKeys.devices.interfaces(deviceId ?? 0),
-    queryFn: ({ signal }) => getDeviceInterfaces(deviceId!, { signal }),
+    // A week back, so interfaces of a device that is down right now still show.
+    queryKey: queryKeys.devices.interfaces(deviceId ?? 0, '168h'),
+    queryFn: ({ signal }) => getDeviceInterfaces(deviceId!, { signal, since: '168h' }),
     enabled: deviceId != null,
   });
 
@@ -190,7 +191,7 @@ function InterfaceFields({ config, set }: FieldsProps) {
           }}
         >
           <option value="">
-            {deviceId == null ? 'Choose a device first' : ifaces.isPending ? 'Loading interfaces…' : ifaces.data?.length ? 'Choose an interface' : 'No interface data in the last hour'}
+            {deviceId == null ? 'Choose a device first' : ifaces.isPending ? 'Loading interfaces…' : ifaces.data?.length ? 'Choose an interface' : 'No interface data in the last 7 days'}
           </option>
           {(ifaces.data ?? []).map((i) => (
             <option key={i.ifIndex} value={i.ifIndex}>{i.name} (ifIndex {i.ifIndex}{i.operStatus === 1 ? '' : ', down'})</option>
@@ -221,7 +222,7 @@ function DeviceListFields({ config, set }: FieldsProps) {
           </select>
         </div>
         <div>
-          <label htmlFor={ids.status} className={labelClass}>Show</label>
+          <label htmlFor={ids.status} className={labelClass}>Status</label>
           <select id={ids.status} className={`${inputClass} cursor-pointer`} value={str(config.status, 'all')} onChange={(e) => set({ status: e.target.value })}>
             <option value="all">All devices</option>
             <option value="problems">Devices not up</option>

@@ -14,6 +14,7 @@ interface Props {
 export default function WidgetCatalogDialog({ layout, onClose, onAdd }: Props) {
   const [query, setQuery] = useState('');
   const searchId = useId();
+  const baseId = useId();
   const present = new Set(layout.widgets.map((w) => w.type));
   const full = layout.widgets.length >= LAYOUT_LIMITS.maxWidgets;
   const q = query.trim().toLowerCase();
@@ -41,18 +42,21 @@ export default function WidgetCatalogDialog({ layout, onClose, onAdd }: Props) {
               <ul className="grid gap-2 sm:grid-cols-2">
                 {items.map((w) => {
                   const taken = w.single && present.has(w.type);
+                  const ids = `${baseId}-${w.type}`;
                   return (
                     <li key={w.type}>
                       <button
                         type="button"
                         disabled={taken || full}
                         onClick={() => onAdd(w)}
+                        aria-labelledby={`${ids}-name`}
+                        aria-describedby={`${ids}-desc`}
                         className="flex h-full w-full items-start gap-3 rounded-md border border-line bg-surface-2 p-3 text-left transition-colors hover:border-line-strong hover:bg-surface-3 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         <span className="material-symbols-outlined text-[22px] text-primary" aria-hidden="true">{w.icon}</span>
                         <span className="min-w-0">
-                          <span className="block text-sm font-semibold text-fg">{w.label}</span>
-                          <span className="block text-xs text-fg-muted">{taken ? 'Already on this dashboard.' : w.description}</span>
+                          <span id={`${ids}-name`} className="block text-sm font-semibold text-fg">{w.label}</span>
+                          <span id={`${ids}-desc`} className="block text-xs text-fg-muted">{taken ? 'Already on this dashboard.' : w.description}</span>
                         </span>
                       </button>
                     </li>

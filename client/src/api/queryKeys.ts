@@ -18,7 +18,7 @@ export const queryKeys = {
     health: (id: number) => [...queryKeys.devices.all, id, 'health'] as const,
     detail: (id: number) => [...queryKeys.devices.all, id, 'detail'] as const,
     dependencies: (id: number) => [...queryKeys.devices.all, id, 'dependencies'] as const,
-    interfaces: (id: number) => [...queryKeys.devices.all, id, 'interfaces'] as const,
+    interfaces: (id: number, since?: string) => [...queryKeys.devices.all, id, 'interfaces', since ?? '1h'] as const,
     neighbors: (id: number) => [...queryKeys.devices.all, id, 'neighbors'] as const,
     interfaceHistory: (id: number, ifIndex: number, from: string, to: string) => [...queryKeys.devices.all, id, 'interfaces', ifIndex, from, to] as const,
   },

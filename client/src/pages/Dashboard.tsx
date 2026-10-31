@@ -116,6 +116,12 @@ export default function Dashboard() {
     setRestored(!!stored);
   }
   const savedId = saved?.id;
+  // The "start editing" flag is single-use: drop it from history so a reload
+  // or a back navigation doesn't reopen the editor.
+  const editRequested = (location.state as { edit?: boolean } | null)?.edit === true;
+  useEffect(() => {
+    if (editRequested && draftFor === editKey) void navigate(location.pathname + location.search, { replace: true, state: null });
+  }, [editRequested, draftFor, editKey, navigate, location.pathname, location.search]);
 
   const dirty = !!draft && (draft.name !== name || JSON.stringify(draft.layout) !== JSON.stringify(layout));
   useEffect(() => {

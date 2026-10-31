@@ -43,7 +43,7 @@ export default function ThroughputChart({ points, height, title }: Props) {
         <ComposedChart data={data} margin={{ top: 8, right: 8, left: 4, bottom: 0 }}>
           <CartesianGrid stroke={GRID_COLOR} strokeDasharray="3 3" vertical={false} />
           <XAxis dataKey="t" type="number" scale="time" domain={['dataMin', 'dataMax']} tick={AXIS_TICK_STYLE} tickLine={false} axisLine={false} tickFormatter={(t: number) => formatBucket(t, span)} minTickGap={32} />
-          <YAxis tick={AXIS_TICK_STYLE} tickLine={false} axisLine={false} width={72} tickFormatter={(v: number) => formatBps(v)} />
+          <YAxis tick={AXIS_TICK_STYLE} tickLine={false} axisLine={false} width={72} tickFormatter={(v: number) => formatBps(v).replace(' ', '')} />
           <Tooltip
             contentStyle={TOOLTIP_STYLE}
             labelStyle={TOOLTIP_LABEL_STYLE}
@@ -62,6 +62,7 @@ export default function ThroughputChart({ points, height, title }: Props) {
           ))}
         </ComposedChart>
       </ResponsiveContainer>
+      <p className="mt-1 text-xs text-fg-muted">Lines are averages per bucket; the shading reaches each bucket’s peak.</p>
       <div className="sr-only">
         <ChartDataTable title={title} columns={table.columns} rows={table.rows} />
       </div>

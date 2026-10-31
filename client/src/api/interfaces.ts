@@ -1,9 +1,13 @@
 import { v1, wrapJson, type RequestOptions } from './http';
 import type { InterfaceHistoryPoint, InterfaceSample, LLDPNeighbor } from './types';
 
-/** Latest sample of each interface seen in the last hour. */
-export const getDeviceInterfaces = (id: number, { signal }: RequestOptions = {}) =>
-  v1.get(`/devices/${id}/interfaces`, { signal }).then((r) => wrapJson<InterfaceSample[] | null>(r.data).data ?? []);
+/**
+ * Latest sample of each interface seen in the last hour, or in `since` (a
+ * Go duration up to 168h) to include interfaces of a device that is
+ * briefly unreachable.
+ */
+export const getDeviceInterfaces = (id: number, { signal, since }: RequestOptions & { since?: string } = {}) =>
+  v1.get(`/devices/${id}/interfaces${since ? `?since=${since}` : ''}`, { signal }).then((r) => wrapJson<InterfaceSample[] | null>(r.data).data ?? []);
 
 /** LLDP neighbours from the device's last neighbour walk. */
 export const getDeviceNeighbors = (id: number, { signal }: RequestOptions = {}) =>
