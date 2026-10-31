@@ -5,6 +5,26 @@ All notable changes to Rayavriti NetMonitor will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Customizable dashboards.**
+  - Build dashboards from widgets on a 12-column grid: add, remove, resize, configure, and reorder them by drag-and-drop or keyboard.
+  - The overview stays as the built-in default; duplicate it to customise.
+  - Dashboards are private unless an operator shares one read-only with everyone.
+  - Each user picks the dashboard that opens first.
+  - New widgets: device response history (chosen devices and range), interface throughput (one SNMP interface) and a device list filtered by location, status or tag.
+  - Unsaved edits survive leaving the page.
+- **`GET /api/v1/devices/{id}/interfaces?since=168h`** lists interfaces seen further back than the default hour.
+
+### Changed
+- **Dashboard access:** any user who can view devices can manage their own dashboards. Saving used to require `devices.write`.
+- **Dashboard API:**
+  - Layouts are validated: version 1, at most 48 widgets, 64 KB, widths 1–12 and heights 1–4.
+  - `PUT /dashboards/{id}` keeps fields the request omits.
+  - New endpoints: `PUT /dashboards/{id}/default` and `DELETE /dashboards/default`.
+  - Migration 53 adds `dashboards.shared` and `users.default_dashboard_id`.
+
 ## [5.1.0] - 2026-10-30
 
 This release covers Phases 2a and 2b of the v5 roadmap in `REVIEW_REPORT.md`: the operator workflow and network depth. It shipped as PRs #75 and #78–#81, plus a fix in #83.
