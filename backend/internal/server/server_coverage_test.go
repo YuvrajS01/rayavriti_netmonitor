@@ -950,3 +950,7 @@ func (m *serverMockDB) RecordInterfaceSamples(ctx context.Context, samples []mod
 func (m *serverMockDB) ReplaceDeviceNeighbors(ctx context.Context, deviceID int64, neighbors []models.LLDPNeighbor) error {
 	return nil
 }
+
+func (m *serverMockDB) SetDefaultDashboard(ctx context.Context, userID int64, dashboardID *int64) error {
+	return nil
+}

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/rayavriti/netmonitor-backend/internal/models"
 )
 
@@ -61,7 +62,7 @@ func TestDashboardGet_Valid(t *testing.T) {
 func TestDashboardGet_NotFound(t *testing.T) {
 	db := &mockDB{
 		getDashboardFn: func(ctx context.Context, id int64) (*models.Dashboard, error) {
-			return nil, errors.New("not found")
+			return nil, pgx.ErrNoRows
 		},
 	}
 	h := NewDashboardHandler(db)
@@ -93,7 +94,7 @@ func TestDashboardSave_Create(t *testing.T) {
 		},
 	}
 	h := NewDashboardHandler(db)
-	body, _ := json.Marshal(map[string]any{"name": "New Dashboard", "layout": []any{}})
+	body, _ := json.Marshal(map[string]any{"name": "New Dashboard", "layout": map[string]any{"version": 1, "widgets": []any{}}})
 	w, req := authenticatedRequest("POST", "/api/v1/dashboards", string(body))
 	callWithAuth(h.Save, w, req)
 	if w.Code != http.StatusOK {

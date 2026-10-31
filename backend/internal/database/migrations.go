@@ -1258,4 +1258,10 @@ var migrations = []Migration{
 		PRIMARY KEY (device_id, local_port_num, remote_chassis_id, remote_port_id)
 	);
 	CREATE INDEX IF NOT EXISTS idx_device_neighbors_mgmt ON device_neighbors (remote_mgmt_ip) WHERE remote_mgmt_ip <> '';`},
+	// v5.3: customizable dashboards. Owners can share a dashboard read-only
+	// with every user, and each user can pick the dashboard that opens first.
+	{Version: 53, SQL: `ALTER TABLE dashboards ADD COLUMN IF NOT EXISTS shared BOOLEAN NOT NULL DEFAULT FALSE;
+	CREATE INDEX IF NOT EXISTS idx_dashboards_user ON dashboards (user_id);
+	CREATE INDEX IF NOT EXISTS idx_dashboards_shared ON dashboards (id) WHERE shared;
+	ALTER TABLE users ADD COLUMN IF NOT EXISTS default_dashboard_id BIGINT REFERENCES dashboards(id) ON DELETE SET NULL;`},
 }

@@ -1025,10 +1025,22 @@ func (p *Postgres) GetProtocolStats(ctx context.Context, from, to time.Time) (ma
 
 // ── Dashboards ────────────────────────────────────────────────────────────────
 
+// dashboardCols selects a dashboard with its owner's name; $1 is the
+// caller's user ID, used to flag their default dashboard.
+const dashboardCols = `
+	SELECT d.id, d.user_id, d.name, d.layout, d.shared,
+	       COALESCE(NULLIF(o.display_name, ''), o.username, ''),
+	       COALESCE(me.default_dashboard_id = d.id, FALSE),
+	       d.created_at, d.updated_at
+	FROM dashboards d
+	LEFT JOIN users o ON o.id = d.user_id
+	LEFT JOIN users me ON me.id = $1`
+
+// GetDashboards returns the user's own dashboards and those others share.
 func (p *Postgres) GetDashboards(ctx context.Context, userID int64) ([]models.Dashboard, error) {
-	rows, err := p.pool.Query(ctx, `
-		SELECT id,user_id,name,layout,created_at,updated_at
-		FROM dashboards WHERE user_id=$1 ORDER BY updated_at DESC`, userID)
+	rows, err := p.pool.Query(ctx, dashboardCols+`
+		WHERE d.user_id = $1 OR d.shared
+		ORDER BY (d.user_id = $1) DESC, lower(d.name), d.id`, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -1036,10 +1048,10 @@ func (p *Postgres) GetDashboards(ctx context.Context, userID int64) ([]models.Da
 	return scanDashboards(rows)
 }
 
+// GetDashboard returns a dashboard by ID; IsDefault is always false (the
+// handler fills it per caller).
 func (p *Postgres) GetDashboard(ctx context.Context, id int64) (*models.Dashboard, error) {
-	rows, err := p.pool.Query(ctx, `
-		SELECT id,user_id,name,layout,created_at,updated_at
-		FROM dashboards WHERE id=$1`, id)
+	rows, err := p.pool.Query(ctx, dashboardCols+` WHERE d.id = $2`, int64(0), id)
 	if err != nil {
 		return nil, err
 	}
@@ -1058,16 +1070,16 @@ func (p *Postgres) SaveDashboard(ctx context.Context, d *models.Dashboard) (*mod
 	if d.ID == 0 {
 		var id int64
 		err := p.pool.QueryRow(ctx, `
-			INSERT INTO dashboards(user_id,name,layout) VALUES($1,$2,$3) RETURNING id`,
-			d.UserID, d.Name, d.Layout).Scan(&id)
+			INSERT INTO dashboards(user_id,name,layout,shared) VALUES($1,$2,$3,$4) RETURNING id`,
+			d.UserID, d.Name, d.Layout, d.Shared).Scan(&id)
 		if err != nil {
 			return nil, err
 		}
 		return p.GetDashboard(ctx, id)
 	}
 	_, err := p.pool.Exec(ctx, `
-		UPDATE dashboards SET name=$1,layout=$2,updated_at=NOW() WHERE id=$3`,
-		d.Name, d.Layout, d.ID)
+		UPDATE dashboards SET name=$1,layout=$2,shared=$3,updated_at=NOW() WHERE id=$4`,
+		d.Name, d.Layout, d.Shared, d.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -1079,11 +1091,18 @@ func (p *Postgres) DeleteDashboard(ctx context.Context, id int64) error {
 	return err
 }
 
+// SetDefaultDashboard sets (or, with nil, clears) the dashboard that opens
+// first for a user.
+func (p *Postgres) SetDefaultDashboard(ctx context.Context, userID int64, dashboardID *int64) error {
+	_, err := p.pool.Exec(ctx, `UPDATE users SET default_dashboard_id=$1 WHERE id=$2`, dashboardID, userID)
+	return err
+}
+
 func scanDashboards(rows pgx.Rows) ([]models.Dashboard, error) {
 	var out []models.Dashboard
 	for rows.Next() {
 		var d models.Dashboard
-		if err := rows.Scan(&d.ID, &d.UserID, &d.Name, &d.Layout, &d.CreatedAt, &d.UpdatedAt); err != nil {
+		if err := rows.Scan(&d.ID, &d.UserID, &d.Name, &d.Layout, &d.Shared, &d.OwnerName, &d.IsDefault, &d.CreatedAt, &d.UpdatedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, d)

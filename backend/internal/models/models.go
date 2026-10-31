@@ -263,12 +263,17 @@ type PortScanResult struct {
 }
 
 type Dashboard struct {
-	ID        int64           `json:"id"`
-	UserID    int64           `json:"userId"`
-	Name      string          `json:"name"`
-	Layout    json.RawMessage `json:"layout"`
-	CreatedAt time.Time       `json:"createdAt"`
-	UpdatedAt time.Time       `json:"updatedAt"`
+	ID     int64           `json:"id"`
+	UserID int64           `json:"userId"`
+	Name   string          `json:"name"`
+	Layout json.RawMessage `json:"layout"`
+	// Shared dashboards are readable (not editable) by every user.
+	Shared    bool   `json:"shared"`
+	OwnerName string `json:"ownerName,omitempty"`
+	// IsDefault is per caller: the dashboard opens first for them.
+	IsDefault bool      `json:"isDefault"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
 }
 
 type HealthStatus struct {
