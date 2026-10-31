@@ -1,5 +1,5 @@
 import { v1, wrapJson, type RequestOptions } from './http';
-import type { InterfaceSample, LLDPNeighbor } from './types';
+import type { InterfaceHistoryPoint, InterfaceSample, LLDPNeighbor } from './types';
 
 /** Latest sample of each interface seen in the last hour. */
 export const getDeviceInterfaces = (id: number, { signal }: RequestOptions = {}) =>
@@ -8,3 +8,9 @@ export const getDeviceInterfaces = (id: number, { signal }: RequestOptions = {})
 /** LLDP neighbours from the device's last neighbour walk. */
 export const getDeviceNeighbors = (id: number, { signal }: RequestOptions = {}) =>
   v1.get(`/devices/${id}/neighbors`, { signal }).then((r) => wrapJson<LLDPNeighbor[] | null>(r.data).data ?? []);
+
+/** Bucketed throughput for one interface; the server picks the bucket from the span. */
+export const getInterfaceHistory = (id: number, ifIndex: number, from: string, to: string, { signal }: RequestOptions = {}) =>
+  v1
+    .get(`/devices/${id}/interfaces/${ifIndex}/history?${new URLSearchParams({ from, to })}`, { signal })
+    .then((r) => wrapJson<InterfaceHistoryPoint[] | null>(r.data).data ?? []);

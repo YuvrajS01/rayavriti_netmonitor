@@ -20,6 +20,11 @@ export const queryKeys = {
     dependencies: (id: number) => [...queryKeys.devices.all, id, 'dependencies'] as const,
     interfaces: (id: number) => [...queryKeys.devices.all, id, 'interfaces'] as const,
     neighbors: (id: number) => [...queryKeys.devices.all, id, 'neighbors'] as const,
+    interfaceHistory: (id: number, ifIndex: number, from: string, to: string) => [...queryKeys.devices.all, id, 'interfaces', ifIndex, from, to] as const,
+  },
+  dashboards: {
+    all: ['dashboards'] as const,
+    list: () => [...queryKeys.dashboards.all, 'list'] as const,
   },
   metrics: {
     latest: ['metrics', 'latest'] as const,
